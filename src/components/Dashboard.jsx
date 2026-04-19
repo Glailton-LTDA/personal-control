@@ -33,7 +33,9 @@ const menuItems = [
 ];
 
 export default function Dashboard({ user }) {
-  const [activeTab, setActiveTab] = useState('finances-dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('personal-control-active-tab') || 'finances-dashboard';
+  });
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -41,6 +43,10 @@ export default function Dashboard({ user }) {
   const [theme, setTheme] = useState('dark');
 
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
+
+  useEffect(() => {
+    localStorage.setItem('personal-control-active-tab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);

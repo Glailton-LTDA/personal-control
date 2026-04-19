@@ -52,7 +52,10 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
     finances.sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
 
     finances.forEach(item => {
-      const date = new Date(item.payment_date);
+      // Correção de Fuso Horário: Split da string para evitar que o JS trate como UTC
+      const [year, month, day] = item.payment_date.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      
       const label = isGeneral 
         ? date.toLocaleDateString('pt-BR', { month: 'short' })
         : date.toLocaleDateString('pt-BR', { day: '2-digit' });
@@ -125,12 +128,17 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
               <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => `R$ ${v/1000}k`} />
               <Tooltip 
                 formatter={(val) => formatValue(val)}
-                contentStyle={{ background: 'var(--bg-dark)', border: '1px solid var(--glass-border)', borderRadius: '1rem' }} 
+                contentStyle={{ 
+                  background: 'rgba(30, 41, 59, 0.9)', 
+                  border: '1px solid var(--glass-border)', 
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 15px rgba(0,0,0,0.2)'
+                }} 
               />
               <Legend verticalAlign="top" height={36}/>
-              <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="difference" name="Resultado" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.9} />
+              <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.9} />
+              <Bar dataKey="difference" name="Resultado" fill="var(--primary)" radius={[4, 4, 0, 0]} opacity={0.9} />
             </BarChart>
           </ResponsiveContainer>
         </div>

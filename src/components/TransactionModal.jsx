@@ -7,7 +7,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: new Date().toLocaleDateString('en-CA'),
     type: 'DESPESA',
     category: '',
     paid_by: '',
@@ -22,13 +22,13 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
     if (initialData) {
       setFormData({
         ...initialData,
-        payment_date: new Date(initialData.payment_date).toISOString().split('T')[0]
+        payment_date: initialData.payment_date // Atribuir diretamente a string do banco
       });
     } else {
       setFormData({
         description: '',
         amount: '',
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: new Date().toLocaleDateString('en-CA'),
         type: 'DESPESA',
         category: '',
         paid_by: '',

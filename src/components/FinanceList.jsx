@@ -21,10 +21,16 @@ export default function FinanceList({ refreshKey, onEdit }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('DESPESA');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const saved = localStorage.getItem('personal-control-selected-month');
+    return saved !== null ? Number(saved) : new Date().getMonth();
+  });
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const saved = localStorage.getItem('personal-control-selected-year');
+    return saved !== null ? Number(saved) : 2026;
+  });
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: 'payment_date', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'payment_date', direction: 'asc' });
 
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -34,6 +40,8 @@ export default function FinanceList({ refreshKey, onEdit }) {
   const years = [2024, 2025, 2026];
 
   useEffect(() => {
+    localStorage.setItem('personal-control-selected-month', selectedMonth);
+    localStorage.setItem('personal-control-selected-year', selectedYear);
     fetchFinances();
   }, [activeTab, selectedMonth, selectedYear, refreshKey]);
 
@@ -258,7 +266,12 @@ Detalles do pagamento:
                 <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Nenhum registro encontrado.</td></tr>
               ) : filteredFinances.map((item) => (
                 <tr key={item.id}>
-                  <td data-label="Data">{new Date(item.payment_date).toLocaleDateString('pt-BR')}</td>
+                  <td data-label="Data">
+                    {(() => {
+                      const [year, month, day] = item.payment_date.split('-').map(Number);
+                      return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
+                    })()}
+                  </td>
                   <td data-label="Descrição">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {item.credit_card && <CreditCard size={14} color="var(--primary)" title="Cartão de Crédito" />}
