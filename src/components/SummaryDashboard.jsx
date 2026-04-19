@@ -14,6 +14,13 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
   const [selectedYear, setSelectedYear] = useState(initialYear || 2026);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const years = [2024, 2025, 2026];
 
@@ -133,8 +140,16 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
             ) : (
               <BarChart data={data} style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
-                <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => `R$ ${v/1000}k`} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="var(--text-muted)" 
+                  fontSize={isMobile ? 10 : 12} 
+                  interval={isMobile ? 1 : 0}
+                  angle={isMobile ? -45 : 0}
+                  textAnchor={isMobile ? "end" : "middle"}
+                  height={isMobile ? 50 : 30}
+                />
+                <YAxis stroke="var(--text-muted)" fontSize={10} tickFormatter={(v) => isMobile ? `${v/1000}k` : formatValue(v)} width={isMobile ? 40 : 80} />
                 <Tooltip 
                   formatter={(val) => formatValue(val)}
                   contentStyle={{ 
@@ -144,7 +159,7 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
                     boxShadow: '0 10px 15px rgba(0,0,0,0.2)'
                   }} 
                 />
-                <Legend verticalAlign="top" height={36}/>
+                <Legend verticalAlign="top" height={isMobile ? 60 : 36} wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }}/>
                 <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.9} />
                 <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.9} />
                 <Bar dataKey="difference" name="Resultado" fill="var(--primary)" radius={[4, 4, 0, 0]} opacity={0.9} />
@@ -160,21 +175,32 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
             {loading && categoryData.length === 0 ? (
               <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
             ) : (
-              <PieChart style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
+               <PieChart style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
                 <Pie
                   data={categoryData}
-                  innerRadius={60}
-                  outerRadius={90}
+                  innerRadius={isMobile ? 40 : 60}
+                  outerRadius={isMobile ? 60 : 90}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={isMobile ? false : ({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
                   {categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(val) => formatValue(val)} />
-                <Legend verticalAlign="bottom" align="center" />
+                <Tooltip 
+                  formatter={(value) => {
+                    const total = categoryData.reduce((acc, curr) => acc + curr.value, 0);
+                    const percent = ((value / total) * 100).toFixed(1);
+                    return [`${formatValue(value)} (${percent}%)`, 'Valor'];
+                  }}
+                  contentStyle={{ 
+                    background: 'rgba(30, 41, 59, 0.9)', 
+                    border: '1px solid var(--glass-border)', 
+                    borderRadius: '12px' 
+                  }}
+                />
+                <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
               </PieChart>
             )}
           </ResponsiveContainer>

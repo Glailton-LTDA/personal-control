@@ -19,8 +19,17 @@ import SummaryDashboard from './SummaryDashboard';
 export default function FinanceList({ refreshKey, onEdit }) {
   const [finances, setFinances] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('DESPESA');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('personal-control-finance-tab') || 'DESPESA';
+  });
   const [searchTerm, setSearchTerm] = useState('');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const saved = localStorage.getItem('personal-control-selected-month');
     return saved !== null ? Number(saved) : new Date().getMonth();
@@ -42,6 +51,7 @@ export default function FinanceList({ refreshKey, onEdit }) {
   useEffect(() => {
     localStorage.setItem('personal-control-selected-month', selectedMonth);
     localStorage.setItem('personal-control-selected-year', selectedYear);
+    localStorage.setItem('personal-control-finance-tab', activeTab);
     fetchFinances();
   }, [activeTab, selectedMonth, selectedYear, refreshKey]);
 
@@ -184,7 +194,7 @@ Detalles do pagamento:
 
       {/* Header & Filters */}
       <div className="glass-card" style={{ padding: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div className="mobile-filters-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
           <div className="tabs-container">
             <button 
               className={`tab-btn ${activeTab === 'RECEITA' ? 'active' : ''}`}
@@ -200,7 +210,7 @@ Detalles do pagamento:
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'nowrap' }}>
             <select 
               className="select-filter"
               value={selectedYear}
@@ -213,19 +223,42 @@ Detalles do pagamento:
                 className="icon-btn" 
                 onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)}
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
               </button>
-              <span style={{ minWidth: '100px', textAlign: 'center', fontWeight: 600 }}>
-                {months[selectedMonth]}
+              <span style={{ minWidth: '80px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>
+                {months[selectedMonth].substring(0, 3)}
               </span>
               <button 
                 className="icon-btn"
                 onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)}
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Mobile Sort Bar */}
+        <div className="mobile-only sort-bar-mobile">
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '4px' }}>Ordenar:</span>
+          <button 
+            className={`sort-chip ${sortConfig.key === 'payment_date' ? 'active' : ''}`}
+            onClick={() => handleSort('payment_date')}
+          >
+            Data {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
+          </button>
+          <button 
+            className={`sort-chip ${sortConfig.key === 'status' ? 'active' : ''}`}
+            onClick={() => handleSort('status')}
+          >
+            Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
+          </button>
+          <button 
+            className={`sort-chip ${sortConfig.key === 'amount' ? 'active' : ''}`}
+            onClick={() => handleSort('amount')}
+          >
+            Valor {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
+          </button>
         </div>
 
         <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
@@ -316,26 +349,46 @@ Detalles do pagamento:
                       {item.status}
                     </span>
                   </td>
-                  <td data-label="Ações" style={{ position: 'relative' }}>
-                    <button className="icon-btn" onClick={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}>
-                      <MoreVertical size={18} />
-                    </button>
-                    
-                    {openMenuId === item.id && (
-                      <div className="action-menu">
-                        {item.status === 'PENDENTE' && (
-                          <button onClick={() => handleMarkAsPaid(item.id)} style={{ color: 'var(--success) !important' }}>
-                            <CheckCircle2 size={14}/> Marcar como Pago
-                          </button>
-                        )}
-                        <button onClick={() => handleSendEmail(item)}><Send size={14}/> Enviar E-mail</button>
-                        <button onClick={() => {
-                          onEdit(item);
-                          setOpenMenuId(null);
-                        }}><Edit2 size={14}/> Editar</button>
-                        <button onClick={() => handleDelete(item.id)} className="delete"><Trash2 size={14}/> Deletar</button>
-                      </div>
-                    )}
+                  <td data-label={isMobile ? "" : "Ações"} style={{ position: 'relative' }}>
+                    <div className="desktop-only">
+                      <button className="icon-btn" onClick={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}>
+                        <MoreVertical size={18} />
+                      </button>
+                      
+                      {openMenuId === item.id && (
+                        <div className="action-menu">
+                          {item.status === 'PENDENTE' && (
+                            <button onClick={() => handleMarkAsPaid(item.id)} style={{ color: 'var(--success) !important' }}>
+                              <CheckCircle2 size={14}/> Marcar como Pago
+                            </button>
+                          )}
+                          <button onClick={() => handleSendEmail(item)}><Send size={14}/> Enviar E-mail</button>
+                          <button onClick={() => {
+                            onEdit(item);
+                            setOpenMenuId(null);
+                          }}><Edit2 size={14}/> Editar</button>
+                          <button onClick={() => handleDelete(item.id)} className="delete"><Trash2 size={14}/> Deletar</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mobile Quick Actions Area */}
+                    <div className="mobile-only mobile-actions-row">
+                      {item.status === 'PENDENTE' && (
+                        <button className="mobile-action-btn success" onClick={() => handleMarkAsPaid(item.id)} title="Marcar Pago">
+                          <CheckCircle2 size={20} />
+                        </button>
+                      )}
+                      <button className="mobile-action-btn primary" onClick={() => handleSendEmail(item)} title="Enviar E-mail">
+                        <Send size={20} />
+                      </button>
+                      <button className="mobile-action-btn" onClick={() => onEdit(item)} title="Editar">
+                        <Edit2 size={20} />
+                      </button>
+                      <button className="mobile-action-btn danger" onClick={() => handleDelete(item.id)} title="Excluir">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

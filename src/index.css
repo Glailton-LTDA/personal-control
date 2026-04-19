@@ -15,6 +15,7 @@
   --glass-border: rgba(255, 255, 255, 0.1);
   --input-bg: rgba(15, 23, 42, 0.6);
   --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  --card-action-bg: rgba(255, 255, 255, 0.03);
 }
 
 [data-theme='light'] {
@@ -25,6 +26,7 @@
   --glass-border: rgba(0, 0, 0, 0.08);
   --input-bg: #ffffff;
   --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --card-action-bg: rgba(0, 0, 0, 0.03);
 }
 
 * {
@@ -70,17 +72,38 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1rem;
   z-index: 1000;
+  overflow-y: auto;
 }
 
 .modal-content {
-  width: 90%;
+  width: 100%;
   max-width: 600px;
   padding: 2rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  margin: auto;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .modal-content {
+    padding: 1.5rem;
+    max-height: 95vh;
+  }
 }
 
 /* Tabela e Menu de Ações */
@@ -302,7 +325,8 @@ body {
 
 @media (max-width: 480px) {
   .tabs-container {
-    flex-wrap: wrap;
+    flex: 1;
+    min-width: 200px;
   }
   
   .tab-btn {
@@ -310,7 +334,39 @@ body {
     text-align: center;
     padding: 8px 10px;
     font-size: 13px;
+    white-space: nowrap;
   }
+
+  .mobile-filters-row {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .mobile-actions-row {
+    display: flex !important;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .mobile-action-btn {
+    background: var(--card-action-bg) !important;
+    border: 1px solid var(--glass-border) !important;
+    color: var(--text-main);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .mobile-action-btn.success { color: var(--success); }
+  .mobile-action-btn.danger { color: var(--danger); }
+  .mobile-action-btn.primary { color: var(--primary); }
 }
 
 /* --- App Mobile Experience --- */
@@ -397,6 +453,42 @@ body {
   .desktop-only {
     display: none !important;
   }
+
+  .mobile-only {
+    display: flex !important;
+  }
+
+  .sort-bar-mobile {
+    display: flex;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sort-chip {
+    white-space: nowrap;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sort-chip.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+}
+
+.mobile-only {
+  display: none;
 }
 
 .dashboard-grid {
