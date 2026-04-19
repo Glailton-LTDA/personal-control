@@ -408,3 +408,21 @@ body {
 .chart-container {
   height: 400px;
 }
+
+/* Skeleton Loading */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
+
+.skeleton {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  animation: pulse 1.5s infinite ease-in-out;
+  display: block;
+}
+
+[data-theme='light'] .skeleton {
+  background: rgba(0, 0, 0, 0.05);
+}

@@ -30,9 +30,11 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
       const endOfYear = `${selectedYear}-12-31`;
       query = query.gte('payment_date', startOfYear).lte('payment_date', endOfYear);
     } else if (month !== undefined) {
-      const firstDay = new Date(selectedYear, month, 1).toISOString();
-      const lastDay = new Date(selectedYear, month + 1, 0, 23, 59, 59).toISOString();
-      query = query.gte('payment_date', firstDay).lte('payment_date', lastDay);
+      const monthStr = String(month + 1).padStart(2, '0');
+      const lastDayDate = new Date(selectedYear, month + 1, 0).getDate();
+      const start = `${selectedYear}-${monthStr}-01`;
+      const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
+      query = query.gte('payment_date', start).lte('payment_date', end);
     }
 
     const { data: finances, error } = await query;
@@ -44,7 +46,7 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
   }
 
   function processCharts(finances) {
-    const monthsMap = {};
+    const monthsMap = new Map();
     const categoriesMap = {};
     let totalIncome = 0;
     let totalExpense = 0;
@@ -60,29 +62,33 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
         ? date.toLocaleDateString('pt-BR', { month: 'short' })
         : date.toLocaleDateString('pt-BR', { day: '2-digit' });
       
-      if (!monthsMap[label]) monthsMap[label] = { name: label, income: 0, expense: 0, difference: 0 };
+      if (!monthsMap.has(label)) {
+        monthsMap.set(label, { name: label, income: 0, expense: 0, difference: 0 });
+      }
       
+      const current = monthsMap.get(label);
       const amount = Number(item.amount);
       if (item.type === 'RECEITA') {
-        monthsMap[label].income += amount;
+        current.income += amount;
         totalIncome += amount;
       } else {
-        monthsMap[label].expense += amount;
+        current.expense += amount;
         totalExpense += amount;
         const cat = item.category || 'Outros';
         categoriesMap[cat] = (categoriesMap[cat] || 0) + amount;
       }
-      monthsMap[label].difference = monthsMap[label].income - monthsMap[label].expense;
+      current.difference = current.income - current.expense;
     });
 
-    setData(Object.values(monthsMap));
+    setData(Array.from(monthsMap.values()));
     setCategoryData(Object.entries(categoriesMap).map(([name, value]) => ({ name, value })));
     setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense });
   }
 
   const formatValue = (val) => `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando dados...</div>;
+  // Removed early loading return to prevent layout shift
+  // if (loading && data.length === 0) return <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando dados...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -109,9 +115,9 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
 
       {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-        <StatCard title={isGeneral ? "Receita Anual" : "Receita Mensal"} value={stats.income} icon={<TrendingUp size={20}/>} color="var(--success)" />
-        <StatCard title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} value={stats.expense} icon={<TrendingDown size={20}/>} color="var(--danger)" />
-        <StatCard title="Saldo Final" value={stats.balance} icon={<Wallet size={20}/>} color="var(--primary)" />
+        <StatCard title={isGeneral ? "Receita Anual" : "Receita Mensal"} value={stats.income} icon={<TrendingUp size={20}/>} color="var(--success)" loading={loading && data.length === 0} />
+        <StatCard title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} value={stats.expense} icon={<TrendingDown size={20}/>} color="var(--danger)" loading={loading && data.length === 0} />
+        <StatCard title="Saldo Final" value={stats.balance} icon={<Wallet size={20}/>} color="var(--primary)" loading={loading && data.length === 0} />
       </div>
 
       <div className="dashboard-grid">
@@ -122,24 +128,28 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
             <Calendar size={18} /> {isGeneral ? `Evolução Mensal de ${selectedYear}` : 'Detalhamento Diário'}
           </h4>
           <ResponsiveContainer width="100%" height="85%">
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
-              <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => `R$ ${v/1000}k`} />
-              <Tooltip 
-                formatter={(val) => formatValue(val)}
-                contentStyle={{ 
-                  background: 'rgba(30, 41, 59, 0.9)', 
-                  border: '1px solid var(--glass-border)', 
-                  borderRadius: '12px',
-                  boxShadow: '0 10px 15px rgba(0,0,0,0.2)'
-                }} 
-              />
-              <Legend verticalAlign="top" height={36}/>
-              <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.9} />
-              <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.9} />
-              <Bar dataKey="difference" name="Resultado" fill="var(--primary)" radius={[4, 4, 0, 0]} opacity={0.9} />
-            </BarChart>
+            {loading && data.length === 0 ? (
+              <div className="skeleton" style={{ width: '100%', height: '100%' }} />
+            ) : (
+              <BarChart data={data} style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
+                <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => `R$ ${v/1000}k`} />
+                <Tooltip 
+                  formatter={(val) => formatValue(val)}
+                  contentStyle={{ 
+                    background: 'rgba(30, 41, 59, 0.9)', 
+                    border: '1px solid var(--glass-border)', 
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 15px rgba(0,0,0,0.2)'
+                  }} 
+                />
+                <Legend verticalAlign="top" height={36}/>
+                <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.9} />
+                <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.9} />
+                <Bar dataKey="difference" name="Resultado" fill="var(--primary)" radius={[4, 4, 0, 0]} opacity={0.9} />
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -147,22 +157,26 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
         <div className="glass-card chart-container" style={{ padding: '1.5rem' }}>
           <h4>Distribuição de Gastos</h4>
           <ResponsiveContainer width="100%" height="85%">
-            <PieChart>
-              <Pie
-                data={categoryData}
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={5}
-                dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              >
-                {categoryData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(val) => formatValue(val)} />
-              <Legend verticalAlign="bottom" align="center" />
-            </PieChart>
+            {loading && categoryData.length === 0 ? (
+              <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
+            ) : (
+              <PieChart style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
+                <Pie
+                  data={categoryData}
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={5}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(val) => formatValue(val)} />
+                <Legend verticalAlign="bottom" align="center" />
+              </PieChart>
+            )}
           </ResponsiveContainer>
         </div>
       </div>
@@ -170,15 +184,19 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
   );
 }
 
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, icon, color, loading }) {
   return (
-    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: `6px solid ${color}`, transition: 'transform 0.2s' }}>
+    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: `6px solid ${color}`, transition: 'transform 0.2s', opacity: loading ? 0.7 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</span>
         <div style={{ color: color, background: `${color}15`, padding: '0.4rem', borderRadius: '0.5rem' }}>{icon}</div>
       </div>
       <div style={{ fontSize: '1.4rem', fontWeight: 800, color: value < 0 ? 'var(--danger)' : 'inherit' }}>
-        R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {loading ? (
+          <div className="skeleton" style={{ height: '1.8rem', width: '80%', marginTop: '4px' }} />
+        ) : (
+          <>R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+        )}
       </div>
     </div>
   );

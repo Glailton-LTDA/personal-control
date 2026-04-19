@@ -47,15 +47,17 @@ export default function FinanceList({ refreshKey, onEdit }) {
 
   async function fetchFinances() {
     setLoading(true);
-    const firstDay = new Date(selectedYear, selectedMonth, 1).toISOString();
-    const lastDay = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59).toISOString();
+    const monthStr = String(selectedMonth + 1).padStart(2, '0');
+    const lastDayDate = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const start = `${selectedYear}-${monthStr}-01`;
+    const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
 
     const { data, error } = await supabase
       .from('finances')
       .select('*')
       .eq('type', activeTab)
-      .gte('payment_date', firstDay)
-      .lte('payment_date', lastDay);
+      .gte('payment_date', start)
+      .lte('payment_date', end);
 
     if (data) setFinances(data);
     setLoading(false);
@@ -259,9 +261,15 @@ Detalles do pagamento:
                 <th>AÇÕES</th>
               </tr>
             </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Carregando...</td></tr>
+            <tbody style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.3s' }}>
+              {loading && finances.length === 0 ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    <td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ padding: '12px' }}>
+                      <div className="skeleton" style={{ height: '2.5rem', width: '100%' }} />
+                    </td>
+                  </tr>
+                ))
               ) : filteredFinances.length === 0 ? (
                 <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Nenhum registro encontrado.</td></tr>
               ) : filteredFinances.map((item) => (
