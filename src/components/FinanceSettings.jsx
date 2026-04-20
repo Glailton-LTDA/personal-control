@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Mail, User, Tag, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Mail, User, Tag, Star } from 'lucide-react';
 
 export default function FinanceSettings() {
   const [categories, setCategories] = useState([]);
@@ -8,7 +8,6 @@ export default function FinanceSettings() {
   const [newCat, setNewCat] = useState({ name: '', type: 'DESPESA' });
   const [newResp, setNewResp] = useState({ name: '', email: '' });
   const [loading, setLoading] = useState(false);
-
   const [emailTemplate, setEmailTemplate] = useState('');
 
   useEffect(() => {
@@ -41,7 +40,8 @@ export default function FinanceSettings() {
 
   async function setMainResponsible(id) {
     setLoading(true);
-    await supabase.from('finance_responsibles').update({ is_main: false });
+    // Supabase rejects filterless updates — use .neq() to reset all others
+    await supabase.from('finance_responsibles').update({ is_main: false }).neq('id', id);
     await supabase.from('finance_responsibles').update({ is_main: true }).eq('id', id);
     fetchData();
     setLoading(false);
@@ -62,39 +62,43 @@ export default function FinanceSettings() {
   async function saveConfig() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('finance_config').upsert({ 
-      key: 'email_template', 
+    const { error } = await supabase.from('finance_config').upsert({
+      key: 'email_template',
       value: emailTemplate,
-      user_id: user.id 
+      user_id: user.id
     }, { onConflict: 'key' });
-    
     if (!error) alert('Template salvo com sucesso!');
     setLoading(false);
   }
 
   return (
-    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
-        
+    <div className="settings-page">
+      <div className="settings-group-grid">
+
         {/* Categorias */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Tag size={20} color="var(--primary)"/> Categorias Customizadas
           </h3>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-            <input 
-              placeholder="Nova Categoria..." className="input-field" 
-              style={{ flex: 1, background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', borderRadius: '0.75rem', color: 'white' }}
-              value={newCat.name} onChange={e => setNewCat({...newCat, name: e.target.value})}
+          <div className="settings-input-row">
+            <input
+              placeholder="Nova Categoria..."
+              className="settings-text-input"
+              value={newCat.name}
+              onChange={e => setNewCat({...newCat, name: e.target.value})}
+              onKeyDown={e => e.key === 'Enter' && addCategory()}
             />
-            <select 
-              value={newCat.type} onChange={e => setNewCat({...newCat, type: e.target.value})}
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', borderRadius: '0.75rem', color: 'white' }}
+            <select
+              className="settings-type-select"
+              value={newCat.type}
+              onChange={e => setNewCat({...newCat, type: e.target.value})}
             >
               <option value="DESPESA">Gasto</option>
               <option value="RECEITA">Entrada</option>
             </select>
-            <button className="btn-primary" onClick={addCategory}><Plus size={20}/></button>
+            <button className="btn-primary settings-add-btn" onClick={addCategory}>
+              <Plus size={20}/>
+            </button>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {categories.map(c => (
@@ -106,64 +110,76 @@ export default function FinanceSettings() {
           </div>
         </div>
 
-        {/* Responsáveis */}
+        {/* Responsáveis — card list only, works on all screen sizes */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <User size={20} color="var(--primary)"/> Responsáveis e E-mails
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            <input 
-              placeholder="Nome do Responsável..." className="input-field" 
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', borderRadius: '0.75rem', color: 'white' }}
-              value={newResp.name} onChange={e => setNewResp({...newResp, name: e.target.value})}
+            <input
+              placeholder="Nome do Responsável..."
+              className="settings-text-input"
+              value={newResp.name}
+              onChange={e => setNewResp({...newResp, name: e.target.value})}
             />
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input 
-                placeholder="E-mail para notificações..." className="input-field" 
-                style={{ flex: 1, background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', borderRadius: '0.75rem', color: 'white' }}
-                value={newResp.email} onChange={e => setNewResp({...newResp, email: e.target.value})}
+            <div className="settings-input-row" style={{ marginBottom: 0 }}>
+              <input
+                placeholder="E-mail para notificações..."
+                className="settings-text-input"
+                value={newResp.email}
+                onChange={e => setNewResp({...newResp, email: e.target.value})}
+                onKeyDown={e => e.key === 'Enter' && addResponsible()}
               />
-              <button className="btn-primary" onClick={addResponsible}><Plus size={20}/></button>
+              <button className="btn-primary settings-add-btn" onClick={addResponsible}>
+                <Plus size={20}/>
+              </button>
             </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                <th style={{ paddingBottom: '0.5rem' }}>PRINCIPAL</th>
-                <th style={{ paddingBottom: '0.5rem' }}>NOME</th>
-                <th style={{ paddingBottom: '0.5rem' }}>E-MAIL</th>
-                <th style={{ paddingBottom: '0.5rem', textAlign: 'right' }}>AÇÕES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {responsibles.map(r => (
-                <tr key={r.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ padding: '0.75rem 0' }}>
-                    <input 
-                      type="radio" 
-                      name="main_resp" 
-                      checked={r.is_main} 
-                      onChange={() => setMainResponsible(r.id)}
-                      style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
-                    />
-                  </td>
-                  <td style={{ padding: '0.75rem 0', fontWeight: r.is_main ? 600 : 400 }}>
-                    {r.name} {r.is_main && <span style={{ fontSize: '0.65rem', background: 'var(--primary)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '1rem', marginLeft: '0.5rem' }}>PRINCIPAL</span>}
-                  </td>
-                  <td style={{ padding: '0.75rem 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{r.email}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Trash2 size={16} style={{ cursor: 'pointer', color: 'var(--danger)' }} onClick={() => deleteItem('finance_responsibles', r.id)}/>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {responsibles.map(r => (
+              <div
+                key={r.id}
+                className="settings-resp-card"
+                style={{ borderColor: r.is_main ? 'var(--primary)' : 'var(--glass-border)' }}
+              >
+                <div className="settings-resp-card-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                    <button
+                      onClick={() => setMainResponsible(r.id)}
+                      disabled={loading}
+                      title={r.is_main ? 'Principal atual' : 'Definir como principal'}
+                      style={{
+                        background: 'none', border: 'none', cursor: loading ? 'default' : 'pointer',
+                        color: r.is_main ? 'var(--primary)' : 'var(--text-muted)',
+                        flexShrink: 0, padding: 4
+                      }}
+                    >
+                      <Star size={18} fill={r.is_main ? 'currentColor' : 'none'}/>
+                    </button>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="settings-resp-name">
+                        {r.name}
+                        {r.is_main && <span className="resp-badge-principal">PRINCIPAL</span>}
+                      </div>
+                      <div className="settings-resp-email">{r.email || 'Sem e-mail'}</div>
+                    </div>
+                  </div>
+                  <Trash2
+                    size={18}
+                    style={{ cursor: 'pointer', color: 'var(--danger)', flexShrink: 0 }}
+                    onClick={() => deleteItem('finance_responsibles', r.id)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Config de Email */}
       <div className="glass-card" style={{ padding: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="settings-email-header">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Mail size={20} color="var(--primary)"/> Template de Notificação
           </h3>
@@ -172,11 +188,11 @@ export default function FinanceSettings() {
           </button>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Este e-mail será enviado ao responsável quando você clicar em "Enviar E-mail" na transação. 
+          Este e-mail será enviado ao responsável quando você clicar em "Enviar E-mail" na transação.{' '}
           Use as variáveis: <code>{`\${descricao}, \${formattedAmount}, \${formattedDate}, \${pagoPor}, \${status}`}</code>
         </p>
-        <textarea 
-          style={{ width: '100%', minHeight: '200px', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '1rem', borderRadius: '0.75rem', color: 'white', fontFamily: 'monospace', fontSize: '13px' }}
+        <textarea
+          className="settings-textarea"
           value={emailTemplate}
           onChange={e => setEmailTemplate(e.target.value)}
         />
