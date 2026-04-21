@@ -30,3 +30,15 @@ dist-ssr
 .env.production
 
 .vercel
+
+# Testing & Coverage Outputs
+test-results/
+playwright-report/
+playwright/.cache/
+coverage/
+.vitest/
+.last-run.json
+test-out*.txt
+
+# Vite temporary files
+.vite/

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { 
   Search, 
   ChevronLeft, 
@@ -23,7 +23,7 @@ import SummaryDashboard from './SummaryDashboard';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#06b6d4', '#8b5cf6'];
 
-export default function FinanceList({ refreshKey, onEdit }) {
+export default function FinanceList({ refreshKey, onEdit, user }) {
   const [finances, setFinances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => {
@@ -264,7 +264,7 @@ export default function FinanceList({ refreshKey, onEdit }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Mini Dash for Month */}
-      <SummaryDashboard isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} />
+      <SummaryDashboard user={user} isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} />
 
 
       {/* Header and filters section below */}

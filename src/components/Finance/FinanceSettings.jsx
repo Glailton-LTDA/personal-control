@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Mail, User, Tag, Star } from 'lucide-react';
 
 export default function FinanceSettings() {

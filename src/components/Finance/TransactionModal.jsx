@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Calendar, Tag, DollarSign, User, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 export default function TransactionModal({ isOpen, onClose, onRefresh, user, initialData = null }) {
   const [formData, setFormData] = useState({

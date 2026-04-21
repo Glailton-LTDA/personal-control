@@ -18,10 +18,10 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import FinanceList from './FinanceList';
-import SummaryDashboard from './SummaryDashboard';
-import FinanceSettings from './FinanceSettings';
-import TransactionModal from './TransactionModal';
+import FinanceList from './Finance/FinanceList';
+import SummaryDashboard from './Finance/SummaryDashboard';
+import FinanceSettings from './Finance/FinanceSettings';
+import TransactionModal from './Finance/TransactionModal';
 import SettingsView from './Settings';
 import MyCars from './MyCars/MyCars';
 import Investments from './Investments/Investments';
@@ -310,14 +310,15 @@ export default function Dashboard({ user }) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            {activeTab === 'finances-dashboard' && <SummaryDashboard refreshKey={refreshKey} isGeneral={true} />}
+            {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} />}
             {activeTab === 'finances-transactions' && (
               <FinanceList
+                user={user}
                 refreshKey={refreshKey}
                 onEdit={(item) => { setEditingTransaction(item); setModalOpen(true); }}
               />
             )}
-            {activeTab === 'finances-settings' && <FinanceSettings refreshKey={refreshKey} />}
+            {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} />}
             {activeTab === 'app-menu' && (
               <AppMenuGrid onNavigate={(tab) => setActiveTab(tab)} menuItems={menuItems} onLogout={() => supabase.auth.signOut()} />
             )}
