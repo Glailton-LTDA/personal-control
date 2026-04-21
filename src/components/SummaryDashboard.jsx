@@ -79,9 +79,9 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
     let totalExpense = 0;
     let totalPending = 0;
 
-    finances.sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
+    const sortedFinances = [...finances].sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
 
-    finances.forEach(item => {
+    sortedFinances.forEach(item => {
       const [year, month, day] = item.payment_date.split('-').map(Number);
       const date = new Date(year, month - 1, day);
       
@@ -226,7 +226,7 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
             </div>
             
             <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
-              {revenueCategoryData.sort((a,b) => b.value - a.value).map((item, index) => (
+              {[...revenueCategoryData].sort((a,b) => b.value - a.value).map((item, index) => (
                 <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
@@ -267,7 +267,7 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
             </div>
             
             <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
-              {categoryData.sort((a,b) => b.value - a.value).map((item, index) => (
+              {[...categoryData].sort((a,b) => b.value - a.value).map((item, index) => (
                 <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
