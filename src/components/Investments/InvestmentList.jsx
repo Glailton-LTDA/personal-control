@@ -165,11 +165,11 @@ export default function InvestmentList({ user }) {
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // Prepare chart data: Yield per Account for the selected period
+  // Prepare chart data: Yield per Institution for the selected period
   const chartData = Object.values(records.reduce((acc, curr) => {
-    const accName = curr.investment_accounts?.name || 'Desconhecido';
-    if (!acc[accName]) acc[accName] = { name: accName, yield: 0, color: curr.investment_accounts?.color || '#6366f1' };
-    acc[accName].yield += Number(curr.yield);
+    const instName = curr.investment_accounts?.institution || 'Desconhecido';
+    if (!acc[instName]) acc[instName] = { name: instName, yield: 0, color: curr.investment_accounts?.color || '#6366f1' };
+    acc[instName].yield += Number(curr.yield);
     return acc;
   }, {})).sort((a, b) => b.yield - a.yield);
 
@@ -257,7 +257,7 @@ export default function InvestmentList({ user }) {
         {chartData.length > 0 && (
           <div className="glass-card" style={{ padding: '1.5rem' }}>
             <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TrendingUp size={18} /> Rendimentos por Conta
+              <TrendingUp size={18} /> Rendimentos por Instituição
             </h4>
             <div style={{ height: chartData.length * 45 + 60, minHeight: '120px', maxHeight: '400px' }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -276,7 +276,7 @@ export default function InvestmentList({ user }) {
                     itemStyle={{ color: 'var(--text-main)' }}
                     labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
                   />
-                  <Bar dataKey="yield" radius={[0, 4, 4, 0]} barSize={25}>
+                  <Bar dataKey="yield" name="Rendimento" radius={[0, 4, 4, 0]} barSize={25}>
                     {chartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
