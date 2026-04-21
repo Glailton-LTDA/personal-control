@@ -99,73 +99,95 @@ export default function InvestmentSettings({ user }) {
 
       <AnimatePresence>
         {isAdding && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="glass-card" 
-            style={{ padding: '2rem', marginBottom: '2.5rem', border: '2px solid var(--primary)' }}
-          >
-            <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                <div className="input-group">
-                  <label>Nome do Investimento/Conta</label>
-                  <input 
-                    type="text" 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    placeholder="Ex: CDB C6, Nuconta..."
-                    required
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Instituição</label>
-                  <input 
-                    type="text" 
-                    value={formData.institution} 
-                    onChange={e => setFormData({...formData, institution: e.target.value})}
-                    placeholder="Ex: Nubank, Itaú..."
-                  />
-                </div>
-              </div>
-              
-              <div style={{ marginBottom: '2rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>Cor de Identificação</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                  <div style={{ position: 'relative', width: '60px', height: '40px' }}>
-                    <input 
-                      type="color" 
-                      value={formData.color} 
-                      onChange={e => setFormData({...formData, color: e.target.value})}
-                      style={{ 
-                        opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2
-                      }}
-                    />
-                    <div style={{ 
-                      position: 'absolute', inset: 0, background: formData.color, borderRadius: '8px', border: '2px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1
-                    }}></div>
-                  </div>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                    Personalize a cor para destacar esta conta nos gráficos e painéis.
-                  </span>
-                </div>
+          <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pading: '1.5rem', zIndex: 2000 }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="glass-card" 
+              style={{ 
+                padding: '2rem', 
+                width: '100%',
+                maxWidth: '600px', 
+                border: '2px solid var(--primary)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                position: 'relative'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-light)' }}>
+                  {editingId ? 'Editar Conta' : 'Nova Conta de Investimento'}
+                </h3>
+                <button 
+                  onClick={() => { setIsAdding(false); setEditingId(null); setFormData({ name: '', institution: '', color: '#6366f1' }); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  <X size={24} />
+                </button>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
-                  onClick={() => { setIsAdding(false); setEditingId(null); setFormData({ name: '', institution: '', color: '#6366f1' }); }}
-                  style={{ padding: '0.75rem 1.5rem' }}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-primary" style={{ padding: '0.75rem 2rem' }}>
-                  <Save size={18} /> {editingId ? 'Salvar Alterações' : 'Criar Conta'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
+              <form onSubmit={handleSubmit}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                  <div className="input-group">
+                    <label>Nome do Investimento/Conta</label>
+                    <input 
+                      type="text" 
+                      value={formData.name} 
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                      placeholder="Ex: CDB C6, Nuconta..."
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Instituição</label>
+                    <input 
+                      type="text" 
+                      value={formData.institution} 
+                      onChange={e => setFormData({...formData, institution: e.target.value})}
+                      placeholder="Ex: Nubank, Itaú..."
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ marginBottom: '2rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-muted)' }}>Cor de Identificação</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <div style={{ position: 'relative', width: '60px', height: '40px' }}>
+                      <input 
+                        type="color" 
+                        value={formData.color} 
+                        onChange={e => setFormData({...formData, color: e.target.value})}
+                        style={{ 
+                          opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2
+                        }}
+                      />
+                      <div style={{ 
+                        position: 'absolute', inset: 0, background: formData.color, borderRadius: '8px', border: '2px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1
+                      }}></div>
+                    </div>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      Personalize a cor para os gráficos.
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn-secondary" 
+                    onClick={() => { setIsAdding(false); setEditingId(null); setFormData({ name: '', institution: '', color: '#6366f1' }); }}
+                    style={{ padding: '0.75rem 1.5rem' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn-primary" style={{ padding: '0.75rem 2rem' }}>
+                    <Save size={18} /> {editingId ? 'Salvar Alterações' : 'Criar Conta'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
