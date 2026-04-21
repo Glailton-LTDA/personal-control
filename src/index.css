@@ -100,6 +100,21 @@ body {
   .form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Fix for unreadable select options in some browsers/OS */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #0f172a;
+  color: white;
+}
+
+select:focus option {
+  background-color: #1e293b;
+}
   .modal-content {
     padding: 1.5rem;
     max-height: 95vh;
@@ -698,6 +713,17 @@ body {
   .settings-email-header .btn-primary {
     width: 100%;
     justify-content: center;
+  }
+}
+
+.responsive-grid {
+  display: grid;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 

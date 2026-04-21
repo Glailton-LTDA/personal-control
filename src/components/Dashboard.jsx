@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  Plane, 
-  Wrench, 
-  Settings, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Plane,
+  Wrench,
+  Settings,
   LogOut,
   Plus,
   BarChart2,
@@ -24,6 +24,7 @@ import FinanceSettings from './FinanceSettings';
 import TransactionModal from './TransactionModal';
 import SettingsView from './Settings';
 import MyCars from './MyCars/MyCars';
+import Investments from './Investments/Investments';
 
 const menuItems = [
   { id: 'finances', icon: LayoutDashboard, label: 'Finanças' },
@@ -150,9 +151,23 @@ export default function Dashboard({ user }) {
         </div>
 
         <div className="sidebar-group" style={{ marginTop: '1rem' }}>
+          {!collapsed && <small style={{ color: 'var(--text-muted)', padding: '0 1rem', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Investimentos</small>}
+          {[
+            { tab: 'investments-dashboard', icon: BarChart2, label: 'Dashboard' },
+            { tab: 'investments-list', icon: TrendingUp, label: 'Planilha de Investimentos' },
+            { tab: 'investments-settings', icon: Settings, label: 'Ajustes' },
+          ].map(({ tab, icon: Icon, label }) => (
+            <button key={tab} onClick={() => onNavigate(tab)} title={label}
+              style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+              <Icon size={20} />
+              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+            </button>
+          ))}
+        </div>
+
+        <div className="sidebar-group" style={{ marginTop: '1rem' }}>
           {!collapsed && <small style={{ color: 'var(--text-muted)', padding: '0 1rem', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Outros</small>}
           {[
-            { tab: 'investments', icon: TrendingUp, label: 'Investimentos' },
             { tab: 'trips', icon: Plane, label: 'Viagens' },
           ].map(({ tab, icon: Icon, label }) => (
             <button key={tab} onClick={() => onNavigate(tab)} title={label}
@@ -271,9 +286,12 @@ export default function Dashboard({ user }) {
             <div>
               <h2 style={{ fontSize: '1.5rem' }}>
                 {activeTab === 'cars-list' ? 'Meus Carros' :
-                 activeTab === 'cars-settings' ? 'Configurações da Frota' :
-                 menuItems.find(i => i.id === activeTab)?.label ||
-                 menuItems.find(i => i.id === activeTab.split('-')[0])?.label || 'Dashboard'}
+                  activeTab === 'cars-settings' ? 'Configurações da Frota' :
+                    activeTab === 'investments-dashboard' ? 'Dashboard de Investimentos' :
+                      activeTab === 'investments-list' ? 'Planilha de Investimentos' :
+                        activeTab === 'investments-settings' ? 'Ajustes de Investimentos' :
+                          menuItems.find(i => i.id === activeTab)?.label ||
+                          menuItems.find(i => i.id === activeTab.split('-')[0])?.label || 'Dashboard'}
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gerencie seus dados aqui</p>
             </div>
@@ -307,16 +325,20 @@ export default function Dashboard({ user }) {
             {activeTab.startsWith('cars') && (
               <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
             )}
-            {activeTab !== 'finances-transactions' &&
-             activeTab !== 'finances-dashboard' &&
-             activeTab !== 'finances-settings' &&
-             activeTab !== 'settings' &&
-             activeTab !== 'app-menu' &&
-             !activeTab.startsWith('cars') && (
-              <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>
-              </div>
+            {activeTab.startsWith('investments') && (
+              <Investments user={user} refreshKey={refreshKey} mode={activeTab.replace('investments-', '')} />
             )}
+            {activeTab !== 'finances-transactions' &&
+              activeTab !== 'finances-dashboard' &&
+              activeTab !== 'finances-settings' &&
+              activeTab !== 'settings' &&
+              activeTab !== 'app-menu' &&
+              !activeTab.startsWith('cars') &&
+              !activeTab.startsWith('investments') && (
+                <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
+                  <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>
+                </div>
+              )}
           </motion.div>
         </AnimatePresence>
       </main>
