@@ -123,15 +123,38 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
 
               <div className="input-group">
                 <label>Mês de Referência</label>
-                <div style={{ position: 'relative' }}>
-                  <Calendar size={18} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--primary)' }} />
-                  <input 
-                    type="date" 
-                    value={formData.record_date}
-                    onChange={e => setFormData({...formData, record_date: e.target.value})}
-                    required
-                    style={{ paddingRight: '2.5rem' }}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
+                  <select 
+                    value={new Date(formData.record_date + 'T00:00:00').getMonth()}
+                    onChange={e => {
+                      const date = new Date(formData.record_date + 'T00:00:00');
+                      date.setMonth(parseInt(e.target.value));
+                      setFormData({...formData, record_date: date.toISOString().split('T')[0]});
+                    }}
+                    className="select-filter"
+                    style={{ width: '100%', padding: '0.75rem 1rem' }}
+                  >
+                    {[
+                      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                    ].map((month, idx) => (
+                      <option key={idx} value={idx}>{month}</option>
+                    ))}
+                  </select>
+                  <select 
+                    value={new Date(formData.record_date + 'T00:00:00').getFullYear()}
+                    onChange={e => {
+                      const date = new Date(formData.record_date + 'T00:00:00');
+                      date.setFullYear(parseInt(e.target.value));
+                      setFormData({...formData, record_date: date.toISOString().split('T')[0]});
+                    }}
+                    className="select-filter"
+                    style={{ width: '100%', padding: '0.75rem 1rem' }}
+                  >
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie, Legend
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
 import { 
-  Plus, Search, Filter, TrendingUp, ArrowUpDown, ChevronDown, 
+  Plus, Search, Filter, TrendingUp, ArrowUpDown, ChevronDown, ChevronRight,
   Trash2, Edit2, Calendar, Copy
 } from 'lucide-react';
 import InvestmentModal from './InvestmentModal';
@@ -29,6 +30,17 @@ export default function InvestmentList({ user }) {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+
+  const toggleGroup = (groupName) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupName)) {
+      newExpanded.delete(groupName);
+    } else {
+      newExpanded.add(groupName);
+    }
+    setExpandedGroups(newExpanded);
+  };
   
   const years = [2024, 2025, 2026];
   const months = [
@@ -82,7 +94,12 @@ export default function InvestmentList({ user }) {
     }
 
     const { data, error } = await query;
-    if (!error) setRecords(data);
+    if (!error) {
+      setRecords(data);
+      // Expand all groups by default
+      const allInstitutions = new Set(data.map(r => r.investment_accounts?.institution || 'Outros'));
+      setExpandedGroups(allInstitutions);
+    }
     setLoading(false);
   }
 
@@ -176,8 +193,30 @@ export default function InvestmentList({ user }) {
   const totalYield = records.reduce((sum, r) => sum + Number(r.yield), 0);
   const totalBalance = records.reduce((sum, r) => sum + Number(r.final_balance), 0);
 
+  // Group records by Institution for the table view
+  const groupedRecords = useMemo(() => {
+    const groups = records.reduce((acc, record) => {
+      const inst = record.investment_accounts?.institution || 'Outros';
+      if (!acc[inst]) {
+        acc[inst] = { 
+          name: inst, 
+          balance: 0, 
+          yield: 0, 
+          items: [], 
+          color: record.investment_accounts?.color || '#94a3b8' 
+        };
+      }
+      acc[inst].balance += Number(record.final_balance);
+      acc[inst].yield += Number(record.yield);
+      acc[inst].items.push(record);
+      return acc;
+    }, {});
+    
+    return Object.values(groups).sort((a, b) => b.balance - a.balance);
+  }, [records]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '100px' }}>
       
       {/* Filters and Summary Header */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -255,40 +294,92 @@ export default function InvestmentList({ user }) {
         
         {/* Chart */}
         {chartData.length > 0 && (
-          <div className="glass-card" style={{ padding: '1.5rem' }}>
-            <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="glass-card" style={{ padding: '2rem' }}>
+            <h4 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <TrendingUp size={18} /> Rendimentos por Instituição
             </h4>
-            <div style={{ height: chartData.length * 45 + 60, minHeight: '120px', maxHeight: '400px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ left: -10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={11} width={110} tick={{ fill: 'var(--text-muted)' }} />
-                  <Tooltip 
-                    formatter={(val) => formatCurrency(val)}
-                    contentStyle={{ 
-                      background: 'var(--bg-canvas)', 
-                      border: '1px solid var(--glass-border)', 
-                      borderRadius: '8px',
-                      boxShadow: 'var(--shadow)'
-                    }}
-                    itemStyle={{ color: 'var(--text-main)' }}
-                    labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
-                  />
-                  <Bar dataKey="yield" name="Rendimento" radius={[0, 4, 4, 0]} barSize={25}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1.2fr 1fr', 
+              gap: '2rem', 
+              alignItems: 'center' 
+            }} className="responsive-grid">
+              
+              <div style={{ height: '280px', position: 'relative' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={5}
+                      dataKey="yield"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(val) => formatCurrency(val)}
+                      contentStyle={{ 
+                        background: 'var(--bg-canvas)', 
+                        border: '1px solid var(--glass-border)', 
+                        borderRadius: '12px',
+                        boxShadow: 'var(--shadow)'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center text for donut */}
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '50%', 
+                  left: '50%', 
+                  transform: 'translate(-50%, -50%)', 
+                  textAlign: 'center',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: totalYield >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {formatCurrency(totalYield)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="chart-legend">
+                {chartData.map((item, index) => {
+                  const percentage = totalYield > 0 ? (item.yield / totalYield) * 100 : 0;
+                  return (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      padding: '0.75rem 1rem',
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: '10px',
+                      border: '1px solid var(--glass-border)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color }}></div>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{item.name}</span>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{formatCurrency(item.yield)}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{percentage.toFixed(1)}%</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Table */}
-        <div className="glass-card" style={{ overflow: 'hidden' }}>
+        {/* Desktop View: Table */}
+        <div className="glass-card desktop-only" style={{ overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
@@ -304,34 +395,116 @@ export default function InvestmentList({ user }) {
                 <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Buscando registros...</td></tr>
               ) : records.length === 0 ? (
                 <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</td></tr>
-              ) : records.map(record => (
-                <tr key={record.id} style={{ borderBottom: '1px solid var(--glass-border)', fontSize: '0.9rem' }}>
-                  <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                    {new Date(record.record_date).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: record.investment_accounts?.color || 'var(--text-muted)' }}></div>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{record.investment_accounts?.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{record.investment_accounts?.institution}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '1rem', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</td>
-                  <td style={{ padding: '1rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-                    {formatCurrency(record.yield)}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button className="icon-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={14} /></button>
-                      <button className="icon-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              ) : groupedRecords.map(group => {
+                const isExpanded = expandedGroups.has(group.name);
+                return (
+                  <React.Fragment key={group.name}>
+                    <tr 
+                      style={{ 
+                        background: 'rgba(255,255,255,0.03)', 
+                        borderBottom: '1px solid var(--glass-border)',
+                        cursor: 'pointer'
+                      }} 
+                      onClick={() => toggleGroup(group.name)}
+                      className="table-row-hover"
+                    >
+                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          SUMÁRIO
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
+                          <span style={{ fontWeight: 800, color: 'var(--text-main)', letterSpacing: '0.5px' }}>{group.name.toUpperCase()}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 800 }}>{formatCurrency(group.balance)}</td>
+                      <td style={{ padding: '0.75rem 1rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 800 }}>
+                        {formatCurrency(group.yield)}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}></td>
+                    </tr>
+                    {isExpanded && group.items.map(record => (
+                      <tr key={record.id} style={{ borderBottom: '1px solid var(--glass-border)', fontSize: '0.9rem' }} className="table-row-hover">
+                        <td style={{ padding: '1rem', color: 'var(--text-muted)', paddingLeft: '1.5rem' }}>
+                          {new Date(record.record_date).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
+                        </td>
+                        <td style={{ padding: '1rem', paddingLeft: '2.5rem' }}>
+                          <div style={{ fontWeight: 500 }}>{record.investment_accounts?.name}</div>
+                        </td>
+                        <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{formatCurrency(record.final_balance)}</td>
+                        <td style={{ padding: '1rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', opacity: 0.8, fontSize: '0.85rem' }}>
+                          {formatCurrency(record.yield)}
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                            <button className="icon-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={13} /></button>
+                            <button className="icon-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: Grouped Cards */}
+        <div className="mobile-only">
+          {loading ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Buscando registros...</div>
+          ) : records.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</div>
+          ) : (
+            groupedRecords.map(group => {
+              const isExpanded = expandedGroups.has(group.name);
+              return (
+                <div key={group.name} className="mobile-group-card">
+                  <div className="mobile-group-header" onClick={() => toggleGroup(group.name)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
+                      <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.9rem' }}>{group.name.toUpperCase()}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{formatCurrency(group.balance)}</div>
+                      <div style={{ fontSize: '0.75rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                        {formatCurrency(group.yield)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {isExpanded && group.items.map(record => (
+                    <div key={record.id} className="mobile-item-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{record.investment_accounts?.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {new Date(record.record_date).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="icon-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={14} /></button>
+                          <button className="icon-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Saldo: <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                          {record.yield >= 0 ? '+' : ''}{formatCurrency(record.yield)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
