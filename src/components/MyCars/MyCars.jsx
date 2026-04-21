@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Car, Settings, Wrench, Share2, Plus, Info, ChevronRight, User, Key, CheckCircle2, XCircle, Clock, Trash2, Mail, Save, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Car, Settings, Wrench, Share2, Plus, Info, ChevronRight, User, Key, CheckCircle2, XCircle, Clock, Trash2, Mail, Save, AlertTriangle, Eye, EyeOff, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
@@ -14,6 +14,10 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   const [isModalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState('add_car');
   const [tableRefreshKey, setTableRefreshKey] = useState(0);
+  const [fetchedMaintenance, setFetchedMaintenance] = useState([]);
+  
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 600 : false;
+  const isTablet = typeof window !== 'undefined' ? window.innerWidth <= 1100 : false;
 
   // Persistence
   useEffect(() => {
@@ -29,9 +33,16 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     }
   }, [refreshKey, user?.id]);
 
+  useEffect(() => {
+    const handleOpenAdd = () => openModal('add_car');
+    window.addEventListener('open-add-car-modal', handleOpenAdd);
+    return () => window.removeEventListener('open-add-car-modal', handleOpenAdd);
+  }, []);
+
   async function fetchCars() {
     setLoading(true);
-    const { data: ownedCars } = await supabase.from('cars').select('*').order('created_at', { ascending: true });
+    // RLS already filters all accessible cars for the user
+    const { data: allAccessibleCars } = await supabase.from('cars').select('*').order('created_at', { ascending: true });
     
     const { data: sharedItems } = await supabase
       .from('car_shares')
@@ -39,25 +50,17 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .eq('shared_with_email', user.email)
       .eq('status', 'ACCEPTED');
 
-    let allCars = [...(ownedCars || [])];
-    
-    if (sharedItems?.length > 0) {
-      const sharedIds = sharedItems.map(s => s.car_id);
-      const { data: sharedCars } = await supabase
-        .from('cars')
-        .select('*')
-        .in('id', sharedIds);
-      
-      if (sharedCars) {
-        allCars = [...allCars, ...sharedCars.map(c => ({ 
-          ...c, 
-          is_shared: true, 
-          permission: sharedItems.find(s => s.car_id === c.id)?.permission 
-        }))];
+    // Decorate with share info
+    const decoratedCars = (allAccessibleCars || []).map(car => {
+      const share = sharedItems?.find(s => s.car_id === car.id);
+      if (share) {
+        return { ...car, is_shared: true, permission: share.permission };
       }
-    }
+      return car;
+    });
 
-    setCars(allCars);
+    setCars(decoratedCars);
+    const allCars = decoratedCars;
     
     if (mode === 'list') {
       const visibleCars = allCars.filter(c => !c.is_hidden);
@@ -108,11 +111,13 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     }
   }
 
-  const openModal = (type, data = null) => {
-    if (data) setSelectedCar(data);
+  const [selectedService, setSelectedService] = useState(null);
+
+  function openModal(type, serviceName = null) {
     setModalType(type);
+    setSelectedService(serviceName);
     setModalOpen(true);
-  };
+  }
 
   if (loading && cars.length === 0) {
     return (
@@ -187,7 +192,16 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
         {/* Service Templates Manager */}
         <ServiceTemplatesManager user={user} />
 
-        <CarModals isOpen={isModalOpen} onClose={() => setModalOpen(false)} type={modalType} car={selectedCar} user={user} onSuccess={() => { fetchCars(); setModalOpen(false); }} />
+        <CarModals 
+          isOpen={isModalOpen} 
+          onClose={() => setModalOpen(false)} 
+          type={modalType} 
+          car={selectedCar} 
+          user={user} 
+          serviceName={selectedService} 
+          maintenance={fetchedMaintenance}
+          onSuccess={() => { fetchCars(); setModalOpen(false); setTableRefreshKey(k => k + 1); }} 
+        />
       </div>
     );
   }
@@ -206,8 +220,10 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
             {pendingShares.map(invite => (
               <div key={invite.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '1rem', borderRadius: '12px' }}>
                 <div>
-                  <p style={{ fontWeight: 600 }}>{invite.car_id.name}</p>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Convidado por {invite.shared_by_email || 'Proprietário'} como {invite.permission}</p>
+                  <p style={{ fontWeight: 600 }}>{invite.car_id?.name || 'Carro Indisponível'}</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {invite.shared_by_email} convidou você para editar este veículo como <strong>{invite.permission}</strong>
+                  </p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button className="btn-primary" onClick={() => handleShareResponse(invite.id, 'ACCEPTED')} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Aceitar</button>
@@ -222,9 +238,23 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       {/* Car Selection Row */}
       <div className="glass-card" style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {visibleCars.length === 0 && (
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', flex: 1, textAlign: 'center' }}>
-            Nenhum veículo selecionado para exibição. Vá em Ajustes para gerenciar sua frota.
-          </p>
+          <div style={{ flex: 1, textAlign: 'center', padding: '3rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed var(--glass-border)' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', margin: '0 auto 1.5rem' }}>
+              <Car size={32} />
+            </div>
+            <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Nenhum veículo encontrado</h4>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '300px', margin: '0 auto 1.5rem', lineHeight: 1.5 }}>
+              Você ainda não tem veículos cadastrados ou visíveis. Adicione um agora ou gerencie sua frota nos ajustes.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button className="btn-primary" onClick={() => openModal('add_car')} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                <Plus size={16} /> Adicionar Veículo
+              </button>
+              <button className="btn-secondary" onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'cars-settings' }))} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                <Settings size={16} /> Ir para Ajustes
+              </button>
+            </div>
+          </div>
         )}
         {visibleCars.map(car => (
           <button
@@ -240,18 +270,27 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
         ))}
       </div>
 
-      {selectedCar && <CarDetails car={selectedCar} user={user} openModal={openModal} tableRefreshKey={tableRefreshKey} />}
+      {selectedCar && <CarDetails car={selectedCar} user={user} openModal={openModal} tableRefreshKey={tableRefreshKey} isMobile={isMobile} setFetchedMaintenance={setFetchedMaintenance} />}
 
-      <CarModals isOpen={isModalOpen} onClose={() => setModalOpen(false)} type={modalType} car={selectedCar} user={user} onSuccess={() => { 
-        fetchCars(); 
-        setModalOpen(false);
-        setTableRefreshKey(k => k + 1); // Force revision table to re-fetch
-      }} />
+      <CarModals 
+        isOpen={isModalOpen} 
+        onClose={() => setModalOpen(false)} 
+        type={modalType} 
+        car={selectedCar} 
+        user={user} 
+        serviceName={selectedService} 
+        maintenance={fetchedMaintenance}
+        onSuccess={() => { 
+          fetchCars(); 
+          setModalOpen(false);
+          setTableRefreshKey(k => k + 1); // Force revision table to re-fetch
+        }} 
+      />
     </div>
   );
 }
 
-function CarDetails({ car, user, openModal, tableRefreshKey }) {
+function CarDetails({ car, user, openModal, tableRefreshKey, isMobile, setFetchedMaintenance }) {
   const [activeSubTab, setActiveSubTab] = useState(() => {
     return localStorage.getItem('personal-control-car-subtab') || 'summary';
   });
@@ -276,7 +315,16 @@ function CarDetails({ car, user, openModal, tableRefreshKey }) {
           transition={{ duration: 0.2 }}
         >
           {activeSubTab === 'summary' && <CarSummary car={car} onLogService={() => openModal('log_service')} />}
-          {activeSubTab === 'revision' && <CarRevisionTable car={car} user={user} openModal={openModal} refreshKey={tableRefreshKey} />}
+          {activeSubTab === 'revision' && (
+            <CarRevisionTable 
+              car={car} 
+              user={user} 
+              openModal={openModal} 
+              refreshKey={tableRefreshKey} 
+              isMobile={isMobile}
+              onFetchData={setFetchedMaintenance}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
     </>
@@ -420,7 +468,7 @@ function CarSummary({ car, onLogService }) {
   );
 }
 
-function CarRevisionTable({ car, openModal, refreshKey }) {
+function CarRevisionTable({ car, openModal, refreshKey, isMobile, onFetchData }) {
   const miles = [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000];
   const [templateServices, setTemplateServices] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
@@ -438,7 +486,10 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
       supabase.from('car_maintenance').select('*').eq('car_id', car.id)
     ]);
     if (templates.data) setTemplateServices(templates.data);
-    if (logs.data) setMaintenance(logs.data);
+    if (logs.data) {
+      setMaintenance(logs.data);
+      if (onFetchData) onFetchData(logs.data);
+    }
     setLoading(false);
   }
 
@@ -468,6 +519,7 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
       km_milestone: km,
       status: nextStatus,
       completed: nextStatus === 'DONE',
+      notes: current?.notes || null,
       updated_at: new Date().toISOString()
     }, { onConflict: 'car_id,description,km_milestone' });
 
@@ -503,17 +555,30 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
         <table className="finance-table" style={{ minWidth: '1000px', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th style={{ position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 10, borderRight: '1px solid var(--glass-border)', boxShadow: '4px 0 10px rgba(0,0,0,0.2)', minWidth: 200 }}>
+              <th style={{ position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 10, borderRight: '1px solid var(--glass-border)', boxShadow: '4px 0 10px rgba(0,0,0,0.2)', minWidth: isMobile ? 140 : 220 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <input
                     type="text"
+                    placeholder={isMobile ? "Filtrar..." : "Filtrar serviço..."}
                     value={filterText}
-                    onChange={e => setFilterText(e.target.value)}
-                    placeholder="Filtrar serviço..."
-                    style={{ flex: 1, fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: 6, color: 'inherit', outline: 'none' }}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    style={{ 
+                      background: 'rgba(255,255,255,0.05)', 
+                      border: '1px solid var(--glass-border)', 
+                      borderRadius: '8px', 
+                      padding: '4px 6px', 
+                      fontSize: '0.65rem',
+                      flex: 1,
+                      minWidth: 0,
+                      color: 'var(--text-main)'
+                    }}
                   />
-                  <button className="icon-btn" onClick={() => openModal('log_service')} title="Adicionar Serviço Manual" style={{ flexShrink: 0 }}>
-                    <Plus size={14} />
+                  <button 
+                    className="icon-btn" 
+                    onClick={() => openModal('log_service')}
+                    style={{ opacity: 0.8, padding: 2, flexShrink: 0 }}
+                  >
+                    <Plus size={isMobile ? 14 : 16} />
                   </button>
                 </div>
               </th>
@@ -529,17 +594,32 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
             {serviceNames.map(desc => {
               return (
               <tr key={desc}>
-                <td style={{ position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 5, borderRight: '1px solid var(--glass-border)', boxShadow: '4px 0 10px rgba(0,0,0,0.1)', fontSize: '0.75rem', padding: '8px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    <span style={{ fontWeight: 500 }}>{desc}</span>
-                    <button
-                      className="icon-btn"
-                      onClick={() => deleteServiceRow(desc)}
-                      title={`Remover linha "${desc}"`}
-                      style={{ opacity: 0.4, padding: 2, flexShrink: 0, color: 'var(--danger)' }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                <td style={{ 
+                  position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 5, 
+                  borderRight: '1px solid var(--glass-border)', boxShadow: '4px 0 10px rgba(0,0,0,0.1)', 
+                  fontSize: '0.75rem', padding: isMobile ? '8px 8px' : '8px 12px', textAlign: 'left',
+                  minWidth: isMobile ? 140 : 220
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem', width: '100%' }}>
+                    <span style={{ fontWeight: 500, flex: 1, lineHeight: '1.2', wordBreak: 'break-word', paddingRight: '4px' }}>{desc}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginLeft: 'auto' }}>
+                      <button
+                        className="icon-btn"
+                        onClick={() => openModal('service_note', desc)}
+                        title="Adicionar Nota"
+                        style={{ opacity: 0.6, padding: 4, flexShrink: 0 }}
+                      >
+                        <MessageSquare size={13} />
+                      </button>
+                      <button
+                        className="icon-btn"
+                        onClick={() => deleteServiceRow(desc)}
+                        title={`Remover linha "${desc}"`}
+                        style={{ opacity: 0.4, padding: 4, flexShrink: 0, color: 'var(--danger)' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 </td>
                 {miles.map(km => {
@@ -555,7 +635,7 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
                         whileTap={{ scale: 0.8 }}
                         onClick={() => toggleStatus(desc, km)}
                         style={{ 
-                          width: 30, height: 30, margin: '0 auto', borderRadius: '8px',
+                          width: 28, height: 28, margin: '0 auto', borderRadius: '8px', position: 'relative',
                           background: status === 'DONE' ? 'rgba(16, 185, 129, 0.1)' : 
                                       status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.1)' : 
                                       'rgba(255, 255, 255, 0.03)',
@@ -568,6 +648,17 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
                         {status === 'DONE' && <CheckCircle2 size={16} color="var(--success)" />}
                         {status === 'SKIPPED' && <XCircle size={16} color="var(--danger)" />}
                         {(status === 'PENDING' || !status) && <Clock size={14} color="var(--text-muted)" />}
+                        
+                        {log?.notes && (
+                          <div 
+                            style={{ 
+                              position: 'absolute', top: -2, right: -2, 
+                              width: 6, height: 6, borderRadius: '50%', 
+                              background: 'var(--primary)', border: '1px solid var(--bg-card)',
+                              pointerEvents: 'none' // Não intercepta o clique do toggle
+                            }} 
+                          />
+                        )}
                       </motion.div>
                     </td>
                   );
@@ -588,9 +679,10 @@ function CarRevisionTable({ car, openModal, refreshKey }) {
   );
 }
 
-function CarModals({ isOpen, onClose, type, car, user, onSuccess }) {
+function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, maintenance = [] }) {
   const [formData, setFormData] = useState({ name: car?.name || '', plate: car?.plate || '', current_km: car?.current_km || 0 });
   const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE' });
+  const [noteData, setNoteData] = useState({ description: '', km_milestone: 10000, notes: '' });
   const [templateNames, setTemplateNames] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -609,9 +701,63 @@ function CarModals({ isOpen, onClose, type, car, user, onSuccess }) {
           }
         });
     }
-  }, [car, type]);
+    if (type === 'service_note' && serviceName) {
+      if (typeof serviceName === 'object') {
+        setNoteData({ description: serviceName.desc, km_milestone: serviceName.km, notes: serviceName.notes });
+      } else {
+        const firstWithNote = maintenance.find(m => m.description === serviceName && m.notes);
+        setNoteData({ 
+          description: serviceName, 
+          km_milestone: firstWithNote?.km_milestone || 10000, 
+          notes: firstWithNote?.notes || '' 
+        });
+      }
+    }
+  }, [car, type, serviceName]);
+
+  // Auto-load notes when KM changes in modal
+  useEffect(() => {
+    if (type === 'service_note' && noteData.description) {
+      const existing = maintenance.find(m => 
+        m.description === noteData.description && 
+        m.km_milestone === noteData.km_milestone
+      );
+      if (existing?.notes !== undefined) {
+        setNoteData(prev => ({ ...prev, notes: existing.notes || '' }));
+      }
+    }
+  }, [noteData.km_milestone, noteData.description]);
 
   if (!isOpen) return null;
+
+  async function handleSaveNote() {
+    if (!noteData.notes.trim()) return;
+    setLoading(true);
+    // Verificar se já existe log para esse KM
+    const { data: existing } = await supabase.from('car_maintenance')
+      .select('status')
+      .eq('car_id', car.id)
+      .eq('description', noteData.description)
+      .eq('km_milestone', noteData.km_milestone)
+      .single();
+
+    const { error } = await supabase.from('car_maintenance').upsert({
+      car_id: car.id,
+      description: noteData.description,
+      km_milestone: noteData.km_milestone,
+      notes: noteData.notes,
+      status: existing?.status || 'PENDING',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'car_id,description,km_milestone' });
+
+    if (!error) {
+      onSuccess();
+    } else {
+      console.error('Erro ao salvar nota:', error);
+      alert('Erro ao salvar observação.');
+    }
+    setLoading(false);
+  }
 
   async function handleAddCar() {
     setLoading(true);
@@ -760,6 +906,69 @@ function CarModals({ isOpen, onClose, type, car, user, onSuccess }) {
             >
               {loading ? 'Registrando...' : 'Salvar Serviço'}
             </button>
+          </>
+        )}
+
+        {type === 'service_note' && (
+          <>
+            <h3>Observações do Serviço</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Detalhamento para: <strong>{noteData.description}</strong></p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+              <div className="input-group">
+                <label>KM Milestone</label>
+                <select
+                  value={noteData.km_milestone}
+                  onChange={e => setNoteData({...noteData, km_milestone: parseInt(e.target.value)})}
+                >
+                  {[10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000].map(k => (
+                    <option key={k} value={k}>{k.toLocaleString()} km</option>
+                  ))}
+                </select>
+              </div>
+              <div className="input-group">
+                <label>O que foi feito? (Ex: Motivo da manutenção, marca da peça...)</label>
+                <textarea
+                  value={noteData.notes}
+                  onChange={e => setNoteData({...noteData, notes: e.target.value})}
+                  placeholder="Descreva os detalhes aqui..."
+                  style={{ 
+                    width: '100%', minHeight: '100px', padding: '10px', 
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', 
+                    borderRadius: '8px', color: 'inherit', outline: 'none', fontSize: '0.85rem'
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '2rem' }}>
+              <button
+                className="btn-primary"
+                onClick={handleSaveNote}
+                disabled={loading}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                {loading ? 'Salvando...' : 'Salvar Nota'}
+              </button>
+              {noteData.notes && (
+                <button
+                  className="icon-btn"
+                  onClick={async () => {
+                    if (window.confirm("Remover esta observação?")) {
+                      setNoteData({...noteData, notes: ''});
+                      // Auto-save empty note to clear it
+                      setLoading(true);
+                      await supabase.from('car_maintenance').update({ notes: null })
+                        .eq('car_id', car.id)
+                        .eq('description', noteData.description)
+                        .eq('km_milestone', noteData.km_milestone);
+                      onSuccess();
+                    }
+                  }}
+                  style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', borderRadius: '10px', padding: '0 12px' }}
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
+            </div>
           </>
         )}
 

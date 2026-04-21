@@ -4,20 +4,25 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, TrendingDown, Wallet, Calendar, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function SummaryDashboard({ isGeneral, month, year: initialYear, refreshKey }) {
   const [data, setData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
+  const [revenueCategoryData, setRevenueCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
+  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, pending: 0 });
   const [selectedYear, setSelectedYear] = useState(initialYear || 2026);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isTablet, setIsTablet] = useState(window.innerWidth < 1024);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsTablet(window.innerWidth < 1024);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -30,6 +35,16 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
 
   async function fetchData() {
     setLoading(true);
+    
+    // Get main responsible name for this user's project
+    const { data: mainResp } = await supabase
+      .from('finance_responsibles')
+      .select('name')
+      .eq('is_main', true)
+      .maybeSingle();
+    
+    const mainName = mainResp?.name;
+
     let query = supabase.from('finances').select('*');
 
     if (isGeneral) {
@@ -44,6 +59,10 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
       query = query.gte('payment_date', start).lte('payment_date', end);
     }
 
+    if (mainName) {
+      query = query.eq('paid_by', mainName);
+    }
+
     const { data: finances, error } = await query;
 
     if (finances) {
@@ -54,14 +73,15 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
 
   function processCharts(finances) {
     const monthsMap = new Map();
-    const categoriesMap = {};
+    const incomeCategoriesMap = {};
+    const expenseCategoriesMap = {};
     let totalIncome = 0;
     let totalExpense = 0;
+    let totalPending = 0;
 
     finances.sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
 
     finances.forEach(item => {
-      // Correção de Fuso Horário: Split da string para evitar que o JS trate como UTC
       const [year, month, day] = item.payment_date.split('-').map(Number);
       const date = new Date(year, month - 1, day);
       
@@ -75,21 +95,27 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
       
       const current = monthsMap.get(label);
       const amount = Number(item.amount);
+      const cat = item.category || 'Outros';
+
       if (item.type === 'RECEITA') {
         current.income += amount;
         totalIncome += amount;
+        incomeCategoriesMap[cat] = (incomeCategoriesMap[cat] || 0) + amount;
       } else {
         current.expense += amount;
         totalExpense += amount;
-        const cat = item.category || 'Outros';
-        categoriesMap[cat] = (categoriesMap[cat] || 0) + amount;
+        expenseCategoriesMap[cat] = (expenseCategoriesMap[cat] || 0) + amount;
+        if (item.status === 'PENDENTE') {
+          totalPending += amount;
+        }
       }
       current.difference = current.income - current.expense;
     });
 
     setData(Array.from(monthsMap.values()));
-    setCategoryData(Object.entries(categoriesMap).map(([name, value]) => ({ name, value })));
-    setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense });
+    setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })));
+    setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })));
+    setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
   }
 
   const formatValue = (val) => `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -121,20 +147,20 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
       )}
 
       {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
         <StatCard title={isGeneral ? "Receita Anual" : "Receita Mensal"} value={stats.income} icon={<TrendingUp size={20}/>} color="var(--success)" loading={loading && data.length === 0} />
         <StatCard title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} value={stats.expense} icon={<TrendingDown size={20}/>} color="var(--danger)" loading={loading && data.length === 0} />
+        <StatCard title="Total a Pagar" value={stats.pending} icon={<Clock size={20}/>} color="var(--pending)" loading={loading && data.length === 0} />
         <StatCard title="Saldo Final" value={stats.balance} icon={<Wallet size={20}/>} color="var(--primary)" loading={loading && data.length === 0} />
       </div>
 
-      <div className="dashboard-grid">
-        
-        {/* Main Chart */}
-        <div className="glass-card chart-container" style={{ padding: '1.5rem' }}>
-          <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Calendar size={18} /> {isGeneral ? `Evolução Mensal de ${selectedYear}` : 'Detalhamento Diário'}
-          </h4>
-          <ResponsiveContainer width="100%" height="85%">
+      {/* Main Bar Chart */}
+      <div className="glass-card" style={{ padding: '1.5rem', minHeight: '400px' }}>
+        <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Calendar size={18} /> {isGeneral ? `Evolução Mensal de ${selectedYear}` : 'Detalhamento Diário'}
+        </h4>
+        <div style={{ height: '320px' }}>
+          <ResponsiveContainer width="100%" height="100%">
             {loading && data.length === 0 ? (
               <div className="skeleton" style={{ width: '100%', height: '100%' }} />
             ) : (
@@ -167,44 +193,93 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
             )}
           </ResponsiveContainer>
         </div>
+      </div>
 
-        {/* Categories Chart */}
-        <div className="glass-card chart-container" style={{ padding: '1.5rem' }}>
-          <h4>Distribuição de Gastos</h4>
-          <ResponsiveContainer width="100%" height="85%">
-            {loading && categoryData.length === 0 ? (
-              <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-            ) : (
-               <PieChart style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
-                <Pie
-                  data={categoryData}
-                  innerRadius={isMobile ? 40 : 60}
-                  outerRadius={isMobile ? 60 : 90}
-                  paddingAngle={5}
-                  dataKey="value"
-                  label={isMobile ? false : ({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value) => {
-                    const total = categoryData.reduce((acc, curr) => acc + curr.value, 0);
-                    const percent = ((value / total) * 100).toFixed(1);
-                    return [`${formatValue(value)} (${percent}%)`, 'Valor'];
-                  }}
-                  contentStyle={{ 
-                    background: 'rgba(30, 41, 59, 0.9)', 
-                    border: '1px solid var(--glass-border)', 
-                    borderRadius: '12px' 
-                  }}
-                />
-                <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-              </PieChart>
-            )}
-          </ResponsiveContainer>
+      {/* Distribution Charts Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: isTablet ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
+        
+        {/* Revenues Distribution */}
+        <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <h4 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <TrendingUp size={18} color="var(--success)" /> Distribuição de Receitas
+          </h4>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Ganhos por categoria</p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ height: '180px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={revenueCategoryData}
+                    innerRadius={50}
+                    outerRadius={75}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {revenueCategoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val) => formatValue(val)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
+              {revenueCategoryData.sort((a,b) => b.value - a.value).map((item, index) => (
+                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{item.name}</span>
+                  </span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{Math.round((item.value / stats.income) * 100)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* Expenses Distribution */}
+        <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <h4 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <TrendingDown size={18} color="var(--danger)" /> Distribuição de Gastos
+          </h4>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Despesas por categoria</p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ height: '180px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    innerRadius={50}
+                    outerRadius={75}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val) => formatValue(val)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
+              {categoryData.sort((a,b) => b.value - a.value).map((item, index) => (
+                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{item.name}</span>
+                  </span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{Math.round((item.value / stats.expense) * 100)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -217,7 +292,7 @@ function StatCard({ title, value, icon, color, loading }) {
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</span>
         <div style={{ color: color, background: `${color}15`, padding: '0.4rem', borderRadius: '0.5rem' }}>{icon}</div>
       </div>
-      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: value < 0 ? 'var(--danger)' : 'inherit' }}>
+      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: value < 0 ? 'var(--danger)' : 'var(--text-main)' }}>
         {loading ? (
           <div className="skeleton" style={{ height: '1.8rem', width: '80%', marginTop: '4px' }} />
         ) : (

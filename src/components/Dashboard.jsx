@@ -43,6 +43,7 @@ export default function Dashboard({ user }) {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [theme, setTheme] = useState('dark');
+  const [invitationCount, setInvitationCount] = useState(0);
   const drawerRef = useRef(null);
 
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
@@ -54,6 +55,21 @@ export default function Dashboard({ user }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (user) {
+      fetchInvitations();
+    }
+  }, [user, refreshKey]);
+
+  async function fetchInvitations() {
+    const { count } = await supabase
+      .from('car_shares')
+      .select('*', { count: 'exact', head: true })
+      .eq('shared_with_email', user.email)
+      .eq('status', 'PENDING');
+    setInvitationCount(count || 0);
+  }
 
   // Close drawer when clicking outside
   useEffect(() => {
@@ -115,8 +131,20 @@ export default function Dashboard({ user }) {
           ].map(({ tab, icon: Icon, label }) => (
             <button key={tab} onClick={() => onNavigate(tab)} title={label}
               style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-              <Icon size={20} />
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+              <div style={{ position: 'relative' }}>
+                <Icon size={20} />
+                {tab === 'cars-list' && invitationCount > 0 && (
+                  <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
+                    {invitationCount}
+                  </span>
+                )}
+              </div>
+              {!collapsed && (
+                <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {label}
+                  {tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -251,14 +279,9 @@ export default function Dashboard({ user }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <button className="icon-btn" onClick={toggleTheme}>
+            <button className="icon-btn" onClick={toggleTheme} title="Alternar Tema">
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            {activeTab === 'finances-transactions' && (
-              <button className="btn-primary desktop-only" onClick={() => { setEditingTransaction(null); setModalOpen(true); }}>
-                <Plus size={20} /> Novo Registro
-              </button>
-            )}
           </div>
         </header>
 
@@ -298,6 +321,30 @@ export default function Dashboard({ user }) {
         </AnimatePresence>
       </main>
 
+      {/* ── Contextual FAB ── */}
+      <AnimatePresence>
+        {(activeTab.includes('finance') || activeTab === 'cars-list') && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="contextual-fab"
+            onClick={() => {
+              if (activeTab.includes('finance')) {
+                setEditingTransaction(null);
+                setModalOpen(true);
+              } else if (activeTab === 'cars-list') {
+                // We'll use a custom event to communicate with MyCars component
+                window.dispatchEvent(new CustomEvent('open-add-car-modal'));
+              }
+            }}
+            title={activeTab.includes('finance') ? "Nova Transação" : "Novo Carro"}
+          >
+            <Plus size={32} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       <TransactionModal
         isOpen={isModalOpen}
         onClose={() => { setModalOpen(false); setEditingTransaction(null); }}
@@ -306,26 +353,6 @@ export default function Dashboard({ user }) {
         initialData={editingTransaction}
       />
 
-      {/* ── Mobile Bottom Nav (finances only) ── */}
-      {!activeTab.startsWith('cars') && (
-        <nav className="bottom-nav">
-          <button className={`nav-item-mobile ${activeTab === 'finances-dashboard' ? 'active' : ''}`} onClick={() => navigate('finances-dashboard')}>
-            <BarChart2 size={24} /><span>Resumo</span>
-          </button>
-          <button className={`nav-item-mobile ${activeTab === 'finances-transactions' ? 'active' : ''}`} onClick={() => navigate('finances-transactions')}>
-            <DollarSign size={24} /><span>Faturas</span>
-          </button>
-          <button className="fab-button" onClick={() => { setEditingTransaction(null); setModalOpen(true); }}>
-            <Plus size={32} />
-          </button>
-          <button className={`nav-item-mobile ${activeTab === 'finances-settings' ? 'active' : ''}`} onClick={() => navigate('finances-settings')}>
-            <Settings size={24} /><span>Ajustes</span>
-          </button>
-          <button className={`nav-item-mobile ${activeTab === 'app-menu' ? 'active' : ''}`} onClick={() => navigate('app-menu')}>
-            <LayoutDashboard size={24} /><span>Menu</span>
-          </button>
-        </nav>
-      )}
     </div>
   );
 }
