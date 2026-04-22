@@ -8,7 +8,7 @@ import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock } from 'lucid
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-export default function SummaryDashboard({ isGeneral, month, year: initialYear, refreshKey }) {
+export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey }) {
   const [data, setData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [revenueCategoryData, setRevenueCategoryData] = useState([]);
@@ -40,12 +40,13 @@ export default function SummaryDashboard({ isGeneral, month, year: initialYear, 
     const { data: mainResp } = await supabase
       .from('finance_responsibles')
       .select('name')
+      .eq('user_id', user?.id)
       .eq('is_main', true)
       .maybeSingle();
     
     const mainName = mainResp?.name;
 
-    let query = supabase.from('finances').select('*');
+    let query = supabase.from('finances').select('*').eq('user_id', user?.id);
 
     if (isGeneral) {
       const startOfYear = `${selectedYear}-01-01`;
