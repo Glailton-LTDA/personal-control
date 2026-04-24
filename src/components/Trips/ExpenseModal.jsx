@@ -4,11 +4,27 @@ import { X, Save, DollarSign, Calendar, Tag, Users, FileText } from 'lucide-reac
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const [categories, setCategories] = useState(initialCategories || []);
+  const formatDateToDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDisplayDateToISO = (displayDate) => {
+    if (!displayDate) return '';
+    const [day, month, year] = displayDate.split('/');
+    if (!day || !month || !year) return '';
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  };
+
+  const [displayDate, setDisplayDate] = useState(formatDateToDisplay(expense?.date || new Date().toISOString().split('T')[0]));
+  const [isCustomDate, setIsCustomDate] = useState(false);
+  
   const [formData, setFormData] = useState({
     description: expense?.description || '',
     amount: expense?.amount || '',
     date: expense?.date || new Date().toISOString().split('T')[0],
-    paid_by: expense?.paid_by || 'Glailton',
+    paid_by: expense?.paid_by || 'Glailton Costa',
     category_id: expense?.category_id || '',
     currency: expense?.currency || initialCurrency || trip?.currencies?.[0] || 'BRL'
   });
@@ -29,10 +45,57 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     if (data) setCategories(data);
   }
 
+  const handleDateChange = (e) => {
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 8) val = val.slice(0, 8);
+    
+    let formatted = val;
+    if (val.length > 2) formatted = val.slice(0, 2) + '/' + val.slice(2);
+    if (val.length > 4) formatted = formatted.slice(0, 5) + '/' + formatted.slice(5);
+    
+    setDisplayDate(formatted);
+    
+    if (formatted.length === 10) {
+      const iso = parseDisplayDateToISO(formatted);
+      if (iso && !isNaN(new Date(iso).getTime())) {
+        setFormData({ ...formData, date: iso });
+      }
+    }
+  };
+
+  // Generate dates for the trip
+  const tripDates = React.useMemo(() => {
+    if (!trip?.start_date || !trip?.end_date) return [];
+    const dates = [];
+    let curr = new Date(trip.start_date + 'T12:00:00');
+    const end = new Date(trip.end_date + 'T12:00:00');
+    while (curr <= end) {
+      dates.push({
+        iso: curr.toISOString().split('T')[0],
+        display: formatDateToDisplay(curr.toISOString().split('T')[0])
+      });
+      curr.setDate(curr.getDate() + 1);
+    }
+    return dates.reverse(); // Most recent dates first
+  }, [trip]);
+
+  useEffect(() => {
+    // If the current date is not in tripDates, switch to custom mode
+    if (tripDates.length > 0 && !tripDates.find(d => d.display === displayDate)) {
+      setIsCustomDate(true);
+    }
+  }, [tripDates, displayDate]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!trip) {
       alert('Selecione uma viagem primeiro.');
+      return;
+    }
+
+    const isoDate = parseDisplayDateToISO(displayDate);
+    if (!isoDate || isNaN(new Date(isoDate).getTime())) {
+      alert('Por favor, insira uma data válida (DD/MM/AAAA)');
       return;
     }
 
@@ -42,7 +105,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       description: formData.description,
       amount: parseFloat(formData.amount),
       currency: formData.currency,
-      date: formData.date,
+      date: isoDate,
       paid_by: formData.paid_by,
       category_id: formData.category_id || null
     };
@@ -129,11 +192,50 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
                 <Calendar size={16} /> Data
               </label>
-              <input 
-                required type="date" className="glass-input" 
-                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
-                value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} 
-              />
+              
+              {!isCustomDate && tripDates.length > 0 ? (
+                <select 
+                  className="glass-input" 
+                  style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                  value={displayDate} 
+                  onChange={e => {
+                    if (e.target.value === 'CUSTOM') {
+                      setIsCustomDate(true);
+                    } else {
+                      setDisplayDate(e.target.value);
+                      const iso = parseDisplayDateToISO(e.target.value);
+                      if (iso) setFormData({...formData, date: iso});
+                    }
+                  }}
+                >
+                  {tripDates.map(d => (
+                    <option key={d.iso} value={d.display}>{d.display}</option>
+                  ))}
+                  <option value="CUSTOM">Outra data (digitar...)</option>
+                </select>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    required 
+                    type="text" 
+                    className="glass-input" 
+                    style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                    value={displayDate} 
+                    onChange={handleDateChange}
+                    placeholder="DD/MM/AAAA"
+                    autoFocus={isCustomDate}
+                  />
+                  {tripDates.length > 0 && (
+                    <button 
+                      type="button"
+                      onClick={() => setIsCustomDate(false)}
+                      style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
+                    >
+                      Sugestões
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>

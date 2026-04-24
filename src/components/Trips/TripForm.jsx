@@ -86,10 +86,23 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
         <button 
           onClick={onBack}
-          className="btn-ghost"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontWeight: '600' }}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.75rem', 
+            color: 'var(--text-main)', 
+            fontWeight: '700',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--glass-border)',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '14px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+          className="back-btn-hover"
         >
-          <ArrowLeft size={20} /> Voltar
+          <ArrowLeft size={20} /> 
+          <span style={{ fontSize: '0.95rem' }}>Voltar</span>
         </button>
         <div style={{ textAlign: 'right' }}>
            <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-main)' }}>
@@ -268,6 +281,10 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           .mobile-full {
              grid-column: span 2;
           }
+        }
+        .back-btn-hover:hover {
+          background: rgba(255, 255, 255, 0.1) !important;
+          transform: translateX(-3px);
         }
       `}} />
     </motion.div>

@@ -135,11 +135,11 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
     >
       {/* Header Bar */}
       <div style={{ 
-        padding: '1.5rem 2rem', 
+        padding: isMobile ? '1rem 1.25rem' : '1.5rem 2rem', 
         borderBottom: '1px solid var(--glass-border)', 
         display: 'flex', 
         alignItems: 'center', 
-        gap: '1.5rem',
+        gap: isMobile ? '1rem' : '1.5rem',
         background: 'rgba(15, 23, 42, 0.8)',
         backdropFilter: 'blur(12px)',
         position: 'sticky',
@@ -177,7 +177,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
         maxWidth: '1200px', 
         width: '100%', 
         margin: '0 auto', 
-        padding: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '1rem 1.25rem' : '2rem',
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : '1fr 340px',
         gap: '2.5rem'
@@ -214,7 +214,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
           {/* Hospedagem */}
           <section>
             {renderSectionHeader('Hospedagem', Building, '#6366f1')}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
               {(!trip.hotels || trip.hotels.length === 0) ? (
                 <div className="glass-card" style={{ padding: '2.5rem', textAlign: 'center', opacity: 0.4, gridColumn: '1/-1', border: '1px dashed var(--glass-border)' }}>Nenhuma hospedagem registrada.</div>
               ) : (
@@ -226,7 +226,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
           {/* Transportes */}
           <section>
             {renderSectionHeader('Transportes e Voos', Plane, '#10b981')}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
               {(!trip.transports || trip.transports.length === 0) ? (
                 <div className="glass-card" style={{ padding: '2.5rem', textAlign: 'center', opacity: 0.4, gridColumn: '1/-1', border: '1px dashed var(--glass-border)' }}>Nenhum transporte registrado.</div>
               ) : (
@@ -238,7 +238,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
           {/* Passeios e Ingressos */}
           <section>
             {renderSectionHeader('Passeios e Ingressos', Ticket, '#f59e0b')}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
               {(!trip.tickets || trip.tickets.length === 0) ? (
                 <div className="glass-card" style={{ padding: '2.5rem', textAlign: 'center', opacity: 0.4, gridColumn: '1/-1', border: '1px dashed var(--glass-border)' }}>Nenhum passeio ou ingresso registrado.</div>
               ) : (

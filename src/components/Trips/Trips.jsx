@@ -23,6 +23,13 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     else if (mode === 'list') setCurrentView('main');
   }, [mode]);
 
+  // Persistent Selected Trip
+  useEffect(() => {
+    if (selectedTrip?.id) {
+      localStorage.setItem('selectedTripId', selectedTrip.id);
+    }
+  }, [selectedTrip]);
+
   useEffect(() => {
     fetchTrips();
     fetchCategories();
@@ -33,8 +40,12 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
     if (data && data.length > 0) {
       setTrips(data);
+      
+      const savedTripId = localStorage.getItem('selectedTripId');
+      
       if (!selectedTrip) {
-        setSelectedTrip(data[0]);
+        const initial = savedTripId ? data.find(t => t.id === savedTripId) : null;
+        setSelectedTrip(initial || data[0]);
       } else {
         const current = data.find(t => t.id === selectedTrip.id);
         if (current) setSelectedTrip(current);
