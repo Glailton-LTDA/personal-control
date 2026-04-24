@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Ticket } from 'lucide-react';
+import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Ticket, MapPin } from 'lucide-react';
+import { AIRPORTS } from '../../data/airports';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true }) {
@@ -56,15 +57,39 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
       end_date: '',
       end_time: '',
       notes: '',
-      transport_id: '', // New field for transport
-      address: '',      // New field for tours/tours
+      transport_id: '',
+      origin: '',       // New field for flight segments
+      destination: '',  // New field for flight segments
+      address: '',
       receipt_url: null 
     }]);
     if (!isExpanded) setIsExpanded(true);
   };
 
+  const [localDateValues, setLocalDateValues] = useState({}); // { id_field: 'DD/MM/AAAA' }
+
   const removeItem = (id) => {
     onItemsChange(items.filter(item => item.id !== id));
+  };
+
+  const formatDateToDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDisplayDateToISO = (displayDate) => {
+    if (!displayDate) return '';
+    const [day, month, year] = displayDate.split('/');
+    if (!day || !month || !year) return '';
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  };
+
+  const handleDateMask = (val) => {
+    const numbers = val.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
   };
 
   const updateItemField = (id, field, value) => {
@@ -182,8 +207,50 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                   </div>
 
                   {isTransport && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Origem (IATA)</label>
+                        <input 
+                          className="glass-input"
+                          list={`airports-origin-${item.id}`}
+                          value={item.origin || ''}
+                          onChange={(e) => updateItemField(item.id, 'origin', e.target.value.toUpperCase())}
+                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          placeholder="Ex: GRU"
+                        />
+                        <datalist id={`airports-origin-${item.id}`}>
+                          {AIRPORTS.map(airport => (
+                            <option key={airport.iata} value={airport.iata}>
+                              {airport.city} - {airport.name} ({airport.country})
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Destino (IATA)</label>
+                        <input 
+                          className="glass-input"
+                          list={`airports-destination-${item.id}`}
+                          value={item.destination || ''}
+                          onChange={(e) => updateItemField(item.id, 'destination', e.target.value.toUpperCase())}
+                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          placeholder="Ex: GIG"
+                        />
+                        <datalist id={`airports-destination-${item.id}`}>
+                          {AIRPORTS.map(airport => (
+                            <option key={airport.iata} value={airport.iata}>
+                              {airport.city} - {airport.name} ({airport.country})
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                    </div>
+                  )}
+
+                  {isTransport && (
                     <div>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Identificação do transporte</label>
+                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Nº Voo / Cia / Local</label>
                       <input 
                         className="glass-input"
                         value={item.transport_id || ''}
@@ -214,10 +281,28 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                     <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>{getStartLabel()}</label>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <input 
-                        type="date"
+                        type="text"
                         className="glass-input"
-                        value={item.start_date || ''}
-                        onChange={(e) => updateItemField(item.id, 'start_date', e.target.value)}
+                        placeholder="DD/MM/AAAA"
+                        value={localDateValues[`${item.id}_start_date`] ?? (item.start_date ? formatDateToDisplay(item.start_date) : '')}
+                        onChange={(e) => {
+                          const masked = handleDateMask(e.target.value);
+                          setLocalDateValues(prev => ({ ...prev, [`${item.id}_start_date`]: masked }));
+                          
+                          if (masked.length === 10) {
+                            const iso = parseDisplayDateToISO(masked);
+                            updateItemField(item.id, 'start_date', iso);
+                          } else if (masked === '') {
+                            updateItemField(item.id, 'start_date', '');
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Se ao sair do campo a data for inválida/incompleta, limpa ou reseta
+                          const val = e.target.value;
+                          if (val.length > 0 && val.length < 10) {
+                            setLocalDateValues(prev => ({ ...prev, [`${item.id}_start_date`]: item.start_date ? formatDateToDisplay(item.start_date) : '' }));
+                          }
+                        }}
                         style={{ flex: 1, minWidth: '110px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                       />
                       <input 
@@ -235,10 +320,27 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>{getEndLabel()}</label>
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <input 
-                          type="date"
+                          type="text"
                           className="glass-input"
-                          value={item.end_date || ''}
-                          onChange={(e) => updateItemField(item.id, 'end_date', e.target.value)}
+                          placeholder="DD/MM/AAAA"
+                          value={localDateValues[`${item.id}_end_date`] ?? (item.end_date ? formatDateToDisplay(item.end_date) : '')}
+                          onChange={(e) => {
+                            const masked = handleDateMask(e.target.value);
+                            setLocalDateValues(prev => ({ ...prev, [`${item.id}_end_date`]: masked }));
+                            
+                            if (masked.length === 10) {
+                              const iso = parseDisplayDateToISO(masked);
+                              updateItemField(item.id, 'end_date', iso);
+                            } else if (masked === '') {
+                              updateItemField(item.id, 'end_date', '');
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value;
+                            if (val.length > 0 && val.length < 10) {
+                              setLocalDateValues(prev => ({ ...prev, [`${item.id}_end_date`]: item.end_date ? formatDateToDisplay(item.end_date) : '' }));
+                            }
+                          }}
                           style={{ flex: 1, minWidth: '110px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                         />
                         <input 

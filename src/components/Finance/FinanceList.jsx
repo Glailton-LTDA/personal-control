@@ -361,12 +361,18 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
           <input 
             type="text" 
             placeholder="Pesquisar por descrição ou categoria..." 
-            style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 3rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '0.75rem', color: 'white', outline: 'none' }}
+            style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 3rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.75rem', color: 'var(--text-main)', outline: 'none' }}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
+          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Transações</h4>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+             {filteredFinances.length} {filteredFinances.length === 1 ? 'registro' : 'registros'}
+          </span>
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="finance-table">
             <thead>

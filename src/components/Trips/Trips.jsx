@@ -23,10 +23,12 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     else if (mode === 'list') setCurrentView('main');
   }, [mode]);
 
-  // Persistent Selected Trip
+  const STORAGE_KEY = 'pc_selected_trip_v1';
+
+  // Persistent Selected Trip - SAVING
   useEffect(() => {
-    if (selectedTrip?.id) {
-      localStorage.setItem('selectedTripId', selectedTrip.id);
+    if (selectedTrip && selectedTrip.id && !selectedTrip._isPlaceholder) {
+      localStorage.setItem(STORAGE_KEY, selectedTrip.id);
     }
   }, [selectedTrip]);
 
@@ -38,18 +40,26 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   async function fetchTrips() {
     if (!user) return;
     const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
+    
     if (data && data.length > 0) {
       setTrips(data);
       
-      const savedTripId = localStorage.getItem('selectedTripId');
+      const savedTripId = localStorage.getItem(STORAGE_KEY);
       
-      if (!selectedTrip) {
-        const initial = savedTripId ? data.find(t => t.id === savedTripId) : null;
-        setSelectedTrip(initial || data[0]);
-      } else {
-        const current = data.find(t => t.id === selectedTrip.id);
-        if (current) setSelectedTrip(current);
+      let tripToSelect = null;
+
+      // 1. Prioridade: Se já temos um objeto real em memória, atualizamos ele com dados novos do banco
+      if (selectedTrip?.id && !selectedTrip._isPlaceholder) {
+        tripToSelect = data.find(t => String(t.id) === String(selectedTrip.id));
+      } 
+      
+      // 2. Segunda Prioridade: Se não temos nada ou a atualização falhou, tentamos o localStorage
+      if (!tripToSelect && savedTripId) {
+        tripToSelect = data.find(t => String(t.id) === String(savedTripId));
       }
+
+      // 3. Fallback: Se nada funcionou, pegamos a primeira (mais recente)
+      setSelectedTrip(tripToSelect || data[0]);
     }
   }
 

@@ -382,6 +382,12 @@ export default function InvestmentList({ user, showValues = true }) {
         )}
 
         {/* Desktop View: Table */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
+          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>Detalhamento</h4>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+            {records.length} {records.length === 1 ? 'registro' : 'registros'}
+          </span>
+        </div>
         <div className="glass-card desktop-only" style={{ overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>

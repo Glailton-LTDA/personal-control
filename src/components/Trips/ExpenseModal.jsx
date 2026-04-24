@@ -46,12 +46,16 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
   }
 
   const handleDateChange = (e) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.length > 8) val = val.slice(0, 8);
+    const val = e.target.value.replace(/\D/g, '');
+    let formatted = '';
     
-    let formatted = val;
-    if (val.length > 2) formatted = val.slice(0, 2) + '/' + val.slice(2);
-    if (val.length > 4) formatted = formatted.slice(0, 5) + '/' + formatted.slice(5);
+    if (val.length <= 2) {
+      formatted = val;
+    } else if (val.length <= 4) {
+      formatted = `${val.slice(0, 2)}/${val.slice(2)}`;
+    } else {
+      formatted = `${val.slice(0, 2)}/${val.slice(2, 4)}/${val.slice(4, 8)}`;
+    }
     
     setDisplayDate(formatted);
     

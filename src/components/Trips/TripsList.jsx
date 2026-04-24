@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
-import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe } from 'lucide-react';
+import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search } from 'lucide-react';
 import ExpenseModal from './ExpenseModal';
 import TripDetails from './TripDetails';
 import { CURRENCIES } from '../../constants/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip }) {
-  const [selectedTrip, setSelectedTrip] = useState(null);
+  const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
   const [isAddingExpense, setIsAddingExpense] = useState(false);
@@ -16,6 +16,8 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   const [categories, setCategories] = useState([]);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -44,18 +46,15 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
 
   useEffect(() => {
     if (externalSelectedTrip) {
-      setSelectedTrip(externalSelectedTrip);
       if (externalSelectedTrip.currencies && externalSelectedTrip.currencies.length > 0) {
-        setActiveCurrency(externalSelectedTrip.currencies[0]);
+        if (!externalSelectedTrip.currencies.includes(activeCurrency)) {
+          setActiveCurrency(externalSelectedTrip.currencies[0]);
+        }
       }
+      fetchExpenses(externalSelectedTrip.id);
     }
-  }, [externalSelectedTrip]);
+  }, [externalSelectedTrip, activeCurrency, refreshKey]);
 
-  useEffect(() => {
-    if (selectedTrip) {
-      fetchExpenses();
-    }
-  }, [selectedTrip, activeCurrency, refreshKey]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -69,12 +68,12 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     if (user?.id) fetchCategories();
   }, [user?.id]);
 
-  const fetchExpenses = async () => {
-    if (!selectedTrip) return;
+  const fetchExpenses = async (tripId) => {
+    if (!tripId) return;
     const { data, error } = await supabase
       .from('trip_expenses')
       .select('*, trip_categories(name)')
-      .eq('trip_id', selectedTrip.id)
+      .eq('trip_id', tripId)
       .eq('currency', activeCurrency)
       .order('date', { ascending: false });
     
@@ -96,12 +95,44 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   };
 
   const handleTripSelect = (trip) => {
-    setSelectedTrip(trip);
     if (onTripSelect) onTripSelect(trip);
     if (trip.currencies && trip.currencies.length > 0) {
       setActiveCurrency(trip.currencies[0]);
     }
   };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedExpenses = [...expenses].sort((a, b) => {
+    let valA, valB;
+
+    if (sortConfig.key === 'trip_categories') {
+      valA = (a.trip_categories?.name || '').toLowerCase();
+      valB = (b.trip_categories?.name || '').toLowerCase();
+    } else if (typeof a[sortConfig.key] === 'string') {
+      valA = (a[sortConfig.key] || '').toLowerCase();
+      valB = (b[sortConfig.key] || '').toLowerCase();
+    } else {
+      valA = a[sortConfig.key];
+      valB = b[sortConfig.key];
+    }
+
+    if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const filteredExpenses = sortedExpenses.filter(exp => 
+    exp.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (exp.trip_categories?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (exp.paid_by || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // ── Metrics Calculation ──
   const totalSpent = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
@@ -135,15 +166,26 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     return acc;
   }, {});
 
-  const allDays = [];
+  const allDaysSet = new Set();
+  
+  // 1. Adicionar todos os dias que possuem gastos (mesmo fora do período oficial)
+  Object.keys(dailyMap).forEach(date => {
+    if (date && date !== 'null' && date !== 'undefined') {
+      allDaysSet.add(date);
+    }
+  });
+
+  // 2. Adicionar os dias do período oficial da viagem para garantir o cronograma
   if (selectedTrip?.start_date && selectedTrip?.end_date) {
     let curr = new Date(selectedTrip.start_date + 'T12:00:00');
     const end = new Date(selectedTrip.end_date + 'T12:00:00');
     while (curr <= end) {
-      allDays.push(curr.toISOString().split('T')[0]);
+      allDaysSet.add(curr.toISOString().split('T')[0]);
       curr.setDate(curr.getDate() + 1);
     }
   }
+
+  const allDays = Array.from(allDaysSet).sort((a, b) => b.localeCompare(a));
 
   const renderItineraryItem = (item, typeIcon, color = 'var(--primary)') => (
     <div key={item.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -203,10 +245,10 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
               style={{ 
                 padding: '0.75rem 1.25rem', 
                 whiteSpace: 'nowrap',
-                border: selectedTrip?.id === trip.id ? '1px solid var(--primary)' : '1px solid transparent',
-                background: selectedTrip?.id === trip.id ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.02)',
+                border: selectedTrip?.id === trip.id ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
+                background: selectedTrip?.id === trip.id ? 'var(--primary)' : 'var(--bg-card)',
                 color: selectedTrip?.id === trip.id ? 'white' : 'var(--text-muted)',
-                fontWeight: selectedTrip?.id === trip.id ? '600' : '500',
+                fontWeight: selectedTrip?.id === trip.id ? '700' : '500',
                 transition: '0.3s'
               }}
             >
@@ -228,8 +270,8 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
               className="glass-card"
               style={{ 
                 padding: '0.65rem 1.25rem', border: '1px solid var(--glass-border)', borderRadius: '14px', 
-                background: 'rgba(255, 255, 255, 0.05)',
-                color: 'white',
+                background: 'var(--bg-card)',
+                color: 'var(--text-main)',
                 display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
                 width: isMobile ? '100%' : 'auto'
               }}
@@ -242,10 +284,11 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
             className="glass-card"
             style={{ 
               padding: '0.65rem 1.5rem', border: '1px solid var(--primary)', borderRadius: '14px', 
-              background: 'rgba(99, 102, 241, 0.1)',
+              background: 'var(--primary)',
               color: 'white',
               display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
-              width: isMobile ? '100%' : 'auto'
+              width: isMobile ? '100%' : 'auto',
+              boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
             }}
           >
             <FileText size={18} /> Detalhes da Viagem
@@ -440,6 +483,9 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem' }}>
                        <DollarSign size={22} className="text-primary" /> Despesas
+                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '400', opacity: 0.7 }}>
+                         ({filteredExpenses.length} {filteredExpenses.length === 1 ? 'registro' : 'registros'})
+                       </span>
                     </h3>
                     <button 
                       className="btn" 
@@ -449,6 +495,55 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                        <Plus size={16} /> Nova Despesa
                     </button>
                   </div>
+
+                  {/* ── Search and Sort Control Bar (Mobile/Tablet Focused) ── */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: '0.5rem' }}>Ordenar:</span>
+                      {[
+                        { key: 'date', label: 'Data' },
+                        { key: 'description', label: 'Descrição' },
+                        { key: 'trip_categories', label: 'Categoria' },
+                        { key: 'amount', label: 'Valor' }
+                      ].map(pill => (
+                        <button
+                          key={pill.key}
+                          onClick={() => handleSort(pill.key)}
+                          className="glass-card"
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: '20px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            border: sortConfig.key === pill.key ? '1px solid var(--primary)' : '1px solid transparent',
+                            background: sortConfig.key === pill.key ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.03)',
+                            color: sortConfig.key === pill.key ? 'white' : 'var(--text-muted)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            transition: '0.2s'
+                          }}
+                        >
+                          {pill.label}
+                          {sortConfig.key === pill.key && (
+                            sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                      <input 
+                        type="text"
+                        placeholder="Pesquisar por descrição ou categoria..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="glass-input"
+                        style={{ paddingLeft: '2.8rem', width: '100%', fontSize: '0.9rem', borderRadius: '12px' }}
+                      />
+                    </div>
+                  </div>
                   
                   <div style={{ overflowX: 'auto', paddingBottom: '3rem' }}>
                     <table className="finance-table">
@@ -456,11 +551,31 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                       {!isMobile && (
                         <thead>
                           <tr>
-                            <th style={{ textAlign: 'left' }}>DATA</th>
-                            <th style={{ textAlign: 'left' }}>DESCRIÇÃO</th>
-                            <th style={{ textAlign: 'left' }}>CATEGORIA</th>
-                            <th style={{ textAlign: 'left' }}>PAGO POR</th>
-                            <th style={{ textAlign: 'right' }}>VALOR</th>
+                            <th onClick={() => handleSort('date')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                DATA {sortConfig.key === 'date' ? (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={12} style={{ opacity: 0.3 }} />}
+                              </div>
+                            </th>
+                            <th onClick={() => handleSort('description')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                DESCRIÇÃO {sortConfig.key === 'description' ? (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={12} style={{ opacity: 0.3 }} />}
+                              </div>
+                            </th>
+                            <th onClick={() => handleSort('trip_categories')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                CATEGORIA {sortConfig.key === 'trip_categories' ? (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={12} style={{ opacity: 0.3 }} />}
+                              </div>
+                            </th>
+                            <th onClick={() => handleSort('paid_by')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                PAGO POR {sortConfig.key === 'paid_by' ? (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={12} style={{ opacity: 0.3 }} />}
+                              </div>
+                            </th>
+                            <th onClick={() => handleSort('amount')} style={{ textAlign: 'right', cursor: 'pointer' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                VALOR {sortConfig.key === 'amount' ? (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={12} style={{ opacity: 0.3 }} />}
+                              </div>
+                            </th>
                             <th style={{ textAlign: 'center' }}>AÇÕES</th>
                           </tr>
                         </thead>
@@ -473,7 +588,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                             </td>
                           </tr>
                         )}
-                        {expenses.map(exp => (
+                        {filteredExpenses.map(exp => (
                           <tr key={exp.id}>
                             <td data-label="Data">
                               {exp.date ? formatDate(exp.date, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '--'}

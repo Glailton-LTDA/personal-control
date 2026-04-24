@@ -6,6 +6,7 @@ import {
   Briefcase, Utensils, Camera, Map
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AIRPORTS } from '../../data/airports';
 
 export default function TripDetails({ trip, onClose, expenses, showValues }) {
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
@@ -78,6 +79,35 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
             </a>
           )}
         </div>
+
+        {isTransport && item.origin && item.destination && (
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: '1.5rem', 
+            background: 'rgba(255,255,255,0.02)', 
+            padding: '1rem', 
+            borderRadius: '16px', 
+            margin: '0.25rem 0',
+            border: '1px solid rgba(255,255,255,0.03)'
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: '900', letterSpacing: '0.05em', color: 'var(--text-main)' }}>{item.origin}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: '600' }}>{AIRPORTS.find(a => a.iata === item.origin)?.city || 'Origem'}</div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', opacity: 0.3 }}>
+              <Plane size={18} style={{ transform: 'rotate(90deg)' }} />
+              <div style={{ width: '40px', height: '1px', background: 'currentColor' }}></div>
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: '900', letterSpacing: '0.05em', color: 'var(--text-main)' }}>{item.destination}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: '600' }}>{AIRPORTS.find(a => a.iata === item.destination)?.city || 'Destino'}</div>
+            </div>
+          </div>
+        )}
 
         {isTour && item.address && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '10px' }}>
