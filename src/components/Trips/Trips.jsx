@@ -1,0 +1,146 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import TripsList from './TripsList';
+import TripsSettings from './TripsSettings';
+import TripForm from './TripForm';
+import ExpenseModal from './ExpenseModal';
+import { Plus } from 'lucide-react';
+
+export default function Trips({ user, refreshKey, mode, showValues }) {
+  const [isAddingExpense, setIsAddingExpense] = useState(false);
+  const [selectedTrip, setSelectedTrip] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [trips, setTrips] = useState([]);
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  
+  // New state for page-based navigation within Trips module
+  const [currentView, setCurrentView] = useState('main'); // 'main', 'settings', 'form'
+  const [editingTrip, setEditingTrip] = useState(null);
+
+  useEffect(() => {
+    // If mode prop changes, update currentView
+    if (mode === 'settings') setCurrentView('settings');
+    else if (mode === 'list') setCurrentView('main');
+  }, [mode]);
+
+  useEffect(() => {
+    fetchTrips();
+    fetchCategories();
+  }, [user, refreshKey, localRefreshKey]);
+
+  async function fetchTrips() {
+    if (!user) return;
+    const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
+    if (data && data.length > 0) {
+      setTrips(data);
+      if (!selectedTrip) {
+        setSelectedTrip(data[0]);
+      } else {
+        const current = data.find(t => t.id === selectedTrip.id);
+        if (current) setSelectedTrip(current);
+      }
+    }
+  }
+
+  async function fetchCategories() {
+    if (!user) return;
+    const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
+    if (data) setCategories(data);
+  }
+
+  const handleExpenseSaved = () => {
+    setIsAddingExpense(false);
+    setLocalRefreshKey(prev => prev + 1);
+  };
+
+  const handleOpenForm = (trip = null) => {
+    setEditingTrip(trip);
+    setCurrentView('form');
+  };
+
+  const handleFormSave = () => {
+    setLocalRefreshKey(prev => prev + 1);
+    setCurrentView(mode === 'settings' ? 'settings' : 'main');
+    setEditingTrip(null);
+  };
+
+  if (currentView === 'form') {
+    return (
+      <TripForm 
+        user={user} 
+        trip={editingTrip} 
+        onBack={() => setCurrentView(mode === 'settings' ? 'settings' : 'main')} 
+        onSave={handleFormSave} 
+      />
+    );
+  }
+
+  if (currentView === 'settings') {
+    return <TripsSettings user={user} refreshKey={refreshKey || localRefreshKey} onEditTrip={handleOpenForm} onAddTrip={() => handleOpenForm(null)} />;
+  }
+
+  return (
+    <div style={{ position: 'relative', minHeight: '100%' }}>
+      <TripsList 
+        user={user} 
+        refreshKey={refreshKey || localRefreshKey} 
+        onTripSelect={setSelectedTrip}
+        externalSelectedTrip={selectedTrip}
+        trips={trips}
+        showValues={showValues}
+        onEditTrip={handleOpenForm}
+      />
+
+      {/* FAB - Global Trip Expense Trigger */}
+      {selectedTrip && (
+        <button
+          onClick={() => setIsAddingExpense(true)}
+// ... rest of the file
+          style={{
+            position: 'fixed',
+            bottom: '2rem',
+            right: '2rem',
+            width: '60px',
+            height: '60px',
+            borderRadius: '18px',
+            background: 'var(--primary)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 10px 25px rgba(99, 102, 241, 0.4)',
+            border: 'none',
+            cursor: 'pointer',
+            zIndex: 100,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+          className="fab-hover"
+          title="Novo Gasto de Viagem"
+        >
+          <Plus size={32} />
+        </button>
+      )}
+
+      {isAddingExpense && (
+        <ExpenseModal 
+          user={user}
+          trip={selectedTrip}
+          categories={categories}
+          onClose={() => setIsAddingExpense(false)}
+          onSave={handleExpenseSaved}
+        />
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .fab-hover:hover {
+          transform: scale(1.1) translateY(-5px);
+          box-shadow: 0 15px 30px rgba(99, 102, 241, 0.5);
+          filter: brightness(1.1);
+        }
+        .fab-hover:active {
+          transform: scale(0.95);
+        }
+      `}} />
+    </div>
+  );
+}

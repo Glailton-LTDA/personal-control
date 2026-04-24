@@ -42,3 +42,7 @@ test-out*.txt
 
 # Vite temporary files
 .vite/
+
+# Scratch / Temporary scripts
+scratch/
+

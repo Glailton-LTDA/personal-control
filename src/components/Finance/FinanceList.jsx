@@ -16,14 +16,16 @@ import {
   Mail,
   User,
   X,
-  Copy
+  Copy,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import SummaryDashboard from './SummaryDashboard';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#06b6d4', '#8b5cf6'];
 
-export default function FinanceList({ refreshKey, onEdit, user }) {
+export default function FinanceList({ refreshKey, onEdit, user, showValues = true, onToggleValues }) {
   const [finances, setFinances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => {
@@ -264,7 +266,7 @@ export default function FinanceList({ refreshKey, onEdit, user }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Mini Dash for Month */}
-      <SummaryDashboard user={user} isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} />
+      <SummaryDashboard user={user} isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} showValues={showValues} onToggleValues={onToggleValues} />
 
 
       {/* Header and filters section below */}
@@ -319,6 +321,14 @@ export default function FinanceList({ refreshKey, onEdit, user }) {
               style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', borderRadius: '0.75rem' }}
             >
               <Copy size={18} />
+            </button>
+            <button 
+              className="icon-btn" 
+              onClick={onToggleValues}
+              title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
+              style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem' }}
+            >
+              {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
           </div>
         </div>
@@ -406,7 +416,7 @@ export default function FinanceList({ refreshKey, onEdit, user }) {
                   </td>
                   <td data-label="Categoria"><span className="badge">{item.category}</span></td>
                   <td data-label="Valor" style={{ fontWeight: 600, color: item.type === 'RECEITA' ? 'var(--success)' : 'white' }}>
-                    {item.type === 'RECEITA' ? '+' : '-'} R$ {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {item.type === 'RECEITA' ? '+' : '-'} {showValues ? `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}
                   </td>
                   {activeTab === 'DESPESA' && (
                     <td data-label="Pago Por">

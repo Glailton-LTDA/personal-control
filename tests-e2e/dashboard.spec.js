@@ -59,4 +59,50 @@ test.describe('Autenticação e Dashboard', () => {
     await expect(incomeCard.getByText(/1\.?000,00/i)).toBeVisible();
     await expect(balanceCard.getByText(/500,00/i)).toBeVisible();
   });
+
+  test('deve alternar o modo de privacidade (ocultar valores)', async ({ page }) => {
+    await page.goto('/');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.click('button:has-text("Entrar")');
+    await page.waitForLoadState('networkidle');
+
+    // Valor deve estar visível inicialmente
+    const incomeValue = page.locator('.glass-card', { hasText: /Receita (Anual|Mensal)/i }).getByText(/1\.?000,00/i);
+    await expect(incomeValue).toBeVisible();
+
+    // Clica no botão de privacidade
+    // Usamos o título que o componente define
+    await page.click('button[title="Ocultar Valores"]');
+
+    // Valor deve estar mascarado
+    await expect(page.getByText(/R\$.*••••••/i).first()).toBeVisible();
+    await expect(incomeValue).not.toBeVisible();
+
+    // Alterna de volta
+    await page.click('button[title="Mostrar Valores"]');
+    await expect(incomeValue).toBeVisible();
+  });
+
+  test('deve colapsar e expandir seções do menu lateral', async ({ page }) => {
+    await page.goto('/');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.click('button:has-text("Entrar")');
+    await page.waitForLoadState('networkidle');
+
+    // A seção "FINANÇAS" deve estar expandida por padrão e mostrar "Transações"
+    const transactionsLink = page.getByRole('button', { name: 'Transações' });
+    await expect(transactionsLink).toBeVisible();
+
+    // Clica no header da seção (o label pequeno "Finanças")
+    await page.click('small:has-text("Finanças")');
+
+    // "Transações" deve estar oculto
+    await expect(transactionsLink).not.toBeVisible();
+
+    // Clica novamente para expandir
+    await page.click('small:has-text("Finanças")');
+    await expect(transactionsLink).toBeVisible();
+  });
 });

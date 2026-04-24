@@ -4,11 +4,11 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
-import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock, Eye, EyeOff } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey }) {
+export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey, showValues = true, onToggleValues }) {
   const [data, setData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [revenueCategoryData, setRevenueCategoryData] = useState([]);
@@ -119,7 +119,10 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
   }
 
-  const formatValue = (val) => `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatValue = (val) => {
+    if (!showValues) return 'R$ ••••••';
+    return `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   // Removed early loading return to prevent layout shift
   // if (loading && data.length === 0) return <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando dados...</div>;
@@ -128,31 +131,45 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
       {/* Header with Year Filter for General View */}
-      {isGeneral && (
-        <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Filter size={18} color="var(--primary)" />
-            <span style={{ fontWeight: 600 }}>Filtrar Ano Fiscal</span>
-          </div>
-          <select 
-            value={selectedYear} 
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            style={{ 
-              background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
-              color: 'white', padding: '0.5rem 1rem', borderRadius: '0.5rem', outline: 'none'
-            }}
-          >
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+      <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {isGeneral ? <Filter size={18} color="var(--primary)" /> : <Calendar size={18} color="var(--primary)" />}
+          <span style={{ fontWeight: 600 }}>{isGeneral ? "Filtrar Ano Fiscal" : "Resumo do Mês"}</span>
         </div>
-      )}
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {onToggleValues && (
+            <button 
+              className="icon-btn" 
+              onClick={onToggleValues}
+              style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}
+              title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
+            >
+              {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+          )}
+
+          {isGeneral && (
+            <select 
+              value={selectedYear} 
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              style={{ 
+                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
+                color: 'white', padding: '0.5rem 1rem', borderRadius: '0.5rem', outline: 'none'
+              }}
+            >
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
+        </div>
+      </div>
 
       {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-        <StatCard title={isGeneral ? "Receita Anual" : "Receita Mensal"} value={stats.income} icon={<TrendingUp size={20}/>} color="var(--success)" loading={loading && data.length === 0} />
-        <StatCard title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} value={stats.expense} icon={<TrendingDown size={20}/>} color="var(--danger)" loading={loading && data.length === 0} />
-        <StatCard title="Total a Pagar" value={stats.pending} icon={<Clock size={20}/>} color="var(--pending)" loading={loading && data.length === 0} />
-        <StatCard title="Saldo Final" value={stats.balance} icon={<Wallet size={20}/>} color="var(--primary)" loading={loading && data.length === 0} />
+        <StatCard title={isGeneral ? "Receita Anual" : "Receita Mensal"} value={stats.income} icon={<TrendingUp size={20}/>} color="var(--success)" loading={loading && data.length === 0} showValues={showValues} />
+        <StatCard title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} value={stats.expense} icon={<TrendingDown size={20}/>} color="var(--danger)" loading={loading && data.length === 0} showValues={showValues} />
+        <StatCard title="Total a Pagar" value={stats.pending} icon={<Clock size={20}/>} color="var(--pending)" loading={loading && data.length === 0} showValues={showValues} />
+        <StatCard title="Saldo Final" value={stats.balance} icon={<Wallet size={20}/>} color="var(--primary)" loading={loading && data.length === 0} showValues={showValues} />
       </div>
 
       {/* Main Bar Chart */}
@@ -286,7 +303,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   );
 }
 
-function StatCard({ title, value, icon, color, loading }) {
+function StatCard({ title, value, icon, color, loading, showValues }) {
   return (
     <div className="glass-card" style={{ padding: '1.25rem', borderLeft: `6px solid ${color}`, transition: 'transform 0.2s', opacity: loading ? 0.7 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
@@ -297,7 +314,7 @@ function StatCard({ title, value, icon, color, loading }) {
         {loading ? (
           <div className="skeleton" style={{ height: '1.8rem', width: '80%', marginTop: '4px' }} />
         ) : (
-          <>R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+          <>{showValues ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
         )}
       </div>
     </div>

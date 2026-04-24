@@ -16,6 +16,9 @@ import {
   Menu,
   X,
   ChevronLeft,
+  ChevronDown,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -25,6 +28,7 @@ import TransactionModal from './Finance/TransactionModal';
 import SettingsView from './Settings';
 import MyCars from './MyCars/MyCars';
 import Investments from './Investments/Investments';
+import Trips from './Trips/Trips';
 
 const menuItems = [
   { id: 'finances', icon: LayoutDashboard, label: 'Finanças' },
@@ -45,9 +49,27 @@ export default function Dashboard({ user }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [theme, setTheme] = useState('dark');
   const [invitationCount, setInvitationCount] = useState(0);
+  const [expandedSections, setExpandedSections] = useState({
+    finances: true,
+    cars: true,
+    investments: true,
+    trips: true,
+  });
+  const [showValues, setShowValues] = useState(() => {
+    const saved = localStorage.getItem('personal-control-show-values');
+    return saved !== null ? saved === 'true' : true;
+  });
   const drawerRef = useRef(null);
 
+  useEffect(() => {
+    localStorage.setItem('personal-control-show-values', showValues);
+  }, [showValues]);
+
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   useEffect(() => {
     localStorage.setItem('personal-control-active-tab', activeTab);
@@ -109,73 +131,210 @@ export default function Dashboard({ user }) {
   const SidebarContent = ({ collapsed = false, onNavigate }) => (
     <>
       <nav style={{ flex: 1, padding: '0.5rem', overflowY: 'auto' }}>
+        {/* Finanças Section */}
         <div className="sidebar-group">
-          {!collapsed && <small style={{ color: 'var(--text-muted)', padding: '0 1rem', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Finanças</small>}
-          {[
-            { tab: 'finances-dashboard', icon: BarChart2, label: 'Dashboard' },
-            { tab: 'finances-transactions', icon: DollarSign, label: 'Transações' },
-            { tab: 'finances-settings', icon: Settings, label: 'Ajustes' },
-          ].map(({ tab, icon: Icon, label }) => (
-            <button key={tab} onClick={() => onNavigate(tab)} title={label}
-              style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-              <Icon size={20} />
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
-            </button>
-          ))}
+          {!collapsed && (
+            <div
+              onClick={() => toggleSection('finances')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 1rem',
+                marginBottom: '0.5rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <small style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Finanças</small>
+              <motion.div animate={{ rotate: expandedSections.finances ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={14} />
+              </motion.div>
+            </div>
+          )}
+          <AnimatePresence initial={false}>
+            {(expandedSections.finances || collapsed) && (
+              <motion.div
+                initial={false}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden' }}
+              >
+                {[
+                  { tab: 'finances-dashboard', icon: BarChart2, label: 'Dashboard' },
+                  { tab: 'finances-transactions', icon: DollarSign, label: 'Transações' },
+                  { tab: 'finances-settings', icon: Settings, label: 'Ajustes' },
+                ].map(({ tab, icon: Icon, label }) => (
+                  <button key={tab} onClick={() => onNavigate(tab)} title={label}
+                    style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+                    <Icon size={20} />
+                    {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
+        {/* Meus Carros Section */}
         <div className="sidebar-group" style={{ marginTop: '1rem' }}>
-          {!collapsed && <small style={{ color: 'var(--text-muted)', padding: '0 1rem', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Meus Carros</small>}
-          {[
-            { tab: 'cars-list', icon: Car, label: 'Carros' },
-            { tab: 'cars-settings', icon: Wrench, label: 'Ajustes' },
-          ].map(({ tab, icon: Icon, label }) => (
-            <button key={tab} onClick={() => onNavigate(tab)} title={label}
-              style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-              <div style={{ position: 'relative' }}>
-                <Icon size={20} />
-                {tab === 'cars-list' && invitationCount > 0 && (
-                  <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
-                    {invitationCount}
-                  </span>
-                )}
-              </div>
-              {!collapsed && (
-                <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {label}
-                  {tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
-                </span>
-              )}
-            </button>
-          ))}
+          {!collapsed && (
+            <div
+              onClick={() => toggleSection('cars')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 1rem',
+                marginBottom: '0.5rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <small style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Meus Carros</small>
+              <motion.div animate={{ rotate: expandedSections.cars ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={14} />
+              </motion.div>
+            </div>
+          )}
+          <AnimatePresence initial={false}>
+            {(expandedSections.cars || collapsed) && (
+              <motion.div
+                initial={false}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden' }}
+              >
+                {[
+                  { tab: 'cars-list', icon: Car, label: 'Carros' },
+                  { tab: 'cars-settings', icon: Wrench, label: 'Ajustes' },
+                ].map(({ tab, icon: Icon, label }) => (
+                  <button key={tab} onClick={() => onNavigate(tab)} title={label}
+                    style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+                    <div style={{ position: 'relative' }}>
+                      <Icon size={20} />
+                      {tab === 'cars-list' && invitationCount > 0 && (
+                        <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
+                          {invitationCount}
+                        </span>
+                      )}
+                    </div>
+                    {!collapsed && (
+                      <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {label}
+                        {tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
+        {/* Investimentos Section */}
         <div className="sidebar-group" style={{ marginTop: '1rem' }}>
-          {!collapsed && <small style={{ color: 'var(--text-muted)', padding: '0 1rem', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Investimentos</small>}
-          {[
-            { tab: 'investments-dashboard', icon: BarChart2, label: 'Dashboard' },
-            { tab: 'investments-list', icon: TrendingUp, label: 'Planilha de Investimentos' },
-            { tab: 'investments-settings', icon: Settings, label: 'Ajustes' },
-          ].map(({ tab, icon: Icon, label }) => (
-            <button key={tab} onClick={() => onNavigate(tab)} title={label}
-              style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-              <Icon size={20} />
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
-            </button>
-          ))}
+          {!collapsed && (
+            <div
+              onClick={() => toggleSection('investments')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 1rem',
+                marginBottom: '0.5rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <small style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Investimentos</small>
+              <motion.div animate={{ rotate: expandedSections.investments ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={14} />
+              </motion.div>
+            </div>
+          )}
+          <AnimatePresence initial={false}>
+            {(expandedSections.investments || collapsed) && (
+              <motion.div
+                initial={false}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden' }}
+              >
+                {[
+                  { tab: 'investments-dashboard', icon: BarChart2, label: 'Dashboard' },
+                  { tab: 'investments-list', icon: TrendingUp, label: 'Planilha de Investimentos' },
+                  { tab: 'investments-settings', icon: Settings, label: 'Ajustes' },
+                ].map(({ tab, icon: Icon, label }) => (
+                  <button key={tab} onClick={() => onNavigate(tab)} title={label}
+                    style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+                    <Icon size={20} />
+                    {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
+        {/* Viagens Section */}
         <div className="sidebar-group" style={{ marginTop: '1rem' }}>
-          {!collapsed && <small style={{ color: 'var(--text-muted)', padding: '0 1rem', fontSize: '0.7rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Outros</small>}
-          {[
-            { tab: 'trips', icon: Plane, label: 'Viagens' },
-          ].map(({ tab, icon: Icon, label }) => (
-            <button key={tab} onClick={() => onNavigate(tab)} title={label}
-              style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-              <Icon size={20} />
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
-            </button>
-          ))}
+          {!collapsed && (
+            <div
+              onClick={() => toggleSection('trips')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 1rem',
+                marginBottom: '0.5rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <small style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Viagens</small>
+              <motion.div animate={{ rotate: expandedSections.trips ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={14} />
+              </motion.div>
+            </div>
+          )}
+          <AnimatePresence initial={false}>
+            {(expandedSections.trips || collapsed) && (
+              <motion.div
+                initial={false}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden' }}
+              >
+                {[
+                  { tab: 'trips-list', icon: Plane, label: 'Minhas Viagens' },
+                  { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' },
+                ].map(({ tab, icon: Icon, label }) => (
+                  <button key={tab} onClick={() => onNavigate(tab)} title={label}
+                    style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+                    <Icon size={20} />
+                    {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </nav>
 
@@ -290,13 +449,18 @@ export default function Dashboard({ user }) {
                     activeTab === 'investments-dashboard' ? 'Dashboard de Investimentos' :
                       activeTab === 'investments-list' ? 'Planilha de Investimentos' :
                         activeTab === 'investments-settings' ? 'Ajustes de Investimentos' :
-                          menuItems.find(i => i.id === activeTab)?.label ||
-                          menuItems.find(i => i.id === activeTab.split('-')[0])?.label || 'Dashboard'}
+                          activeTab === 'trips-list' ? 'Minhas Viagens' :
+                            activeTab === 'trips-settings' ? 'Ajustes de Viagens' :
+                              menuItems.find(i => i.id === activeTab)?.label ||
+                              menuItems.find(i => i.id === activeTab.split('-')[0])?.label || 'Dashboard'}
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gerencie seus dados aqui</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? "Ocultar Valores" : "Mostrar Valores"}>
+              {showValues ? <Eye size={20} /> : <EyeOff size={20} />}
+            </button>
             <button className="icon-btn" onClick={toggleTheme} title="Alternar Tema">
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -310,15 +474,17 @@ export default function Dashboard({ user }) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} />}
+            {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
             {activeTab === 'finances-transactions' && (
               <FinanceList
                 user={user}
                 refreshKey={refreshKey}
+                showValues={showValues}
                 onEdit={(item) => { setEditingTransaction(item); setModalOpen(true); }}
+                onToggleValues={() => setShowValues(!showValues)}
               />
             )}
-            {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} />}
+            {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
             {activeTab === 'app-menu' && (
               <AppMenuGrid onNavigate={(tab) => setActiveTab(tab)} menuItems={menuItems} onLogout={() => supabase.auth.signOut()} />
             )}
@@ -327,7 +493,10 @@ export default function Dashboard({ user }) {
               <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
             )}
             {activeTab.startsWith('investments') && (
-              <Investments user={user} refreshKey={refreshKey} mode={activeTab.replace('investments-', '')} />
+              <Investments user={user} refreshKey={refreshKey} mode={activeTab.replace('investments-', '')} showValues={showValues} />
+            )}
+            {activeTab.startsWith('trips') && (
+              <Trips user={user} refreshKey={refreshKey} mode={activeTab.replace('trips-', '')} showValues={showValues} />
             )}
             {activeTab !== 'finances-transactions' &&
               activeTab !== 'finances-dashboard' &&
@@ -335,6 +504,7 @@ export default function Dashboard({ user }) {
               activeTab !== 'settings' &&
               activeTab !== 'app-menu' &&
               !activeTab.startsWith('cars') &&
+              !activeTab.startsWith('trips') &&
               !activeTab.startsWith('investments') && (
                 <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
                   <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>

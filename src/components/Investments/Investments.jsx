@@ -4,7 +4,7 @@ import InvestmentList from './InvestmentList';
 import InvestmentSettings from './InvestmentSettings';
 import { supabase } from '../../lib/supabase';
 
-export default function Investments({ user, refreshKey, mode }) {
+export default function Investments({ user, refreshKey, mode, showValues = true }) {
   const [key, setKey] = useState(0);
 
   useEffect(() => {
@@ -13,8 +13,8 @@ export default function Investments({ user, refreshKey, mode }) {
 
   return (
     <div key={key}>
-      {mode === 'dashboard' && <InvestmentDashboard user={user} />}
-      {mode === 'list' && <InvestmentList user={user} />}
+      {mode === 'dashboard' && <InvestmentDashboard user={user} showValues={showValues} />}
+      {mode === 'list' && <InvestmentList user={user} showValues={showValues} />}
       {mode === 'settings' && <InvestmentSettings user={user} />}
     </div>
   );

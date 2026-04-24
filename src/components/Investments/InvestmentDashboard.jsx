@@ -6,7 +6,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown } from 'lucide-react';
 
-export default function InvestmentDashboard({ user }) {
+export default function InvestmentDashboard({ user, showValues = true }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(() => {
@@ -116,7 +116,10 @@ export default function InvestmentDashboard({ user }) {
     });
   }
 
-  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const formatCurrency = (val) => {
+    if (!showValues) return 'R$ ••••••';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
@@ -139,10 +142,10 @@ export default function InvestmentDashboard({ user }) {
 
       {/* Stats Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-        <StatCard title="Patrimônio Total" value={summary.currentBalance} icon={<Wallet size={20}/>} color="var(--primary)" />
-        <StatCard title={`Rendimento ${selectedYear}`} value={summary.totalYieldYear} icon={<ArrowUpRight size={20}/>} color="var(--success)" />
-        <StatCard title="Rendimento Total" value={summary.totalYieldAllTime} icon={<TrendingUp size={20}/>} color="#8b5cf6" />
-        <StatCard title="Média Mensal" value={summary.totalYieldYear / 12} icon={<Calendar size={20}/>} color="var(--pending)" />
+        <StatCard title="Patrimônio Total" value={summary.currentBalance} icon={<Wallet size={20}/>} color="var(--primary)" showValues={showValues} />
+        <StatCard title={`Rendimento ${selectedYear}`} value={summary.totalYieldYear} icon={<ArrowUpRight size={20}/>} color="var(--success)" showValues={showValues} />
+        <StatCard title="Rendimento Total" value={summary.totalYieldAllTime} icon={<TrendingUp size={20}/>} color="#8b5cf6" showValues={showValues} />
+        <StatCard title="Média Mensal" value={summary.totalYieldYear / 12} icon={<Calendar size={20}/>} color="var(--pending)" showValues={showValues} />
       </div>
 
       {/* Main Charts */}
@@ -296,7 +299,7 @@ export default function InvestmentDashboard({ user }) {
   );
 }
 
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, icon, color, showValues }) {
   return (
     <div className="glass-card" style={{ padding: '1.25rem', borderLeft: `6px solid ${color}`, transition: 'transform 0.2s' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
@@ -304,7 +307,11 @@ function StatCard({ title, value, icon, color }) {
         <div style={{ color: color, background: `${color}15`, padding: '0.4rem', borderRadius: '0.5rem' }}>{icon}</div>
       </div>
       <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>
-        R$ {Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {showValues ? (
+          <>R$ {Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+        ) : (
+          <>R$ ••••••</>
+        )}
       </div>
     </div>
   );

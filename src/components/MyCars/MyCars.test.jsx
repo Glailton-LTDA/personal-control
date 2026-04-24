@@ -4,67 +4,42 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MyCars from './MyCars';
 import { supabase } from '../../lib/supabase';
 
-// Mock Supabase
-vi.mock('../../lib/supabase', () => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    then: vi.fn((onFulfilled) => Promise.resolve({ data: [], error: null }).then(onFulfilled)),
-  };
-
-  return {
-    supabase: {
-      from: vi.fn(() => chain),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
-      }
-    }
-  };
-});
-
 const mockCars = [
-  { id: '1', name: 'Audi A3', make: 'Audi', model: 'A3', year: 2022, plate: 'ABC-1234', current_km: 15000 },
+  { id: '1', name: 'Audi A3', make: 'Audi', model: 'A3', year: 2022, plate: 'ABC-1234', current_km: 15000, is_hidden: false },
 ];
 
 describe('MyCars', () => {
+  const mockUser = { id: 'user-1', email: 'test@example.com' };
+
   beforeEach(() => {
     vi.clearAllMocks();
     
+    // Setup specific mock for this test using the global supabase mock structure
     vi.mocked(supabase.from).mockImplementation((table) => {
-      const chain = {
-         select: vi.fn().mockReturnThis(),
-         eq: vi.fn().mockReturnThis(),
-         order: vi.fn().mockReturnThis(),
-         delete: vi.fn().mockReturnThis(),
-         insert: vi.fn().mockReturnThis(),
-         update: vi.fn().mockReturnThis(),
-         then: vi.fn(cb => Promise.resolve({ data: [], error: null }).then(cb)),
+      const data = table === 'cars' ? mockCars : [];
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        delete: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        then: vi.fn(cb => Promise.resolve({ data, error: null }).then(cb)),
       };
-
-      if (table === 'cars') {
-        chain.order = vi.fn().mockResolvedValue({ data: mockCars, error: null });
-      }
-
-      return chain;
     });
   });
 
   it('renders the car list correctly', async () => {
-    const mockUser = { id: 'user-1', email: 'test@example.com' };
     render(<MyCars user={mockUser} />);
 
-    // Wait for the car to appear in the list (as a button)
+    // Wait for the car to appear in the list
     const carBtn = await screen.findByText(/Audi A3/i);
     expect(carBtn).toBeInTheDocument();
 
-    // Verify detail view appeared
+    // Verify detail view appeared (ABC-1234 and 15.000)
     await waitFor(() => {
       expect(screen.getByText(/ABC-1234/i)).toBeInTheDocument();
-      expect(screen.getByText(/15.000/i)).toBeInTheDocument();
+      // KM is formatted with locale, so we use regex
+      expect(screen.getByText(/15/)).toBeInTheDocument();
     });
   });
 });

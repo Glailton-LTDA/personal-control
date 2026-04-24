@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import InvestmentModal from './InvestmentModal';
 
-export default function InvestmentList({ user }) {
+export default function InvestmentList({ user, showValues = true }) {
   const [records, setRecords] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,7 +180,10 @@ export default function InvestmentList({ user }) {
     }
   }
 
-  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const formatCurrency = (val) => {
+    if (!showValues) return 'R$ ••••••';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
 
   // Prepare chart data: Yield per Institution for the selected period
   const chartData = Object.values(records.reduce((acc, curr) => {
@@ -344,7 +347,7 @@ export default function InvestmentList({ user }) {
                 }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 800, color: totalYield >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {formatCurrency(totalYield)}
+                    {showValues ? formatCurrency(totalYield) : 'R$ ••••••'}
                   </div>
                 </div>
               </div>
