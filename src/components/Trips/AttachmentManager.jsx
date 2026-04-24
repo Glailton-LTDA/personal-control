@@ -218,14 +218,14 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         className="glass-input"
                         value={item.start_date || ''}
                         onChange={(e) => updateItemField(item.id, 'start_date', e.target.value)}
-                        style={{ flex: 1, minWidth: '130px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                        style={{ flex: 1, minWidth: '110px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                       />
                       <input 
                         type="time"
                         className="glass-input"
                         value={item.start_time || ''}
                         onChange={(e) => updateItemField(item.id, 'start_time', e.target.value)}
-                        style={{ width: '90px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                        style={{ width: '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                       />
                     </div>
                   </div>
@@ -239,14 +239,14 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           className="glass-input"
                           value={item.end_date || ''}
                           onChange={(e) => updateItemField(item.id, 'end_date', e.target.value)}
-                          style={{ flex: 1, minWidth: '130px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          style={{ flex: 1, minWidth: '110px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                         />
                         <input 
                           type="time"
                           className="glass-input"
                           value={item.end_time || ''}
                           onChange={(e) => updateItemField(item.id, 'end_time', e.target.value)}
-                          style={{ width: '90px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          style={{ width: '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                         />
                       </div>
                     </div>
