@@ -211,6 +211,7 @@ export default function Dashboard({ user }) {
             <div key={module.id} className="sidebar-group" style={{ marginTop: idx === 0 ? 0 : '1rem' }}>
               {!collapsed && (
                 <div
+                  data-testid={`sidebar-group-${module.id}`}
                   onClick={() => toggleSection(module.id)}
                   style={{
                     width: '100%',
