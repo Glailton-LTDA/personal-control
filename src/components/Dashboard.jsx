@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  Calendar,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -104,6 +105,30 @@ export default function Dashboard({ user }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isDrawerOpen]);
+
+  useEffect(() => {
+    const handleNavigate = (e) => {
+      if (e.detail?.tripId) {
+        localStorage.setItem('pc_selected_trip_v1', e.detail.tripId);
+      }
+      // Força o refresh para garantir que o componente Trips remonte 
+      // mesmo que já estejamos em uma aba de trips, evitando de-sync do currentView
+      triggerRefresh();
+      navigate('trips-itinerary');
+    };
+    
+    const handleSetTab = (e) => {
+      if (e.detail?.tab) navigate(e.detail.tab);
+    };
+
+    window.addEventListener('navigate-to-itinerary', handleNavigate);
+    window.addEventListener('set-active-tab', handleSetTab);
+    
+    return () => {
+      window.removeEventListener('navigate-to-itinerary', handleNavigate);
+      window.removeEventListener('set-active-tab', handleSetTab);
+    };
+  }, []);
 
   const navigate = (tab) => {
     setActiveTab(tab);
@@ -324,6 +349,7 @@ export default function Dashboard({ user }) {
               >
                 {[
                   { tab: 'trips-list', icon: Plane, label: 'Minhas Viagens' },
+                  { tab: 'trips-itinerary', icon: Calendar, label: 'Roteiros' },
                   { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' },
                 ].map(({ tab, icon: Icon, label }) => (
                   <button key={tab} onClick={() => onNavigate(tab)} title={label}

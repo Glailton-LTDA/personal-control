@@ -136,4 +136,32 @@ test.describe('Módulo de Viagens', () => {
       return await page.evaluate(() => localStorage.getItem('pc_trip_trip-1_currency'));
     }).toBe('EUR');
   });
+
+  test('deve navegar para o roteiro completo e voltar para a listagem', async ({ page }) => {
+    await page.goto('/');
+    
+    // Login
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    
+    // Navega para Viagens
+    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
+    
+    // Abre detalhes da viagem
+    await page.getByRole('button', { name: 'Detalhes da Viagem' }).click();
+    
+    // Clica em "EDITAR ROTEIRO COMPLETO"
+    await page.getByRole('button', { name: 'EDITAR ROTEIRO COMPLETO' }).click();
+    
+    // Verifica se mudou para a tela de roteiro (que tem o título "Roteiros" ou similar)
+    // O seletor depende de como o TripsItinerary renderiza o título
+    await expect(page.getByRole('heading', { name: 'Roteiros' })).toBeVisible();
+    
+    // Clica no botão de voltar do roteiro
+    await page.getByTestId('back-button').click();
+    
+    // Verifica se voltou para a listagem de viagens
+    await expect(page.getByRole('heading', { name: 'Minhas Viagens' })).toBeVisible();
+  });
 });

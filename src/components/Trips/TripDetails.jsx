@@ -3,9 +3,11 @@ import { formatDate } from '../../lib/utils';
 import { 
   X, Calendar, MapPin, Users, Building, Plane, Ticket, 
   DollarSign, FileText, Globe, Clock, ChevronLeft,
-  Briefcase, Utensils, Camera, Map, Train, Bus, Ship, Car
+  Briefcase, Utensils, Camera, Map, Train, Bus, Ship, Car,
+  CheckCircle2, Circle, ExternalLink
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { supabase } from '../../lib/supabase';
 import { AIRPORTS } from '../../data/airports';
 
 export default function TripDetails({ trip, onClose, expenses, showValues }) {
@@ -18,6 +20,34 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
   }, []);
 
   if (!trip) return null;
+
+  const toggleEntryCompletion = async (entryId) => {
+    const updatedItinerary = (trip.itinerary || []).map(entry => 
+      entry.id === entryId ? { ...entry, completed: !entry.completed } : entry
+    );
+    
+    // Optimistic update (optional, but let's do it via the prop if possible)
+    // Since we don't have a direct setTrip here, we'll just do the DB update
+    // and hope the parent re-renders or the user is fine with the DB update.
+    // In a real app, you'd use a state manager or refresh the trip.
+    await supabase.from('trips').update({ itinerary: updatedItinerary }).eq('id', trip.id);
+    
+    // We can dispatch a global event to tell the parent to refresh if needed
+    window.dispatchEvent(new CustomEvent('trip-updated'));
+  };
+
+  const itineraryByDay = (trip.itinerary || []).reduce((acc, entry) => {
+    if (!acc[entry.day]) acc[entry.day] = [];
+    acc[entry.day].push(entry);
+    return acc;
+  }, {});
+
+  // Sort entries within each day by time
+  Object.keys(itineraryByDay).forEach(day => {
+    itineraryByDay[day].sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  });
+
+  const sortedDays = Object.keys(itineraryByDay).sort();
 
   // Calculate total spent per currency
   const currencies = trip.currencies || ['BRL'];
@@ -328,14 +358,100 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
             </div>
           </section>
 
-          {/* Placeholder for future Roteiro */}
-          <section style={{ opacity: 0.3, marginBottom: '4rem' }}>
-            {renderSectionHeader('Roteiro Dia a Dia (Em breve)', Calendar, 'gray')}
-            <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
-              <Clock size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
-              <p style={{ fontWeight: '700' }}>Planejamento Detalhado</p>
-              <p style={{ fontSize: '0.9rem' }}>A funcionalidade de cronograma diário será habilitada em uma futura atualização.</p>
+          {/* Roteiro Dia a Dia */}
+          <section style={{ marginBottom: '4rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              {renderSectionHeader('Roteiro da Viagem', Calendar, 'var(--primary)')}
+              <button 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('navigate-to-itinerary', { detail: { tripId: trip.id } }));
+                  onClose(); // Close modal
+                }}
+                style={{ background: 'rgba(99,102,241,0.1)', border: 'none', color: 'var(--primary)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <ExternalLink size={14} /> EDITAR ROTEIRO COMPLETO
+              </button>
             </div>
+            
+            {sortedDays.length === 0 ? (
+              <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.4, border: '1px dashed var(--glass-border)' }}>
+                Nenhum roteiro planejado para esta viagem.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {sortedDays.map(day => (
+                  <div key={day} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '1.1rem', fontWeight: '900', color: 'var(--primary)' }}>{day.split('-').reverse().slice(0, 2).join('/')}</span>
+                        <span style={{ fontSize: '0.8rem', opacity: 0.5, textTransform: 'uppercase', fontWeight: '800' }}>
+                          {new Date(day + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const waypoints = itineraryByDay[day].filter(e => e.location).map(e => encodeURIComponent(e.location)).join('/');
+                          if (waypoints) window.open(`https://www.google.com/maps/dir/${waypoints}`, '_blank');
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      >
+                        <Map size={14} /> VER ROTA NO MAPA
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingLeft: '0.5rem' }}>
+                      {itineraryByDay[day].map((entry, idx) => (
+                        <div 
+                          key={entry.id} 
+                          style={{ 
+                            display: 'flex', 
+                            gap: '1rem', 
+                            position: 'relative',
+                            opacity: entry.completed ? 0.5 : 1,
+                            transition: '0.3s'
+                          }}
+                        >
+                          {/* Timeline Line */}
+                          {idx < itineraryByDay[day].length - 1 && (
+                            <div style={{ position: 'absolute', left: '11px', top: '24px', bottom: '-12px', width: '2px', background: 'rgba(255,255,255,0.05)' }}></div>
+                          )}
+
+                          <button 
+                            onClick={() => toggleEntryCompletion(entry.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: entry.completed ? 'var(--success)' : 'var(--text-muted)', zIndex: 1, height: '24px' }}
+                          >
+                            {entry.completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                          </button>
+
+                          <div style={{ flex: 1, paddingBottom: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              {entry.time && <span style={{ fontSize: '0.85rem', fontWeight: '900', color: 'white' }}>{entry.time}</span>}
+                              <span style={{ fontSize: '0.95rem', fontWeight: '700', color: entry.completed ? 'var(--text-muted)' : 'var(--text-main)' }}>
+                                {entry.location}
+                              </span>
+                              {entry.is_booked && <Check size={12} style={{ color: 'var(--success)' }} title="Reservado" />}
+                              {!entry.is_booked && entry.needs_booking && <Bell size={12} style={{ color: 'var(--warning)' }} title="Precisa reservar" />}
+                            </div>
+                            {entry.notes && (
+                              <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '0.2rem', fontStyle: 'italic' }}>
+                                {entry.notes}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button 
+                            onClick={() => window.open(`https://www.google.com/maps/search/${encodeURIComponent(entry.location)}`, '_blank')}
+                            style={{ background: 'rgba(255,255,255,0.03)', border: 'none', borderRadius: '8px', padding: '0.4rem', color: 'var(--text-muted)', cursor: 'pointer' }}
+                          >
+                            <ExternalLink size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 

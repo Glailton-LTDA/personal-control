@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, Ticket, Users, Calendar, ArrowLeft } from 'lucide-react';
+import { Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, Ticket, Users, Calendar, ArrowLeft, Map } from 'lucide-react';
 import CurrencySelector from './CurrencySelector';
 import BadgeInput from './BadgeInput';
 import AttachmentManager from './AttachmentManager';
+import ItineraryManager from './ItineraryManager';
 import { motion } from 'framer-motion';
 
 export default function TripForm({ user, trip, onBack, onSave }) {
@@ -48,10 +49,24 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     currencies: trip?.currencies || ['BRL'],
     start_date: trip?.start_date || '',
     end_date: trip?.end_date || '',
-    participants: Array.isArray(trip?.participants) ? trip.participants : (trip?.participants ? [trip.participants] : [])
+    participants: Array.isArray(trip?.participants) ? trip.participants : (trip?.participants ? [trip.participants] : []),
+    itinerary: Array.isArray(trip?.itinerary) ? trip.itinerary : []
   });
 
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const handleAddToTickets = (e) => {
+      const ticket = e.detail;
+      setFormData(prev => ({
+        ...prev,
+        tickets: [...prev.tickets, ticket]
+      }));
+    };
+
+    window.addEventListener('add-to-tickets', handleAddToTickets);
+    return () => window.removeEventListener('add-to-tickets', handleAddToTickets);
+  }, []);
 
   async function handleSubmit(e) {
     if (e) e.preventDefault();
@@ -69,7 +84,8 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       currencies: formData.currencies,
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
-      participants: formData.participants
+      participants: formData.participants,
+      itinerary: formData.itinerary
     };
 
     let result;
@@ -180,7 +196,8 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           </div>
         </div>
 
-        {/* Itinerary / Attachments Card */}
+
+        {/* Attachments Card */}
         <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Building size={20} className="text-primary" /> Hospedagens e Transportes

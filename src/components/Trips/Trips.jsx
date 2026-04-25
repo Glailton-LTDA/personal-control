@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import TripsList from './TripsList';
 import TripsSettings from './TripsSettings';
+import TripsItinerary from './TripsItinerary';
 import TripForm from './TripForm';
 import ExpenseModal from './ExpenseModal';
 import { Plus } from 'lucide-react';
@@ -14,12 +15,17 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   
   // New state for page-based navigation within Trips module
-  const [currentView, setCurrentView] = useState('main'); // 'main', 'settings', 'form'
+  const [currentView, setCurrentView] = useState(() => {
+    if (mode === 'settings') return 'settings';
+    if (mode === 'itinerary') return 'itinerary';
+    return 'main';
+  });
   const [editingTrip, setEditingTrip] = useState(null);
 
   useEffect(() => {
     // If mode prop changes, update currentView
     if (mode === 'settings') setCurrentView('settings');
+    else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'list') setCurrentView('main');
   }, [mode]);
 
@@ -99,6 +105,19 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
 
   if (currentView === 'settings') {
     return <TripsSettings user={user} refreshKey={refreshKey || localRefreshKey} onEditTrip={handleOpenForm} onAddTrip={() => handleOpenForm(null)} />;
+  }
+
+  if (currentView === 'itinerary') {
+    return (
+      <TripsItinerary 
+        user={user} 
+        initialTripId={selectedTrip?.id} 
+        onBack={() => {
+          window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+          setCurrentView('main');
+        }} 
+      />
+    );
   }
 
   return (

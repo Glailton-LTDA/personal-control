@@ -82,7 +82,7 @@ test.describe('Configurações de Viagens', () => {
     // Verifica campos de passeios
     await expect(page.getByText('Passeios, Ingressos e Tickets')).toBeVisible();
     await page.getByText('Passeios, Ingressos e Tickets').click(); // Expand if collapsed
-    await expect(page.getByPlaceholder('Ex: Rue de Rivoli, 75001 Paris...')).toBeVisible(); // address field
+    await expect(page.getByPlaceholder(/Louvre Museum, Rue de Rivoli/)).toBeVisible(); // address field
 
     // Salva
     await page.getByRole('button', { name: 'Atualizar Viagem' }).click();

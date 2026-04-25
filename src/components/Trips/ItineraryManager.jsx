@@ -1,0 +1,409 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Calendar, Clock, MapPin, CheckCircle2, Circle, 
+  Plus, Trash2, ChevronDown, ChevronUp, Map, 
+  ExternalLink, Ticket, Check, Bell, GripVertical
+} from 'lucide-react';
+import AddressInput from './AddressInput';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
+
+export default function ItineraryManager({ trip, items, onItemsChange }) {
+  const [activeDay, setActiveDay] = useState(null);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Helper to generate days between start and end
+  const generateDays = () => {
+    if (!trip.start_date || !trip.end_date) return [];
+    
+    const start = new Date(trip.start_date + 'T00:00:00');
+    const end = new Date(trip.end_date + 'T00:00:00');
+    const days = [];
+    
+    let current = new Date(start);
+    while (current <= end) {
+      days.push(new Date(current).toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  };
+
+  const days = generateDays();
+
+  // If no active day, set to first day
+  if (!activeDay && days.length > 0) setActiveDay(days[0]);
+
+  const addEntry = (day) => {
+    const newEntry = {
+      id: crypto.randomUUID(),
+      day,
+      time: '',
+      location: '',
+      completed: false,
+      needs_booking: false,
+      is_booked: false,
+      coordinates: null,
+      notes: ''
+    };
+    onItemsChange([...items, newEntry]);
+  };
+
+  const updateEntry = (id, field, value) => {
+    onItemsChange(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const handleReorder = (newOrderForDay) => {
+    // Merge the reordered day items back into the main itinerary list
+    const otherDays = items.filter(item => item.day !== activeDay);
+    onItemsChange([...otherDays, ...newOrderForDay]);
+  };
+
+  const sortDayByTime = () => {
+    const dayItems = items.filter(item => item.day === activeDay);
+    const otherDays = items.filter(item => item.day !== activeDay);
+    
+    const sortedDay = [...dayItems].sort((a, b) => {
+      if (a.time && b.time) return a.time.localeCompare(b.time);
+      if (a.time && !b.time) return -1;
+      if (!a.time && b.time) return 1;
+      return 0;
+    });
+    
+    onItemsChange([...otherDays, ...sortedDay]);
+  };
+
+  const removeEntry = (id) => {
+    onItemsChange(items.filter(item => item.id !== id));
+  };
+
+  const formatDate = (dateStr) => {
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}`;
+  };
+
+  const getDayName = (dateStr) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('pt-BR', { weekday: 'short' });
+  };
+
+  // Sort logic: Now purely based on array order for drag-and-drop support.
+  const entriesForDay = items.filter(item => item.day === activeDay);
+
+  // Logic to add to tickets
+  const addToTickets = (entry) => {
+    const ticketEntry = {
+      id: crypto.randomUUID(),
+      name: entry.location,
+      confirmation: '',
+      start_date: entry.day,
+      start_time: entry.time,
+      address: entry.location,
+      notes: entry.notes,
+      receipt_url: null
+    };
+    
+    // This requires a way to update the parent's tickets state
+    // For now, we'll assume the parent handles it via a prop or we send a specific signal
+    if (window.confirm(`Deseja adicionar "${entry.location}" à sua lista de Tickets/Ingressos?`)) {
+      const event = new CustomEvent('add-to-tickets', { detail: ticketEntry });
+      window.dispatchEvent(event);
+    }
+  };
+
+  const openInGoogleMaps = () => {
+    const waypoints = entriesForDay
+      .filter(e => e.location)
+      .map(e => encodeURIComponent(e.location))
+      .join('/');
+    
+    if (waypoints) {
+      window.open(`https://www.google.com/maps/dir/${waypoints}`, '_blank');
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      
+      {/* Day Selector Tabs */}
+      <div className="custom-scrollbar" style={{ 
+        display: 'flex', 
+        gap: '0.75rem', 
+        overflowX: 'auto', 
+        paddingBottom: '0.5rem',
+        paddingRight: '1rem'
+      }}>
+        {days.map(day => (
+          <button
+            key={day}
+            onClick={() => setActiveDay(day)}
+            style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '16px',
+              border: '1px solid',
+              borderColor: activeDay === day ? 'var(--primary)' : 'var(--glass-border)',
+              background: activeDay === day ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
+              color: activeDay === day ? 'var(--primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              minWidth: '70px',
+              transition: '0.2s',
+              fontWeight: activeDay === day ? '800' : '600'
+            }}
+          >
+            <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', opacity: 0.6, color: 'var(--text-muted)' }}>{getDayName(day)}</span>
+            <span style={{ fontSize: '1.1rem', color: activeDay === day ? 'var(--primary)' : 'var(--text-main)' }}>{formatDate(day)}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Day Content */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: isMobile ? 'column' : 'row', 
+          justifyContent: 'space-between', 
+          alignItems: isMobile ? 'flex-start' : 'center',
+          gap: isMobile ? '0.75rem' : '1rem'
+        }}>
+          <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--text-main)' }}>
+            <Calendar size={18} style={{ color: 'var(--primary)' }} />
+            Roteiro do Dia {activeDay && formatDate(activeDay)}
+          </h3>
+          
+          <div style={{ 
+            display: 'flex', 
+            gap: '0.5rem', 
+            width: isMobile ? '100%' : 'auto', 
+            justifyContent: isMobile ? 'flex-start' : 'flex-end',
+            flexWrap: 'wrap'
+          }}>
+            {entriesForDay.length > 1 && (
+              <button 
+                onClick={sortDayByTime}
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <Clock size={14} />
+                ORDENAR
+              </button>
+            )}
+            <button 
+              type="button"
+              onClick={openInGoogleMaps}
+              disabled={entriesForDay.length === 0}
+              className="btn-secondary"
+              style={{ fontSize: '0.7rem', padding: '0.4rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem', opacity: entriesForDay.length === 0 ? 0.3 : 1 }}
+            >
+              <Map size={14} /> Ver Rota
+            </button>
+            <button 
+              type="button"
+              onClick={() => addEntry(activeDay)}
+              className="btn-primary"
+              style={{ fontSize: '0.7rem', padding: '0.4rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <Plus size={14} /> Adicionar
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {entriesForDay.length === 0 ? (
+            <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.4, border: '1px dashed var(--glass-border)', color: 'var(--text-main)' }}>
+              Nenhuma atividade planejada para este dia.
+            </div>
+          ) : (
+            <Reorder.Group 
+              axis="y" 
+              values={entriesForDay} 
+              onReorder={handleReorder}
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', listStyle: 'none', padding: 0 }}
+            >
+              {entriesForDay.map((entry, idx) => (
+                <Reorder.Item 
+                  key={entry.id}
+                  value={entry}
+                  className="glass-card"
+                  style={{ 
+                    padding: isMobile ? '0.75rem' : '1.25rem',
+                    borderLeft: `4px solid ${entry.completed ? 'var(--success)' : 'var(--glass-border)'}`,
+                    opacity: entry.completed ? 0.6 : 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: isMobile ? '0.75rem' : '1rem',
+                    position: 'relative',
+                    zIndex: entriesForDay.length - idx,
+                    cursor: 'grab'
+                  }}
+                  whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 100 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.5rem' : '1rem' }}>
+                    <div style={{ cursor: 'grab', opacity: 0.3, flexShrink: 0, marginTop: '0.75rem' }} title="Arraste para reordenar">
+                      <GripVertical size={isMobile ? 16 : 20} />
+                    </div>
+                    
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {/* Top Row: Toggle, Time and Actions */}
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <button 
+                            type="button"
+                            onClick={() => updateEntry(entry.id, 'completed', !entry.completed)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: entry.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+                          >
+                            {entry.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                          </button>
+                          
+                          <div style={{ position: 'relative', width: isMobile ? '115px' : '125px' }}>
+                            <Clock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                            <input 
+                              type="time"
+                              value={entry.time || ''}
+                              onChange={(e) => updateEntry(entry.id, 'time', e.target.value)}
+                              className="glass-input"
+                              style={{ width: '100%', padding: '0.4rem 2rem 0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: '800', borderRadius: '8px' }}
+                            />
+                          </div>
+                        </div>
+
+                        {!isMobile && (
+                          <div style={{ flex: 1, marginLeft: '0.5rem' }}>
+                            <AddressInput 
+                              value={entry.location}
+                              onChange={(val, coords) => {
+                                updateEntry(entry.id, 'location', val);
+                                if (coords) updateEntry(entry.id, 'coordinates', coords);
+                              }}
+                              placeholder="Local ou endereço..."
+                              style={{ padding: '0.45rem 0.75rem', fontSize: '0.9rem' }}
+                            />
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                          {entry.location && (
+                            <button 
+                              type="button"
+                              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.location)}`, '_blank')}
+                              title="Ver no Mapa"
+                              className="icon-btn"
+                              style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
+                            >
+                              <ExternalLink size={18} />
+                            </button>
+                          )}
+                          <button 
+                            type="button"
+                            onClick={() => addToTickets(entry)}
+                            title="Tickets"
+                            className="icon-btn"
+                            style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
+                          >
+                            <Ticket size={18} />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => removeEntry(entry.id)}
+                            title="Remover"
+                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', marginLeft: '0.25rem' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bottom Row (Mobile only or overflow): Address */}
+                      {isMobile && (
+                        <div style={{ width: '100%', marginTop: '-0.25rem' }}>
+                          <AddressInput 
+                            value={entry.location}
+                            onChange={(val, coords) => {
+                              updateEntry(entry.id, 'location', val);
+                              if (coords) updateEntry(entry.id, 'coordinates', coords);
+                            }}
+                            placeholder="Local ou endereço..."
+                            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    display: 'flex', 
+                    flexWrap: 'wrap', 
+                    gap: isMobile ? '0.75rem' : '1.5rem', 
+                    paddingLeft: isMobile ? '0.5rem' : '3rem', 
+                    borderTop: '1px solid rgba(255,255,255,0.05)', 
+                    paddingTop: '0.75rem' 
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={entry.needs_booking}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          updateEntry(entry.id, 'needs_booking', val);
+                          if (!val) updateEntry(entry.id, 'is_booked', false);
+                        }}
+                      />
+                      Reservar?
+                    </label>
+
+                    <label style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '0.4rem', 
+                      fontSize: '0.75rem', 
+                      cursor: entry.needs_booking ? 'pointer' : 'default',
+                      opacity: entry.needs_booking ? 1 : 0.3,
+                      color: 'var(--text-main)'
+                    }}>
+                      <input 
+                        type="checkbox" 
+                        disabled={!entry.needs_booking}
+                        checked={entry.is_booked}
+                        onChange={(e) => updateEntry(entry.id, 'is_booked', e.target.checked)}
+                      />
+                      OK?
+                      {entry.needs_booking && !entry.is_booked && (
+                        <Bell size={12} style={{ color: 'var(--warning)' }} />
+                      )}
+                      {entry.is_booked && (
+                        <Check size={12} style={{ color: 'var(--success)' }} />
+                      )}
+                    </label>
+
+                    <div style={{ flex: 1, minWidth: isMobile ? '140px' : '200px' }}>
+                      <input 
+                        type="text"
+                        value={entry.notes || ''}
+                        onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
+                        className="glass-input"
+                        placeholder="Nota rápida..."
+                        style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'transparent', border: 'none', borderBottom: '1px solid var(--glass-border)', borderRadius: 0, color: 'var(--text-main)' }}
+                      />
+                    </div>
+                  </div>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+          )}
+        </div>
+      </div>
+
+    </div>
+  );
+}
