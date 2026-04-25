@@ -54,7 +54,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues, onVie
   const totals = currencies.reduce((acc, curr) => {
     acc[curr] = expenses
       .filter(exp => exp.currency === curr)
-      .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      .reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
     return acc;
   }, {});
 

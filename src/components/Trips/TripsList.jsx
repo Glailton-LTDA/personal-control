@@ -101,7 +101,6 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
       .from('trip_expenses')
       .select('*, trip_categories(name)')
       .eq('trip_id', tripId)
-      .eq('currency', activeCurrency)
       .order('date', { ascending: false });
     
     if (!error && data) {
@@ -136,7 +135,9 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     setSortConfig({ key, direction });
   };
 
-  const sortedExpenses = [...expenses].sort((a, b) => {
+  const currencyExpenses = expenses.filter(exp => exp.currency === activeCurrency);
+
+  const sortedExpenses = [...currencyExpenses].sort((a, b) => {
     let valA, valB;
 
     if (sortConfig.key === 'trip_categories') {
@@ -162,14 +163,14 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   );
 
   // ── Daily Speding Data ──
-  const dailyMap = expenses.reduce((acc, exp) => {
+  const dailyMap = currencyExpenses.reduce((acc, exp) => {
     const date = exp.date;
-    acc[date] = (acc[date] || 0) + exp.amount;
+    acc[date] = (acc[date] || 0) + (parseFloat(exp.amount) || 0);
     return acc;
   }, {});
 
   // ── Metrics Calculation ──
-  const totalSpent = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+  const totalSpent = currencyExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
   
   // Contar apenas os dias que tiveram gastos reais (evita inflar a média com dias vazios)
   const daysWithExpenses = Object.keys(dailyMap).filter(date => dailyMap[date] > 0.01);
@@ -178,16 +179,16 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   const dailyAverage = totalSpent / daysCount;
   const currentLimit = selectedTrip?.daily_limits?.[activeCurrency] || 0;
 
-  const categoryMap = expenses.reduce((acc, exp) => {
+  const categoryMap = currencyExpenses.reduce((acc, exp) => {
     const cat = exp.trip_categories?.name || 'Geral';
-    acc[cat] = (acc[cat] || 0) + exp.amount;
+    acc[cat] = (acc[cat] || 0) + (parseFloat(exp.amount) || 0);
     return acc;
   }, {});
 
   // ── Paid By Analysis ──
-  const paidByMap = expenses.reduce((acc, exp) => {
+  const paidByMap = currencyExpenses.reduce((acc, exp) => {
     const person = exp.paid_by || 'Não definido';
-    acc[person] = (acc[person] || 0) + exp.amount;
+    acc[person] = (acc[person] || 0) + (parseFloat(exp.amount) || 0);
     return acc;
   }, {});
 
@@ -637,7 +638,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                         </thead>
                       )}
                       <tbody>
-                        {expenses.length === 0 && (
+                        {currencyExpenses.length === 0 && (
                           <tr>
                             <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                               Nenhuma despesa nesta moeda.
