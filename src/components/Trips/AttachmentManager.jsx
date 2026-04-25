@@ -297,7 +297,12 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       )}
 
                       {/* Logistics Fields: Confirmation + ID/Address */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+                      {/* Logistics Fields: Confirmation + ID/Address */}
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', 
+                        gap: isMobile ? '1rem' : '1.25rem' 
+                      }}>
                         <div>
                           <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Confirmação #</label>
                           <input 
@@ -310,7 +315,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         </div>
 
                         {isTransport && (
-                          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem' }}>
+                          <>
                             <div>
                               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
                                 {labels.origin}
@@ -356,26 +361,24 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 </datalist>
                               )}
                             </div>
-                          </div>
-                        )}
 
-                        {isTransport && (
-                          <div>
-                            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
-                              {labels.id}
-                            </label>
-                            <input 
-                              className="glass-input"
-                              value={item.transport_id || ''}
-                              onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
-                              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                              placeholder={currentType === 'flight' ? "Ex: LA8100, Placa ABC-1234..." : "Ex: Eurostar 9010..."}
-                            />
-                          </div>
+                            <div>
+                              <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
+                                {labels.id}
+                              </label>
+                              <input 
+                                className="glass-input"
+                                value={item.transport_id || ''}
+                                onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                placeholder={currentType === 'flight' ? "Ex: LA8100, Placa ABC-1234..." : "Ex: Eurostar 9010..."}
+                              />
+                            </div>
+                          </>
                         )}
 
                         {isTransport && labels.showSeats && (
-                          <div>
+                          <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                             <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Assento(s)</label>
                             <div className="glass-card" style={{ 
                               padding: '0.5rem', 
@@ -398,18 +401,15 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               ))}
                               <input
                                 type="text"
+                                className="glass-input"
+                                style={{ flex: 1, minWidth: '120px', background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', padding: '0.2rem' }}
+                                placeholder="Adicionar assento..."
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const val = e.target.value.trim();
-                                    if (val && !(item.seats || []).includes(val)) {
-                                      updateItemField(item.id, 'seats', [...(item.seats || []), val]);
-                                      e.target.value = '';
-                                    }
+                                  if (e.key === 'Enter' && e.target.value) {
+                                    updateItemField(item.id, 'seats', [...(item.seats || []), e.target.value]);
+                                    e.target.value = '';
                                   }
                                 }}
-                                placeholder="Adicionar assento..."
-                                style={{ flex: 1, minWidth: '100px', background: 'none', border: 'none', color: 'var(--text-main)', outline: 'none', padding: '0.4rem', fontSize: '0.9rem' }}
                               />
                             </div>
                           </div>
