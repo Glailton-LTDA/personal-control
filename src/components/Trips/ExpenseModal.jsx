@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { X, Save, DollarSign, Calendar, Tag, Users, FileText } from 'lucide-react';
+import { supabase, getSignedUrl } from '../../lib/supabase';
+import { X, Save, DollarSign, Calendar, Tag, Users, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const [categories, setCategories] = useState(initialCategories || []);
@@ -26,9 +26,40 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     date: expense?.date || new Date().toISOString().split('T')[0],
     paid_by: expense?.paid_by || 'Glailton Costa',
     category_id: expense?.category_id || '',
-    currency: expense?.currency || initialCurrency || trip?.currencies?.[0] || 'BRL'
+    currency: expense?.currency || initialCurrency || trip?.currencies?.[0] || 'BRL',
+    receipt_url: expense?.receipt_url || null
   });
   const [isCustomPaidBy, setIsCustomPaidBy] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (file) => {
+    if (!file || !trip) return;
+    
+    setIsUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${trip.id}/expense_${Date.now()}.${fileExt}`;
+    const filePath = `receipts/${fileName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('trip-documents')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      setFormData(prev => ({ ...prev, receipt_url: filePath }));
+    } catch (error) {
+      alert('Erro ao fazer upload: ' + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleViewFile = async () => {
+    if (!formData.receipt_url) return;
+    const signedUrl = await getSignedUrl('trip-documents', formData.receipt_url);
+    if (signedUrl) window.open(signedUrl, '_blank');
+  };
 
   const participants = trip?.participants && trip.participants.length > 0 
     ? trip.participants 
@@ -111,7 +142,8 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       currency: formData.currency,
       date: isoDate,
       paid_by: formData.paid_by,
-      category_id: formData.category_id || null
+      category_id: formData.category_id || null,
+      receipt_url: formData.receipt_url
     };
 
     let result;
@@ -309,6 +341,62 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   </button>
                 </div>
               )}
+          </div>
+
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
+              <FileText size={14} /> Comprovante / Anexo
+            </label>
+            {formData.receipt_url ? (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  type="button"
+                  onClick={handleViewFile}
+                  className="glass-input"
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(99,102,241,0.1)', border: '1px solid var(--primary)', color: 'var(--primary)', cursor: 'pointer', fontWeight: '700' }}
+                >
+                  <FileText size={16} /> Ver Comprovante
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setFormData({...formData, receipt_url: null})}
+                  style={{ padding: '0.75rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="file" 
+                  id="expense-receipt" 
+                  style={{ display: 'none' }} 
+                  onChange={(e) => handleFileUpload(e.target.files[0])}
+                  disabled={isUploading}
+                />
+                <label 
+                  htmlFor="expense-receipt"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: '0.6rem', 
+                    width: '100%', 
+                    padding: '0.85rem', 
+                    background: 'rgba(255,255,255,0.03)', 
+                    borderRadius: '12px', 
+                    fontSize: '0.85rem', 
+                    color: 'var(--text-muted)', 
+                    cursor: isUploading ? 'not-allowed' : 'pointer',
+                    border: '1px dashed var(--glass-border)',
+                    fontWeight: '600'
+                  }}
+                >
+                  {isUploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
+                  {isUploading ? 'Enviando...' : 'Anexar Comprovante'}
+                </label>
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: '0.5rem' }}>

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, getSignedUrl } from '../../lib/supabase';
 import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Ticket, MapPin, Plane, Train, Bus, Car, Ship } from 'lucide-react';
 import { AIRPORTS } from '../../data/airports';
 import AddressInput from './AddressInput';
@@ -41,18 +41,23 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('trip-documents')
-        .getPublicUrl(filePath);
-
+      // Armazenamos apenas o filePath no banco, para maior flexibilidade e segurança
       const newItems = items.map((item, idx) => 
-        idx === index ? { ...item, receipt_url: publicUrl } : item
+        idx === index ? { ...item, receipt_url: filePath } : item
       );
       onItemsChange(newItems);
     } catch (error) {
       alert('Erro ao fazer upload: ' + error.message);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleView = async (urlOrPath) => {
+    if (!urlOrPath) return;
+    const signedUrl = await getSignedUrl('trip-documents', urlOrPath);
+    if (signedUrl) {
+      window.open(signedUrl, '_blank');
     }
   };
 
@@ -548,15 +553,14 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   {item.receipt_url ? (
                     <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
-                      <a 
-                        href={item.receipt_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
+                      <button 
+                        type="button"
+                        onClick={() => handleView(item.receipt_url)}
                         className="btn"
-                        style={{ flex: 1, height: '44px', padding: '0 1rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', fontSize: '0.85rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: '700' }}
+                        style={{ flex: 1, height: '44px', padding: '0 1rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', border: 'none', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: '700' }}
                       >
                         <FileText size={18} /> Ver Voucher / Comprovante
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={() => updateItemField(item.id, 'receipt_url', null)}

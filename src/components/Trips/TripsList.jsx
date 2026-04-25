@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, getSignedUrl } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
 import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search, ListTodo } from 'lucide-react';
 import ExpenseModal from './ExpenseModal';
@@ -215,9 +215,16 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
           </div>
         </div>
         {item.receipt_url && (
-          <a href={item.receipt_url} target="_blank" rel="noopener noreferrer" className="btn" style={{ padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.05)', fontSize: '0.7rem', borderRadius: '8px' }}>
+          <button 
+            onClick={async () => {
+              const signedUrl = await getSignedUrl('trip-documents', item.receipt_url);
+              if (signedUrl) window.open(signedUrl, '_blank');
+            }} 
+            className="btn" 
+            style={{ padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', fontSize: '0.7rem', borderRadius: '8px', color: 'var(--text-main)', display: 'flex', alignItems: 'center' }}
+          >
             DOC <FileText size={12} style={{ marginLeft: '4px' }} />
-          </a>
+          </button>
         )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
@@ -624,6 +631,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                                 VALOR {sortConfig.key === 'amount' ? (sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />) : <ArrowUpDown size={12} style={{ opacity: 0.3 }} />}
                               </div>
                             </th>
+                            <th style={{ textAlign: 'center' }}>ANEXO</th>
                             <th style={{ textAlign: 'center' }}>AÇÕES</th>
                           </tr>
                         </thead>
@@ -662,6 +670,21 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                                 </span>
                                 <small style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '800', opacity: 0.6 }}>{activeCurrency}</small>
                               </div>
+                            </td>
+                            <td data-label="Anexo" style={{ textAlign: 'center' }}>
+                              {exp.receipt_url && (
+                                <button 
+                                  onClick={async () => {
+                                    const signedUrl = await getSignedUrl('trip-documents', exp.receipt_url);
+                                    if (signedUrl) window.open(signedUrl, '_blank');
+                                  }}
+                                  className="action-btn"
+                                  title="Ver Comprovante"
+                                  style={{ color: 'var(--primary)', background: 'rgba(99,102,241,0.1)' }}
+                                >
+                                  <FileText size={18} />
+                                </button>
+                              )}
                             </td>
                             <td className="actions-cell">
                               <div className="actions-row" style={{ justifyContent: isMobile ? 'center' : 'center' }}>

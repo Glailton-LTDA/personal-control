@@ -7,7 +7,7 @@ import {
   CheckCircle2, Circle, ExternalLink, ListTodo, Check, Bell
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
+import { supabase, getSignedUrl } from '../../lib/supabase';
 import { AIRPORTS } from '../../data/airports';
 
 export default function TripDetails({ trip, onClose, expenses, showValues, onViewChecklists }) {
@@ -131,9 +131,16 @@ export default function TripDetails({ trip, onClose, expenses, showValues, onVie
             </div>
           </div>
           {item.receipt_url && (
-            <a href={item.receipt_url} target="_blank" rel="noopener noreferrer" className="btn" style={{ padding: '0.5rem 0.75rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', fontSize: '0.7rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '800', textTransform: 'uppercase', flexShrink: 0 }}>
+            <button 
+              onClick={async () => {
+                const signedUrl = await getSignedUrl('trip-documents', item.receipt_url);
+                if (signedUrl) window.open(signedUrl, '_blank');
+              }} 
+              className="btn" 
+              style={{ padding: '0.5rem 0.75rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', border: 'none', cursor: 'pointer', fontSize: '0.7rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '800', textTransform: 'uppercase', flexShrink: 0 }}
+            >
               <FileText size={14} /> Voucher
-            </a>
+            </button>
           )}
         </div>
 

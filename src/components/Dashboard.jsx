@@ -268,6 +268,45 @@ export default function Dashboard({ user }) {
         })}
       </nav>
 
+      <div style={{ padding: '1rem', borderTop: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? '0' : '0.75rem', justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div style={{ 
+            width: 32, height: 32, borderRadius: '50%', 
+            background: 'rgba(99,102,241,0.2)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            color: 'var(--primary)', fontSize: '0.85rem', fontWeight: 700, 
+            flexShrink: 0 
+          }}>
+            {user?.email?.[0]?.toUpperCase() || 'U'}
+          </div>
+          {!collapsed && (
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                fontWeight: 600, 
+                color: 'var(--text-main)', 
+                margin: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {user?.email?.split('@')[0]}
+              </p>
+              <p style={{ 
+                fontSize: '0.65rem', 
+                color: 'var(--text-muted)', 
+                margin: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {user?.email}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div style={{ padding: '0.5rem', borderTop: '1px solid var(--glass-border)' }}>
         <button
           onClick={() => supabase.auth.signOut()}
@@ -347,13 +386,6 @@ export default function Dashboard({ user }) {
               </button>
             </div>
 
-            {/* Drawer user info */}
-            <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '0.85rem', fontWeight: 700, flexShrink: 0 }}>
-                {user?.email?.[0]?.toUpperCase() || 'U'}
-              </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</span>
-            </div>
 
             <SidebarContent collapsed={false} onNavigate={(tab) => { navigate(tab); setDrawerOpen(false); }} />
           </motion.div>

@@ -312,7 +312,19 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
         ))}
       </div>
 
-      {selectedCar && <CarDetails car={selectedCar} user={user} openModal={openModal} tableRefreshKey={tableRefreshKey} isMobile={isMobile} setFetchedMaintenance={setFetchedMaintenance} />}
+      {selectedCar && (
+        <CarDetails 
+          car={selectedCar} 
+          user={user} 
+          openModal={openModal} 
+          tableRefreshKey={tableRefreshKey} 
+          isMobile={isMobile} 
+          setFetchedMaintenance={setFetchedMaintenance}
+          activeShares={activeShares}
+          revokeShare={revokeShare}
+          leaveCar={leaveCar}
+        />
+      )}
 
       <CarModals 
         isOpen={isModalOpen} 
@@ -332,7 +344,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   );
 }
 
-function CarDetails({ car, user, openModal, tableRefreshKey, isMobile, setFetchedMaintenance }) {
+function CarDetails({ car, user, openModal, tableRefreshKey, isMobile, setFetchedMaintenance, activeShares, revokeShare, leaveCar }) {
   const [activeSubTab, setActiveSubTab] = useState(() => {
     return localStorage.getItem('personal-control-car-subtab') || 'summary';
   });
