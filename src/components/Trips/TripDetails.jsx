@@ -43,12 +43,12 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
     const isTour = typeIcon === Ticket;
 
     const TRANSPORT_TYPES = {
-      flight: { icon: Plane, color: '#10b981', label: 'Voo', originLabel: 'Origem', destLabel: 'Destino', idLabel: 'Voo' },
-      train: { icon: Train, color: '#3b82f6', label: 'Trem', originLabel: 'Partida', destLabel: 'Chegada', idLabel: 'Trem' },
-      bus: { icon: Bus, color: '#f59e0b', label: 'Ônibus', originLabel: 'Partida', destLabel: 'Chegada', idLabel: 'Linha' },
-      ship: { icon: Ship, color: '#06b6d4', label: 'Navio', originLabel: 'Porto de Saída', destLabel: 'Porto de Chegada', idLabel: 'Cabine' },
-      car: { icon: Car, color: '#ef4444', label: 'Carro', originLabel: 'Retirada', destLabel: 'Devolução', idLabel: 'Placa' },
-      generic: { icon: MapPin, color: 'var(--primary)', label: 'Transporte', originLabel: 'Origem', destLabel: 'Destino', idLabel: 'ID' }
+      flight: { icon: Plane, color: '#10b981', label: 'Voo', originLabel: 'Origem', destLabel: 'Destino', idLabel: 'Voo', coachLabel: 'Portão' },
+      train: { icon: Train, color: '#3b82f6', label: 'Trem', originLabel: 'Partida', destLabel: 'Chegada', idLabel: 'Trem', coachLabel: 'Carro' },
+      bus: { icon: Bus, color: '#f59e0b', label: 'Ônibus', originLabel: 'Partida', destLabel: 'Chegada', idLabel: 'Linha', coachLabel: 'Plataforma' },
+      ship: { icon: Ship, color: '#06b6d4', label: 'Navio', originLabel: 'Porto de Saída', destLabel: 'Porto de Chegada', idLabel: 'Cabine', coachLabel: 'Deck' },
+      car: { icon: Car, color: '#ef4444', label: 'Carro', originLabel: 'Retirada', destLabel: 'Devolução', idLabel: 'Placa', coachLabel: '' },
+      generic: { icon: MapPin, color: 'var(--primary)', label: 'Transporte', originLabel: 'Origem', destLabel: 'Destino', idLabel: 'ID', coachLabel: '' }
     };
 
     const currentType = TRANSPORT_TYPES[item.transports_type] || TRANSPORT_TYPES.flight;
@@ -83,6 +83,11 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
                 {isTransport && item.transport_id && (
                   <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: '700', color: finalColor, background: `${finalColor}10`, padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                     {currentType.idLabel}: {item.transport_id}
+                  </span>
+                )}
+                {isTransport && item.coach && (
+                  <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: '700', color: finalColor, background: `${finalColor}10`, padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                    {currentType.coachLabel}: {item.coach}
                   </span>
                 )}
                 {isTransport && item.seats?.length > 0 && (

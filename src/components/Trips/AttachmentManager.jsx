@@ -67,6 +67,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
       notes: '',
       transports_type: 'flight', // Default type
       seats: [],        // New field for seats (badges)
+      coach: '',        // New field for Coach / Wagon
       origin: '',       // New field for flight segments
       destination: '',  // New field for flight segments
       address: '',
@@ -135,16 +136,16 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
   const getTransportLabels = (type) => {
     switch (type) {
       case 'train':
-        return { origin: 'Estação de Partida', destination: 'Estação de Chegada', id: 'Nº do Trem', showSeats: true };
+        return { origin: 'Estação de Partida', destination: 'Estação de Chegada', id: 'Nº do Trem', showSeats: true, showCoach: true, coachLabel: 'Carro / Vagão' };
       case 'bus':
-        return { origin: 'Terminal de Partida', destination: 'Terminal de Chegada', id: 'Empresa / Linha', showSeats: true };
+        return { origin: 'Terminal de Partida', destination: 'Terminal de Chegada', id: 'Empresa / Linha', showSeats: true, showCoach: true, coachLabel: 'Plataforma / Box' };
       case 'ship':
-        return { origin: 'Porto de Partida', destination: 'Porto de Chegada', id: 'Cruzeiro / Cabine', showSeats: true };
+        return { origin: 'Porto de Partida', destination: 'Porto de Chegada', id: 'Cruzeiro / Cabine', showSeats: true, showCoach: true, coachLabel: 'Deck / Piso' };
       case 'car':
-        return { origin: 'Local de Retirada', destination: 'Local de Devolução', id: 'Modelo / Placa', showSeats: false };
+        return { origin: 'Local de Retirada', destination: 'Local de Devolução', id: 'Modelo / Placa', showSeats: false, showCoach: false };
       case 'flight':
       default:
-        return { origin: 'Origem (IATA)', destination: 'Destino (IATA)', id: 'Nº Voo / Cia', showSeats: false };
+        return { origin: 'Origem (IATA)', destination: 'Destino (IATA)', id: 'Nº Voo / Cia', showSeats: false, showCoach: true, coachLabel: 'Portão / Grupo' };
     }
   };
 
@@ -374,6 +375,21 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 placeholder={currentType === 'flight' ? "Ex: LA8100, Placa ABC-1234..." : "Ex: Eurostar 9010..."}
                               />
                             </div>
+
+                            {labels.showCoach && (
+                              <div>
+                                <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
+                                  {labels.coachLabel}
+                                </label>
+                                <input 
+                                  className="glass-input"
+                                  value={item.coach || ''}
+                                  onChange={(e) => updateItemField(item.id, 'coach', e.target.value)}
+                                  style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                  placeholder="Ex: 06, 12..."
+                                />
+                              </div>
+                            )}
                           </>
                         )}
 
