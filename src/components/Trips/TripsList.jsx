@@ -11,6 +11,22 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
+  
+  // Persist currency choice per trip
+  useEffect(() => {
+    if (externalSelectedTrip?.id) {
+      const saved = localStorage.getItem(`pc_trip_${externalSelectedTrip.id}_currency`);
+      if (saved && externalSelectedTrip.currencies?.includes(saved)) {
+        setActiveCurrency(saved);
+      }
+    }
+  }, [externalSelectedTrip?.id]);
+
+  useEffect(() => {
+    if (externalSelectedTrip?.id && activeCurrency) {
+      localStorage.setItem(`pc_trip_${externalSelectedTrip.id}_currency`, activeCurrency);
+    }
+  }, [activeCurrency, externalSelectedTrip?.id]);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -48,12 +64,18 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     if (externalSelectedTrip) {
       if (externalSelectedTrip.currencies && externalSelectedTrip.currencies.length > 0) {
         if (!externalSelectedTrip.currencies.includes(activeCurrency)) {
-          setActiveCurrency(externalSelectedTrip.currencies[0]);
+          // If the current currency isn't in the new trip, try to load from storage or default to first
+          const saved = localStorage.getItem(`pc_trip_${externalSelectedTrip.id}_currency`);
+          if (saved && externalSelectedTrip.currencies.includes(saved)) {
+            setActiveCurrency(saved);
+          } else {
+            setActiveCurrency(externalSelectedTrip.currencies[0]);
+          }
         }
       }
       fetchExpenses(externalSelectedTrip.id);
     }
-  }, [externalSelectedTrip, activeCurrency, refreshKey]);
+  }, [externalSelectedTrip?.id, activeCurrency, refreshKey]);
 
 
   useEffect(() => {
@@ -68,7 +90,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     if (user?.id) fetchCategories();
   }, [user?.id]);
 
-  const fetchExpenses = async (tripId) => {
+  const fetchExpenses = async (tripId = externalSelectedTrip?.id) => {
     if (!tripId) return;
     const { data, error } = await supabase
       .from('trip_expenses')
@@ -90,7 +112,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
       .eq('id', id);
     
     if (!error) {
-      fetchExpenses();
+      fetchExpenses(externalSelectedTrip.id);
     }
   };
 

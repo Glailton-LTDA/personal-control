@@ -116,4 +116,24 @@ test.describe('Módulo de Viagens', () => {
     // Verifica KPI de Orçamento
     await expect(page.getByText(/No Plano|Crítico|Livre/)).toBeVisible();
   });
+
+  test('deve persistir a moeda selecionada por viagem no localStorage', async ({ page }) => {
+    await page.goto('/');
+    
+    // Login
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    
+    // Navega para Viagens
+    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
+    
+    // Verifica se o seletor de moeda para EUR está ativo e salva no localStorage
+    await expect(page.getByRole('button', { name: /EUR/ })).toBeVisible();
+    
+    // Verifica se o valor foi persistido com polling
+    await expect.poll(async () => {
+      return await page.evaluate(() => localStorage.getItem('pc_trip_trip-1_currency'));
+    }).toBe('EUR');
+  });
 });
