@@ -1,10 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Ticket, MapPin } from 'lucide-react';
+import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Ticket, MapPin, Plane, Train, Bus, Car, Ship } from 'lucide-react';
 import { AIRPORTS } from '../../data/airports';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true }) {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [isUploading, setIsUploading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const fileInputRef = useRef(null);
@@ -57,7 +65,8 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
       end_date: '',
       end_time: '',
       notes: '',
-      transport_id: '',
+      transports_type: 'flight', // Default type
+      seats: [],        // New field for seats (badges)
       origin: '',       // New field for flight segments
       destination: '',  // New field for flight segments
       address: '',
@@ -114,6 +123,31 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
     return null;
   };
 
+  const TRANSPORT_TYPES = [
+    { id: 'flight', icon: Plane, label: 'Voo' },
+    { id: 'train', icon: Train, label: 'Trem' },
+    { id: 'bus', icon: Bus, label: 'Ônibus' },
+    { id: 'ship', icon: Ship, label: 'Navio / Cruzeiro' },
+    { id: 'car', icon: Car, label: 'Carro' },
+    { id: 'generic', icon: MapPin, label: 'Outro' }
+  ];
+
+  const getTransportLabels = (type) => {
+    switch (type) {
+      case 'train':
+        return { origin: 'Estação de Partida', destination: 'Estação de Chegada', id: 'Nº do Trem', showSeats: true };
+      case 'bus':
+        return { origin: 'Terminal de Partida', destination: 'Terminal de Chegada', id: 'Empresa / Linha', showSeats: true };
+      case 'ship':
+        return { origin: 'Porto de Partida', destination: 'Porto de Chegada', id: 'Cruzeiro / Cabine', showSeats: true };
+      case 'car':
+        return { origin: 'Local de Retirada', destination: 'Local de Devolução', id: 'Modelo / Placa', showSeats: false };
+      case 'flight':
+      default:
+        return { origin: 'Origem (IATA)', destination: 'Destino (IATA)', id: 'Nº Voo / Cia', showSeats: false };
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       <div 
@@ -154,132 +188,255 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                 gap: '1.25rem',
                 position: 'relative'
               }}>
-                {/* Header Row: Icon + Name + Delete */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                  <div style={{ 
-                    width: '40px', height: '40px', borderRadius: '12px', 
-                    background: 'rgba(99,102,241,0.1)', color: 'var(--primary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    marginTop: '1.4rem' // Aligns with the input (label height)
-                  }}>
-                    {Icon ? <Icon size={20} /> : <FileText size={20} />}
-                  </div>
-                  
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Nome / Descrição</label>
-                    <input 
-                      className="glass-input"
-                      value={item.name}
-                      onChange={(e) => updateItemField(item.id, 'name', e.target.value)}
-                      style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                      placeholder={isTransport ? "Ex: Voo LATAM, Aluguel Hertz..." : isTour ? "Ex: Museu do Louvre, Ingresso Show..." : "Ex: Ibis Paris, Airbnb Marais..."}
-                    />
-                  </div>
+                {(() => {
+                  const currentType = item.transports_type || 'flight';
+                  const labels = getTransportLabels(currentType);
+                  return (
+                    <>
+                      {/* Header Row: Icon + Name + Delete */}
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: isMobile ? 'column' : 'row', 
+                        gap: '1rem',
+                        alignItems: isMobile ? 'stretch' : 'flex-start'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+                          <div style={{ 
+                            width: '44px', height: '44px', borderRadius: '14px', 
+                            background: 'rgba(99,102,241,0.1)', color: 'var(--primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                          }}>
+                            {isTransport ? (
+                              (() => {
+                                const IconType = TRANSPORT_TYPES.find(t => t.id === currentType)?.icon || MapPin;
+                                return <IconType size={22} />;
+                              })()
+                            ) : Icon ? <Icon size={22} /> : <FileText size={22} />}
+                          </div>
 
-                  <button 
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                    style={{ 
-                      marginTop: '1.4rem',
-                      background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', 
-                      border: 'none', cursor: 'pointer', padding: '0.6rem', borderRadius: '10px', 
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)'}
-                    title="Remover item"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
+                          {isMobile && (
+                            <button 
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              style={{ 
+                                background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', 
+                                border: 'none', cursor: 'pointer', padding: '0.75rem', borderRadius: '12px', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s'
+                              }}
+                              title="Remover item"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Nome / Descrição</label>
+                          <input 
+                            className="glass-input"
+                            value={item.name}
+                            onChange={(e) => updateItemField(item.id, 'name', e.target.value)}
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)', borderRadius: '12px' }}
+                            placeholder={isTransport ? "Ex: Voo LATAM, Aluguel Hertz..." : isTour ? "Ex: Museu do Louvre, Ingresso Show..." : "Ex: Ibis Paris, Airbnb Marais..."}
+                          />
+                        </div>
 
-                {/* Logistics Fields: Confirmation + ID/Address */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
-                  <div>
-                    <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Confirmação #</label>
-                    <input 
-                      className="glass-input"
-                      value={item.confirmation || ''}
-                      onChange={(e) => updateItemField(item.id, 'confirmation', e.target.value)}
-                      style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                      placeholder="Código..."
-                    />
-                  </div>
-
-                  {isTransport && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                      <div>
-                        <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Origem (IATA)</label>
-                        <input 
-                          className="glass-input"
-                          list={`airports-origin-${item.id}`}
-                          value={item.origin || ''}
-                          onChange={(e) => updateItemField(item.id, 'origin', e.target.value.toUpperCase())}
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                          placeholder="Ex: GRU"
-                        />
-                        <datalist id={`airports-origin-${item.id}`}>
-                          {AIRPORTS.map(airport => (
-                            <option key={airport.iata} value={airport.iata}>
-                              {airport.city} - {airport.name} ({airport.country})
-                            </option>
-                          ))}
-                        </datalist>
+                        {!isMobile && (
+                          <button 
+                            type="button"
+                            onClick={() => removeItem(item.id)}
+                            style={{ 
+                              marginTop: '1.4rem',
+                              background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', 
+                              border: 'none', cursor: 'pointer', padding: '0.6rem', borderRadius: '10px', 
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s'
+                            }}
+                            title="Remover item"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
 
-                      <div>
-                        <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Destino (IATA)</label>
-                        <input 
-                          className="glass-input"
-                          list={`airports-destination-${item.id}`}
-                          value={item.destination || ''}
-                          onChange={(e) => updateItemField(item.id, 'destination', e.target.value.toUpperCase())}
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                          placeholder="Ex: GIG"
-                        />
-                        <datalist id={`airports-destination-${item.id}`}>
-                          {AIRPORTS.map(airport => (
-                            <option key={airport.iata} value={airport.iata}>
-                              {airport.city} - {airport.name} ({airport.country})
-                            </option>
+                      {isTransport && (
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: isMobile ? '0.25rem' : '0.5rem', 
+                          padding: '0.35rem', 
+                          background: 'rgba(255,255,255,0.03)', 
+                          borderRadius: '14px',
+                          width: isMobile ? '100%' : 'fit-content'
+                        }}>
+                          {TRANSPORT_TYPES.map(type => (
+                            <button
+                              key={type.id}
+                              type="button"
+                              onClick={() => updateItemField(item.id, 'transports_type', type.id)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                padding: isMobile ? '0.5rem 0.25rem' : '0.5rem 1rem',
+                                borderRadius: '10px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: '700',
+                                transition: '0.2s',
+                                background: currentType === type.id ? 'var(--primary)' : 'transparent',
+                                color: currentType === type.id ? 'white' : 'var(--text-muted)',
+                                flex: isMobile ? 1 : 'none'
+                              }}
+                            >
+                              <type.icon size={isMobile ? 18 : 14} />
+                              {!isMobile && type.label}
+                            </button>
                           ))}
-                        </datalist>
+                        </div>
+                      )}
+
+                      {/* Logistics Fields: Confirmation + ID/Address */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Confirmação #</label>
+                          <input 
+                            className="glass-input"
+                            value={item.confirmation || ''}
+                            onChange={(e) => updateItemField(item.id, 'confirmation', e.target.value)}
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                            placeholder="Código..."
+                          />
+                        </div>
+
+                        {isTransport && (
+                          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
+                                {labels.origin}
+                              </label>
+                              <input 
+                                className="glass-input"
+                                list={currentType === 'flight' ? `airports-origin-${item.id}` : undefined}
+                                value={item.origin || ''}
+                                onChange={(e) => updateItemField(item.id, 'origin', currentType === 'flight' ? e.target.value.toUpperCase() : e.target.value)}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                placeholder={currentType === 'flight' ? "Ex: GRU" : "Ex: Gare du Nord, Rodoviária..."}
+                              />
+                              {currentType === 'flight' && (
+                                <datalist id={`airports-origin-${item.id}`}>
+                                  {AIRPORTS.map(airport => (
+                                    <option key={airport.iata} value={airport.iata}>
+                                      {airport.city} - {airport.name} ({airport.country})
+                                    </option>
+                                  ))}
+                                </datalist>
+                              )}
+                            </div>
+
+                            <div>
+                              <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
+                                {labels.destination}
+                              </label>
+                              <input 
+                                className="glass-input"
+                                list={currentType === 'flight' ? `airports-destination-${item.id}` : undefined}
+                                value={item.destination || ''}
+                                onChange={(e) => updateItemField(item.id, 'destination', currentType === 'flight' ? e.target.value.toUpperCase() : e.target.value)}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                placeholder={currentType === 'flight' ? "Ex: GIG" : "Ex: St Pancras, Terminal 1..."}
+                              />
+                              {currentType === 'flight' && (
+                                <datalist id={`airports-destination-${item.id}`}>
+                                  {AIRPORTS.map(airport => (
+                                    <option key={airport.iata} value={airport.iata}>
+                                      {airport.city} - {airport.name} ({airport.country})
+                                    </option>
+                                  ))}
+                                </datalist>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {isTransport && (
+                          <div>
+                            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>
+                              {labels.id}
+                            </label>
+                            <input 
+                              className="glass-input"
+                              value={item.transport_id || ''}
+                              onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
+                              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                              placeholder={currentType === 'flight' ? "Ex: LA8100, Placa ABC-1234..." : "Ex: Eurostar 9010..."}
+                            />
+                          </div>
+                        )}
+
+                        {isTransport && labels.showSeats && (
+                          <div>
+                            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Assento(s)</label>
+                            <div className="glass-card" style={{ 
+                              padding: '0.5rem', 
+                              minHeight: '45px', 
+                              display: 'flex', 
+                              flexWrap: 'wrap', 
+                              gap: '0.5rem', 
+                              background: 'rgba(255,255,255,0.03)', 
+                              border: '1px solid var(--glass-border)',
+                              borderRadius: '12px',
+                              alignItems: 'center'
+                            }}>
+                              {(item.seats || []).map((seat, sIdx) => (
+                                <span key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--primary)', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                  {seat}
+                                  <button type="button" onClick={() => updateItemField(item.id, 'seats', (item.seats || []).filter((_, i) => i !== sIdx))} style={{ background: 'none', border: 'none', color: 'white', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: 0.8 }}>
+                                    <X size={14} />
+                                  </button>
+                                </span>
+                              ))}
+                              <input
+                                type="text"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.target.value.trim();
+                                    if (val && !(item.seats || []).includes(val)) {
+                                      updateItemField(item.id, 'seats', [...(item.seats || []), val]);
+                                      e.target.value = '';
+                                    }
+                                  }
+                                }}
+                                placeholder="Adicionar assento..."
+                                style={{ flex: 1, minWidth: '100px', background: 'none', border: 'none', color: 'var(--text-main)', outline: 'none', padding: '0.4rem', fontSize: '0.9rem' }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {isTour && (
+                          <div style={{ gridColumn: 'span 1' }}>
+                            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Endereço / Local</label>
+                            <input 
+                              className="glass-input"
+                              value={item.address || ''}
+                              onChange={(e) => updateItemField(item.id, 'address', e.target.value)}
+                              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                              placeholder="Ex: Rue de Rivoli, 75001 Paris..."
+                            />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-
-                  {isTransport && (
-                    <div>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Nº Voo / Cia / Local</label>
-                      <input 
-                        className="glass-input"
-                        value={item.transport_id || ''}
-                        onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
-                        style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                        placeholder="Ex: LA8100, Placa ABC-1234..."
-                      />
-                    </div>
-                  )}
-
-                  {isTour && (
-                    <div style={{ gridColumn: 'span 1' }}>
-                      <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Endereço / Local</label>
-                      <input 
-                        className="glass-input"
-                        value={item.address || ''}
-                        onChange={(e) => updateItemField(item.id, 'address', e.target.value)}
-                        style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                        placeholder="Ex: Rue de Rivoli, 75001 Paris..."
-                      />
-                    </div>
-                  )}
-                </div>
+                    </>
+                  );
+                })()}
 
                 {/* Dates & Times */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
                   <div>
                     <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>{getStartLabel()}</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: '0.5rem' }}>
                       <input 
                         type="text"
                         className="glass-input"
@@ -297,20 +454,19 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           }
                         }}
                         onBlur={(e) => {
-                          // Se ao sair do campo a data for inválida/incompleta, limpa ou reseta
                           const val = e.target.value;
                           if (val.length > 0 && val.length < 10) {
                             setLocalDateValues(prev => ({ ...prev, [`${item.id}_start_date`]: item.start_date ? formatDateToDisplay(item.start_date) : '' }));
                           }
                         }}
-                        style={{ flex: 1, minWidth: '110px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                        style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                       />
                       <input 
                         type="time"
                         className="glass-input"
                         value={item.start_time || ''}
                         onChange={(e) => updateItemField(item.id, 'start_time', e.target.value)}
-                        style={{ width: '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                        style={{ width: isMobile ? '100%' : '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                       />
                     </div>
                   </div>
@@ -318,7 +474,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                   {getEndLabel() && (
                     <div>
                       <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>{getEndLabel()}</label>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: '0.5rem' }}>
                         <input 
                           type="text"
                           className="glass-input"
@@ -341,14 +497,14 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               setLocalDateValues(prev => ({ ...prev, [`${item.id}_end_date`]: item.end_date ? formatDateToDisplay(item.end_date) : '' }));
                             }
                           }}
-                          style={{ flex: 1, minWidth: '110px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                         />
                         <input 
                           type="time"
                           className="glass-input"
                           value={item.end_time || ''}
                           onChange={(e) => updateItemField(item.id, 'end_time', e.target.value)}
-                          style={{ width: '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          style={{ width: isMobile ? '100%' : '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                         />
                       </div>
                     </div>

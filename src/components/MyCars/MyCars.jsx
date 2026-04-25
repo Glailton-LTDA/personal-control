@@ -99,13 +99,13 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   }
 
   async function revokeShare(shareId) {
-    if (!confirm('Deseja realmente parar de compartilhar este veículo com este usuário?')) return;
+    if (!confirm('Deseja realmente parar de compartilhar este veículo com este usuário? \n\nO usuário perderá o acesso imediatamente, mas nenhum dado do veículo será excluído.')) return;
     const { error } = await supabase.from('car_shares').delete().eq('id', shareId);
     if (!error) fetchActiveShares();
   }
 
   async function leaveCar(carId) {
-    if (!confirm('Deseja realmente remover este veículo da sua lista? \n\nIsso NÃO excluirá o veículo para o proprietário.')) return;
+    if (!confirm('Deseja realmente remover este veículo da sua lista? \n\nIsso NÃO excluirá o veículo para o proprietário, apenas removerá o seu acesso a ele.')) return;
     const { error } = await supabase
       .from('car_shares')
       .delete()
@@ -343,9 +343,30 @@ function CarDetails({ car, user, openModal, tableRefreshKey, isMobile, setFetche
 
   return (
     <>
-      <div className="tabs-container" style={{ alignSelf: 'flex-start', padding: '4px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-        <button className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveSubTab('summary')} style={{ fontSize: '0.85rem' }}>Resumo</button>
-        <button className={`tab-btn ${activeSubTab === 'revision' ? 'active' : ''}`} onClick={() => setActiveSubTab('revision')} style={{ fontSize: '0.85rem' }}>Revisão</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="tabs-container" style={{ alignSelf: 'flex-start', padding: '4px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+          <button className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveSubTab('summary')} style={{ fontSize: '0.85rem' }}>Resumo</button>
+          <button className={`tab-btn ${activeSubTab === 'revision' ? 'active' : ''}`} onClick={() => setActiveSubTab('revision')} style={{ fontSize: '0.85rem' }}>Revisão</button>
+          {car.is_owner && (
+            <button className={`tab-btn ${activeSubTab === 'sharing' ? 'active' : ''}`} onClick={() => setActiveSubTab('sharing')} style={{ fontSize: '0.85rem' }}>Compartilhamento</button>
+          )}
+        </div>
+
+        {!car.is_owner && (
+          <button 
+            className="btn-secondary" 
+            onClick={() => leaveCar(car.id)}
+            style={{ 
+              padding: '0.6rem 1rem', 
+              fontSize: '0.8rem', 
+              color: 'var(--danger)', 
+              borderColor: 'rgba(239, 68, 68, 0.2)',
+              borderRadius: '10px'
+            }}
+          >
+            <XCircle size={14} /> Sair do Veículo
+          </button>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -366,6 +387,26 @@ function CarDetails({ car, user, openModal, tableRefreshKey, isMobile, setFetche
               isMobile={isMobile}
               onFetchData={setFetchedMaintenance}
             />
+          )}
+          {activeSubTab === 'sharing' && car.is_owner && (
+            <div className="fade-in">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Gestão de Acesso</h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Veja quem tem acesso a este veículo</p>
+                </div>
+                <button className="btn-primary" onClick={() => openModal('share_car')} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                  <Share2 size={16} /> Compartilhar
+                </button>
+              </div>
+              <CarSharesManager activeShares={activeShares.filter(s => s.car_id === car.id || s.car_id?.id === car.id)} onRevoke={revokeShare} />
+              
+              {activeShares.filter(s => s.car_id === car.id || s.car_id?.id === car.id).length === 0 && (
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, border: '1px dashed var(--glass-border)' }}>
+                  Este veículo ainda não foi compartilhado com ninguém.
+                </div>
+              )}
+            </div>
           )}
         </motion.div>
       </AnimatePresence>

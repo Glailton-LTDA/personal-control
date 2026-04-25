@@ -3,7 +3,7 @@ import { formatDate } from '../../lib/utils';
 import { 
   X, Calendar, MapPin, Users, Building, Plane, Ticket, 
   DollarSign, FileText, Globe, Clock, ChevronLeft,
-  Briefcase, Utensils, Camera, Map
+  Briefcase, Utensils, Camera, Map, Train, Bus, Ship, Car
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AIRPORTS } from '../../data/airports';
@@ -39,8 +39,21 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
 
   const renderItemCard = (item, typeIcon, color = 'var(--primary)') => {
     const isHotel = typeIcon === Building;
-    const isTransport = typeIcon === Plane;
+    const isTransport = !!item.transports_type || typeIcon === Plane;
     const isTour = typeIcon === Ticket;
+
+    const TRANSPORT_TYPES = {
+      flight: { icon: Plane, color: '#10b981', label: 'Voo', originLabel: 'Origem', destLabel: 'Destino', idLabel: 'Voo' },
+      train: { icon: Train, color: '#3b82f6', label: 'Trem', originLabel: 'Partida', destLabel: 'Chegada', idLabel: 'Trem' },
+      bus: { icon: Bus, color: '#f59e0b', label: 'Ônibus', originLabel: 'Partida', destLabel: 'Chegada', idLabel: 'Linha' },
+      ship: { icon: Ship, color: '#06b6d4', label: 'Navio', originLabel: 'Porto de Saída', destLabel: 'Porto de Chegada', idLabel: 'Cabine' },
+      car: { icon: Car, color: '#ef4444', label: 'Carro', originLabel: 'Retirada', destLabel: 'Devolução', idLabel: 'Placa' },
+      generic: { icon: MapPin, color: 'var(--primary)', label: 'Transporte', originLabel: 'Origem', destLabel: 'Destino', idLabel: 'ID' }
+    };
+
+    const currentType = TRANSPORT_TYPES[item.transports_type] || TRANSPORT_TYPES.flight;
+    const finalIcon = isTransport ? currentType.icon : typeIcon;
+    const finalColor = isTransport ? currentType.color : color;
 
     const startLabel = isHotel ? 'Check-in' : isTransport ? 'Partida' : 'Data';
     const endLabel = isHotel ? 'Check-out' : isTransport ? 'Chegada' : null;
@@ -58,8 +71,8 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: `${color}10`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color }}>
-              {React.createElement(typeIcon, { size: 20 })}
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: `${finalColor}10`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: finalColor }}>
+              {React.createElement(finalIcon, { size: 20 })}
             </div>
             <div>
               <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '800' }}>{item.name}</h4>
@@ -68,7 +81,16 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
                   <span style={{ fontSize: '0.7rem', opacity: 0.5, fontWeight: '700', letterSpacing: '0.02em', background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>CONF: {item.confirmation}</span>
                 )}
                 {isTransport && item.transport_id && (
-                  <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: '700', color: 'var(--success)', background: 'rgba(16,185,129,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{item.transport_id}</span>
+                  <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: '700', color: finalColor, background: `${finalColor}10`, padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                    {currentType.idLabel}: {item.transport_id}
+                  </span>
+                )}
+                {isTransport && item.seats?.length > 0 && (
+                  <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                    {item.seats.map(s => (
+                      <span key={s} style={{ fontSize: '0.7rem', fontWeight: '800', background: 'var(--primary)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>🛋️ {s}</span>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -92,19 +114,43 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
             margin: '0.25rem 0',
             border: '1px solid rgba(255,255,255,0.03)'
           }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: '900', letterSpacing: '0.05em', color: 'var(--text-main)' }}>{item.origin}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: '600' }}>{AIRPORTS.find(a => a.iata === item.origin)?.city || 'Origem'}</div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ 
+                fontSize: item.transports_type === 'flight' ? '1.5rem' : '1rem', 
+                fontWeight: '900', 
+                letterSpacing: '0.05em', 
+                color: 'var(--text-main)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {item.origin}
+              </div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: '600' }}>
+                {item.transports_type === 'flight' ? (AIRPORTS.find(a => a.iata === item.origin)?.city || 'Origem') : currentType.originLabel}
+              </div>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', opacity: 0.3 }}>
-              <Plane size={18} style={{ transform: 'rotate(90deg)' }} />
+              {React.createElement(finalIcon, { size: 18, style: { transform: item.transports_type === 'flight' ? 'rotate(90deg)' : 'none' } })}
               <div style={{ width: '40px', height: '1px', background: 'currentColor' }}></div>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: '900', letterSpacing: '0.05em', color: 'var(--text-main)' }}>{item.destination}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: '600' }}>{AIRPORTS.find(a => a.iata === item.destination)?.city || 'Destino'}</div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ 
+                fontSize: item.transports_type === 'flight' ? '1.5rem' : '1rem', 
+                fontWeight: '900', 
+                letterSpacing: '0.05em', 
+                color: 'var(--text-main)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {item.destination}
+              </div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: '600' }}>
+                {item.transports_type === 'flight' ? (AIRPORTS.find(a => a.iata === item.destination)?.city || 'Destino') : currentType.destLabel}
+              </div>
             </div>
           </div>
         )}
@@ -136,7 +182,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
         </div>
 
         {item.notes && (
-          <div style={{ fontSize: '0.85rem', padding: '0.75rem', borderLeft: `2px solid ${color}`, background: `${color}05`, borderRadius: '0 8px 8px 0', opacity: 0.8 }}>
+          <div style={{ fontSize: '0.85rem', padding: '0.75rem', borderLeft: `2px solid ${finalColor}`, background: `${finalColor}05`, borderRadius: '0 8px 8px 0', opacity: 0.8 }}>
             {item.notes}
           </div>
         )}
@@ -255,7 +301,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
 
           {/* Transportes */}
           <section>
-            {renderSectionHeader('Transportes e Voos', Plane, '#10b981')}
+            {renderSectionHeader('Transportes', Plane, '#10b981')}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.5rem' }}>
               {(!trip.transports || trip.transports.length === 0) ? (
                 <div className="glass-card" style={{ padding: '2.5rem', textAlign: 'center', opacity: 0.4, gridColumn: '1/-1', border: '1px dashed var(--glass-border)' }}>Nenhum transporte registrado.</div>
@@ -311,16 +357,16 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
 
             <div style={{ marginTop: '2rem', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', opacity: 0.6, fontSize: '0.8rem' }}>
-                <Clock size={14} /> Média Diária Estimada
+                <Clock size={14} /> Média Diária Real
               </div>
               {currencies.slice(0, 1).map(curr => {
-                const start = trip.start_date ? new Date(trip.start_date) : null;
-                const end = trip.end_date ? new Date(trip.end_date) : new Date();
-                const days = start ? Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1) : 1;
+                const currencyExpenses = expenses.filter(e => e.currency === curr);
+                const uniqueDaysWithExpenses = new Set(currencyExpenses.map(e => e.date)).size;
+                const days = Math.max(1, uniqueDaysWithExpenses);
                 const avg = (totals[curr] || 0) / days;
                 return (
                   <div key={curr} style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--success)' }}>
-                    {showValues ? avg.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '••••'} <small style={{ fontSize: '0.7rem' }}>{curr}/dia</small>
+                    {showValues ? avg.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '••••'} <small style={{ fontSize: '0.7rem' }}>{curr}/dia ({days} {days === 1 ? 'dia' : 'dias'})</small>
                   </div>
                 );
               })}

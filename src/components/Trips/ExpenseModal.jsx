@@ -128,11 +128,10 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
   }
 
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-      <div className="glass-card fade-in" style={{ 
+    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>      <div className="glass-card fade-in" style={{ 
         width: '100%', 
         maxWidth: '550px', 
-        maxHeight: '90vh',
+        maxHeight: 'calc(100vh - 2rem)',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--bg-card)', 
@@ -142,48 +141,62 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
         overflow: 'hidden'
       }}>
         {/* Fixed Header */}
-        <div style={{ padding: '2.5rem 2.5rem 1.5rem 2.5rem', position: 'relative', borderBottom: '1px solid var(--glass-border)' }}>
-          <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+        <div style={{ 
+          padding: window.innerWidth < 600 ? '1.5rem 1.5rem 1rem 1.5rem' : '2.5rem 2.5rem 1.5rem 2.5rem', 
+          position: 'relative', 
+          borderBottom: '1px solid var(--glass-border)' 
+        }}>
+          <h2 style={{ 
+            margin: 0, 
+            fontSize: window.innerWidth < 600 ? '1.4rem' : '1.75rem', 
+            fontWeight: '800', 
+            color: 'var(--text-main)', 
+            letterSpacing: '-0.02em' 
+          }}>
             {expense ? 'Editar Lançamento' : 'Novo Lançamento'}
           </h2>
-          <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+          <p style={{ margin: '0.4rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             {expense ? 'Atualize os detalhes deste gasto' : 'Adicione um novo gasto à sua viagem'}
           </p>
-          <button className="icon-btn" onClick={onClose} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', padding: '0.5rem', color: 'var(--text-muted)' }}><X size={24} /></button>
+          <button className="icon-btn" onClick={onClose} style={{ position: 'absolute', top: window.innerWidth < 600 ? '1rem' : '1.5rem', right: window.innerWidth < 600 ? '1rem' : '1.5rem', padding: '0.5rem', color: 'var(--text-muted)' }}><X size={20} /></button>
         </div>
 
         {/* Scrollable Content */}
-        <div style={{ padding: '2rem 2.5rem 2.5rem 2.5rem', overflowY: 'auto', flex: 1 }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ 
+          padding: window.innerWidth < 600 ? '1.5rem' : '2rem 2.5rem 2.5rem 2.5rem', 
+          overflowY: 'auto', 
+          flex: 1 
+        }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
-              <Tag size={16} /> Descrição
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
+              <Tag size={14} /> Descrição
             </label>
             <input 
               required autoFocus className="glass-input" 
-              style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '1rem 1.25rem', borderRadius: '12px' }} 
+              style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px' }} 
               value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Ex: Jantar em Cusco, Passagens..." 
             />
           </div>
 
-          <div className="form-grid">
+          <div className="form-grid" style={{ gap: '1rem' }}>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
-                <DollarSign size={16} /> Valor
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
+                <DollarSign size={14} /> Valor
               </label>
               <input 
                 required type="number" step="0.01" className="glass-input" 
-                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                 value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0.00" 
               />
             </div>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
                 Moeda
               </label>
               <select 
                 required className="glass-input" 
-                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                 value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}
               >
                 {trip?.currencies?.map(c => <option key={c} value={c}>{c}</option>)}
@@ -191,16 +204,16 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
             </div>
           </div>
 
-          <div className="form-grid">
+          <div className="form-grid" style={{ gap: '1rem' }}>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
-                <Calendar size={16} /> Data
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
+                <Calendar size={14} /> Data
               </label>
               
               {!isCustomDate && tripDates.length > 0 ? (
                 <select 
                   className="glass-input" 
-                  style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                  style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                   value={displayDate} 
                   onChange={e => {
                     if (e.target.value === 'CUSTOM') {
@@ -223,7 +236,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                     required 
                     type="text" 
                     className="glass-input" 
-                    style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                    style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                     value={displayDate} 
                     onChange={handleDateChange}
                     placeholder="DD/MM/AAAA"
@@ -233,7 +246,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                     <button 
                       type="button"
                       onClick={() => setIsCustomDate(false)}
-                      style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
+                      style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
                     >
                       Sugestões
                     </button>
@@ -242,12 +255,12 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
               )}
             </div>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
-                <Tag size={16} /> Categoria
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
+                <Tag size={14} /> Categoria
               </label>
               <select 
                 className="glass-input" 
-                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.75rem 1rem', borderRadius: '12px', outline: 'none' }} 
+                style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                 value={formData.category_id} onChange={e => setFormData({...formData, category_id: e.target.value})}
               >
                 <option value="">Sem categoria</option>
@@ -256,15 +269,14 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
             </div>
           </div>
 
-
           <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>
-              <Users size={16} /> Responsável
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
+              <Users size={14} /> Responsável
             </label>
               {!isCustomPaidBy ? (
                 <select 
                   className="glass-input" 
-                  style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '1rem 1.25rem', borderRadius: '12px' }} 
+                  style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px' }} 
                   value={formData.paid_by} 
                   onChange={e => {
                     if (e.target.value === 'CUSTOM') {
@@ -283,7 +295,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   <input 
                     required autoFocus
                     className="glass-input" 
-                    style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '1rem 1.25rem', borderRadius: '12px' }} 
+                    style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px' }} 
                     value={formData.paid_by} 
                     onChange={e => setFormData({...formData, paid_by: e.target.value})}
                     placeholder="Nome do responsável"
@@ -291,7 +303,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   <button 
                     type="button"
                     onClick={() => setIsCustomPaidBy(false)}
-                    style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
+                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
                   >
                     Voltar
                   </button>
@@ -299,9 +311,9 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
               )}
           </div>
 
-          <div style={{ marginTop: '1rem' }}>
-            <button type="submit" className="btn" style={{ width: '100%', padding: '1.25rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '1rem', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 10px 20px -5px rgba(99,102,241,0.5)' }}>
-              <Save size={20} /> Salvar Lançamento
+          <div style={{ marginTop: '0.5rem' }}>
+            <button type="submit" className="btn" style={{ width: '100%', padding: '1rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '0.95rem', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 8px 16px -4px rgba(99,102,241,0.4)' }}>
+              <Save size={18} /> Salvar Lançamento
             </button>
           </div>
         </form>

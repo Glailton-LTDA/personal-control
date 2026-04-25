@@ -159,15 +159,20 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     (exp.paid_by || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // ── Daily Speding Data ──
+  const dailyMap = expenses.reduce((acc, exp) => {
+    const date = exp.date;
+    acc[date] = (acc[date] || 0) + exp.amount;
+    return acc;
+  }, {});
+
   // ── Metrics Calculation ──
-  const totalSpent = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-  const daysCount = selectedTrip ? (() => {
-    const start = selectedTrip.start_date ? new Date(selectedTrip.start_date) : null;
-    const end = selectedTrip.end_date ? new Date(selectedTrip.end_date) : new Date();
-    if (!start) return 1;
-    const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(1, diff);
-  })() : 1;
+  const totalSpent = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+  
+  // Contar apenas os dias que tiveram gastos reais (evita inflar a média com dias vazios)
+  const daysWithExpenses = Object.keys(dailyMap).filter(date => dailyMap[date] > 0.01);
+  const daysCount = daysWithExpenses.length || 1;
+  
   const dailyAverage = totalSpent / daysCount;
   const currentLimit = selectedTrip?.daily_limits?.[activeCurrency] || 0;
 
@@ -184,31 +189,14 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     return acc;
   }, {});
 
-  // ── Daily Speding Data ──
-  const dailyMap = expenses.reduce((acc, exp) => {
-    const date = exp.date;
-    acc[date] = (acc[date] || 0) + exp.amount;
-    return acc;
-  }, {});
-
   const allDaysSet = new Set();
   
-  // 1. Adicionar todos os dias que possuem gastos (mesmo fora do período oficial)
+  // Adicionar apenas os dias que possuem gastos reais no gráfico
   Object.keys(dailyMap).forEach(date => {
-    if (date && date !== 'null' && date !== 'undefined') {
+    if (date && date !== 'null' && date !== 'undefined' && dailyMap[date] > 0.01) {
       allDaysSet.add(date);
     }
   });
-
-  // 2. Adicionar os dias do período oficial da viagem para garantir o cronograma
-  if (selectedTrip?.start_date && selectedTrip?.end_date) {
-    let curr = new Date(selectedTrip.start_date + 'T12:00:00');
-    const end = new Date(selectedTrip.end_date + 'T12:00:00');
-    while (curr <= end) {
-      allDaysSet.add(curr.toISOString().split('T')[0]);
-      curr.setDate(curr.getDate() + 1);
-    }
-  }
 
   const allDays = Array.from(allDaysSet).sort((a, b) => b.localeCompare(a));
 
@@ -363,35 +351,39 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
               </div>
 
               {/* ── KPI Grid ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                 <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ padding: '1rem', background: 'rgba(99,102,241,0.1)', borderRadius: '1rem', color: 'var(--primary)' }}><DollarSign size={24} /></div>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: isMobile ? '0.75rem' : '1.5rem' 
+              }}>
+                 <div className="glass-card" style={{ padding: isMobile ? '1rem' : '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ padding: '0.75rem', background: 'rgba(99,102,241,0.1)', borderRadius: '12px', color: 'var(--primary)' }}><DollarSign size={20} /></div>
                     <div>
-                       <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Gasto ({activeCurrency})</p>
-                       <h3 style={{ margin: '0.25rem 0 0 0' }}>{showValues ? totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '••••••'}</h3>
+                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Gasto ({activeCurrency})</p>
+                       <h3 style={{ margin: '0.15rem 0 0 0', fontSize: isMobile ? '1.25rem' : '1.5rem' }}>{showValues ? totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '••••••'}</h3>
                     </div>
                  </div>
                  
-                 <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ padding: '1rem', background: 'rgba(16,185,129,0.1)', borderRadius: '1rem', color: 'var(--success)' }}><TrendingUp size={24} /></div>
+                 <div className="glass-card" style={{ padding: isMobile ? '1rem' : '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ padding: '0.75rem', background: 'rgba(16,185,129,0.1)', borderRadius: '12px', color: 'var(--success)' }}><TrendingUp size={20} /></div>
                     <div>
-                       <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Média Diária <small style={{ opacity: 0.7 }}>({daysCount} {daysCount === 1 ? 'dia' : 'dias'})</small></p>
-                       <h3 style={{ margin: '0.25rem 0 0 0' }}>{showValues ? dailyAverage.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '••••••'}</h3>
+                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Média Diária <small style={{ opacity: 0.7 }}>({daysCount} {daysCount === 1 ? 'dia' : 'dias'})</small></p>
+                       <h3 style={{ margin: '0.15rem 0 0 0', fontSize: isMobile ? '1.25rem' : '1.5rem' }}>{showValues ? dailyAverage.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '••••••'}</h3>
                     </div>
                  </div>
 
-                 <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                 <div className="glass-card" style={{ padding: isMobile ? '1rem' : '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ 
-                      padding: '1rem', 
+                      padding: '0.75rem', 
                       background: currentLimit > 0 && dailyAverage > currentLimit ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', 
-                      borderRadius: '1rem', 
+                      borderRadius: '12px', 
                       color: currentLimit > 0 && dailyAverage > currentLimit ? 'var(--danger)' : 'var(--success)' 
                     }}>
-                       {currentLimit > 0 && dailyAverage > currentLimit ? <AlertTriangle size={24} /> : <Users size={24} />}
+                       {currentLimit > 0 && dailyAverage > currentLimit ? <AlertTriangle size={20} /> : <Users size={20} />}
                     </div>
                     <div>
-                       <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Status Limite</p>
-                       <h3 style={{ margin: '0.25rem 0 0 0', color: currentLimit > 0 && dailyAverage > currentLimit ? 'var(--danger)' : 'inherit' }}>
+                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Status Limite</p>
+                       <h3 style={{ margin: '0.15rem 0 0 0', fontSize: isMobile ? '1.25rem' : '1.5rem', color: currentLimit > 0 && dailyAverage > currentLimit ? 'var(--danger)' : 'inherit' }}>
                          {currentLimit > 0 ? (dailyAverage > currentLimit ? 'Crítico' : 'No Plano') : 'Livre'}
                        </h3>
                     </div>
@@ -401,12 +393,12 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
               {/* ── Main Dashboard content ── */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: isMobile ? '1rem' : '1.5rem' }}>
                   {/* Category Chart */}
-                  <div className="glass-card" style={{ padding: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                       <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem' }}>
-                         <PieChart size={22} className="text-primary" /> Gastos por Categoria
+                  <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? '1.25rem' : '2rem' }}>
+                       <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                         <PieChart size={20} className="text-primary" /> Gastos por Categoria
                        </h3>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -433,10 +425,10 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                   </div>
 
                   {/* Paid By Chart */}
-                  <div className="glass-card" style={{ padding: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                       <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem' }}>
-                         <Users size={22} className="text-primary" /> Gastos por Viajante
+                  <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? '1.25rem' : '2rem' }}>
+                       <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                         <Users size={20} className="text-primary" /> Gastos por Viajante
                        </h3>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -463,16 +455,16 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                   </div>
 
                   {/* Daily Spending Chart */}
-                  <div className="glass-card" style={{ padding: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                       <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem' }}>
-                         <Calendar size={22} className="text-primary" /> Gastos por Dia
+                  <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? '1.25rem' : '2rem' }}>
+                       <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                         <Calendar size={20} className="text-primary" /> Gastos por Dia
                        </h3>
                        {currentLimit > 0 && (
-                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Média Limite: <b>{currentLimit.toLocaleString('pt-BR')} {activeCurrency}</b></span>
+                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Meta: <b>{currentLimit.toLocaleString('pt-BR')}</b></span>
                        )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '400px', overflowY: 'auto' }} className="custom-scrollbar">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto' }} className="custom-scrollbar">
                        {allDays.length === 0 && <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Defina as datas da viagem para ver o gráfico diário.</p>}
                        {[...allDays].reverse().map(date => {
                          const dayTotal = dailyMap[date] || 0;

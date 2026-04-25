@@ -125,7 +125,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         
         {/* Basic Info Card */}
-        <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
+        <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Plane size={20} className="text-primary" /> Informações Básicas
           </h3>
@@ -181,7 +181,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
         </div>
 
         {/* Itinerary / Attachments Card */}
-        <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
+        <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Building size={20} className="text-primary" /> Hospedagens e Transportes
           </h3>
@@ -213,7 +213,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
         </div>
 
         {/* Participants and Money Card */}
-        <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
+        <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Users size={20} className="text-primary" /> Participantes e Fianças
           </h3>
