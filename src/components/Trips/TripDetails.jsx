@@ -4,13 +4,13 @@ import {
   X, Calendar, MapPin, Users, Building, Plane, Ticket, 
   DollarSign, FileText, Globe, Clock, ChevronLeft,
   Briefcase, Utensils, Camera, Map, Train, Bus, Ship, Car,
-  CheckCircle2, Circle, ExternalLink
+  CheckCircle2, Circle, ExternalLink, ListTodo, Check, Bell
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { AIRPORTS } from '../../data/airports';
 
-export default function TripDetails({ trip, onClose, expenses, showValues }) {
+export default function TripDetails({ trip, onClose, expenses, showValues, onViewChecklists }) {
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
   React.useEffect(() => {
@@ -230,6 +230,7 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
+      data-testid="trip-details-modal"
       style={{
         position: 'fixed',
         top: 0,
@@ -274,13 +275,38 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
           <ChevronLeft size={24} />
         </button>
         <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900', letterSpacing: '-0.02em' }}>{trip.title}</h2>
+          <h2 data-testid="trip-details-title" style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900', letterSpacing: '-0.02em' }}>{trip.title}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem', opacity: 0.6, fontSize: '0.9rem' }}>
             <Calendar size={14} /> 
             {trip.start_date ? formatDate(trip.start_date) : 'A definir'}
             {trip.end_date && ` — ${formatDate(trip.end_date)}`}
           </div>
+          {(trip.cities?.length > 0 || trip.countries?.length > 0) && (
+            <div data-testid="trip-details-location" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem', opacity: 0.5, fontSize: '0.8rem' }}>
+              <MapPin size={12} />
+              {trip.cities?.join(', ')} {trip.countries?.length > 0 && ` — ${trip.countries?.join(', ')}`}
+            </div>
+          )}
         </div>
+
+        {onViewChecklists && (
+          <button 
+            onClick={onViewChecklists}
+            className="btn-primary"
+            style={{ 
+              padding: '0.65rem 1.25rem', 
+              borderRadius: '12px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.6rem',
+              fontWeight: '800',
+              fontSize: '0.9rem',
+              boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
+            }}
+          >
+            <ListTodo size={18} /> Checklist
+          </button>
+        )}
       </div>
 
       {/* Main Content Container */}
@@ -453,6 +479,29 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
               </div>
             )}
           </section>
+
+          {/* Despesas Recentes */}
+          <section data-testid="trip-expenses-section" style={{ marginBottom: '4rem' }}>
+            {renderSectionHeader('Despesas Recentes', DollarSign, '#ef4444')}
+            {(!expenses || expenses.length === 0) ? (
+              <div data-testid="no-expenses-msg" className="glass-card" style={{ padding: '2.5rem', textAlign: 'center', opacity: 0.4, border: '1px dashed var(--glass-border)' }}>Nenhuma despesa registrada.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {expenses.map((exp, idx) => (
+                  <div key={idx} data-testid={`expense-item-${idx}`} className="glass-card" style={{ padding: '1.25rem', borderRadius: '20px', border: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div data-testid={`expense-desc-${idx}`}>
+                      <div style={{ fontWeight: '800', color: '#f8fafc' }}>{exp.description}</div>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '0.2rem' }}>{formatDate(exp.date)} • {exp.paid_by}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: '900', color: '#ef4444', fontSize: '1.1rem' }}>{exp.currency} {exp.amount.toLocaleString()}</div>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.7, color: exp.trip_categories?.color }}>{exp.trip_categories?.name}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Right Column: Financial Summary */}
@@ -503,5 +552,5 @@ export default function TripDetails({ trip, onClose, expenses, showValues }) {
 
       </div>
     </motion.div>
-  );
+    );
 }

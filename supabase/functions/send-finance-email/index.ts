@@ -13,16 +13,19 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  try {
+    const { to, subject, html, bcc } = await req.json()
+
     if (!to || !to.includes('@')) {
       throw new Error(`E-mail de destino inválido: "${to}". Verifique o cadastro do responsável.`);
     }
 
-    console.log(`Enviando e-mail para: ${to}`);
+    console.log(`Enviando e-mail para: ${to}${bcc ? ` (BCC: ${bcc})` : ''}`);
 
     const res = await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, html }),
+      body: JSON.stringify({ to, subject, html, bcc }),
     })
 
     const googleResponse = await res.text();

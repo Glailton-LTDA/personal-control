@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test';
 
+/** Garante que o grupo Viagens esteja expandido e retorna o botão de Ajustes. */
+async function openTripSettings(page) {
+  const ajustesBtn = page.getByRole('button', { name: 'Ajustes de Viagens' });
+
+  if (!await ajustesBtn.isVisible()) {
+    await page.getByText('Viagens', { exact: true }).click();
+    await expect(ajustesBtn).toBeVisible({ timeout: 5000 });
+  }
+
+  await ajustesBtn.click();
+}
+
 test.describe('Configurações de Viagens', () => {
   test.beforeEach(async ({ page }) => {
     // Intercepta Auth
@@ -53,17 +65,12 @@ test.describe('Configurações de Viagens', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
+    // Aguarda o app estar pronto antes de cada teste
+    await expect(page.getByText('Personal')).toBeVisible({ timeout: 15000 });
   });
 
   test('deve editar uma viagem e ver os novos campos de transporte e passeios', async ({ page }) => {
-    // Garante que a seção de viagens está expandida no sidebar
-    const ajusteButton = page.getByRole('button', { name: 'Ajustes de Viagens' });
-    if (!await ajusteButton.isVisible()) {
-      await page.getByText('Viagens', { exact: true }).click();
-    }
-
-    // Abre configurações de viagens
-    await ajusteButton.click();
+    await openTripSettings(page);
 
     // Aguarda os cards carregarem
     await expect(page.getByRole('button', { name: 'Editar' }).first()).toBeVisible({ timeout: 10000 });
@@ -76,39 +83,30 @@ test.describe('Configurações de Viagens', () => {
 
     // Verifica campos de transporte
     await expect(page.getByText('Transportes (Voos/Trens/Aluguéis)')).toBeVisible();
-    await expect(page.getByPlaceholder('Ex: LA8100, Placa ABC-1234...')).toBeVisible(); // transport_id field
+    await expect(page.getByPlaceholder('Ex: LA8100, Placa ABC-1234...')).toBeVisible();
     await expect(page.getByText('Partida')).toBeVisible();
 
     // Verifica campos de passeios
     await expect(page.getByText('Passeios, Ingressos e Tickets')).toBeVisible();
-    await page.getByText('Passeios, Ingressos e Tickets').click(); // Expand if collapsed
-    await expect(page.getByPlaceholder(/Louvre Museum, Rue de Rivoli/)).toBeVisible(); // address field
+    await page.getByText('Passeios, Ingressos e Tickets').click();
+    await expect(page.getByPlaceholder(/Louvre Museum, Rue de Rivoli/)).toBeVisible();
 
     // Salva
     await page.getByRole('button', { name: 'Atualizar Viagem' }).click();
-    
+
     // Verifica se voltou para a lista de viagens
     await expect(page.getByRole('heading', { name: 'Gerenciar Viagens' })).toBeVisible();
   });
 
   test('deve criar uma nova viagem com sucesso', async ({ page }) => {
-    // Abre configurações de viagens
-    const ajusteButton = page.getByRole('button', { name: 'Ajustes de Viagens' });
-    if (!await ajusteButton.isVisible()) {
-      await page.getByText('Viagens', { exact: true }).click();
-    }
-    await ajusteButton.click();
+    await openTripSettings(page);
 
     // Clica em Nova Viagem
     await page.getByRole('button', { name: 'Nova Viagem' }).click();
 
     // Preenche informações básicas
     await page.getByPlaceholder('Ex: Férias no Peru').fill('Viagem para o Egito');
-    
-    // BadgeInput para Cidades (mockado no app como um campo que adiciona itens)
-    // No app real, BadgeInput pode ter um input interno ou similar. 
-    // Vamos assumir que clicar no botão de salvar funciona se o título estiver preenchido.
-    
+
     // Seleciona moedas (CurrencySelector)
     await page.getByText('USD').click();
 

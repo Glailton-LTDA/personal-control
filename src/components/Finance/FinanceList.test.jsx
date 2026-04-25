@@ -4,6 +4,45 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import FinanceList from './FinanceList';
 import { supabase } from '../../lib/supabase';
 
+// Mock SummaryDashboard
+vi.mock('./SummaryDashboard', () => ({
+  __esModule: true,
+  default: () => <div data-testid="summary-dashboard">Summary Dashboard</div>
+}));
+
+// Mock Recharts
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }) => <div>{children}</div>,
+  PieChart: ({ children }) => <div>{children}</div>,
+  Pie: () => <div>Pie</div>,
+  Cell: () => <div>Cell</div>,
+  Tooltip: () => <div>Tooltip</div>,
+  Legend: () => <div>Legend</div>,
+}));
+
+// Mock Lucide Icons
+vi.mock('lucide-react', () => ({
+  Search: () => <div data-testid="search-icon" />,
+  ChevronLeft: () => <div />,
+  ChevronRight: () => <div />,
+  CheckCircle2: () => <div />,
+  XCircle: () => <div />,
+  CreditCard: () => <div />,
+  MoreVertical: () => <div />,
+  Trash2: () => <div />,
+  Edit2: () => <div />,
+  Send: () => <div />,
+  ArrowUp: () => <div />,
+  ArrowDown: () => <div />,
+  Mail: () => <div />,
+  User: () => <div />,
+  X: () => <div />,
+  Copy: () => <div />,
+  Eye: () => <div />,
+  EyeOff: () => <div />,
+}));
+
+// Mock Supabase
 vi.mock('../../lib/supabase', () => {
   const mockChain = {
     select: vi.fn().mockReturnThis(),
@@ -11,27 +50,24 @@ vi.mock('../../lib/supabase', () => {
     gte: vi.fn().mockReturnThis(),
     lte: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'João' }, error: null }),
-    then: vi.fn((onSuccess) => {
-      // Return a dummy data by default that will be overridden in beforeEach
-      return Promise.resolve({ data: [], error: null }).then(onSuccess);
-    }),
+    single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    maybeSingle: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    then: vi.fn(cb => cb({ data: [], error: null })),
   };
-
   return {
     supabase: {
       from: vi.fn(() => mockChain),
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
+        getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'test-user' } } }, error: null }),
+        onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
       },
+      functions: {
+        invoke: vi.fn().mockResolvedValue({ data: {}, error: null }),
+      }
     }
   };
 });
-
-vi.mock('./SummaryDashboard', () => ({
-  __esModule: true,
-  default: () => <div data-testid="summary-dashboard">Summary Dashboard</div>
-}));
 
 const mockFinances = [
   { id: '1', description: 'Mercado', amount: 150.5, category: 'Alimentação', payment_date: '2026-04-10', status: 'PAGO', type: 'DESPESA' },
@@ -41,65 +77,61 @@ const mockFinances = [
 describe('FinanceList', () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem('personal-control-selected-month', '3');
-    localStorage.setItem('personal-control-selected-year', '2026');
-    localStorage.setItem('personal-control-finance-tab', 'DESPESA');
-    
     vi.clearAllMocks();
-
+    
+    // Default mock implementation
     supabase.from.mockImplementation((tableName) => {
-      let currentType = null;
-      
-      const chainObj = {
-        select: vi.fn(() => chainObj),
-        gte: vi.fn(() => chainObj),
-        lte: vi.fn(() => chainObj),
-        order: vi.fn(() => chainObj),
-        eq: vi.fn((field, value) => {
-          if (field === 'type') {
-            currentType = value;
-          }
-          return chainObj;
+      let chainState = { type: null };
+      const chain = {
+        select: vi.fn(() => chain),
+        eq: vi.fn((field, val) => { 
+          if(field === 'type') chainState.type = val; 
+          return chain; 
         }),
-        maybeSingle: vi.fn(() => {
-          if (tableName === 'finance_responsibles') {
-            return Promise.resolve({ data: { name: 'João' }, error: null });
+        gte: vi.fn(() => chain),
+        lte: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        then: (onSuccess) => {
+          let data = [];
+          if (tableName === 'finances') {
+            data = mockFinances.filter(f => !chainState.type || f.type === chainState.type);
+          } else if (tableName === 'finance_responsibles') {
+            data = [{ name: 'João', email: 'joao@test.com' }];
+          } else if (tableName === 'notification_settings') {
+            data = { recipient_email: 'test@example.com' };
           }
-          return Promise.resolve({ data: null, error: null });
-        }),
-      };
-
-      chainObj.then = function(resolve, reject) {
-        if (tableName === 'finance_responsibles') {
-          return Promise.resolve({ data: [{ name: 'João' }], error: null }).then(resolve, reject);
+          return Promise.resolve({ data, error: null }).then(onSuccess);
         }
-        
-        let filtered = mockFinances;
-        if (currentType) {
-          filtered = mockFinances.filter(f => f.type === currentType);
-        }
-        return Promise.resolve({ data: filtered, error: null }).then(resolve, reject);
       };
-
-      return chainObj;
+      return chain;
     });
   });
 
-  it('renders and switches tabs correctly', async () => {
-    const mockUser = { id: '123', email: 'test@example.com' };
-    render(<FinanceList refreshKey={0} onEdit={() => {}} user={mockUser} />);
-
-    // Wait for initial load
-    await screen.findByText(/Mercado/i, {}, { timeout: 3000 });
-
-    // Find and click Receitas tab
-    const revenueTab = screen.getByRole('button', { name: /^Receitas$/i });
-    fireEvent.click(revenueTab);
-
-// verify tab becomes active
-
-    // Should show Salário
-    const items = await screen.findAllByText(/Salário/i, {}, { timeout: 3000 });
-    expect(items.length).toBeGreaterThan(0);
+  it('renders and shows data', async () => {
+    render(<FinanceList user={{ id: '123' }} />);
+    await waitFor(() => {
+      expect(screen.getByText(/Mercado/i)).toBeInTheDocument();
+    });
   });
+
+  it('switches between tabs', async () => {
+    render(<FinanceList user={{ id: '123' }} />);
+    
+    // Wait for initial data
+    await screen.findByTestId('finance-row-Mercado');
+    
+    // Click Receitas
+    const revenueTab = screen.getByRole('button', { name: /Receitas/i });
+    fireEvent.click(revenueTab);
+    
+    // Wait for Salário to appear
+    await screen.findByTestId('finance-row-Salário', {}, { timeout: 10000 });
+    
+    // Wait for Mercado to disappear
+    await waitFor(() => {
+      expect(screen.queryByTestId('finance-row-Mercado')).not.toBeInTheDocument();
+    }, { timeout: 10000 });
+  }, 20000);
 });

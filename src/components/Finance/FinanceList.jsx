@@ -37,6 +37,15 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   const [isEmailModalOpen, setEmailModalOpen] = useState(false);
   const [selectedItemForEmail, setSelectedItemForEmail] = useState(null);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState(null);
+
+  useEffect(() => {
+    async function fetchNotificationSettings() {
+      const { data } = await supabase.from('notification_settings').select('*').single();
+      if (data) setNotificationSettings(data);
+    }
+    fetchNotificationSettings();
+  }, [refreshKey]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -106,17 +115,35 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       .update({ status: 'PAGO' })
       .eq('id', id);
     
-    if (!error) fetchFinances();
+    if (!error) {
+      fetchFinances();
+      // Auto send email if configured
+      if (notificationSettings?.auto_send_on_paid && notificationSettings?.recipient_email) {
+        const item = finances.find(f => f.id === id);
+        if (item) {
+          // We need to set the selected item for the email function to work
+          setSelectedItemForEmail({ ...item, status: 'PAGO' });
+          setTimeout(() => {
+            sendEmailToRecipient(notificationSettings.recipient_email, { ...item, status: 'PAGO' });
+          }, 100);
+        }
+      }
+    }
     setOpenMenuId(null);
   }
 
   async function handleSendEmail(item) {
+    if (notificationSettings?.skip_email_modal && notificationSettings?.recipient_email) {
+      setSelectedItemForEmail(item);
+      sendEmailToRecipient(notificationSettings.recipient_email, item);
+      return;
+    }
     setSelectedItemForEmail(item);
     setEmailModalOpen(true);
   }
 
-  async function sendEmailToRecipient(recipientEmail) {
-    const item = selectedItemForEmail;
+  async function sendEmailToRecipient(recipientEmail, overrideItem = null) {
+    const item = overrideItem || selectedItemForEmail;
     if (!item) return;
 
     // 2. Formatar dados
@@ -152,7 +179,8 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         body: { 
           to: recipientEmail,
           subject: `${item.type === 'RECEITA' ? 'Receita' : 'Despesa'} registrada: ${item.description}`,
-          html: emailHtml
+          html: emailHtml,
+          bcc: notificationSettings?.bcc_email
         }
       });
 
@@ -247,15 +275,6 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
     return 0;
   });
-
-  const revenueData = finances
-    .filter(f => f.type === 'RECEITA')
-    .reduce((acc, curr) => {
-      acc[curr.category] = (acc[curr.category] || 0) + Number(curr.amount);
-      return acc;
-    }, {});
-
-  const revenuePieData = Object.entries(revenueData).map(([name, value]) => ({ name, value }));
 
   const filteredFinances = sortedData.filter(item => 
     item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -407,11 +426,18 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
               ) : filteredFinances.length === 0 ? (
                 <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Nenhum registro encontrado.</td></tr>
               ) : filteredFinances.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} data-testid={`finance-row-${item.description}`}>
                   <td data-label="Data">
                     {(() => {
-                      const [year, month, day] = item.payment_date.split('-').map(Number);
-                      return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
+                      try {
+                        if (!item.payment_date) return 'N/A';
+                        const parts = String(item.payment_date).split('-');
+                        if (parts.length !== 3) return 'N/A';
+                        const [year, month, day] = parts.map(Number);
+                        return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
+                      } catch (e) {
+                        return 'N/A';
+                      }
                     })()}
                   </td>
                   <td data-label="Descrição">

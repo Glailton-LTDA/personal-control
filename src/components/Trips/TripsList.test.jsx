@@ -28,7 +28,7 @@ describe('TripsList', () => {
     render(<TripsList user={mockUser} trips={mockTrips} externalSelectedTrip={mockTrips[0]} onEditTrip={() => {}} />);
     expect(screen.getByText(/Viagem 1/i)).toBeInTheDocument();
 
-    const detailsBtn = screen.getByText(/Detalhes da Viagem/i);
+    const detailsBtn = screen.getByText(/Detalhes/i);
     fireEvent.click(detailsBtn);
 
     await waitFor(() => {

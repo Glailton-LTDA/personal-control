@@ -80,37 +80,48 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     let totalExpense = 0;
     let totalPending = 0;
 
-    const sortedFinances = [...finances].sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
+    const sortedFinances = [...finances].sort((a, b) => {
+      const dateA = a.payment_date ? new Date(a.payment_date) : new Date(0);
+      const dateB = b.payment_date ? new Date(b.payment_date) : new Date(0);
+      return dateA - dateB;
+    });
 
     sortedFinances.forEach(item => {
-      const [year, month, day] = item.payment_date.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      
-      const label = isGeneral 
-        ? date.toLocaleDateString('pt-BR', { month: 'short' })
-        : date.toLocaleDateString('pt-BR', { day: '2-digit' });
-      
-      if (!monthsMap.has(label)) {
-        monthsMap.set(label, { name: label, income: 0, expense: 0, difference: 0 });
-      }
-      
-      const current = monthsMap.get(label);
-      const amount = Number(item.amount);
-      const cat = item.category || 'Outros';
-
-      if (item.type === 'RECEITA') {
-        current.income += amount;
-        totalIncome += amount;
-        incomeCategoriesMap[cat] = (incomeCategoriesMap[cat] || 0) + amount;
-      } else {
-        current.expense += amount;
-        totalExpense += amount;
-        expenseCategoriesMap[cat] = (expenseCategoriesMap[cat] || 0) + amount;
-        if (item.status === 'PENDENTE') {
-          totalPending += amount;
+      try {
+        if (!item.payment_date) return;
+        const parts = String(item.payment_date).split('-');
+        if (parts.length !== 3) return;
+        const [year, month, day] = parts.map(Number);
+        const date = new Date(year, month - 1, day);
+        
+        const label = isGeneral 
+          ? date.toLocaleDateString('pt-BR', { month: 'short' })
+          : date.toLocaleDateString('pt-BR', { day: '2-digit' });
+        
+        if (!monthsMap.has(label)) {
+          monthsMap.set(label, { name: label, income: 0, expense: 0, difference: 0 });
         }
+        
+        const current = monthsMap.get(label);
+        const amount = Number(item.amount);
+        const cat = item.category || 'Outros';
+
+        if (item.type === 'RECEITA') {
+          current.income += amount;
+          totalIncome += amount;
+          incomeCategoriesMap[cat] = (incomeCategoriesMap[cat] || 0) + amount;
+        } else {
+          current.expense += amount;
+          totalExpense += amount;
+          expenseCategoriesMap[cat] = (expenseCategoriesMap[cat] || 0) + amount;
+          if (item.status === 'PENDENTE') {
+            totalPending += amount;
+          }
+        }
+        current.difference = current.income - current.expense;
+      } catch (e) {
+        console.error("Error processing finance item:", e);
       }
-      current.difference = current.income - current.expense;
     });
 
     setData(Array.from(monthsMap.values()));
@@ -123,9 +134,6 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     if (!showValues) return 'R$ ••••••';
     return `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-
-  // Removed early loading return to prevent layout shift
-  // if (loading && data.length === 0) return <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando dados...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -250,7 +258,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{item.name}</span>
                   </span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{Math.round((item.value / stats.income) * 100)}%</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{stats.income > 0 ? Math.round((item.value / stats.income) * 100) : 0}%</span>
                 </div>
               ))}
             </div>
@@ -291,7 +299,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{item.name}</span>
                   </span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{Math.round((item.value / stats.expense) * 100)}%</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{stats.expense > 0 ? Math.round((item.value / stats.expense) * 100) : 0}%</span>
                 </div>
               ))}
             </div>
@@ -310,11 +318,11 @@ function StatCard({ title, value, icon, color, loading, showValues }) {
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</span>
         <div style={{ color: color, background: `${color}15`, padding: '0.4rem', borderRadius: '0.5rem' }}>{icon}</div>
       </div>
-      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: value < 0 ? 'var(--danger)' : 'var(--text-main)' }}>
+      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: (value || 0) < 0 ? 'var(--danger)' : 'var(--text-main)' }}>
         {loading ? (
           <div className="skeleton" style={{ height: '1.8rem', width: '80%', marginTop: '4px' }} />
         ) : (
-          <>{showValues ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+          <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
         )}
       </div>
     </div>

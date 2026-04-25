@@ -5,6 +5,7 @@ import TripsSettings from './TripsSettings';
 import TripsItinerary from './TripsItinerary';
 import TripForm from './TripForm';
 import ExpenseModal from './ExpenseModal';
+import TripChecklists from './TripChecklists';
 import { Plus } from 'lucide-react';
 
 export default function Trips({ user, refreshKey, mode, showValues }) {
@@ -18,6 +19,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   const [currentView, setCurrentView] = useState(() => {
     if (mode === 'settings') return 'settings';
     if (mode === 'itinerary') return 'itinerary';
+    if (mode === 'checklists') return 'checklists';
     return 'main';
   });
   const [editingTrip, setEditingTrip] = useState(null);
@@ -26,6 +28,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     // If mode prop changes, update currentView
     if (mode === 'settings') setCurrentView('settings');
     else if (mode === 'itinerary') setCurrentView('itinerary');
+    else if (mode === 'checklists') setCurrentView('checklists');
     else if (mode === 'list') setCurrentView('main');
   }, [mode]);
 
@@ -120,6 +123,17 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     );
   }
 
+  if (currentView === 'checklists') {
+    return (
+      <TripChecklists 
+        user={user} 
+        trip={selectedTrip} 
+        onBack={() => setCurrentView('main')} 
+        onSave={() => setLocalRefreshKey(prev => prev + 1)}
+      />
+    );
+  }
+
   return (
     <div style={{ position: 'relative', minHeight: '100%' }}>
       <TripsList 
@@ -130,6 +144,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         trips={trips}
         showValues={showValues}
         onEditTrip={handleOpenForm}
+        onViewChecklists={() => setCurrentView('checklists')}
       />
 
       {/* FAB - Global Trip Expense Trigger */}

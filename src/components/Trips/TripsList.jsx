@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
-import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search } from 'lucide-react';
+import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search, ListTodo } from 'lucide-react';
 import ExpenseModal from './ExpenseModal';
 import TripDetails from './TripDetails';
 import { CURRENCIES } from '../../constants/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip }) {
+export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists }) {
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
@@ -40,6 +40,8 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+
 
   const renderFlag = (flag, size = '1.1rem') => {
     if (!flag) return <span>🏳️</span>;
@@ -245,6 +247,18 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="fade-in">
+      {isDetailsOpen && (
+        <TripDetails 
+          trip={selectedTrip} 
+          expenses={expenses}
+          showValues={showValues}
+          onClose={() => setIsDetailsOpen(false)} 
+          onViewChecklists={() => {
+            setIsDetailsOpen(false);
+            onViewChecklists();
+          }}
+        />
+      )}
       
       {/* ── Trips Selector & View Mode ── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -254,6 +268,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
             <button
               key={trip.id}
               onClick={() => handleTripSelect(trip)}
+              data-testid={`trip-tab-${trip.id}`}
               className="glass-card"
               style={{ 
                 padding: '0.75rem 1.25rem', 
@@ -295,7 +310,21 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
           {selectedTrip && (
             <button 
               onClick={() => setIsDetailsOpen(true)}
-              className="glass-card"
+              data-testid="view-trip-details-btn"
+              style={{ 
+                padding: '0.65rem 1.5rem', border: '1px solid var(--glass-border)', borderRadius: '14px', 
+                background: 'rgba(255,255,255,0.03)',
+                color: 'white', 
+                display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
+                width: isMobile ? '100%' : 'auto'
+              }}
+            >
+              <FileText size={18} /> Detalhes
+            </button>
+          )}
+          {selectedTrip && (
+            <button 
+              onClick={onViewChecklists}
               style={{ 
                 padding: '0.65rem 1.5rem', border: '1px solid var(--primary)', borderRadius: '14px', 
                 background: 'var(--primary)',
@@ -305,7 +334,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                 boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
               }}
             >
-              <FileText size={18} /> Detalhes da Viagem
+              <ListTodo size={18} /> Checklists
             </button>
           )}
         </div>
@@ -670,16 +699,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
         />
       )}
 
-      <AnimatePresence>
-        {isDetailsOpen && (
-          <TripDetails 
-            trip={selectedTrip} 
-            expenses={expenses}
-            showValues={showValues}
-            onClose={() => setIsDetailsOpen(false)} 
-          />
-        )}
-      </AnimatePresence>
+      {/* Modal was here */}
     </div>
   );
 }

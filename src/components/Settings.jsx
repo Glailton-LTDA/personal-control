@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Mail, Save, ShieldCheck, Bell } from 'lucide-react';
+import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function Settings({ user }) {
+export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
   const [settings, setSettings] = useState({
     recipient_email: '',
-    bcc_email: ''
+    bcc_email: '',
+    skip_email_modal: false,
+    auto_send_on_paid: false
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,8 +25,10 @@ export default function Settings({ user }) {
       .single();
 
     if (data) setSettings({
-      recipient_email: data.recipient_email,
-      bcc_email: data.bcc_email
+      recipient_email: data.recipient_email || '',
+      bcc_email: data.bcc_email || '',
+      skip_email_modal: data.skip_email_modal || false,
+      auto_send_on_paid: data.auto_send_on_paid || false
     });
     setLoading(false);
   }
@@ -36,8 +40,9 @@ export default function Settings({ user }) {
       .upsert({ 
         user_id: user.id, 
         ...settings,
+        menu_order: menuOrder,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'user_id' });
 
     if (!error) {
       setMessage('Configurações salvas com sucesso!');
@@ -48,11 +53,92 @@ export default function Settings({ user }) {
     setSaving(false);
   }
 
+  const moveItem = async (index, direction) => {
+    const newOrder = [...menuOrder];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+    
+    [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+    setMenuOrder(newOrder);
+
+    // Save immediately to Supabase
+    const { error } = await supabase
+      .from('notification_settings')
+      .upsert({ 
+        user_id: user.id, 
+        menu_order: newOrder,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+    
+    if (error) console.error('Error saving menu order:', error);
+  };
+
   if (loading) return <div style={{ padding: '2rem' }}>Carregando configurações...</div>;
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card" style={{ padding: '2.5rem' }}>
+    <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      
+      {/* Menu Reordering Section */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
+                <Layout size={24} />
+            </div>
+            <div>
+                <h3 style={{ fontSize: '1.25rem' }}>Ordem do Menu Lateral</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Personalize a ordem dos módulos no seu sidebar.</p>
+            </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {menuOrder.map((id, index) => {
+            const item = menuItems.find(i => i.id === id);
+            if (!item) return null;
+            const Icon = item.icon;
+            
+            return (
+              <div 
+                key={id} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '0.75rem 1rem', 
+                  background: 'rgba(255,255,255,0.03)', 
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--glass-border)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <Icon size={18} style={{ color: 'var(--primary)' }} />
+                  <span style={{ fontWeight: 500 }}>{item.label}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button 
+                    onClick={() => moveItem(index, -1)} 
+                    disabled={index === 0}
+                    className="icon-btn"
+                    style={{ padding: '4px', opacity: index === 0 ? 0.3 : 1 }}
+                  >
+                    <ChevronUp size={18} />
+                  </button>
+                  <button 
+                    onClick={() => moveItem(index, 1)} 
+                    disabled={index === menuOrder.length - 1}
+                    className="icon-btn"
+                    style={{ padding: '4px', opacity: index === menuOrder.length - 1 ? 0.3 : 1 }}
+                  >
+                    <ChevronDown size={18} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      {/* Notifications Section */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card" style={{ padding: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
             <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
                 <Bell size={24} />
@@ -81,6 +167,34 @@ export default function Settings({ user }) {
             onChange={e => setSettings({...settings, bcc_email: e.target.value})}
             placeholder="glailton.rc@gmail.com"
           />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem', marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={settings.skip_email_modal}
+              onChange={(e) => setSettings({ ...settings, skip_email_modal: e.target.checked })}
+              style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+            />
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>Pular modal de confirmação</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Envia direto para o e-mail principal cadastrado</p>
+            </div>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={settings.auto_send_on_paid}
+              onChange={(e) => setSettings({ ...settings, auto_send_on_paid: e.target.checked })}
+              style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+            />
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>Enviar e-mail automático ao marcar como pago</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Automatiza o disparo ao confirmar o pagamento</p>
+            </div>
+          </label>
         </div>
 
         {message && <p style={{ color: 'var(--success)', marginBottom: '1rem', fontSize: '0.875rem' }}>{message}</p>}

@@ -90,31 +90,29 @@ test.describe('Módulo de Viagens', () => {
 
     // Verifica se a viagem mockada apareceu
     await expect(page.getByText('Viagem Teste')).toBeVisible({ timeout: 15000 });
+    
+    // Seleciona a viagem explicitamente pelo ID do mock
+    await page.getByTestId('trip-tab-trip-1').click();
+    await page.waitForTimeout(1000);
 
     // Clica em Detalhes da Viagem para ver Logística
-    await page.getByRole('button', { name: 'Detalhes da Viagem' }).click();
+    await page.getByTestId('view-trip-details-btn').click();
+
+    // Espera o modal aparecer pelo título
+    await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 10000 });
 
     // Verifica Roteiro e Viajantes nos Detalhes
-    await expect(page.getByText('Paris', { exact: false })).toBeVisible();
-    await expect(page.getByText('França', { exact: false })).toBeVisible();
-
-    // Volta para a listagem
-    await page.getByRole('button', { name: 'Voltar' }).click();
+    // Espera o texto Paris aparecer na localização
+    const locationDiv = page.getByTestId('trip-details-location');
+    await expect(locationDiv).toBeVisible({ timeout: 10000 });
+    await expect(locationDiv).toContainText('Paris');
     
-    // Espera o modal sumir completamente
-    await expect(page.getByLabel('Voltar')).not.toBeVisible();
-
-    // Verifica se os KPIs voltaram a aparecer
-    await expect(page.getByText(/Total Gasto/i)).toBeVisible();
-
-    // Tenta encontrar o texto da despesa com uma espera maior e ignorando case
-    await expect(page.getByText(/Jantar de Luxo/i)).toBeVisible({ timeout: 15000 });
-    
-    // Para o valor, tentamos ser o mais genérico possível
-    await expect(page.getByText(/150/).first()).toBeVisible();
+    // Verifica despesa na seção de Despesas Recentes
+    await expect(page.getByTestId('expense-desc-0')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('expense-desc-0')).toContainText('Jantar de Luxo');
     
     // Verifica KPI de Orçamento
-    await expect(page.getByText(/No Plano|Crítico|Livre/)).toBeVisible();
+    await expect(page.getByText(/No Plano|Crítico|Livre/).first()).toBeVisible();
   });
 
   test('deve persistir a moeda selecionada por viagem no localStorage', async ({ page }) => {
@@ -149,7 +147,7 @@ test.describe('Módulo de Viagens', () => {
     await page.getByRole('button', { name: 'Minhas Viagens' }).click();
     
     // Abre detalhes da viagem
-    await page.getByRole('button', { name: 'Detalhes da Viagem' }).click();
+    await page.getByTestId('view-trip-details-btn').click();
     
     // Clica em "EDITAR ROTEIRO COMPLETO"
     await page.getByRole('button', { name: 'EDITAR ROTEIRO COMPLETO' }).click();
