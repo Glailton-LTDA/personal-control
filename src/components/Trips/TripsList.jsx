@@ -80,15 +80,18 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
 
   useEffect(() => {
     const fetchCategories = async () => {
+      const targetUserId = externalSelectedTrip?.user_id || user?.id;
+      if (!targetUserId) return;
+      
       const { data } = await supabase
         .from('trip_categories')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .order('name');
       if (data) setCategories(data);
     };
-    if (user?.id) fetchCategories();
-  }, [user?.id]);
+    fetchCategories();
+  }, [externalSelectedTrip?.user_id, user?.id]);
 
   const fetchExpenses = async (tripId = externalSelectedTrip?.id) => {
     if (!tripId) return;
@@ -301,20 +304,22 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
               <Edit2 size={18} /> Editar Viagem
             </button>
           )}
-          <button 
-            onClick={() => setIsDetailsOpen(true)}
-            className="glass-card"
-            style={{ 
-              padding: '0.65rem 1.5rem', border: '1px solid var(--primary)', borderRadius: '14px', 
-              background: 'var(--primary)',
-              color: 'white',
-              display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
-              width: isMobile ? '100%' : 'auto',
-              boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
-            }}
-          >
-            <FileText size={18} /> Detalhes da Viagem
-          </button>
+          {selectedTrip && (
+            <button 
+              onClick={() => setIsDetailsOpen(true)}
+              className="glass-card"
+              style={{ 
+                padding: '0.65rem 1.5rem', border: '1px solid var(--primary)', borderRadius: '14px', 
+                background: 'var(--primary)',
+                color: 'white',
+                display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
+                width: isMobile ? '100%' : 'auto',
+                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
+              }}
+            >
+              <FileText size={18} /> Detalhes da Viagem
+            </button>
+          )}
         </div>
       </div>
 

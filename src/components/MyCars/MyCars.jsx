@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Car, Settings, Wrench, Share2, Plus, Info, ChevronRight, User, Key, CheckCircle2, XCircle, Clock, Trash2, Mail, Save, AlertTriangle, Eye, EyeOff, MessageSquare } from 'lucide-react';
+import { Car, Settings, Wrench, Share2, Plus, Info, ChevronRight, User, Key, CheckCircle2, XCircle, Clock, Trash2, Mail, Save, AlertTriangle, Eye, EyeOff, MessageSquare, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
   const [cars, setCars] = useState([]);
   const [pendingShares, setPendingShares] = useState([]);
+  const [activeShares, setActiveShares] = useState([]);
   const [selectedCar, setSelectedCar] = useState(() => {
     const saved = localStorage.getItem('personal-control-selected-car-id');
     return saved ? { id: saved } : null; 
@@ -30,6 +31,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     if (user) {
       fetchCars();
       fetchPendingShares();
+      fetchActiveShares();
     }
   }, [refreshKey, user?.id]);
 
@@ -53,10 +55,13 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     // Decorate with share info
     const decoratedCars = (allAccessibleCars || []).map(car => {
       const share = sharedItems?.find(s => s.car_id === car.id);
-      if (share) {
-        return { ...car, is_shared: true, permission: share.permission };
-      }
-      return car;
+      const isOwner = car.user_id === user.id;
+      return { 
+        ...car, 
+        is_owner: isOwner,
+        is_guest: !!share, 
+        permission: share?.permission || (isOwner ? 'OWNER' : 'READ') 
+      };
     });
 
     setCars(decoratedCars);
@@ -83,6 +88,34 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .eq('shared_with_email', user.email)
       .eq('status', 'PENDING');
     setPendingShares(data || []);
+  }
+
+  async function fetchActiveShares() {
+    const { data } = await supabase
+      .from('car_shares')
+      .select('*, car_id(name)')
+      .eq('shared_by', user.id);
+    setActiveShares(data || []);
+  }
+
+  async function revokeShare(shareId) {
+    if (!confirm('Deseja realmente parar de compartilhar este veículo com este usuário?')) return;
+    const { error } = await supabase.from('car_shares').delete().eq('id', shareId);
+    if (!error) fetchActiveShares();
+  }
+
+  async function leaveCar(carId) {
+    if (!confirm('Deseja realmente remover este veículo da sua lista? \n\nIsso NÃO excluirá o veículo para o proprietário.')) return;
+    const { error } = await supabase
+      .from('car_shares')
+      .delete()
+      .eq('car_id', carId)
+      .eq('shared_with_email', user.email);
+    
+    if (!error) {
+      fetchCars();
+      if (selectedCar?.id === carId) setSelectedCar(null);
+    }
   }
 
   async function handleShareResponse(shareId, status) {
@@ -154,40 +187,49 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                     <span style={{ fontSize: '0.65rem', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', padding: '2px 8px', borderRadius: '20px', fontWeight: 600, flexShrink: 0 }}>OCULTO</span>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                  <button 
-                    className="icon-btn"
-                    onClick={() => toggleCarVisibility(car.id, car.is_hidden)}
-                    title={car.is_hidden ? 'Mostrar na lista' : 'Ocultar da lista'}
-                    style={{ 
-                      color: car.is_hidden ? '#f59e0b' : 'var(--text-muted)',
-                      background: car.is_hidden ? 'rgba(245,158,11,0.1)' : 'transparent',
-                      borderRadius: 8, padding: 6
-                    }}
-                  >
-                    {car.is_hidden ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                  {!car.is_shared && (
-                    <button className="icon-btn" onClick={() => { setSelectedCar(car); openModal('share_car'); }} title="Compartilhar">
-                      <Share2 size={18} />
+                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                    <button 
+                      className="icon-btn"
+                      onClick={() => toggleCarVisibility(car.id, car.is_hidden)}
+                      title={car.is_hidden ? 'Mostrar na lista' : 'Ocultar da lista'}
+                      style={{ 
+                        color: car.is_hidden ? '#f59e0b' : 'var(--text-muted)',
+                        background: car.is_hidden ? 'rgba(245,158,11,0.1)' : 'transparent',
+                        borderRadius: 8, padding: 6
+                      }}
+                    >
+                      {car.is_hidden ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
-                  )}
-                </div>
+                    {car.is_owner && (
+                      <button className="icon-btn" onClick={() => { setSelectedCar(car); openModal('share_car'); }} title="Compartilhar">
+                        <Share2 size={18} />
+                      </button>
+                    )}
+                  </div>
               </div>
               
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                <button className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px' }} onClick={() => { setSelectedCar(car); openModal('edit_car'); }}>
-                  <Settings size={14} /> Editar
-                </button>
-                {!car.is_shared && (
-                  <button className="icon-btn" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteCar(car.id)} title="Excluir">
-                    <Trash2 size={18} />
-                  </button>
-                )}
-              </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+                    {car.is_owner ? (
+                      <>
+                        <button className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px' }} onClick={() => { setSelectedCar(car); openModal('edit_car'); }}>
+                          <Settings size={14} /> Editar
+                        </button>
+                        <button className="icon-btn" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteCar(car.id)} title="Excluir">
+                          <Trash2 size={18} />
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }} onClick={() => leaveCar(car.id)}>
+                        <XCircle size={14} /> Sair do Veículo
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+
+            {/* Shares Management Section */}
+            <CarSharesManager activeShares={activeShares} onRevoke={revokeShare} />
 
         {/* Service Templates Manager */}
         <ServiceTemplatesManager user={user} />
@@ -265,7 +307,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
           >
             <Car size={16} />
             {car.name}
-            {car.is_shared && <Share2 size={12} title="Compartilhado" />}
+            {car.is_guest && <Share2 size={12} title="Compartilhado comigo" />}
           </button>
         ))}
       </div>
@@ -1131,6 +1173,42 @@ function ServiceTemplatesManager({ user }) {
             {saving ? '...' : 'Adicionar'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CarSharesManager({ activeShares, onRevoke }) {
+  if (activeShares.length === 0) return null;
+
+  return (
+    <div className="glass-card" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+          <Users size={18} />
+        </div>
+        <div>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Compartilhamentos Ativos</h3>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Gerencie quem tem acesso aos seus veículos.</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {activeShares.map(share => (
+          <div key={share.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+            <div>
+              <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{share.car_id?.name}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Mail size={12} /> {share.shared_with_email} 
+                <span style={{ fontSize: '0.65rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '10px' }}>{share.permission}</span>
+                {share.status === 'PENDING' && <span style={{ fontSize: '0.65rem', color: '#f59e0b' }}>• Pendente</span>}
+              </p>
+            </div>
+            <button className="icon-btn" onClick={() => onRevoke(share.id)} style={{ color: 'var(--danger)' }} title="Revogar acesso">
+              <Trash2 size={18} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

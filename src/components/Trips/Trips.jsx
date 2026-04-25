@@ -35,7 +35,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   useEffect(() => {
     fetchTrips();
     fetchCategories();
-  }, [user, refreshKey, localRefreshKey]);
+  }, [user, refreshKey, localRefreshKey, selectedTrip?.user_id]);
 
   async function fetchTrips() {
     if (!user) return;
@@ -64,8 +64,9 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   }
 
   async function fetchCategories() {
-    if (!user) return;
-    const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
+    const targetUserId = selectedTrip?.user_id || user?.id;
+    if (!targetUserId) return;
+    const { data } = await supabase.from('trip_categories').select('*').eq('user_id', targetUserId).order('name', { ascending: true });
     if (data) setCategories(data);
   }
 

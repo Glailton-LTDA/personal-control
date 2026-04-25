@@ -75,6 +75,22 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
     if (!error) callback();
   }
 
+  async function cancelMyShare(tripId) {
+    if (!confirm('Deseja realmente remover seu acesso a esta viagem? \n\nIsso NÃO excluirá a viagem para o proprietário, apenas removerá ela da sua lista.')) return;
+    
+    const { error } = await supabase
+      .from('trip_shares')
+      .delete()
+      .eq('trip_id', tripId)
+      .eq('shared_with_email', user.email);
+
+    if (!error) {
+      fetchTrips();
+    } else {
+      alert('Erro ao sair da viagem: ' + error.message);
+    }
+  }
+
   const tabIcons = {
     trips: <Plane size={20} />,
     categories: <Tag size={20} />,
@@ -91,13 +107,25 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Header section with tabs */}
-      <div className="glass-card" style={{ padding: '0.5rem', display: 'flex', gap: '0.4rem', background: 'var(--card-action-bg)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+      <div className="glass-card" style={{ 
+        padding: '0.5rem', 
+        display: 'flex', 
+        gap: '0.4rem', 
+        background: 'var(--card-action-bg)', 
+        borderRadius: '16px', 
+        border: '1px solid var(--glass-border)',
+        overflowX: isMobile ? 'auto' : 'visible',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none'
+      }}>
         {['trips', 'categories', 'shares'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
-              flex: 1,
+              flex: isMobile ? '0 0 auto' : 1,
+              minWidth: isMobile ? '120px' : 'auto',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -112,7 +140,8 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
               boxShadow: activeTab === tab ? '0 10px 20px -5px rgba(99, 102, 241, 0.4)' : 'none',
               transform: activeTab === tab ? 'translateY(-2px)' : 'none',
               fontWeight: activeTab === tab ? '700' : '600',
-              fontSize: '0.9rem'
+              fontSize: '0.9rem',
+              whiteSpace: 'nowrap'
             }}
           >
             {tabIcons[tab]}
@@ -125,14 +154,33 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
       <div className="fade-in">
         {activeTab === 'trips' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              justifyContent: 'space-between', 
+              alignItems: isMobile ? 'stretch' : 'center', 
+              marginBottom: '2rem',
+              gap: '1.5rem'
+            }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800' }}>Gerenciar Viagens</h3>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>Gerenciar Viagens</h3>
                 <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Configure os detalhes e moedas de cada jornada</p>
               </div>
               <button 
                 className="btn" 
-                style={{ background: 'var(--primary)', color: 'white', padding: '0.85rem 1.75rem', borderRadius: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)' }} 
+                style={{ 
+                  background: 'var(--primary)', 
+                  color: 'white', 
+                  padding: '0.85rem 1.75rem', 
+                  borderRadius: '14px', 
+                  fontWeight: '700', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: '0.75rem', 
+                  boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)',
+                  width: isMobile ? '100%' : 'auto'
+                }} 
                 onClick={() => onAddTrip()}
               >
                 <Plus size={20} strokeWidth={3} /> Nova Viagem
@@ -187,12 +235,25 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
 
                   <div className="actions-cell" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1.25rem' }}>
                     <div className="actions-row" style={{ justifyContent: 'center', width: '100%' }}>
-                      <button className="action-btn" onClick={() => onEditTrip(trip)} title="Editar">
-                        <Edit size={18} />
-                      </button>
-                      <button className="action-btn danger" onClick={() => deleteItem('trips', trip.id, fetchTrips)} title="Excluir">
-                        <Trash2 size={18} />
-                      </button>
+                      {trip.user_id === user.id ? (
+                        <>
+                          <button className="action-btn" onClick={() => onEditTrip(trip)} title="Editar">
+                            <Edit size={18} />
+                          </button>
+                          <button className="action-btn danger" onClick={() => deleteItem('trips', trip.id, fetchTrips)} title="Excluir">
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      ) : (
+                        <button 
+                          className="action-btn danger" 
+                          onClick={() => cancelMyShare(trip.id)} 
+                          title="Sair da Viagem"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', width: 'auto' }}
+                        >
+                          <X size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>Sair da Viagem</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -203,14 +264,33 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
 
         {activeTab === 'categories' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              justifyContent: 'space-between', 
+              alignItems: isMobile ? 'stretch' : 'center', 
+              marginBottom: '2rem',
+              gap: '1.5rem'
+            }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800' }}>Categorias</h3>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>Categorias</h3>
                 <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Organize seus gastos por tipo</p>
               </div>
               <button 
                 className="btn" 
-                style={{ background: 'var(--primary)', color: 'white', padding: '0.85rem 1.75rem', borderRadius: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)' }} 
+                style={{ 
+                  background: 'var(--primary)', 
+                  color: 'white', 
+                  padding: '0.85rem 1.75rem', 
+                  borderRadius: '14px', 
+                  fontWeight: '700', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: '0.75rem', 
+                  boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)',
+                  width: isMobile ? '100%' : 'auto'
+                }} 
                 onClick={() => setIsAddingCategory(true)}
               >
                 <Plus size={20} strokeWidth={3} /> Nova Categoria
@@ -241,14 +321,33 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
 
         {activeTab === 'shares' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              justifyContent: 'space-between', 
+              alignItems: isMobile ? 'stretch' : 'center', 
+              marginBottom: '2rem',
+              gap: '1.5rem'
+            }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800' }}>Compartilhamento</h3>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>Compartilhamento</h3>
                 <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Convide outras pessoas para visualizar sua viagem</p>
               </div>
               <button 
                 className="btn" 
-                style={{ background: 'var(--primary)', color: 'white', padding: '0.85rem 1.75rem', borderRadius: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)' }} 
+                style={{ 
+                  background: 'var(--primary)', 
+                  color: 'white', 
+                  padding: '0.85rem 1.75rem', 
+                  borderRadius: '14px', 
+                  fontWeight: '700', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: '0.75rem', 
+                  boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)',
+                  width: isMobile ? '100%' : 'auto'
+                }} 
                 onClick={() => setIsAddingShare(true)}
               >
                 <Plus size={20} strokeWidth={3} /> Compartilhar Viagem
@@ -401,7 +500,7 @@ function ShareModal({ user, trips, onClose, onSave }) {
             value={tripId} onChange={e => setTripId(e.target.value)}
           >
             <option value="">Selecione uma viagem...</option>
-            {trips.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+            {trips.filter(t => t.user_id === user.id).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
         </div>
         <div>

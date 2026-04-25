@@ -7,6 +7,14 @@ import AttachmentManager from './AttachmentManager';
 import { motion } from 'framer-motion';
 
 export default function TripForm({ user, trip, onBack, onSave }) {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const prepareItems = (items) => {
     if (!Array.isArray(items)) return [];
     
@@ -152,7 +160,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
             <div>
               <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Calendar size={16} /> Início</label>
               <input 
