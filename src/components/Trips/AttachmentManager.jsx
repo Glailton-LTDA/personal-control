@@ -15,7 +15,10 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
 
   const [isUploading, setIsUploading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [addressSuggestions, setAddressSuggestions] = useState({}); // { itemId: [] }
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   const fileInputRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
 
   const generateId = () => {
     try {
@@ -104,6 +107,30 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
 
   const updateItemField = (id, field, value) => {
     onItemsChange(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const handleAddressSearch = (itemId, query) => {
+    updateItemField(itemId, 'address', query);
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    
+    if (!query || query.length < 3) {
+      setAddressSuggestions(prev => ({ ...prev, [itemId]: [] }));
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearchingAddress(true);
+      try {
+        const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
+        const data = await response.json();
+        setAddressSuggestions(prev => ({ ...prev, [itemId]: data.features || [] }));
+      } catch (error) {
+        console.error('Error fetching address:', error);
+      } finally {
+        setIsSearchingAddress(false);
+      }
+    }, 500);
   };
 
   const isLodging = /hospedag/i.test(label);
@@ -432,15 +459,77 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         )}
 
                         {isTour && (
-                          <div style={{ gridColumn: 'span 1' }}>
+                          <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2', position: 'relative' }}>
                             <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Endereço / Local</label>
-                            <input 
-                              className="glass-input"
-                              value={item.address || ''}
-                              onChange={(e) => updateItemField(item.id, 'address', e.target.value)}
-                              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                              placeholder="Ex: Rue de Rivoli, 75001 Paris..."
-                            />
+                            <div style={{ position: 'relative' }}>
+                              <input 
+                                className="glass-input"
+                                value={item.address || ''}
+                                onChange={(e) => handleAddressSearch(item.id, e.target.value)}
+                                onBlur={() => setTimeout(() => setAddressSuggestions(prev => ({ ...prev, [item.id]: [] })), 200)}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                placeholder="Ex: Louvre Museum, Rue de Rivoli..."
+                              />
+                              {isSearchingAddress && (
+                                <div style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)' }}>
+                                  <Loader2 size={14} className="animate-spin" style={{ opacity: 0.5 }} />
+                                </div>
+                              )}
+                            </div>
+
+                            {addressSuggestions[item.id] && addressSuggestions[item.id].length > 0 && (
+                              <div style={{ 
+                                position: 'absolute', 
+                                top: '100%', 
+                                left: 0, 
+                                right: 0, 
+                                zIndex: 100, 
+                                marginTop: '0.5rem',
+                                background: 'rgba(15, 23, 42, 0.95)',
+                                backdropFilter: 'blur(20px)',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                                boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+                              }}>
+                                {addressSuggestions[item.id].map((feat, fIdx) => {
+                                  const { name, city, country, street } = feat.properties;
+                                  const displayTitle = name;
+                                  const displaySub = [street, city, country].filter(Boolean).join(', ');
+                                  
+                                  return (
+                                    <div 
+                                      key={fIdx}
+                                      onClick={() => {
+                                        const fullAddress = [name, street, city, country].filter(Boolean).join(', ');
+                                        updateItemField(item.id, 'address', fullAddress);
+                                        setAddressSuggestions(prev => ({ ...prev, [item.id]: [] }));
+                                      }}
+                                      style={{ 
+                                        padding: '0.75rem 1rem', 
+                                        cursor: 'pointer', 
+                                        borderBottom: fIdx < addressSuggestions[item.id].length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                                        transition: '0.2s'
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                        <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                                        <div style={{ overflow: 'hidden' }}>
+                                          <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                            {displayTitle}
+                                          </div>
+                                          <div style={{ fontSize: '0.7rem', opacity: 0.5, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                            {displaySub}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
