@@ -72,16 +72,33 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
       pointerEvents: 'auto'
     }}>
       {suggestions.map((feat, fIdx) => {
-        const { name, city, country, street, state } = feat.properties;
-        const displayTitle = name;
-        const displaySub = [street, city, state, country].filter(Boolean).join(', ');
+        const { name, city, country, street, state, housenumber } = feat.properties;
+        
+        // Try to extract house number from user input if not in suggestion
+        const inputHousenumber = localValue.match(/,\s*(\d+[a-zA-Z]?)/)?.[1] || localValue.match(/\s+(\d+[a-zA-Z]?)$/)?.[1];
+        const effectiveHousenumber = housenumber || inputHousenumber;
+        
+        // If 'name' is just the street, and we have a housenumber, combine them
+        let displayTitle = name;
+        if (effectiveHousenumber && !name.includes(effectiveHousenumber)) {
+          displayTitle = `${name}, ${effectiveHousenumber}`;
+        }
+        
+        const displaySub = [street !== name ? street : null, city, state, country].filter(Boolean).join(', ');
         
         return (
           <div 
             key={fIdx}
             onMouseDown={(e) => {
               e.preventDefault(); 
-              const fullAddress = [name, street, city, country].filter(Boolean).join(', ');
+              // Construct full address preserving house number
+              const addressParts = [name];
+              if (effectiveHousenumber && !name.includes(effectiveHousenumber)) {
+                addressParts[0] = `${name}, ${effectiveHousenumber}`;
+              }
+              
+              const fullAddress = [...addressParts, city, country].filter(Boolean).join(', ');
+              
               setLocalValue(fullAddress);
               onChange(fullAddress, feat.geometry.coordinates);
               setSuggestions([]);
