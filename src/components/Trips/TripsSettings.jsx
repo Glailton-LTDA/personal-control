@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
-import { Plane, Tag, Users, Plus, Save, Trash2, Edit, X, MapPin, Calendar, Globe, Building, Car, DollarSign, Mail, Ticket } from 'lucide-react';
+import { Plane, Tag, Users, Plus, Save, Trash2, Edit, X, MapPin, Calendar, Globe, Building, Car, DollarSign, Mail, Ticket, LayoutDashboard } from 'lucide-react';
 import CurrencySelector from './CurrencySelector';
 import BadgeInput from './BadgeInput';
 import AttachmentManager from './AttachmentManager';
@@ -240,19 +240,43 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
                           <button className="action-btn" onClick={() => onEditTrip(trip)} title="Editar">
                             <Edit size={18} />
                           </button>
+                          <button 
+                            className="action-btn" 
+                            style={{ color: 'var(--primary)' }}
+                            onClick={() => {
+                              localStorage.setItem('pc_selected_trip_v1', trip.id);
+                              window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+                            }} 
+                            title="Ver no Dashboard"
+                          >
+                            <LayoutDashboard size={18} />
+                          </button>
                           <button className="action-btn danger" onClick={() => deleteItem('trips', trip.id, fetchTrips)} title="Excluir">
                             <Trash2 size={18} />
                           </button>
                         </>
                       ) : (
-                        <button 
-                          className="action-btn danger" 
-                          onClick={() => cancelMyShare(trip.id)} 
-                          title="Sair da Viagem"
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', width: 'auto' }}
-                        >
-                          <X size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>Sair da Viagem</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="action-btn" 
+                            style={{ color: 'var(--primary)', width: 'auto', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            onClick={() => {
+                              localStorage.setItem('pc_selected_trip_v1', trip.id);
+                              window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+                            }} 
+                            title="Ver no Dashboard"
+                          >
+                            <LayoutDashboard size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>Ver Dashboard</span>
+                          </button>
+                          <button 
+                            className="action-btn danger" 
+                            onClick={() => cancelMyShare(trip.id)} 
+                            title="Sair da Viagem"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', width: 'auto' }}
+                          >
+                            <X size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>Sair da Viagem</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MapPin, Loader2 } from 'lucide-react';
 
 export default function AddressInput({ value, onChange, placeholder, style, className, onFocus, onBlur }) {
   const [localValue, setLocalValue] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState(null);
   const searchTimeoutRef = useRef(null);
+  const inputContainerRef = useRef(null);
 
   // Sync with external value changes
   useEffect(() => {
@@ -14,6 +17,20 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
     }
   }, [value]);
 
+  // Update dropdown position when suggestions change or on focus
+  useEffect(() => {
+    if (suggestions.length > 0 && inputContainerRef.current) {
+      const rect = inputContainerRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    } else {
+      setDropdownPos(null);
+    }
+  }, [suggestions]);
+
   const handleSearch = (query) => {
     setLocalValue(query);
 
@@ -21,7 +38,6 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
     
     if (!query || query.length < 3) {
       setSuggestions([]);
-      // If clearing, notify parent
       if (!query) onChange('');
       return;
     }
@@ -29,7 +45,7 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
+        const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10`);
         const data = await response.json();
         setSuggestions(data.features || []);
       } catch (error) {
@@ -40,8 +56,66 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
     }, 500);
   };
 
+  const suggestionsDropdown = suggestions.length > 0 && dropdownPos && createPortal(
+    <div style={{ 
+      position: 'absolute', 
+      top: `${dropdownPos.top}px`, 
+      left: `${dropdownPos.left}px`, 
+      width: `${dropdownPos.width}px`,
+      zIndex: 999999, // Extremely high to be above everything
+      marginTop: '0.5rem',
+      background: '#0f172a',
+      border: '1px solid var(--glass-border)',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+      pointerEvents: 'auto'
+    }}>
+      {suggestions.map((feat, fIdx) => {
+        const { name, city, country, street, state } = feat.properties;
+        const displayTitle = name;
+        const displaySub = [street, city, state, country].filter(Boolean).join(', ');
+        
+        return (
+          <div 
+            key={fIdx}
+            onMouseDown={(e) => {
+              e.preventDefault(); 
+              const fullAddress = [name, street, city, country].filter(Boolean).join(', ');
+              setLocalValue(fullAddress);
+              onChange(fullAddress, feat.geometry.coordinates);
+              setSuggestions([]);
+            }}
+            style={{ 
+              padding: '0.75rem 1rem', 
+              cursor: 'pointer', 
+              borderBottom: fIdx < suggestions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+              transition: '0.2s',
+              background: 'transparent'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {displayTitle}
+                </div>
+                <div style={{ fontSize: '0.7rem', opacity: 0.5, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {displaySub}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>,
+    document.getElementById('portal-root')
+  );
+
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div ref={inputContainerRef} style={{ position: 'relative', width: '100%' }}>
       <div style={{ position: 'relative' }}>
         <input 
           className={className || "glass-input"}
@@ -50,10 +124,8 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
           onChange={(e) => handleSearch(e.target.value)}
           onBlur={(e) => {
             if (onBlur) onBlur(e);
-            // Give time for mousedown to fire
             setTimeout(() => {
               setSuggestions([]);
-              // Ensure parent is up to date with typed value if no suggestion was picked
               onChange(localValue);
             }, 200);
           }}
@@ -66,61 +138,7 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
           </div>
         )}
       </div>
-
-      {suggestions.length > 0 && (
-        <div style={{ 
-          position: 'absolute', 
-          top: '100%', 
-          left: 0, 
-          right: 0, 
-          zIndex: 9999, 
-          marginTop: '0.5rem',
-          background: '#0f172a',
-          border: '1px solid var(--glass-border)',
-          borderRadius: '12px',
-          overflow: 'hidden',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-        }}>
-          {suggestions.map((feat, fIdx) => {
-            const { name, city, country, street, state } = feat.properties;
-            const displayTitle = name;
-            const displaySub = [street, city, state, country].filter(Boolean).join(', ');
-            
-            return (
-              <div 
-                key={fIdx}
-                onMouseDown={(e) => {
-                  e.preventDefault(); // Prevent input from blurring
-                  const fullAddress = [name, street, city, country].filter(Boolean).join(', ');
-                  setLocalValue(fullAddress);
-                  onChange(fullAddress, feat.geometry.coordinates);
-                  setSuggestions([]);
-                }}
-                style={{ 
-                  padding: '0.75rem 1rem', 
-                  cursor: 'pointer', 
-                  borderBottom: fIdx < suggestions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                  transition: '0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <MapPin size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                  <div style={{ overflow: 'hidden' }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                      {displayTitle}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', opacity: 0.5, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                      {displaySub}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {suggestionsDropdown}
     </div>
   );
 }

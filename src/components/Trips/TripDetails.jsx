@@ -469,9 +469,16 @@ export default function TripDetails({ trip, onClose, expenses, showValues, onVie
                           <div style={{ flex: 1, paddingBottom: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                               {entry.time && <span style={{ fontSize: '0.85rem', fontWeight: '900', color: 'white' }}>{entry.time}</span>}
-                              <span style={{ fontSize: '0.95rem', fontWeight: '700', color: entry.completed ? 'var(--text-muted)' : 'var(--text-main)' }}>
-                                {entry.location}
-                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '0.95rem', fontWeight: '700', color: entry.completed ? 'var(--text-muted)' : 'var(--text-main)' }}>
+                                  {entry.activity || entry.location}
+                                </span>
+                                {entry.activity && entry.location && (
+                                  <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.1rem' }}>
+                                    <MapPin size={10} style={{ color: 'var(--primary)' }} /> {entry.location}
+                                  </span>
+                                )}
+                              </div>
                               {entry.is_booked && <Check size={12} style={{ color: 'var(--success)' }} title="Reservado" />}
                               {!entry.is_booked && entry.needs_booking && <Bell size={12} style={{ color: 'var(--warning)' }} title="Precisa reservar" />}
                             </div>

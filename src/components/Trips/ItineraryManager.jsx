@@ -5,7 +5,225 @@ import {
   ExternalLink, Ticket, Check, Bell, GripVertical
 } from 'lucide-react';
 import AddressInput from './AddressInput';
-import { AnimatePresence, Reorder } from 'framer-motion';
+import { AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+
+const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, removeEntry, addToTickets, idx, totalItems }) => {
+  const controls = useDragControls();
+  
+  return (
+    <Reorder.Item 
+      key={entry.id}
+      value={entry}
+      dragListener={false}
+      dragControls={controls}
+      className="glass-card"
+      style={{ 
+        padding: isMobile ? '0.75rem' : '1.25rem',
+        borderLeft: `4px solid ${entry.completed ? 'var(--success)' : 'var(--glass-border)'}`,
+        opacity: entry.completed ? 0.6 : 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: isMobile ? '0.75rem' : '1rem',
+        position: 'relative',
+        zIndex: focusedId === entry.id ? 1000 : totalItems - idx,
+        overflow: 'visible'
+      }}
+      whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 1000 }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.5rem' : '1rem' }}>
+        <div 
+          onPointerDown={(e) => controls.start(e)}
+          style={{ cursor: 'grab', opacity: 0.3, flexShrink: 0, marginTop: '0.75rem' }} 
+          title="Arraste para reordenar"
+        >
+          <GripVertical size={isMobile ? 16 : 20} />
+        </div>
+        
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'visible' }}>
+          <input 
+            type="text"
+            value={entry.activity || ''}
+            placeholder="O que vamos fazer?"
+            onFocus={() => setFocusedId(entry.id)}
+            onBlur={() => setFocusedId(null)}
+            onChange={(e) => updateEntry(entry.id, 'activity', e.target.value)}
+            style={{
+              background: 'none',
+              border: 'none',
+              borderBottom: '1px solid rgba(255,255,255,0.05)',
+              color: 'white',
+              fontSize: '1rem',
+              fontWeight: '700',
+              width: '100%',
+              padding: '0.2rem 0',
+              outline: 'none'
+            }}
+          />
+
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+            overflow: 'visible'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button 
+                type="button"
+                onClick={() => updateEntry(entry.id, 'completed', !entry.completed)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: entry.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+              >
+                {entry.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+              </button>
+              
+              <div style={{ position: 'relative', width: isMobile ? '115px' : '125px' }}>
+                <Clock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                <input 
+                  type="time"
+                  value={entry.time || ''}
+                  onFocus={() => setFocusedId(entry.id)}
+                  onBlur={() => setFocusedId(null)}
+                  onChange={(e) => updateEntry(entry.id, 'time', e.target.value)}
+                  className="glass-input"
+                  style={{ width: '100%', padding: '0.4rem 2rem 0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: '800', borderRadius: '8px' }}
+                />
+              </div>
+            </div>
+
+            {!isMobile && (
+              <div style={{ flex: 1, marginLeft: '0.5rem' }}>
+                <AddressInput 
+                  value={entry.location}
+                  onFocus={() => setFocusedId(entry.id)}
+                  onBlur={() => setFocusedId(null)}
+                  onChange={(val, coords) => {
+                    updateEntry(entry.id, { 
+                      location: val, 
+                      ...(coords ? { coordinates: coords } : {}) 
+                    });
+                  }}
+                  placeholder="Local ou endereço..."
+                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.9rem' }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+              {entry.location && (
+                <button 
+                  type="button"
+                  onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.location)}`, '_blank')}
+                  title="Ver no Mapa"
+                  className="icon-btn"
+                  style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
+                >
+                  <ExternalLink size={18} />
+                </button>
+              )}
+              <button 
+                type="button"
+                onClick={() => addToTickets(entry)}
+                title="Tickets"
+                className="icon-btn"
+                style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
+              >
+                <Ticket size={18} />
+              </button>
+              <button 
+                type="button"
+                onClick={() => removeEntry(entry.id)}
+                title="Remover"
+                style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', marginLeft: '0.25rem' }}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+
+          {isMobile && (
+            <div style={{ width: '100%', marginTop: '-0.25rem' }}>
+              <AddressInput 
+                value={entry.location}
+                onFocus={() => setFocusedId(entry.id)}
+                onBlur={() => setFocusedId(null)}
+                onChange={(val, coords) => {
+                  updateEntry(entry.id, { 
+                    location: val, 
+                    ...(coords ? { coordinates: coords } : {}) 
+                  });
+                }}
+                placeholder="Local ou endereço..."
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        gap: isMobile ? '0.75rem' : '1.5rem', 
+        paddingLeft: isMobile ? '0.5rem' : '3rem', 
+        borderTop: '1px solid rgba(255,255,255,0.05)', 
+        paddingTop: '0.75rem' 
+      }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+          <input 
+            type="checkbox" 
+            checked={entry.needs_booking}
+            onChange={(e) => {
+              const val = e.target.checked;
+              updateEntry(entry.id, { 
+                needs_booking: val,
+                ...(!val ? { is_booked: false } : {})
+              });
+            }}
+          />
+          Reservar?
+        </label>
+
+        <label style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.4rem', 
+          fontSize: '0.75rem', 
+          cursor: entry.needs_booking ? 'pointer' : 'default',
+          opacity: entry.needs_booking ? 1 : 0.3,
+          color: 'var(--text-main)'
+        }}>
+          <input 
+            type="checkbox" 
+            disabled={!entry.needs_booking}
+            checked={entry.is_booked}
+            onChange={(e) => updateEntry(entry.id, 'is_booked', e.target.checked)}
+          />
+          OK?
+          {entry.needs_booking && !entry.is_booked && (
+            <Bell size={12} style={{ color: 'var(--warning)' }} />
+          )}
+          {entry.is_booked && (
+            <Check size={12} style={{ color: 'var(--success)' }} />
+          )}
+        </label>
+
+        <div style={{ flex: 1, minWidth: isMobile ? '140px' : '200px' }}>
+          <input 
+            type="text"
+            value={entry.notes || ''}
+            onFocus={() => setFocusedId(entry.id)}
+            onBlur={() => setFocusedId(null)}
+            onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
+            className="glass-input"
+            placeholder="Nota rápida..."
+            style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'transparent', border: 'none', borderBottom: '1px solid var(--glass-border)', borderRadius: 0, color: 'var(--text-main)' }}
+          />
+        </div>
+      </div>
+    </Reorder.Item>
+  );
+};
 
 export default function ItineraryManager({ trip, items, onItemsChange }) {
   const [activeDay, setActiveDay] = useState(null);
@@ -18,7 +236,6 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Helper to generate days between start and end
   const generateDays = () => {
     if (!trip.start_date || !trip.end_date) return [];
     
@@ -36,7 +253,6 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
 
   const days = generateDays();
 
-  // If no active day, set to first day
   if (!activeDay && days.length > 0) setActiveDay(days[0]);
 
   const addEntry = (day) => {
@@ -44,6 +260,7 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
       id: crypto.randomUUID(),
       day,
       time: '',
+      activity: '',
       location: '',
       completed: false,
       needs_booking: false,
@@ -67,7 +284,6 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
   };
 
   const handleReorder = (newOrderForDay) => {
-    // Merge the reordered day items back into the main itinerary list
     onItemsChange(prev => {
       const otherDays = prev.filter(item => item.day !== activeDay);
       return [...otherDays, ...newOrderForDay];
@@ -94,6 +310,12 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
     onItemsChange(prev => prev.filter(item => item.id !== id));
   };
 
+  const addToTickets = (entry) => {
+    // This could trigger a modal or auto-create a ticket entry
+    // For now, let's just alert
+    alert(`Dica: Você pode adicionar "${entry.activity || entry.location}" na aba de Ingressos em Ajustes da Viagem.`);
+  };
+
   const formatDate = (dateStr) => {
     const [, month, day] = dateStr.split('-');
     return `${day}/${month}`;
@@ -104,29 +326,12 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
     return date.toLocaleDateString('pt-BR', { weekday: 'short' });
   };
 
-  // Sort logic: Now purely based on array order for drag-and-drop support.
-  const entriesForDay = items.filter(item => item.day === activeDay);
-
-  // Logic to add to tickets
-  const addToTickets = (entry) => {
-    const ticketEntry = {
-      id: crypto.randomUUID(),
-      name: entry.location,
-      confirmation: '',
-      start_date: entry.day,
-      start_time: entry.time,
-      address: entry.location,
-      notes: entry.notes,
-      receipt_url: null
-    };
-    
-    // This requires a way to update the parent's tickets state
-    // For now, we'll assume the parent handles it via a prop or we send a specific signal
-    if (window.confirm(`Deseja adicionar "${entry.location}" à sua lista de Tickets/Ingressos?`)) {
-      const event = new CustomEvent('add-to-tickets', { detail: ticketEntry });
-      window.dispatchEvent(event);
-    }
-  };
+  const entriesForDay = React.useMemo(() => {
+    if (!activeDay) return [];
+    return items
+      .filter(item => item.day === activeDay)
+      .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  }, [items, activeDay]);
 
   const openInGoogleMaps = () => {
     const waypoints = entriesForDay
@@ -141,8 +346,6 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      
-      {/* Day Selector Tabs */}
       <div className="custom-scrollbar" style={{ 
         display: 'flex', 
         gap: '0.75rem', 
@@ -176,7 +379,6 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
         ))}
       </div>
 
-      {/* Day Content */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ 
           display: 'flex', 
@@ -239,198 +441,23 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
               style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', listStyle: 'none', padding: 0 }}
             >
               {entriesForDay.map((entry, idx) => (
-                <Reorder.Item 
+                <ItineraryItem 
                   key={entry.id}
-                  value={entry}
-                  className="glass-card"
-                  style={{ 
-                    padding: isMobile ? '0.75rem' : '1.25rem',
-                    borderLeft: `4px solid ${entry.completed ? 'var(--success)' : 'var(--glass-border)'}`,
-                    opacity: entry.completed ? 0.6 : 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: isMobile ? '0.75rem' : '1rem',
-                    position: 'relative',
-                    zIndex: focusedId === entry.id ? 100 : entriesForDay.length - idx,
-                    cursor: 'grab'
-                  }}
-                  whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 1000 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.5rem' : '1rem' }}>
-                    <div style={{ cursor: 'grab', opacity: 0.3, flexShrink: 0, marginTop: '0.75rem' }} title="Arraste para reordenar">
-                      <GripVertical size={isMobile ? 16 : 20} />
-                    </div>
-                    
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {/* Top Row: Toggle, Time and Actions */}
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between',
-                        gap: '0.5rem',
-                        flexWrap: 'wrap'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <button 
-                            type="button"
-                            onClick={() => updateEntry(entry.id, 'completed', !entry.completed)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: entry.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
-                          >
-                            {entry.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
-                          </button>
-                          
-                          <div style={{ position: 'relative', width: isMobile ? '115px' : '125px' }}>
-                            <Clock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-                            <input 
-                              type="time"
-                              value={entry.time || ''}
-                              onFocus={() => setFocusedId(entry.id)}
-                              onBlur={() => setFocusedId(null)}
-                              onChange={(e) => updateEntry(entry.id, 'time', e.target.value)}
-                              className="glass-input"
-                              style={{ width: '100%', padding: '0.4rem 2rem 0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: '800', borderRadius: '8px' }}
-                            />
-                          </div>
-                        </div>
-
-                        {!isMobile && (
-                          <div style={{ flex: 1, marginLeft: '0.5rem' }}>
-                            <AddressInput 
-                              value={entry.location}
-                              onFocus={() => setFocusedId(entry.id)}
-                              onBlur={() => setFocusedId(null)}
-                              onChange={(val, coords) => {
-                                updateEntry(entry.id, { 
-                                  location: val, 
-                                  ...(coords ? { coordinates: coords } : {}) 
-                                });
-                              }}
-                              placeholder="Local ou endereço..."
-                              style={{ padding: '0.45rem 0.75rem', fontSize: '0.9rem' }}
-                            />
-                          </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                          {entry.location && (
-                            <button 
-                              type="button"
-                              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.location)}`, '_blank')}
-                              title="Ver no Mapa"
-                              className="icon-btn"
-                              style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
-                            >
-                              <ExternalLink size={18} />
-                            </button>
-                          )}
-                          <button 
-                            type="button"
-                            onClick={() => addToTickets(entry)}
-                            title="Tickets"
-                            className="icon-btn"
-                            style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
-                          >
-                            <Ticket size={18} />
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => removeEntry(entry.id)}
-                            title="Remover"
-                            style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', marginLeft: '0.25rem' }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Bottom Row (Mobile only or overflow): Address */}
-                      {isMobile && (
-                        <div style={{ width: '100%', marginTop: '-0.25rem' }}>
-                          <AddressInput 
-                            value={entry.location}
-                            onFocus={() => setFocusedId(entry.id)}
-                            onBlur={() => setFocusedId(null)}
-                            onChange={(val, coords) => {
-                              updateEntry(entry.id, { 
-                                location: val, 
-                                ...(coords ? { coordinates: coords } : {}) 
-                              });
-                            }}
-                            placeholder="Local ou endereço..."
-                            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ 
-                    display: 'flex', 
-                    flexWrap: 'wrap', 
-                    gap: isMobile ? '0.75rem' : '1.5rem', 
-                    paddingLeft: isMobile ? '0.5rem' : '3rem', 
-                    borderTop: '1px solid rgba(255,255,255,0.05)', 
-                    paddingTop: '0.75rem' 
-                  }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={entry.needs_booking}
-                        onChange={(e) => {
-                          const val = e.target.checked;
-                          updateEntry(entry.id, { 
-                            needs_booking: val,
-                            ...(!val ? { is_booked: false } : {})
-                          });
-                        }}
-                      />
-                      Reservar?
-                    </label>
-
-                    <label style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '0.4rem', 
-                      fontSize: '0.75rem', 
-                      cursor: entry.needs_booking ? 'pointer' : 'default',
-                      opacity: entry.needs_booking ? 1 : 0.3,
-                      color: 'var(--text-main)'
-                    }}>
-                      <input 
-                        type="checkbox" 
-                        disabled={!entry.needs_booking}
-                        checked={entry.is_booked}
-                        onChange={(e) => updateEntry(entry.id, 'is_booked', e.target.checked)}
-                      />
-                      OK?
-                      {entry.needs_booking && !entry.is_booked && (
-                        <Bell size={12} style={{ color: 'var(--warning)' }} />
-                      )}
-                      {entry.is_booked && (
-                        <Check size={12} style={{ color: 'var(--success)' }} />
-                      )}
-                    </label>
-
-                    <div style={{ flex: 1, minWidth: isMobile ? '140px' : '200px' }}>
-                      <input 
-                        type="text"
-                        value={entry.notes || ''}
-                        onFocus={() => setFocusedId(entry.id)}
-                        onBlur={() => setFocusedId(null)}
-                        onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
-                        className="glass-input"
-                        placeholder="Nota rápida..."
-                        style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'transparent', border: 'none', borderBottom: '1px solid var(--glass-border)', borderRadius: 0, color: 'var(--text-main)' }}
-                      />
-                    </div>
-                  </div>
-                </Reorder.Item>
+                  entry={entry}
+                  idx={idx}
+                  totalItems={entriesForDay.length}
+                  isMobile={isMobile}
+                  focusedId={focusedId}
+                  setFocusedId={setFocusedId}
+                  updateEntry={updateEntry}
+                  removeEntry={removeEntry}
+                  addToTickets={addToTickets}
+                />
               ))}
             </Reorder.Group>
           )}
         </div>
       </div>
-
     </div>
   );
 }
