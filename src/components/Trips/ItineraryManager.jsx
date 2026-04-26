@@ -79,8 +79,8 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                 {entry.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
               </button>
               
-              <div style={{ position: 'relative', width: isMobile ? '115px' : '125px' }}>
-                <Clock size={14} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+              <div style={{ position: 'relative', width: isMobile ? '100px' : '125px' }}>
+                <Clock size={14} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
                 <input 
                   type="time"
                   value={entry.time || ''}
@@ -88,7 +88,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                   onBlur={() => setFocusedId(null)}
                   onChange={(e) => updateEntry(entry.id, 'time', e.target.value)}
                   className="glass-input"
-                  style={{ width: '100%', padding: '0.4rem 2rem 0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: '800', borderRadius: '8px' }}
+                  style={{ width: '100%', padding: '0.4rem 1.8rem 0.4rem 0.5rem', fontSize: '0.8rem', fontWeight: '800', borderRadius: '8px' }}
                 />
               </div>
             </div>

@@ -113,9 +113,15 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {onBack && (
             <button 
-              onClick={onBack} 
+              onClick={() => {
+                if (isMobile && selectedTrip) {
+                  setSelectedTrip(null);
+                } else {
+                  onBack();
+                }
+              }} 
               className="icon-btn"
-              title="Voltar para Viagens"
+              title={isMobile && selectedTrip ? "Voltar para lista" : "Voltar para Viagens"}
               data-testid="back-button"
             >
               <ChevronLeft size={24} />

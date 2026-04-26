@@ -72,7 +72,9 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
       pointerEvents: 'auto'
     }}>
       {suggestions.map((feat, fIdx) => {
-        const { name, city, country, street, state, housenumber } = feat.properties;
+        const props = feat.properties || {};
+        const { city, country, street, state, housenumber } = props;
+        const name = props.name || street || city || 'Endereço';
         
         // Try to extract house number from user input if not in suggestion
         const inputHousenumber = localValue.match(/,\s*(\d+[a-zA-Z]?)/)?.[1] || localValue.match(/\s+(\d+[a-zA-Z]?)$/)?.[1];
@@ -80,11 +82,11 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
         
         // If 'name' is just the street, and we have a housenumber, combine them
         let displayTitle = name;
-        if (effectiveHousenumber && !name.includes(effectiveHousenumber)) {
+        if (effectiveHousenumber && name && !name.toString().includes(effectiveHousenumber)) {
           displayTitle = `${name}, ${effectiveHousenumber}`;
         }
         
-        const displaySub = [street !== name ? street : null, city, state, country].filter(Boolean).join(', ');
+        const displaySub = [street && street !== name ? street : null, city, state, country].filter(Boolean).join(', ');
         
         return (
           <div 
@@ -93,7 +95,7 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
               e.preventDefault(); 
               // Construct full address preserving house number
               const addressParts = [name];
-              if (effectiveHousenumber && !name.includes(effectiveHousenumber)) {
+              if (effectiveHousenumber && name && !name.toString().includes(effectiveHousenumber)) {
                 addressParts[0] = `${name}, ${effectiveHousenumber}`;
               }
               
@@ -133,28 +135,26 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
 
   return (
     <div ref={inputContainerRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input 
-          className={className || "glass-input"}
-          value={localValue}
-          onFocus={onFocus}
-          onChange={(e) => handleSearch(e.target.value)}
-          onBlur={(e) => {
-            if (onBlur) onBlur(e);
-            setTimeout(() => {
-              setSuggestions([]);
-              onChange(localValue);
-            }, 200);
-          }}
-          style={{ width: '100%', ...style }}
-          placeholder={placeholder}
-        />
-        {isSearching && (
-          <div style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)' }}>
-            <Loader2 size={14} className="animate-spin" style={{ opacity: 0.5 }} />
-          </div>
-        )}
-      </div>
+      <input 
+        className={className || "glass-input"}
+        value={localValue}
+        onFocus={onFocus}
+        onChange={(e) => handleSearch(e.target.value)}
+        onBlur={(e) => {
+          if (onBlur) onBlur(e);
+          setTimeout(() => {
+            setSuggestions([]);
+            onChange(localValue);
+          }, 200);
+        }}
+        style={{ width: '100%', ...style }}
+        placeholder={placeholder}
+      />
+      {isSearching && (
+        <div style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)' }}>
+          <Loader2 size={14} className="animate-spin" style={{ opacity: 0.5 }} />
+        </div>
+      )}
       {suggestionsDropdown}
     </div>
   );
