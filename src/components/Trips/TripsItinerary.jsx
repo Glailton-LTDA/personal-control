@@ -27,25 +27,25 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     fetchTrips();
   }, [user]);
 
+  const initialTripProcessed = React.useRef(false);
+
   useEffect(() => {
-    if (trips.length > 0) {
-      // Prioridade 1: initialTripId vindo do pai
+    if (trips.length > 0 && !initialTripProcessed.current) {
       if (initialTripId) {
         const trip = trips.find(t => String(t.id) === String(initialTripId));
-        if (trip && (!selectedTrip || selectedTrip.id !== trip.id)) {
+        if (trip) {
           handleSelectTrip(trip);
+          initialTripProcessed.current = true;
           return;
         }
       }
 
-      // Prioridade 2: Se não temos nada selecionado ainda, tentamos o localStorage ou o fallback
-      if (!selectedTrip) {
-        const savedId = localStorage.getItem('pc_selected_trip_v1');
-        const trip = trips.find(t => String(t.id) === String(savedId)) || trips[0];
-        handleSelectTrip(trip);
-      }
+      const savedId = localStorage.getItem('pc_selected_trip_v1');
+      const trip = trips.find(t => String(t.id) === String(savedId)) || trips[0];
+      if (trip) handleSelectTrip(trip);
+      initialTripProcessed.current = true;
     }
-  }, [trips, initialTripId, selectedTrip?.id]);
+  }, [trips, initialTripId]);
 
   async function fetchTrips() {
     setIsLoading(true);
