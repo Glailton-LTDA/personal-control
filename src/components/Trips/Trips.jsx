@@ -6,7 +6,8 @@ import TripsItinerary from './TripsItinerary';
 import TripForm from './TripForm';
 import ExpenseModal from './ExpenseModal';
 import TripChecklists from './TripChecklists';
-import { Plus } from 'lucide-react';
+import TripsStats from './TripsStats';
+import { Plus, TrendingUp } from 'lucide-react';
 
 export default function Trips({ user, refreshKey, mode, showValues }) {
   const [isAddingExpense, setIsAddingExpense] = useState(false);
@@ -29,6 +30,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     if (mode === 'settings') setCurrentView('settings');
     else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'checklists') setCurrentView('checklists');
+    else if (mode === 'stats') setCurrentView('stats');
     else if (mode === 'list') setCurrentView('main');
   }, [mode]);
 
@@ -132,6 +134,10 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         onSave={() => setLocalRefreshKey(prev => prev + 1)}
       />
     );
+  }
+
+  if (currentView === 'stats') {
+    return <TripsStats trips={trips} onBack={() => setCurrentView('main')} />;
   }
 
   return (

@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   Calendar,
+  Globe,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -57,6 +58,7 @@ const moduleSubItems = {
   trips: [
     { tab: 'trips-list', icon: Plane, label: 'Minhas Viagens' },
     { tab: 'trips-itinerary', icon: Calendar, label: 'Roteiros' },
+    { tab: 'trips-stats', icon: Globe, label: 'Minha Jornada' },
     { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' },
   ],
   settings: [

@@ -57,6 +57,7 @@ vi.mock('lucide-react', () => {
     Eye: mockIcon('eye'),
     EyeOff: mockIcon('eye-off'),
     Calendar: mockIcon('calendar'),
+    Globe: mockIcon('globe'),
   };
 });
 

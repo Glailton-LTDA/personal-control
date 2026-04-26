@@ -4,11 +4,12 @@ import {
   X, Calendar, MapPin, Users, Building, Plane, Ticket, 
   DollarSign, FileText, Globe, Clock, ChevronLeft,
   Briefcase, Utensils, Camera, Map, Train, Bus, Ship, Car,
-  CheckCircle2, Circle, ExternalLink, ListTodo, Check, Bell
+  CheckCircle2, Circle, ExternalLink, ListTodo, Check, Bell, Compass
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { AIRPORTS } from '../../data/airports';
+import { estimateItineraryDistance } from '../../lib/geo';
 
 export default function TripDetails({ trip, onClose, expenses, showValues, onViewChecklists }) {
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
@@ -57,6 +58,8 @@ export default function TripDetails({ trip, onClose, expenses, showValues, onVie
       .reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
     return acc;
   }, {});
+
+  const estimatedDistance = React.useMemo(() => estimateItineraryDistance(trip.itinerary), [trip.itinerary]);
 
   const renderSectionHeader = (title, Icon, color = 'var(--primary)') => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', marginTop: '1rem' }}>
@@ -335,10 +338,17 @@ export default function TripDetails({ trip, onClose, expenses, showValues, onVie
             {renderSectionHeader('Logística de Viagem', Map)}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
               <div className="glass-card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--primary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', opacity: 0.7 }}>
-                  <MapPin size={18} /> <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Destinos</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)' }}>
+                  <MapPin size={16} />
+                  <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{trip.location}</span>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {estimatedDistance > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)' }}>
+                    <Compass size={16} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: '800' }}>{estimatedDistance.toLocaleString()} km estimados</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
                   {trip.countries?.map(c => <span key={c} style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', padding: '0.35rem 0.75rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: '700' }}>🌍 {c}</span>)}
                   {trip.cities?.map(c => <span key={c} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.35rem 0.75rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: '700' }}>📍 {c}</span>)}
                 </div>
