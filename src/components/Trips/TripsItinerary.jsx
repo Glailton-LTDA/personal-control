@@ -226,6 +226,33 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
               trip={selectedTrip}
               items={itinerary}
               onItemsChange={setItinerary}
+              onAddToTickets={async (entry) => {
+                try {
+                  const newTicket = {
+                    id: crypto.randomUUID(),
+                    name: entry.activity || entry.location,
+                    notes: entry.notes || '',
+                    start_date: entry.day,
+                    start_time: entry.time
+                  };
+                  
+                  const updatedTickets = [...(selectedTrip.tickets || []), newTicket];
+                  
+                  const { error } = await supabase
+                    .from('trips')
+                    .update({ tickets: updatedTickets })
+                    .eq('id', selectedTrip.id);
+                  
+                  if (error) throw error;
+                  
+                  setSelectedTrip({ ...selectedTrip, tickets: updatedTickets });
+                  setTrips(trips.map(t => t.id === selectedTrip.id ? { ...t, tickets: updatedTickets } : t));
+                  toast.success('Adicionado aos Ingressos!');
+                } catch (err) {
+                  console.error('Error adding ticket:', err);
+                  toast.error('Erro ao adicionar ingresso.');
+                }
+              }}
             />
           ) : (
             <div style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>

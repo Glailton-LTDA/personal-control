@@ -227,7 +227,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
   );
 };
 
-export default function ItineraryManager({ trip, items, onItemsChange }) {
+export default function ItineraryManager({ trip, items, onItemsChange, onAddToTickets }) {
   const [activeDay, setActiveDay] = useState(() => {
     if (!trip.id) return null;
     return localStorage.getItem(`pc_itinerary_active_day_${trip.id}`);
@@ -336,11 +336,15 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
   };
 
   const addToTickets = (entry) => {
-    // This could trigger a modal or auto-create a ticket entry
-    toast(`Dica: Você pode adicionar "${entry.activity || entry.location}" na aba de Ingressos em Ajustes da Viagem.`, {
-      icon: '🎫',
-      duration: 5000
-    });
+    if (onAddToTickets) {
+      onAddToTickets(entry);
+    } else {
+      // Fallback tip
+      toast(`Dica: Você pode adicionar "${entry.activity || entry.location}" na aba de Ingressos em Ajustes da Viagem.`, {
+        icon: '🎫',
+        duration: 5000
+      });
+    }
   };
 
   const formatDate = (dateStr) => {
