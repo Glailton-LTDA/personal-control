@@ -359,9 +359,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
 
   const entriesForDay = React.useMemo(() => {
     if (!activeDay) return [];
-    return items
-      .filter(item => item.day === activeDay)
-      .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+    return items.filter(item => item.day === activeDay);
   }, [items, activeDay]);
 
   const openInGoogleMaps = () => {
