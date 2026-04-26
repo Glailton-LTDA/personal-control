@@ -117,6 +117,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
   test('deve abrir o modal de importação', async ({ page }) => {
     const tripButton = page.locator('button.glass-card').first();
+    await expect(tripButton).toBeVisible();
     await tripButton.click();
     await page.getByRole('button', { name: /checklists/i }).click();
 

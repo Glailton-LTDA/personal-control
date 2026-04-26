@@ -137,7 +137,15 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   }
 
   if (currentView === 'stats') {
-    return <TripsStats trips={trips} onBack={() => setCurrentView('main')} />;
+    return (
+      <TripsStats 
+        trips={trips} 
+        onBack={() => {
+          window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+          setCurrentView('main');
+        }} 
+      />
+    );
   }
 
   return (
@@ -151,6 +159,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         showValues={showValues}
         onEditTrip={handleOpenForm}
         onViewChecklists={() => setCurrentView('checklists')}
+        onViewStats={() => setCurrentView('stats')}
       />
 
       {/* FAB - Global Trip Expense Trigger */}

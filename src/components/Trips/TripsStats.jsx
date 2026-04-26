@@ -71,7 +71,12 @@ export default function TripsStats({ trips, onBack }) {
   return (
     <div style={{ padding: '1rem', maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <button onClick={onBack} className="icon-btn" style={{ background: 'var(--bg-card)', padding: '10px' }}>
+        <button 
+          onClick={onBack} 
+          data-testid="back-to-trips-btn"
+          className="icon-btn" 
+          style={{ background: 'var(--bg-card)', padding: '10px' }}
+        >
           <ArrowLeft size={20} />
         </button>
         <div>

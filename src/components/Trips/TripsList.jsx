@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
-import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search, ListTodo } from 'lucide-react';
+import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search, ListTodo, Compass } from 'lucide-react';
 import ExpenseModal from './ExpenseModal';
 import TripDetails from './TripDetails';
 import { CURRENCIES } from '../../constants/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists }) {
+export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists, onViewStats }) {
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
