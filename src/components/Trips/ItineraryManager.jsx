@@ -5,10 +5,11 @@ import {
   ExternalLink, Ticket, Check, Bell, GripVertical
 } from 'lucide-react';
 import AddressInput from './AddressInput';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { AnimatePresence, Reorder } from 'framer-motion';
 
 export default function ItineraryManager({ trip, items, onItemsChange }) {
   const [activeDay, setActiveDay] = useState(null);
+  const [focusedId, setFocusedId] = useState(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   useEffect(() => {
@@ -50,39 +51,51 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
       coordinates: null,
       notes: ''
     };
-    onItemsChange([...items, newEntry]);
+    onItemsChange(prev => [...prev, newEntry]);
   };
 
-  const updateEntry = (id, field, value) => {
-    onItemsChange(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+  const updateEntry = (id, fieldOrUpdates, value) => {
+    onItemsChange(prev => prev.map(item => {
+      if (item.id === id) {
+        if (typeof fieldOrUpdates === 'string') {
+          return { ...item, [fieldOrUpdates]: value };
+        }
+        return { ...item, ...fieldOrUpdates };
+      }
+      return item;
+    }));
   };
 
   const handleReorder = (newOrderForDay) => {
     // Merge the reordered day items back into the main itinerary list
-    const otherDays = items.filter(item => item.day !== activeDay);
-    onItemsChange([...otherDays, ...newOrderForDay]);
+    onItemsChange(prev => {
+      const otherDays = prev.filter(item => item.day !== activeDay);
+      return [...otherDays, ...newOrderForDay];
+    });
   };
 
   const sortDayByTime = () => {
-    const dayItems = items.filter(item => item.day === activeDay);
-    const otherDays = items.filter(item => item.day !== activeDay);
-    
-    const sortedDay = [...dayItems].sort((a, b) => {
-      if (a.time && b.time) return a.time.localeCompare(b.time);
-      if (a.time && !b.time) return -1;
-      if (!a.time && b.time) return 1;
-      return 0;
+    onItemsChange(prev => {
+      const dayItems = prev.filter(item => item.day === activeDay);
+      const otherDays = prev.filter(item => item.day !== activeDay);
+      
+      const sortedDay = [...dayItems].sort((a, b) => {
+        if (a.time && b.time) return a.time.localeCompare(b.time);
+        if (a.time && !b.time) return -1;
+        if (!a.time && b.time) return 1;
+        return 0;
+      });
+      
+      return [...otherDays, ...sortedDay];
     });
-    
-    onItemsChange([...otherDays, ...sortedDay]);
   };
 
   const removeEntry = (id) => {
-    onItemsChange(items.filter(item => item.id !== id));
+    onItemsChange(prev => prev.filter(item => item.id !== id));
   };
 
   const formatDate = (dateStr) => {
-    const [year, month, day] = dateStr.split('-');
+    const [, month, day] = dateStr.split('-');
     return `${day}/${month}`;
   };
 
@@ -238,10 +251,10 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
                     flexDirection: 'column',
                     gap: isMobile ? '0.75rem' : '1rem',
                     position: 'relative',
-                    zIndex: entriesForDay.length - idx,
+                    zIndex: focusedId === entry.id ? 100 : entriesForDay.length - idx,
                     cursor: 'grab'
                   }}
-                  whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 100 }}
+                  whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 1000 }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.5rem' : '1rem' }}>
                     <div style={{ cursor: 'grab', opacity: 0.3, flexShrink: 0, marginTop: '0.75rem' }} title="Arraste para reordenar">
@@ -271,6 +284,8 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
                             <input 
                               type="time"
                               value={entry.time || ''}
+                              onFocus={() => setFocusedId(entry.id)}
+                              onBlur={() => setFocusedId(null)}
                               onChange={(e) => updateEntry(entry.id, 'time', e.target.value)}
                               className="glass-input"
                               style={{ width: '100%', padding: '0.4rem 2rem 0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: '800', borderRadius: '8px' }}
@@ -282,9 +297,13 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
                           <div style={{ flex: 1, marginLeft: '0.5rem' }}>
                             <AddressInput 
                               value={entry.location}
+                              onFocus={() => setFocusedId(entry.id)}
+                              onBlur={() => setFocusedId(null)}
                               onChange={(val, coords) => {
-                                updateEntry(entry.id, 'location', val);
-                                if (coords) updateEntry(entry.id, 'coordinates', coords);
+                                updateEntry(entry.id, { 
+                                  location: val, 
+                                  ...(coords ? { coordinates: coords } : {}) 
+                                });
                               }}
                               placeholder="Local ou endereço..."
                               style={{ padding: '0.45rem 0.75rem', fontSize: '0.9rem' }}
@@ -329,9 +348,13 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
                         <div style={{ width: '100%', marginTop: '-0.25rem' }}>
                           <AddressInput 
                             value={entry.location}
+                            onFocus={() => setFocusedId(entry.id)}
+                            onBlur={() => setFocusedId(null)}
                             onChange={(val, coords) => {
-                              updateEntry(entry.id, 'location', val);
-                              if (coords) updateEntry(entry.id, 'coordinates', coords);
+                              updateEntry(entry.id, { 
+                                location: val, 
+                                ...(coords ? { coordinates: coords } : {}) 
+                              });
                             }}
                             placeholder="Local ou endereço..."
                             style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
@@ -355,8 +378,10 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
                         checked={entry.needs_booking}
                         onChange={(e) => {
                           const val = e.target.checked;
-                          updateEntry(entry.id, 'needs_booking', val);
-                          if (!val) updateEntry(entry.id, 'is_booked', false);
+                          updateEntry(entry.id, { 
+                            needs_booking: val,
+                            ...(!val ? { is_booked: false } : {})
+                          });
                         }}
                       />
                       Reservar?
@@ -390,6 +415,8 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
                       <input 
                         type="text"
                         value={entry.notes || ''}
+                        onFocus={() => setFocusedId(entry.id)}
+                        onBlur={() => setFocusedId(null)}
                         onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
                         className="glass-input"
                         placeholder="Nota rápida..."

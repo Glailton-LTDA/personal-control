@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
 
-export default function AddressInput({ value, onChange, placeholder, style, className }) {
+export default function AddressInput({ value, onChange, placeholder, style, className, onFocus, onBlur }) {
   const [localValue, setLocalValue] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -46,8 +46,10 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
         <input 
           className={className || "glass-input"}
           value={localValue}
+          onFocus={onFocus}
           onChange={(e) => handleSearch(e.target.value)}
-          onBlur={() => {
+          onBlur={(e) => {
+            if (onBlur) onBlur(e);
             // Give time for mousedown to fire
             setTimeout(() => {
               setSuggestions([]);
@@ -71,10 +73,9 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
           top: '100%', 
           left: 0, 
           right: 0, 
-          zIndex: 1000, 
+          zIndex: 9999, 
           marginTop: '0.5rem',
-          background: 'rgba(15, 23, 42, 0.95)',
-          backdropFilter: 'blur(20px)',
+          background: '#0f172a',
           border: '1px solid var(--glass-border)',
           borderRadius: '12px',
           overflow: 'hidden',
