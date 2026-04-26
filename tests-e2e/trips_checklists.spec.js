@@ -100,18 +100,14 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
     await page.getByRole('button', { name: /checklists/i }).click();
 
-    page.on('dialog', async dialog => {
-      if (dialog.message().includes('Nome da nova lista')) {
-        await dialog.accept('Nova Lista E2E');
-      } else if (dialog.message().includes('Nova tarefa')) {
-        await dialog.accept('Item E2E');
-      }
-    });
-
     await page.getByRole('button', { name: /nova lista/i }).click();
+    await page.getByPlaceholder('Ex: Documentos, Mala de Mão...').fill('Nova Lista E2E');
+    await page.getByRole('button', { name: /criar lista/i }).click();
     await expect(page.getByText('Nova Lista E2E')).toBeVisible();
 
     await page.getByRole('button', { name: /adicionar item/i }).last().click();
+    await page.getByPlaceholder('O que precisa ser feito?').fill('Item E2E');
+    await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
     await expect(page.getByText('Item E2E')).toBeVisible();
   });
 

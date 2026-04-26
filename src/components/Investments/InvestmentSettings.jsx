@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Edit2, Save, X, Palette } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function InvestmentSettings({ user }) {
   const [accounts, setAccounts] = useState([]);
@@ -66,14 +68,19 @@ export default function InvestmentSettings({ user }) {
   }
 
   async function deleteAccount(id) {
-    if (window.confirm('Tem certeza que deseja excluir esta conta? Todos os registros vinculados serão removidos.')) {
+    confirmToast('Tem certeza que deseja excluir esta conta? Todos os registros vinculados serão removidos.', async () => {
       const { error } = await supabase
         .from('investment_accounts')
         .delete()
         .eq('id', id);
       
-      if (!error) fetchAccounts();
-    }
+      if (!error) {
+        fetchAccounts();
+        toast.success('Conta excluída');
+      } else {
+        toast.error('Erro ao excluir conta');
+      }
+    }, { danger: true });
   }
 
   const startEdit = (acc) => {

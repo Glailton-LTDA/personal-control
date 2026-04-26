@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Car, Settings, Wrench, Share2, Plus, Info, ChevronRight, User, Key, CheckCircle2, XCircle, Clock, Trash2, Mail, Save, AlertTriangle, Eye, EyeOff, MessageSquare, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
   const [cars, setCars] = useState([]);
@@ -99,23 +101,33 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   }
 
   async function revokeShare(shareId) {
-    if (!confirm('Deseja realmente parar de compartilhar este veículo com este usuário? \n\nO usuário perderá o acesso imediatamente, mas nenhum dado do veículo será excluído.')) return;
-    const { error } = await supabase.from('car_shares').delete().eq('id', shareId);
-    if (!error) fetchActiveShares();
+    confirmToast('Deseja realmente parar de compartilhar este veículo?', async () => {
+      const { error } = await supabase.from('car_shares').delete().eq('id', shareId);
+      if (!error) {
+        fetchActiveShares();
+        toast.success('Compartilhamento revogado');
+      } else {
+        toast.error('Erro ao revogar: ' + error.message);
+      }
+    }, { danger: true, confirmText: 'Sim, revogar' });
   }
 
   async function leaveCar(carId) {
-    if (!confirm('Deseja realmente remover este veículo da sua lista? \n\nIsso NÃO excluirá o veículo para o proprietário, apenas removerá o seu acesso a ele.')) return;
-    const { error } = await supabase
-      .from('car_shares')
-      .delete()
-      .eq('car_id', carId)
-      .eq('shared_with_email', user.email);
-    
-    if (!error) {
-      fetchCars();
-      if (selectedCar?.id === carId) setSelectedCar(null);
-    }
+    confirmToast('Deseja realmente remover este veículo da sua lista?', async () => {
+      const { error } = await supabase
+        .from('car_shares')
+        .delete()
+        .eq('car_id', carId)
+        .eq('shared_with_email', user.email);
+      
+      if (!error) {
+        fetchCars();
+        if (selectedCar?.id === carId) setSelectedCar(null);
+        toast.success('Veículo removido da sua lista');
+      } else {
+        toast.error('Erro ao sair do veículo: ' + error.message);
+      }
+    }, { danger: true, confirmText: 'Remover da Lista' });
   }
 
   async function handleShareResponse(shareId, status) {
@@ -132,16 +144,19 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   }
 
   async function handleDeleteCar(carId) {
-    if (!window.confirm("ATENÇÃO: Tem certeza que deseja excluir permanentemente este veículo e todo o seu histórico de revisões? Esta ação não pode ser desfeita.")) return;
-    
-    // Cascading delete is handled by code to be safe, though DB should handle it too
-    await supabase.from('car_maintenance').delete().eq('car_id', carId);
-    const { error } = await supabase.from('cars').delete().eq('id', carId);
-    
-    if (!error) {
-      if (selectedCar?.id === carId) setSelectedCar(null);
-      fetchCars();
-    }
+    confirmToast('ATENÇÃO: Deseja excluir permanentemente este veículo?', async () => {
+      // Cascading delete is handled by code to be safe, though DB should handle it too
+      await supabase.from('car_maintenance').delete().eq('car_id', carId);
+      const { error } = await supabase.from('cars').delete().eq('id', carId);
+      
+      if (!error) {
+        if (selectedCar?.id === carId) setSelectedCar(null);
+        fetchCars();
+        toast.success('Veículo excluído permanentemente');
+      } else {
+        toast.error('Erro ao excluir veículo: ' + error.message);
+      }
+    }, { danger: true, confirmText: 'Sim, excluir permanentemente' });
   }
 
   const [selectedService, setSelectedService] = useState(null);
@@ -635,11 +650,13 @@ function CarRevisionTable({ car, openModal, refreshKey, isMobile, onFetchData })
     : allServiceNames;
 
   async function deleteServiceRow(desc) {
-    if (!window.confirm(`Excluir o serviço "${desc}" e todo o seu histórico para este carro?`)) return;
-    await supabase.from('car_maintenance').delete()
-      .eq('car_id', car.id)
-      .eq('description', desc);
-    fetchData();
+    confirmToast(`Excluir o histórico de "${desc}"?`, async () => {
+      await supabase.from('car_maintenance').delete()
+        .eq('car_id', car.id)
+        .eq('description', desc);
+      fetchData();
+      toast.success('Histórico excluído');
+    }, { danger: true, confirmText: 'Excluir Histórico' });
   }
 
   if (loading) return <div className="skeleton-loader" style={{ height: '300px', borderRadius: '15px' }}></div>;
@@ -847,9 +864,10 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
 
     if (!error) {
       onSuccess();
+      toast.success('Nota salva');
     } else {
       console.error('Erro ao salvar nota:', error);
-      alert('Erro ao salvar observação.');
+      toast.error('Erro ao salvar observação.');
     }
     setLoading(false);
   }
@@ -879,7 +897,7 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
 
   async function handleLogService() {
     if (!serviceData.description.trim()) {
-      alert('Preencha a descrição do serviço.');
+      toast.error('Preencha a descrição do serviço.');
       return;
     }
     setLoading(true);
@@ -895,9 +913,10 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
     if (!error) {
       setServiceData({ description: '', km_milestone: 10000, status: 'DONE' });
       onSuccess();
+      toast.success('Serviço registrado!');
     } else {
       console.error('Erro ao salvar serviço:', error);
-      alert('Erro ao salvar. Tente novamente.');
+      toast.error('Erro ao salvar serviço.');
     }
     setLoading(false);
   }
@@ -912,11 +931,11 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
       status: 'PENDING'
     });
     if (!error) {
-      alert('Convite enviado com sucesso!');
+      toast.success('Convite enviado com sucesso!');
       onClose();
     } else {
       console.error('Erro ao compartilhar:', error);
-      alert('Erro ao enviar convite: ' + (error.message || 'Tente novamente.'));
+      toast.error('Erro ao enviar convite: ' + (error.message || 'Tente novamente.'));
     }
     setLoading(false);
   }
@@ -1047,7 +1066,7 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
                 <button
                   className="icon-btn"
                   onClick={async () => {
-                    if (window.confirm("Remover esta observação?")) {
+                    confirmToast("Remover esta observação?", async () => {
                       setNoteData({...noteData, notes: ''});
                       // Auto-save empty note to clear it
                       setLoading(true);
@@ -1056,7 +1075,9 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
                         .eq('description', noteData.description)
                         .eq('km_milestone', noteData.km_milestone);
                       onSuccess();
-                    }
+                      toast.success('Observação removida');
+                      setLoading(false);
+                    }, { danger: true });
                   }}
                   style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', borderRadius: '10px', padding: '0 12px' }}
                 >
@@ -1135,8 +1156,9 @@ function ServiceTemplatesManager({ user }) {
     if (!error) {
       setForm({ description: '', km_milestone: 10000 });
       fetchTemplates();
+      toast.success('Milestone adicionado');
     } else {
-      alert('Erro ao adicionar: ' + error.message);
+      toast.error('Erro ao adicionar: ' + error.message);
     }
     setSaving(false);
   }

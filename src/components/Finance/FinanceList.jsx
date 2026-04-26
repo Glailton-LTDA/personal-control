@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
+import { confirmToast } from '../../lib/toast';
 import { 
   Search, 
   ChevronLeft, 
@@ -102,10 +104,15 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   }
 
   async function handleDelete(id) {
-    if (window.confirm('Tem certeza que deseja excluir este registro?')) {
+    confirmToast('Tem certeza que deseja excluir este registro?', async () => {
       const { error } = await supabase.from('finances').delete().eq('id', id);
-      if (!error) fetchFinances();
-    }
+      if (!error) {
+        fetchFinances();
+        toast.success('Registro excluído');
+      } else {
+        toast.error('Erro ao excluir: ' + error.message);
+      }
+    }, { danger: true });
     setOpenMenuId(null);
   }
 
@@ -185,27 +192,29 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       });
 
       if (fnError) throw fnError;
-
-      await supabase
-        .from('finances')
-        .update({ email_sent: true })
-        .eq('id', item.id);
-
-      alert(`✅ E-mail enviado com sucesso para ${recipientEmail}!`);
-      fetchFinances();
-      setEmailModalOpen(false);
-    } catch (err) {
-      alert(`❌ Erro ao enviar e-mail: ${err.message}`);
-    } finally {
+ 
+       await supabase
+         .from('finances')
+         .update({ email_sent: true })
+         .eq('id', item.id);
+ 
+       toast.success(`E-mail enviado para ${recipientEmail}!`);
+       fetchFinances();
+       setEmailModalOpen(false);
+     } catch (err) {
+       toast.error(`Erro ao enviar e-mail: ${err.message}`);
+     } finally {
       setEmailLoading(false);
     }
   }
 
   async function handleCopyMonth() {
-    if (!window.confirm(`Deseja copiar todas as transações de ${selectedMonth === 0 ? months[11] : months[selectedMonth - 1]} para o mês atual (${months[selectedMonth]})? Todas as cópias serão marcadas como PENDENTE.`)) {
-      return;
-    }
+    confirmToast(`Deseja copiar todas as transações de ${selectedMonth === 0 ? months[11] : months[selectedMonth - 1]} para o mês atual (${months[selectedMonth]})?`, async () => {
+      await performCopyMonth();
+    }, { confirmText: 'Sim, copiar tudo' });
+  }
 
+  async function performCopyMonth() {
     try {
       setLoading(true);
       
@@ -223,7 +232,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
 
       if (fetchError) throw fetchError;
       if (!previousData || previousData.length === 0) {
-        alert('Nenhuma transação encontrada no mês anterior.');
+        toast.error('Nenhuma transação encontrada no mês anterior.');
         return;
       }
 
@@ -250,10 +259,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       const { error: insertError } = await supabase.from('finances').insert(newEntries);
       if (insertError) throw insertError;
 
-      alert(`✅ ${newEntries.length} transações copiadas com sucesso!`);
+      toast.success(`${newEntries.length} transações copiadas!`);
       fetchFinances();
     } catch (err) {
-      alert(`❌ Erro ao copiar transações: ${err.message}`);
+      toast.error(`Erro ao copiar: ${err.message}`);
     } finally {
       setLoading(false);
     }

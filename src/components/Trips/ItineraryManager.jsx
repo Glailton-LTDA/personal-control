@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import AddressInput from './AddressInput';
 import { AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, removeEntry, addToTickets, idx, totalItems }) => {
   const controls = useDragControls();
@@ -226,7 +228,10 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
 };
 
 export default function ItineraryManager({ trip, items, onItemsChange }) {
-  const [activeDay, setActiveDay] = useState(null);
+  const [activeDay, setActiveDay] = useState(() => {
+    if (!trip.id) return null;
+    return localStorage.getItem(`pc_itinerary_active_day_${trip.id}`);
+  });
   const [focusedId, setFocusedId] = useState(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -235,6 +240,24 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (trip.id) {
+      const savedDay = localStorage.getItem(`pc_itinerary_active_day_${trip.id}`);
+      if (savedDay) {
+        setActiveDay(savedDay);
+      } else {
+        const days = generateDays();
+        if (days.length > 0) setActiveDay(days[0]);
+      }
+    }
+  }, [trip.id]);
+
+  useEffect(() => {
+    if (activeDay && trip.id) {
+      localStorage.setItem(`pc_itinerary_active_day_${trip.id}`, activeDay);
+    }
+  }, [activeDay, trip.id]);
 
   const generateDays = () => {
     if (!trip.start_date || !trip.end_date) return [];
@@ -307,13 +330,17 @@ export default function ItineraryManager({ trip, items, onItemsChange }) {
   };
 
   const removeEntry = (id) => {
-    onItemsChange(prev => prev.filter(item => item.id !== id));
+    confirmToast('Remover esta atividade?', () => {
+      onItemsChange(prev => prev.filter(item => item.id !== id));
+    }, { danger: true });
   };
 
   const addToTickets = (entry) => {
     // This could trigger a modal or auto-create a ticket entry
-    // For now, let's just alert
-    alert(`Dica: Você pode adicionar "${entry.activity || entry.location}" na aba de Ingressos em Ajustes da Viagem.`);
+    toast(`Dica: Você pode adicionar "${entry.activity || entry.location}" na aba de Ingressos em Ajustes da Viagem.`, {
+      icon: '🎫',
+      duration: 5000
+    });
   };
 
   const formatDate = (dateStr) => {

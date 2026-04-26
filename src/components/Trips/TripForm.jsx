@@ -6,6 +6,7 @@ import BadgeInput from './BadgeInput';
 import AttachmentManager from './AttachmentManager';
 import ItineraryManager from './ItineraryManager';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 export default function TripForm({ user, trip, onBack, onSave }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -96,8 +97,11 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     }
 
     setIsSaving(false);
-    if (!result.error) onSave();
-    else alert('Erro ao salvar: ' + result.error.message);
+    if (!result.error) {
+      toast.success(trip ? 'Viagem atualizada!' : 'Viagem criada com sucesso!');
+      onSave();
+    }
+    else toast.error('Erro ao salvar: ' + result.error.message);
   }
 
   return (

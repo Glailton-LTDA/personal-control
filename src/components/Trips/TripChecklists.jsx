@@ -5,6 +5,8 @@ import {
   Copy, ListTodo, Search, AlertCircle, Save, X, Edit2, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function TripChecklists({ user, trip, onBack, onSave }) {
   const [checklists, setChecklists] = useState([]);
@@ -14,6 +16,10 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
   const [importSearch, setImportSearch] = useState('');
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [tempTitle, setTempTitle] = useState('');
+  const [isAddingList, setIsAddingList] = useState(false);
+  const [newListTitle, setNewListTitle] = useState('');
+  const [addingItemToId, setAddingItemToId] = useState(null);
+  const [newItemTask, setNewItemTask] = useState('');
 
   useEffect(() => {
     fetchChecklists();
@@ -41,47 +47,61 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
     setLoading(false);
   }
 
-  const addChecklist = async () => {
-    const title = prompt('Nome da nova lista (ex: O que levar, Documentos):');
-    if (!title) return;
+  const handleAddChecklist = async () => {
+    if (!newListTitle.trim()) {
+      setIsAddingList(false);
+      return;
+    }
+    setLoading(true);
 
     const { data, error } = await supabase
       .from('trip_checklists')
       .insert({
         trip_id: trip.id,
         user_id: user.id,
-        title
+        title: newListTitle.trim()
       })
       .select()
       .single();
 
     if (data) {
       setChecklists([...checklists, { ...data, items: [] }]);
+      setNewListTitle('');
+      setIsAddingList(false);
+      toast.success('Lista criada');
+    } else {
+      toast.error('Erro ao criar lista');
     }
+    setLoading(false);
   };
 
   const removeChecklist = async (id) => {
-    if (!confirm('Deseja excluir esta lista inteira?')) return;
-    
-    const { error } = await supabase
-      .from('trip_checklists')
-      .delete()
-      .eq('id', id);
+    confirmToast('Deseja excluir esta lista inteira?', async () => {
+      const { error } = await supabase
+        .from('trip_checklists')
+        .delete()
+        .eq('id', id);
 
-    if (!error) {
-      setChecklists(checklists.filter(c => c.id !== id));
-    }
+      if (!error) {
+        setChecklists(checklists.filter(c => c.id !== id));
+        toast.success('Lista removida');
+      } else {
+        toast.error('Erro ao remover lista');
+      }
+    }, { danger: true });
   };
 
-  const addItem = async (checklistId) => {
-    const task = prompt('Nova tarefa:');
-    if (!task) return;
+  const handleAddItem = async (checklistId) => {
+    if (!newItemTask.trim()) {
+      setAddingItemToId(null);
+      return;
+    }
 
     const { data, error } = await supabase
       .from('trip_checklist_items')
       .insert({
         checklist_id: checklistId,
-        task,
+        task: newItemTask.trim(),
         completed: false
       })
       .select()
@@ -94,6 +114,10 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
         }
         return c;
       }));
+      setNewItemTask('');
+      setAddingItemToId(null);
+    } else {
+      toast.error('Erro ao adicionar item');
     }
   };
 
@@ -266,7 +290,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
             <Copy size={18} /> Importar
           </button>
           <button 
-            onClick={addChecklist}
+            onClick={() => setIsAddingList(true)}
             className="btn-primary" 
             style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -274,6 +298,42 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
           </button>
         </div>
       </div>
+
+      <AnimatePresence mode="wait">
+        {isAddingList && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="glass-card" 
+            style={{ 
+              padding: '1.5rem', 
+              border: '2px solid var(--primary)', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '1rem',
+              marginBottom: '2rem'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Nome da nova lista</h3>
+              <button onClick={() => setIsAddingList(false)} className="icon-btn"><X size={18} /></button>
+            </div>
+            <input 
+              autoFocus
+              type="text" 
+              value={newListTitle}
+              onChange={e => setNewListTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddChecklist()}
+              placeholder="Ex: Documentos, Mala de Mão..."
+              className="glass-input"
+            />
+            <button onClick={handleAddChecklist} className="btn-primary" style={{ width: '100%' }}>
+              <Plus size={18} /> Criar Lista
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>Carregando listas...</div>
@@ -286,12 +346,13 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
           <p style={{ color: 'var(--text-muted)', maxWidth: '300px' }}>
             Crie listas de tarefas para organizar sua viagem ou importe de viagens anteriores.
           </p>
-          <button onClick={addChecklist} className="btn-primary" style={{ marginTop: '1rem' }}>
+          <button onClick={() => setIsAddingList(true)} className="btn-primary" style={{ marginTop: '1rem' }}>
             Começar agora
           </button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+
           {checklists.map(checklist => (
             <motion.div 
               layout
@@ -369,28 +430,48 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
                 </AnimatePresence>
               </div>
 
-              <button 
-                onClick={() => addItem(checklist.id)}
-                style={{ 
-                  marginTop: '0.5rem',
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px dashed var(--glass-border)',
-                  background: 'transparent',
-                  borderRadius: '10px',
-                  color: 'var(--text-muted)',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  transition: '0.2s'
-                }}
-                className="add-item-btn"
-              >
-                <Plus size={16} /> Adicionar item
-              </button>
+              {addingItemToId === checklist.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input 
+                    autoFocus
+                    type="text" 
+                    value={newItemTask}
+                    onChange={e => setNewItemTask(e.target.value)}
+                    onBlur={() => !newItemTask.trim() && setAddingItemToId(null)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddItem(checklist.id)}
+                    placeholder="O que precisa ser feito?"
+                    className="glass-input"
+                    style={{ fontSize: '0.9rem', padding: '0.6rem' }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => handleAddItem(checklist.id)} className="btn-primary" style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}>Adicionar</button>
+                    <button onClick={() => setAddingItemToId(null)} className="btn-secondary" style={{ padding: '0.5rem', fontSize: '0.8rem' }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setAddingItemToId(checklist.id)}
+                  style={{ 
+                    marginTop: '0.5rem',
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px dashed var(--glass-border)',
+                    background: 'transparent',
+                    borderRadius: '10px',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    transition: '0.2s'
+                  }}
+                  className="add-item-btn"
+                >
+                  <Plus size={16} /> Adicionar item
+                </button>
+              )}
             </motion.div>
           ))}
         </div>

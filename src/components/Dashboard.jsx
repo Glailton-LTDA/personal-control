@@ -100,6 +100,10 @@ export default function Dashboard({ user }) {
   }, [menuOrder]);
 
   useEffect(() => {
+    localStorage.setItem('personal-control-active-tab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
     localStorage.setItem('personal-control-show-values', showValues);
   }, [showValues]);
 

@@ -4,6 +4,8 @@ import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, 
 import { AIRPORTS } from '../../data/airports';
 import AddressInput from './AddressInput';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -47,7 +49,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
       );
       onItemsChange(newItems);
     } catch (error) {
-      alert('Erro ao fazer upload: ' + error.message);
+      toast.error('Erro ao fazer upload: ' + error.message);
     } finally {
       setIsUploading(false);
     }
@@ -85,7 +87,9 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
   const [localDateValues, setLocalDateValues] = useState({}); // { id_field: 'DD/MM/AAAA' }
 
   const removeItem = (id) => {
-    onItemsChange(items.filter(item => item.id !== id));
+    confirmToast('Remover este item?', () => {
+      onItemsChange(items.filter(item => item.id !== id));
+    }, { danger: true });
   };
 
   const formatDateToDisplay = (dateStr) => {
@@ -563,7 +567,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateItemField(item.id, 'receipt_url', null)}
+                        onClick={() => {
+                          confirmToast('Excluir este comprovante?', () => {
+                            updateItemField(item.id, 'receipt_url', null);
+                          }, { danger: true });
+                        }}
                         style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Excluir comprovante"
                       >

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
   const [settings, setSettings] = useState({
@@ -34,7 +35,8 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
       recipient_email: data.recipient_email || '',
       bcc_email: data.bcc_email || '',
       skip_email_modal: data.skip_email_modal || false,
-      auto_send_on_paid: data.auto_send_on_paid || false
+      auto_send_on_paid: data.auto_send_on_paid || false,
+      skip_confirmations: localStorage.getItem('pc_skip_confirmations') === 'true'
     });
     setLoading(false);
   }
@@ -52,9 +54,10 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
 
     if (!error) {
       setMessage('Configurações salvas com sucesso!');
+      toast.success('Configurações salvas');
       setTimeout(() => setMessage(''), 3000);
     } else {
-      alert('Erro ao salvar: ' + error.message);
+      toast.error('Erro ao salvar: ' + error.message);
     }
     setSaving(false);
   }
@@ -219,8 +222,25 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
               style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
             />
             <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>Pular modal de confirmação</p>
+              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>Pular modal de e-mail</p>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Envia direto para o e-mail principal cadastrado</p>
+            </div>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={settings.skip_confirmations || false}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setSettings({ ...settings, skip_confirmations: val });
+                localStorage.setItem('pc_skip_confirmations', val);
+              }}
+              style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
+            />
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>Pular confirmações de exclusão</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Executa ações instantaneamente (mais rápido)</p>
             </div>
           </label>
 

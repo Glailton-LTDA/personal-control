@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Mail, User, Tag, Star } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function FinanceSettings() {
   const [categories, setCategories] = useState([]);
@@ -48,10 +50,15 @@ export default function FinanceSettings() {
   }
 
   async function deleteItem(table, id) {
-    if (window.confirm('Excluir este item? Isso pode afetar registros vinculados.')) {
-      await supabase.from(table).delete().eq('id', id);
-      fetchData();
-    }
+    confirmToast('Excluir este item? Isso pode afetar registros vinculados.', async () => {
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (!error) {
+        fetchData();
+        toast.success('Item excluído');
+      } else {
+        toast.error('Erro ao excluir item');
+      }
+    }, { danger: true });
   }
 
   async function fetchConfig() {
@@ -67,7 +74,7 @@ export default function FinanceSettings() {
       value: emailTemplate,
       user_id: user.id
     }, { onConflict: 'key' });
-    if (!error) alert('Template salvo com sucesso!');
+    if (!error) toast.success('Template salvo!');
     setLoading(false);
   }
 

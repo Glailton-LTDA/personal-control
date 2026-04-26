@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ItineraryManager from './ItineraryManager';
+import toast from 'react-hot-toast';
 
 export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const [trips, setTrips] = useState([]);
@@ -27,12 +28,24 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   }, [user]);
 
   useEffect(() => {
-    if (trips.length > 0 && !selectedTrip) {
-      const tripId = initialTripId || localStorage.getItem('pc_selected_trip_v1');
-      const trip = trips.find(t => String(t.id) === String(tripId)) || trips[0];
-      handleSelectTrip(trip);
+    if (trips.length > 0) {
+      // Prioridade 1: initialTripId vindo do pai
+      if (initialTripId) {
+        const trip = trips.find(t => String(t.id) === String(initialTripId));
+        if (trip && (!selectedTrip || selectedTrip.id !== trip.id)) {
+          handleSelectTrip(trip);
+          return;
+        }
+      }
+
+      // Prioridade 2: Se não temos nada selecionado ainda, tentamos o localStorage ou o fallback
+      if (!selectedTrip) {
+        const savedId = localStorage.getItem('pc_selected_trip_v1');
+        const trip = trips.find(t => String(t.id) === String(savedId)) || trips[0];
+        handleSelectTrip(trip);
+      }
     }
-  }, [trips, initialTripId]);
+  }, [trips, initialTripId, selectedTrip?.id]);
 
   async function fetchTrips() {
     setIsLoading(true);
@@ -60,10 +73,10 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
       
       setTrips(trips.map(t => t.id === selectedTrip.id ? { ...t, itinerary } : t));
       window.dispatchEvent(new CustomEvent('trip-updated'));
-      alert('Roteiro salvo com sucesso!');
+      toast.success('Roteiro salvo com sucesso!');
     } catch (error) {
       console.error('Error saving itinerary:', error);
-      alert('Erro ao salvar roteiro.');
+      toast.error('Erro ao salvar roteiro.');
     } finally {
       setIsSaving(false);
     }

@@ -1,7 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
-import { Plane, Calendar, MapPin, DollarSign, PieChart, TrendingUp, AlertTriangle, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, Trash2, AlertCircle, Building, Car, FileText, Globe, ChevronUp, ChevronDown, ArrowUpDown, Search, ListTodo, Compass } from 'lucide-react';
+import { 
+  DollarSign, 
+  Calendar, 
+  TrendingUp, 
+  Tag, 
+  Trash2, 
+  Filter, 
+  ChevronDown, 
+  Plus, 
+  PieChart, 
+  AlertTriangle, 
+  Users, 
+  Search,
+  CheckCircle,
+  Clock,
+  ListTodo,
+  Compass,
+  Plane,
+  MapPin,
+  ArrowUpRight,
+  ArrowDownRight,
+  Edit2,
+  AlertCircle,
+  Building,
+  Car,
+  FileText,
+  Globe,
+  ChevronUp,
+  ArrowUpDown
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 import ExpenseModal from './ExpenseModal';
 import TripDetails from './TripDetails';
 import { CURRENCIES } from '../../constants/currencies';
@@ -109,15 +140,19 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   };
 
   const deleteExpense = async (id) => {
-    if (!confirm('Tem certeza que deseja excluir esta despesa?')) return;
-    const { error } = await supabase
-      .from('trip_expenses')
-      .delete()
-      .eq('id', id);
-    
-    if (!error) {
-      fetchExpenses(externalSelectedTrip.id);
-    }
+    confirmToast('Excluir esta despesa?', async () => {
+      const { error } = await supabase
+        .from('trip_expenses')
+        .delete()
+        .eq('id', id);
+      
+      if (!error) {
+        fetchExpenses(externalSelectedTrip.id);
+        toast.success('Despesa excluída');
+      } else {
+        toast.error('Erro ao excluir');
+      }
+    }, { danger: true, confirmText: 'Sim, excluir' });
   };
 
   const handleTripSelect = (trip) => {

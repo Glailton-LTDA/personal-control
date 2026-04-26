@@ -6,6 +6,8 @@ import CurrencySelector from './CurrencySelector';
 import BadgeInput from './BadgeInput';
 import AttachmentManager from './AttachmentManager';
 import { CURRENCIES } from '../../constants/currencies';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip }) {
   const [activeTab, setActiveTab] = useState('trips'); // 'trips', 'categories', 'shares'
@@ -70,25 +72,32 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
   }
 
   async function deleteItem(table, id, callback) {
-    if (!confirm('Deseja realmente excluir este item?')) return;
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (!error) callback();
+    confirmToast('Deseja realmente excluir este item?', async () => {
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (!error) {
+        callback();
+        toast.success('Excluído com sucesso!');
+      } else {
+        toast.error('Erro ao excluir: ' + error.message);
+      }
+    }, { danger: true, confirmText: 'Sim, excluir' });
   }
 
   async function cancelMyShare(tripId) {
-    if (!confirm('Deseja realmente remover seu acesso a esta viagem? \n\nIsso NÃO excluirá a viagem para o proprietário, apenas removerá ela da sua lista.')) return;
-    
-    const { error } = await supabase
-      .from('trip_shares')
-      .delete()
-      .eq('trip_id', tripId)
-      .eq('shared_with_email', user.email);
+    confirmToast('Deseja realmente remover seu acesso a esta viagem?', async () => {
+      const { error } = await supabase
+        .from('trip_shares')
+        .delete()
+        .eq('trip_id', tripId)
+        .eq('shared_with_email', user.email);
 
-    if (!error) {
-      fetchTrips();
-    } else {
-      alert('Erro ao sair da viagem: ' + error.message);
-    }
+      if (!error) {
+        fetchTrips();
+        toast.success('Acesso removido');
+      } else {
+        toast.error('Erro ao sair da viagem: ' + error.message);
+      }
+    }, { danger: true, confirmText: 'Remover Acesso' });
   }
 
   const tabIcons = {
@@ -475,7 +484,7 @@ function CategoryModal({ user, category, onClose, onSave }) {
       result = await supabase.from('trip_categories').insert([{ user_id: user.id, name }]);
     }
     if (!result.error) onSave();
-    else alert('Erro: ' + result.error.message);
+    else toast.error('Erro: ' + result.error.message);
   }
 
   return (
@@ -510,7 +519,7 @@ function ShareModal({ user, trips, onClose, onSave }) {
     }]);
 
     if (!error) onSave();
-    else alert('Erro: ' + error.message);
+    else toast.error('Erro: ' + error.message);
   }
 
   return (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { X, Save, DollarSign, Calendar, Tag, Users, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const [categories, setCategories] = useState(initialCategories || []);
@@ -49,7 +50,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
 
       setFormData(prev => ({ ...prev, receipt_url: filePath }));
     } catch (error) {
-      alert('Erro ao fazer upload: ' + error.message);
+      toast.error('Erro ao fazer upload: ' + error.message);
     } finally {
       setIsUploading(false);
     }
@@ -124,13 +125,13 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
   async function handleSubmit(e) {
     e.preventDefault();
     if (!trip) {
-      alert('Selecione uma viagem primeiro.');
+      toast.error('Selecione uma viagem primeiro.');
       return;
     }
 
     const isoDate = parseDisplayDateToISO(displayDate);
     if (!isoDate || isNaN(new Date(isoDate).getTime())) {
-      alert('Por favor, insira uma data válida (DD/MM/AAAA)');
+      toast.error('Por favor, insira uma data válida (DD/MM/AAAA)');
       return;
     }
 
@@ -155,8 +156,11 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
 
     const { error } = result;
 
-    if (!error) onSave();
-    else alert('Erro ao salvar: ' + error.message);
+    if (!error) {
+      toast.success(expense?.id ? 'Lançamento atualizado!' : 'Lançamento salvo com sucesso!');
+      onSave();
+    }
+    else toast.error('Erro ao salvar: ' + error.message);
   }
 
   return (

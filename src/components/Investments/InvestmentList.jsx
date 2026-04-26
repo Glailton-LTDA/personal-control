@@ -9,6 +9,8 @@ import {
   Trash2, Edit2, Calendar, Copy
 } from 'lucide-react';
 import InvestmentModal from './InvestmentModal';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../lib/toast';
 
 export default function InvestmentList({ user, showValues = true }) {
   const [records, setRecords] = useState([]);
@@ -105,7 +107,7 @@ export default function InvestmentList({ user, showValues = true }) {
 
   async function handleCopyFromPreviousMonth() {
     if (filterMonth === 0) {
-      alert('Selecione um mês específico para copiar dados.');
+      toast.error('Selecione um mês específico para copiar dados.');
       return;
     }
 
@@ -116,10 +118,12 @@ export default function InvestmentList({ user, showValues = true }) {
       prevYear = filterYear - 1;
     }
 
-    if (!window.confirm(`Copiar os registros de ${months.find(m => m.value === prevMonth).label}/${prevYear} para este mês?`)) {
-      return;
-    }
+    confirmToast(`Copiar os registros de ${months.find(m => m.value === prevMonth).label}/${prevYear} para este mês?`, async () => {
+      await performCopy(prevMonth, prevYear);
+    }, { confirmText: 'Sim, copiar tudo' });
+  }
 
+  async function performCopy(prevMonth, prevYear) {
     setLoading(true);
 
     try {
@@ -136,7 +140,7 @@ export default function InvestmentList({ user, showValues = true }) {
 
       if (fetchError) throw fetchError;
       if (!prevRecords || prevRecords.length === 0) {
-        alert('Nenhum registro encontrado no mês anterior.');
+        toast.error('Nenhum registro encontrado no mês anterior.');
         return;
       }
 
@@ -154,7 +158,7 @@ export default function InvestmentList({ user, showValues = true }) {
         }));
 
       if (recordsToInsert.length === 0) {
-        alert('Todos os registros do mês anterior já existem neste mês.');
+        toast.error('Todos os registros do mês anterior já existem neste mês.');
         return;
       }
 
@@ -165,19 +169,25 @@ export default function InvestmentList({ user, showValues = true }) {
       if (insertError) throw insertError;
       
       fetchData();
+      toast.success(`${recordsToInsert.length} registros copiados!`);
     } catch (err) {
       console.error(err);
-      alert('Erro ao copiar registros.');
+      toast.error('Erro ao copiar registros.');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(id) {
-    if (window.confirm('Excluir este registro?')) {
+    confirmToast('Deseja excluir este registro?', async () => {
       const { error } = await supabase.from('investment_records').delete().eq('id', id);
-      if (!error) fetchData();
-    }
+      if (!error) {
+        fetchData();
+        toast.success('Registro excluído');
+      } else {
+        toast.error('Erro ao excluir: ' + error.message);
+      }
+    }, { danger: true });
   }
 
   const formatCurrency = (val) => {
