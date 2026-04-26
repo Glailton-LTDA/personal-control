@@ -4,7 +4,7 @@ import {
   Calendar, MapPin, ChevronLeft, Save, Loader2, 
   Search, Info, Plane
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import ItineraryManager from './ItineraryManager';
 import toast from 'react-hot-toast';
 
@@ -107,7 +107,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   }
 
   return (
-    <div style={{ padding: isMobile ? '0.5rem' : '1rem', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '0.5rem' : '1rem', maxWidth: '1200px', margin: '0 auto', overflowX: 'hidden', width: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? '1.5rem' : '2rem', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -146,9 +146,11 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
 
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', 
+        gridTemplateColumns: isMobile ? '100%' : '300px 1fr', 
         gap: isMobile ? '1rem' : '2rem',
-        alignItems: 'start'
+        alignItems: 'start',
+        width: '100%',
+        minWidth: 0
       }}>
         {/* Sidebar: Trip Selection */}
         {(!isMobile || !selectedTrip) && (
@@ -161,7 +163,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="glass-input"
-                style={{ width: '100%', paddingLeft: '2.5rem', borderRadius: '12px', color: 'var(--text-main)' }}
+                style={{ width: '100%', paddingLeft: '2.5rem', borderRadius: '12px', color: 'var(--text-main)', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -209,15 +211,18 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         )}
 
         {/* Main Content: Itinerary Manager */}
-        <div 
-          className="glass-card" 
-          style={{ 
-            padding: isMobile ? '1rem' : '2rem', 
-            border: '1px solid var(--glass-border)', 
-            borderRadius: isMobile ? '16px' : '24px',
-            position: 'relative'
-          }}
-        >
+          <div 
+            className="glass-card" 
+            style={{ 
+              padding: isMobile ? '0.75rem' : '2rem', 
+              border: '1px solid var(--glass-border)', 
+              borderRadius: isMobile ? '16px' : '24px',
+              position: 'relative',
+              width: '100%',
+              minWidth: 0,
+              overflow: 'hidden'
+            }}
+          >
           {isMobile && selectedTrip && (
             <button 
               onClick={() => setSelectedTrip(null)}

@@ -17,7 +17,6 @@ export default function TripsStats({ trips, onBack }) {
     const continents = new Set();
     let totalKm = 0;
     let totalDays = 0;
-    let totalSpentBRL = 0; // Estimation
 
     trips.forEach(trip => {
       // Countries

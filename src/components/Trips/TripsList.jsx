@@ -36,9 +36,9 @@ import { confirmToast } from '../../lib/toast';
 import ExpenseModal from './ExpenseModal';
 import TripDetails from './TripDetails';
 import { CURRENCIES } from '../../constants/currencies';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 
-export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists, onViewStats }) {
+export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists }) {
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
@@ -237,56 +237,6 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   });
 
   const allDays = Array.from(allDaysSet).sort((a, b) => b.localeCompare(a));
-
-  const renderItineraryItem = (item, typeIcon, color = 'var(--primary)') => (
-    <div key={item.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <div style={{ padding: '0.6rem', background: `${color}10`, borderRadius: '10px', color: color }}>
-            {React.createElement(typeIcon, { size: 18 })}
-          </div>
-          <div>
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700' }}>{item.name}</h4>
-            {item.confirmation && <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>#{item.confirmation}</span>}
-          </div>
-        </div>
-        {item.receipt_url && (
-          <button 
-            onClick={async () => {
-              const signedUrl = await getSignedUrl('trip-documents', item.receipt_url);
-              if (signedUrl) window.open(signedUrl, '_blank');
-            }} 
-            className="btn" 
-            style={{ padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', fontSize: '0.7rem', borderRadius: '8px', color: 'var(--text-main)', display: 'flex', alignItems: 'center' }}
-          >
-            DOC <FileText size={12} style={{ marginLeft: '4px' }} />
-          </button>
-        )}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-        <div>
-          <div style={{ fontSize: '0.65rem', opacity: 0.5, textTransform: 'uppercase' }}>Início</div>
-          <div style={{ fontWeight: '600', fontSize: '0.8rem' }}>
-            {item.start_date ? formatDate(item.start_date) : '--'}
-            {item.start_time && <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>• {item.start_time}</span>}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: '0.65rem', opacity: 0.5, textTransform: 'uppercase' }}>Fim</div>
-          <div style={{ fontWeight: '600', fontSize: '0.8rem' }}>
-            {item.end_date ? formatDate(item.end_date) : '--'}
-            {item.end_time && <span style={{ marginLeft: '0.5rem', opacity: 0.7 }}>• {item.end_time}</span>}
-          </div>
-        </div>
-      </div>
-
-      {item.notes && (
-        <div style={{ fontSize: '0.9rem', padding: '1rem', borderLeft: '2px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.01)', borderRadius: '0 12px 12px 0', opacity: 0.8, fontStyle: 'italic' }}>
-          {item.notes}
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="fade-in">

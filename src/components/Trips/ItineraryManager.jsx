@@ -28,7 +28,10 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
         gap: isMobile ? '0.75rem' : '1rem',
         position: 'relative',
         zIndex: focusedId === entry.id ? 1000 : totalItems - idx,
-        overflow: 'visible'
+        overflow: 'visible',
+        width: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box'
       }}
       whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 1000 }}
     >
@@ -380,7 +383,8 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
         gap: '0.75rem', 
         overflowX: 'auto', 
         paddingBottom: '0.5rem',
-        paddingRight: '1rem'
+        width: '100%',
+        boxSizing: 'border-box'
       }}>
         {days.map(day => (
           <button

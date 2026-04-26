@@ -92,6 +92,13 @@ export default function Dashboard({ user }) {
     return saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
   });
   const drawerRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 1100);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 1100);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const menuItems = menuOrder.map(id => defaultMenuItems.find(i => i.id === id)).filter(Boolean);
 
@@ -327,7 +334,7 @@ export default function Dashboard({ user }) {
   );
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)', width: '100%', overflowX: 'hidden', position: 'relative' }}>
 
       {/* ── Desktop Sidebar ── */}
       <motion.aside
@@ -399,7 +406,7 @@ export default function Dashboard({ user }) {
       </AnimatePresence>
 
       {/* ── Main Content ── */}
-      <main style={{ flex: 1, padding: '1rem', overflowY: 'auto' }}>
+      <main style={{ flex: 1, padding: isMobile ? '0.5rem' : '1rem', overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0 }}>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', padding: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {/* Hamburger — mobile only */}
