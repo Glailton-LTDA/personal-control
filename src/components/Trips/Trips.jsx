@@ -63,22 +63,24 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
       
       const savedTripId = localStorage.getItem(STORAGE_KEY);
       
-      let tripToSelect = null;
+      setSelectedTrip(current => {
+        // Se já temos uma viagem selecionada, tentamos atualizar os dados dela a partir do novo fetch
+        if (current?.id && !current._isPlaceholder) {
+          const updated = decryptedTrips.find(t => String(t.id) === String(current.id));
+          return updated || current;
+        }
+        
+        // Se não temos nada, tentamos o localStorage
+        if (savedTripId) {
+          const saved = decryptedTrips.find(t => String(t.id) === String(savedTripId));
+          if (saved) return saved;
+        }
 
-      // 1. Prioridade: Se já temos um objeto real em memória, atualizamos ele com dados novos do banco
-      if (selectedTrip?.id && !selectedTrip._isPlaceholder) {
-        tripToSelect = decryptedTrips.find(t => String(t.id) === String(selectedTrip.id));
-      } 
-      
-      // 2. Segunda Prioridade: Se não temos nada ou a atualização falhou, tentamos o localStorage
-      if (!tripToSelect && savedTripId) {
-        tripToSelect = decryptedTrips.find(t => String(t.id) === String(savedTripId));
-      }
-
-      // 3. Fallback: Se nada funcionou, pegamos a primeira (mais recente)
-      setSelectedTrip(tripToSelect || decryptedTrips[0]);
+        // Fallback: Primeira viagem
+        return decryptedTrips[0];
+      });
     }
-  }, [user, decryptObject, selectedTrip?.id, selectedTrip?._isPlaceholder]);
+  }, [user, decryptObject]);
 
   const fetchCategories = useCallback(async () => {
     const targetUserId = selectedTrip?.user_id || user?.id;
@@ -90,10 +92,15 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     }
   }, [selectedTrip?.user_id, user?.id, decryptObject]);
 
+  // Initial fetch or explicit refresh
   useEffect(() => {
     fetchTrips();
+  }, [user, refreshKey, localRefreshKey, fetchTrips]);
+
+  // Category fetch depends on selected trip
+  useEffect(() => {
     fetchCategories();
-  }, [user, refreshKey, localRefreshKey, selectedTrip?.user_id, fetchTrips, fetchCategories]);
+  }, [user, selectedTrip?.user_id, fetchCategories]);
 
   const handleExpenseSaved = () => {
     setIsAddingExpense(false);

@@ -26,10 +26,10 @@ describe('TripsList', () => {
 
   it('renders correctly and opens Trip Details', async () => {
     render(<TripsList user={mockUser} trips={mockTrips} externalSelectedTrip={mockTrips[0]} onEditTrip={() => {}} />);
-    expect(screen.getByText(/Viagem 1/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Viagem 1/i).length).toBeGreaterThan(0);
 
     // Click the action menu first
-    const moreBtn = screen.getByRole('button', { name: '' }); // The MoreVertical button
+    const moreBtn = screen.getByLabelText(/Menu da Viagem/i); 
     fireEvent.click(moreBtn);
 
     const detailsBtn = screen.getByText(/Detalhes da Viagem/i);
