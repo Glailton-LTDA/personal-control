@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
 import { 
@@ -37,11 +37,13 @@ import ExpenseModal from './ExpenseModal';
 import TripDetails from './TripDetails';
 import { CURRENCIES } from '../../constants/currencies';
 import { AnimatePresence } from 'framer-motion';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists }) {
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
+  const { decryptObject } = useEncryption();
   
   // Persist currency choice per trip
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
         setActiveCurrency(saved);
       }
     }
-  }, [externalSelectedTrip?.id]);
+  }, [externalSelectedTrip?.id, externalSelectedTrip?.currencies]);
 
   useEffect(() => {
     if (externalSelectedTrip?.id && activeCurrency) {
@@ -93,6 +95,24 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
     return <span style={{ fontSize: size, lineHeight: 1 }}>{flag}</span>;
   };
 
+  const fetchExpenses = useCallback(async (tripId = externalSelectedTrip?.id) => {
+    if (!tripId) return;
+    const { data, error } = await supabase
+      .from('trip_expenses')
+      .select('*, trip_categories(name)')
+      .eq('trip_id', tripId)
+      .order('date', { ascending: false });
+    
+    if (!error && data) {
+      const decrypted = await decryptObject(data, [
+        'description', 
+        'paid_by', 
+        'trip_categories.name'
+      ]);
+      setExpenses(decrypted);
+    }
+  }, [decryptObject, externalSelectedTrip?.id]);
+
   useEffect(() => {
     if (externalSelectedTrip) {
       if (externalSelectedTrip.currencies && externalSelectedTrip.currencies.length > 0) {
@@ -108,8 +128,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
       }
       fetchExpenses(externalSelectedTrip.id);
     }
-  }, [externalSelectedTrip?.id, activeCurrency, refreshKey]);
-
+  }, [externalSelectedTrip, activeCurrency, refreshKey, fetchExpenses]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -121,23 +140,13 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
         .select('*')
         .eq('user_id', targetUserId)
         .order('name');
-      if (data) setCategories(data);
+      if (data) {
+        const decrypted = await decryptObject(data, ['name']);
+        setCategories(decrypted);
+      }
     };
     fetchCategories();
-  }, [externalSelectedTrip?.user_id, user?.id]);
-
-  const fetchExpenses = async (tripId = externalSelectedTrip?.id) => {
-    if (!tripId) return;
-    const { data, error } = await supabase
-      .from('trip_expenses')
-      .select('*, trip_categories(name)')
-      .eq('trip_id', tripId)
-      .order('date', { ascending: false });
-    
-    if (!error && data) {
-      setExpenses(data);
-    }
-  };
+  }, [externalSelectedTrip?.user_id, user?.id, decryptObject]);
 
   const deleteExpense = async (id) => {
     confirmToast('Excluir esta despesa?', async () => {
@@ -245,7 +254,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
           trip={selectedTrip} 
           expenses={expenses}
           showValues={showValues}
-          onClose={() => setIsDetailsOpen(false)} 
+          onBack={() => setIsDetailsOpen(false)} 
           onViewChecklists={() => {
             setIsDetailsOpen(false);
             onViewChecklists();
@@ -636,7 +645,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                               {exp.date ? formatDate(exp.date, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '--'}
                             </td>
                             <td data-label="Descrição">
-                              <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{exp.description}</div>
+                              <div data-testid={`expense-desc-${expenses.indexOf(exp)}`} style={{ fontWeight: '700', color: 'var(--text-main)' }}>{exp.description}</div>
                             </td>
                             <td data-label="Categoria">
                               <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>

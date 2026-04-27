@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { Plus, X, Upload, FileText, Trash2, ExternalLink, Loader2, ChevronDown, ChevronRight, Ticket, MapPin, Plane, Train, Bus, Car, Ship } from 'lucide-react';
-import { AIRPORTS } from '../../data/airports';
 import AddressInput from './AddressInput';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { AIRPORTS } from '../../lib/constants';
 
 export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -18,12 +18,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
 
   const [isUploading, setIsUploading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const fileInputRef = useRef(null);
 
   const generateId = () => {
     try {
       return crypto.randomUUID();
-    } catch (e) {
+    } catch {
       return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
   };
@@ -119,12 +118,14 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
   const isLodging = /hospedag/i.test(label);
   const isTransport = /transporte/i.test(label);
   const isTour = /passeio/i.test(label) || /ticket/i.test(label);
+  const isMisc = /documentos/i.test(label) || /diversos/i.test(label);
 
   // Field label helpers based on type
   const getStartLabel = () => {
     if (isLodging) return 'Check-in';
     if (isTransport) return 'Partida';
     if (isTour) return 'Hora';
+    if (isMisc) return 'Data';
     return 'Data / Hora';
   };
 
@@ -182,7 +183,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
 
       <AnimatePresence>
         {isExpanded && (
-          <motion.div 
+          <Motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -244,11 +245,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Nome / Descrição</label>
                           <input 
-                            className="glass-input"
+                            className="glass-input" 
                             value={item.name}
                             onChange={(e) => updateItemField(item.id, 'name', e.target.value)}
                             style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)', borderRadius: '12px' }}
-                            placeholder={isTransport ? "Ex: Voo LATAM, Aluguel Hertz..." : isTour ? "Ex: Museu do Louvre, Ingresso Show..." : "Ex: Ibis Paris, Airbnb Marais..."}
+                            placeholder={isTransport ? "Ex: Voo LATAM, Aluguel Hertz..." : isTour ? "Ex: Museu do Louvre, Ingresso Show..." : isMisc ? "Ex: Seguro Viagem Porto, Recibo Jantar..." : "Ex: Ibis Paris, Airbnb Marais..."}
                           />
                         </div>
 
@@ -307,8 +308,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         </div>
                       )}
 
-                      {/* Logistics Fields: Confirmation + ID/Address */}
-                      {/* Logistics Fields: Confirmation + ID/Address */}
+                      {/* Logistics Fields */}
                       <div style={{ 
                         display: 'grid', 
                         gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', 
@@ -339,15 +339,6 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                                 placeholder={currentType === 'flight' ? "Ex: GRU" : "Ex: Gare du Nord, Rodoviária..."}
                               />
-                              {currentType === 'flight' && (
-                                <datalist id={`airports-origin-${item.id}`}>
-                                  {AIRPORTS.map(airport => (
-                                    <option key={airport.iata} value={airport.iata}>
-                                      {airport.city} - {airport.name} ({airport.country})
-                                    </option>
-                                  ))}
-                                </datalist>
-                              )}
                             </div>
 
                             <div>
@@ -362,15 +353,6 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                                 placeholder={currentType === 'flight' ? "Ex: GIG" : "Ex: St Pancras, Terminal 1..."}
                               />
-                              {currentType === 'flight' && (
-                                <datalist id={`airports-destination-${item.id}`}>
-                                  {AIRPORTS.map(airport => (
-                                    <option key={airport.iata} value={airport.iata}>
-                                      {airport.city} - {airport.name} ({airport.country})
-                                    </option>
-                                  ))}
-                                </datalist>
-                              )}
                             </div>
 
                             <div>
@@ -403,44 +385,6 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           </>
                         )}
 
-                        {isTransport && labels.showSeats && (
-                          <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
-                            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Assento(s)</label>
-                            <div className="glass-card" style={{ 
-                              padding: '0.5rem', 
-                              minHeight: '45px', 
-                              display: 'flex', 
-                              flexWrap: 'wrap', 
-                              gap: '0.5rem', 
-                              background: 'rgba(255,255,255,0.03)', 
-                              border: '1px solid var(--glass-border)',
-                              borderRadius: '12px',
-                              alignItems: 'center'
-                            }}>
-                              {(item.seats || []).map((seat, sIdx) => (
-                                <span key={sIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--primary)', color: 'white', padding: '0.2rem 0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600' }}>
-                                  {seat}
-                                  <button type="button" onClick={() => updateItemField(item.id, 'seats', (item.seats || []).filter((_, i) => i !== sIdx))} style={{ background: 'none', border: 'none', color: 'white', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: 0.8 }}>
-                                    <X size={14} />
-                                  </button>
-                                </span>
-                              ))}
-                              <input
-                                type="text"
-                                className="glass-input"
-                                style={{ flex: 1, minWidth: '120px', background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', padding: '0.2rem' }}
-                                placeholder="Adicionar assento..."
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && e.target.value) {
-                                    updateItemField(item.id, 'seats', [...(item.seats || []), e.target.value]);
-                                    e.target.value = '';
-                                  }
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-
                         {isTour && (
                           <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                             <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Endereço / Local</label>
@@ -449,7 +393,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               onChange={(val, coords) => {
                                 updateItemField(item.id, 'address', val);
                                 if (coords) {
-                                  updateItemField(item.id, 'coordinates', coords); // [lng, lat]
+                                  updateItemField(item.id, 'coordinates', coords);
                                 }
                               }}
                               placeholder="Ex: Louvre Museum, Rue de Rivoli..."
@@ -481,12 +425,6 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             updateItemField(item.id, 'start_date', iso);
                           } else if (masked === '') {
                             updateItemField(item.id, 'start_date', '');
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const val = e.target.value;
-                          if (val.length > 0 && val.length < 10) {
-                            setLocalDateValues(prev => ({ ...prev, [`${item.id}_start_date`]: item.start_date ? formatDateToDisplay(item.start_date) : '' }));
                           }
                         }}
                         style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
@@ -521,12 +459,6 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               updateItemField(item.id, 'end_date', '');
                             }
                           }}
-                          onBlur={(e) => {
-                            const val = e.target.value;
-                            if (val.length > 0 && val.length < 10) {
-                              setLocalDateValues(prev => ({ ...prev, [`${item.id}_end_date`]: item.end_date ? formatDateToDisplay(item.end_date) : '' }));
-                            }
-                          }}
                           style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
                         />
                         <input 
@@ -541,7 +473,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                   )}
                 </div>
 
-                {/* Third Row: Notes */}
+                {/* Notes */}
                 <div>
                   <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Notas Adicionais</label>
                   <textarea 
@@ -553,7 +485,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                   />
                 </div>
 
-                {/* Fourth Row: Attachment Row */}
+                {/* Attachment Row */}
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   {item.receipt_url ? (
                     <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
@@ -567,13 +499,8 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          confirmToast('Excluir este comprovante?', () => {
-                            updateItemField(item.id, 'receipt_url', null);
-                          }, { danger: true });
-                        }}
+                        onClick={() => removeItem(item.id)}
                         style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="Excluir comprovante"
                       >
                         <Trash2 size={20} />
                       </button>
@@ -589,23 +516,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       <label 
                         htmlFor={`file-${item.id}`}
                         style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          gap: '0.6rem', 
-                          width: '100%', 
-                          height: '44px', 
-                          background: 'rgba(255,255,255,0.03)', 
-                          borderRadius: '12px', 
-                          fontSize: '0.85rem', 
-                          color: 'var(--text-muted)', 
-                          cursor: 'pointer',
-                          border: '1px dashed var(--glass-border)',
-                          fontWeight: '600',
-                          transition: '0.2s'
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', 
+                          width: '100%', height: '44px', background: 'rgba(255,255,255,0.03)', 
+                          borderRadius: '12px', fontSize: '0.85rem', color: 'var(--text-muted)', 
+                          cursor: 'pointer', border: '1px dashed var(--glass-border)', fontWeight: '600'
                         }}
-                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                       >
                         {isUploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
                         {isUploading ? 'Enviando...' : 'Anexar Voucher / Comprovante'}
@@ -616,41 +531,20 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
               </div>
             ))}
 
-            {/* "Add New" Button / Label */}
             <button
               type="button"
               onClick={addItem}
               style={{
-                width: '100%',
-                padding: '1.25rem',
-                borderRadius: '16px',
-                background: 'rgba(255,255,255,0.01)',
-                border: '1px dashed var(--glass-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.75rem',
-                color: 'var(--text-muted)',
-                fontSize: '0.9rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                outline: 'none'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                e.currentTarget.style.borderColor = 'var(--primary)';
-                e.currentTarget.style.color = 'var(--primary)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.01)';
-                e.currentTarget.style.borderColor = 'var(--glass-border)';
-                e.currentTarget.style.color = 'var(--text-muted)';
+                width: '100%', padding: '1.25rem', borderRadius: '16px', 
+                background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.9rem', 
+                fontWeight: '600', cursor: 'pointer'
               }}
             >
               <Plus size={18} /> + Adicionar novo...
             </button>
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
       

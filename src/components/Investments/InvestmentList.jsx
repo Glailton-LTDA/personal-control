@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
@@ -11,11 +11,13 @@ import {
 import InvestmentModal from './InvestmentModal';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function InvestmentList({ user, showValues = true }) {
   const [records, setRecords] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { decryptObject } = useEncryption();
   const [filterYear, setFilterYear] = useState(() => {
     const saved = localStorage.getItem('investment_filter_year');
     return saved ? Number(saved) : new Date().getFullYear();
@@ -63,16 +65,19 @@ export default function InvestmentList({ user, showValues = true }) {
 
   useEffect(() => {
     fetchData();
-  }, [user, filterYear, filterMonth]);
+  }, [user, filterYear, filterMonth, fetchData]);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     
     // Fetch accounts first to have the mapping (names, colors, institutions)
     const { data: accountsData } = await supabase
       .from('investment_accounts')
       .select('*');
-    if (accountsData) setAccounts(accountsData);
+    if (accountsData) {
+      const decryptedAccs = await decryptObject(accountsData, ['name', 'institution']);
+      setAccounts(decryptedAccs);
+    }
 
     let query = supabase
       .from('investment_records')
@@ -96,14 +101,18 @@ export default function InvestmentList({ user, showValues = true }) {
     }
 
     const { data, error } = await query;
-    if (!error) {
-      setRecords(data);
+    if (!error && data) {
+      const decryptedRecords = await decryptObject(data, [
+        'investment_accounts.name',
+        'investment_accounts.institution'
+      ]);
+      setRecords(decryptedRecords);
       // Expand all groups by default
-      const allInstitutions = new Set(data.map(r => r.investment_accounts?.institution || 'Outros'));
+      const allInstitutions = new Set(decryptedRecords.map(r => r.investment_accounts?.institution || 'Outros'));
       setExpandedGroups(allInstitutions);
     }
     setLoading(false);
-  }
+  }, [filterYear, filterMonth, decryptObject]);
 
   async function handleCopyFromPreviousMonth() {
     if (filterMonth === 0) {
@@ -296,7 +305,7 @@ export default function InvestmentList({ user, showValues = true }) {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Rendimento no Período</p>
           <h3 style={{ fontSize: '1.75rem', fontWeight: 800, color: totalYield >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(totalYield)}</h3>
         </div>
-        <div className="glass-card" style={{ padding: '1.5rem', borderLeft: '6px solid var(--success)' }}>
+        <div className="glass-card" data-testid="summary-card-total-balance" style={{ padding: '1.5rem', borderLeft: '6px solid var(--success)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Saldo Final Total</p>
           <h3 style={{ fontSize: '1.75rem', fontWeight: 800 }}>{formatCurrency(totalBalance)}</h3>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { confirmToast } from '../../lib/toast';
@@ -9,7 +9,6 @@ import {
   CheckCircle2, 
   XCircle, 
   CreditCard,
-  MoreVertical,
   Trash2,
   Edit2,
   Send,
@@ -24,17 +23,19 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import SummaryDashboard from './SummaryDashboard';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#06b6d4', '#8b5cf6'];
 
 export default function FinanceList({ refreshKey, onEdit, user, showValues = true, onToggleValues }) {
   const [finances, setFinances] = useState([]);
+  const { decryptObject } = useEncryption();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('personal-control-finance-tab') || 'DESPESA';
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [responsibles, setResponsibles] = useState([]);
   const [isEmailModalOpen, setEmailModalOpen] = useState(false);
   const [selectedItemForEmail, setSelectedItemForEmail] = useState(null);
@@ -54,6 +55,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const saved = localStorage.getItem('personal-control-selected-month');
     return saved !== null ? Number(saved) : new Date().getMonth();
@@ -62,7 +64,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     const saved = localStorage.getItem('personal-control-selected-year');
     return saved !== null ? Number(saved) : 2026;
   });
-  const [openMenuId, setOpenMenuId] = useState(null);
+
   const [sortConfig, setSortConfig] = useState({ key: 'payment_date', direction: 'asc' });
 
   const months = [
@@ -72,36 +74,39 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
 
   const years = [2024, 2025, 2026];
 
-  useEffect(() => {
-    localStorage.setItem('personal-control-selected-month', selectedMonth);
-    localStorage.setItem('personal-control-selected-year', selectedYear);
-    localStorage.setItem('personal-control-finance-tab', activeTab);
-    fetchFinances();
-    fetchResponsibles();
-  }, [activeTab, selectedMonth, selectedYear, refreshKey]);
-
-  async function fetchResponsibles() {
+  const fetchResponsibles = useCallback(async () => {
     const { data } = await supabase.from('finance_responsibles').select('*').order('name');
     if (data) setResponsibles(data);
-  }
+  }, []);
 
-  async function fetchFinances() {
+  const fetchFinances = useCallback(async () => {
     setLoading(true);
     const monthStr = String(selectedMonth + 1).padStart(2, '0');
     const lastDayDate = new Date(selectedYear, selectedMonth + 1, 0).getDate();
     const start = `${selectedYear}-${monthStr}-01`;
     const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('finances')
       .select('*')
       .eq('type', activeTab)
       .gte('payment_date', start)
       .lte('payment_date', end);
 
-    if (data) setFinances(data);
+    if (data) {
+      const decryptedData = await decryptObject(data, ['description', 'category', 'paid_by']);
+      setFinances(decryptedData);
+    }
     setLoading(false);
-  }
+  }, [activeTab, selectedMonth, selectedYear, decryptObject]);
+
+  useEffect(() => {
+    localStorage.setItem('personal-control-selected-month', selectedMonth);
+    localStorage.setItem('personal-control-selected-year', selectedYear);
+    localStorage.setItem('personal-control-finance-tab', activeTab);
+    fetchFinances();
+    fetchResponsibles();
+  }, [activeTab, selectedMonth, selectedYear, refreshKey, fetchFinances, fetchResponsibles]);
 
   async function handleDelete(id) {
     confirmToast('Tem certeza que deseja excluir este registro?', async () => {
@@ -113,7 +118,6 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         toast.error('Erro ao excluir: ' + error.message);
       }
     }, { danger: true });
-    setOpenMenuId(null);
   }
 
   async function handleMarkAsPaid(id) {
@@ -124,11 +128,9 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     
     if (!error) {
       fetchFinances();
-      // Auto send email if configured
       if (notificationSettings?.auto_send_on_paid && notificationSettings?.recipient_email) {
         const item = finances.find(f => f.id === id);
         if (item) {
-          // We need to set the selected item for the email function to work
           setSelectedItemForEmail({ ...item, status: 'PAGO' });
           setTimeout(() => {
             sendEmailToRecipient(notificationSettings.recipient_email, { ...item, status: 'PAGO' });
@@ -136,7 +138,6 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         }
       }
     }
-    setOpenMenuId(null);
   }
 
   async function handleSendEmail(item) {
@@ -153,12 +154,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     const item = overrideItem || selectedItemForEmail;
     if (!item) return;
 
-    // 2. Formatar dados
     const formattedAmount = `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
     const formattedDate = new Date(item.payment_date).toLocaleDateString('pt-BR');
     const statusLabel = item.status === 'PAGO' ? 'Pago ✅' : 'Pendente ⏳';
 
-    // 4. Montar o HTML
     const emailHtml = `
       <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
         <div style="background: #0f172a; padding: 20px; text-align: center; color: white;">
@@ -217,48 +216,31 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   async function performCopyMonth() {
     try {
       setLoading(true);
-      
       const prevMonth = selectedMonth === 0 ? 11 : selectedMonth - 1;
       const prevYear = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
-      
       const start = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-01`;
       const end = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-31`;
-
       const { data: previousData, error: fetchError } = await supabase
         .from('finances')
         .select('*')
         .gte('payment_date', start)
         .lte('payment_date', end);
-
       if (fetchError) throw fetchError;
       if (!previousData || previousData.length === 0) {
         toast.error('Nenhuma transação encontrada no mês anterior.');
         return;
       }
-
       const newEntries = previousData.map(item => {
-        const { id, created_at, email_sent, payment_date, ...rest } = item;
-        
-        // Ajustar a data para o mês atual, mantendo o dia original (se possível)
+        const { id: _id, user_id: _user_id, created_at: _created_at, email_sent: _email_sent, payment_date, ...rest } = item;
         const originalDate = new Date(payment_date);
         const day = originalDate.getDate();
-        
-        // Garantir que o dia seja válido no mês atual (ex: 31 de fevereiro)
         const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const adjustedDay = Math.min(day, lastDayOfMonth);
-        
         const newDate = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(adjustedDay).padStart(2, '0')}`;
-
-        return {
-          ...rest,
-          payment_date: newDate,
-          status: 'PENDENTE'
-        };
+        return { ...rest, payment_date: newDate, status: 'PENDENTE' };
       });
-
       const { error: insertError } = await supabase.from('finances').insert(newEntries);
       if (insertError) throw insertError;
-
       toast.success(`${newEntries.length} transações copiadas!`);
       fetchFinances();
     } catch (err) {
@@ -292,131 +274,48 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      
-      {/* Mini Dash for Month */}
       <SummaryDashboard user={user} isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} showValues={showValues} onToggleValues={onToggleValues} />
-
-
-      {/* Header and filters section below */}
-
-      {/* Header & Filters */}
       <div className="glass-card" style={{ padding: '1.5rem' }}>
         <div className="mobile-filters-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
           <div className="tabs-container">
-            <button 
-              className={`tab-btn ${activeTab === 'RECEITA' ? 'active' : ''}`}
-              onClick={() => setActiveTab('RECEITA')}
-            >
-              Receitas
-            </button>
-            <button 
-              className={`tab-btn ${activeTab === 'DESPESA' ? 'active' : ''}`}
-              onClick={() => setActiveTab('DESPESA')}
-            >
-              Despesas
-            </button>
+            <button className={`tab-btn ${activeTab === 'RECEITA' ? 'active' : ''}`} onClick={() => setActiveTab('RECEITA')}>Receitas</button>
+            <button className={`tab-btn ${activeTab === 'DESPESA' ? 'active' : ''}`} onClick={() => setActiveTab('DESPESA')}>Despesas</button>
           </div>
-
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'nowrap' }}>
-            <select 
-              className="select-filter"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-            >
+            <select className="select-filter" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
             <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem', padding: '0.25rem' }}>
-              <button 
-                className="icon-btn" 
-                onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)}
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <span style={{ minWidth: '80px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>
-                {months[selectedMonth].substring(0, 3)}
-              </span>
-              <button 
-                className="icon-btn"
-                onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)}
-              >
-                <ChevronRight size={18} />
-              </button>
+              <button className="icon-btn" onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)}><ChevronLeft size={18} /></button>
+              <span style={{ minWidth: '80px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>{months[selectedMonth].substring(0, 3)}</span>
+              <button className="icon-btn" onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)}><ChevronRight size={18} /></button>
             </div>
-            <button 
-              className="icon-btn" 
-              onClick={handleCopyMonth}
-              title="Copiar transações do mês anterior"
-              style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', borderRadius: '0.75rem' }}
-            >
-              <Copy size={18} />
-            </button>
-            <button 
-              className="icon-btn" 
-              onClick={onToggleValues}
-              title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
-              style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem' }}
-            >
-              {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
-            </button>
+            <button className="icon-btn" onClick={handleCopyMonth} title="Copiar transações do mês anterior" style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', borderRadius: '0.75rem' }}><Copy size={18} /></button>
+            <button className="icon-btn" onClick={onToggleValues} title={showValues ? "Ocultar Valores" : "Mostrar Valores"} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem' }}>{showValues ? <Eye size={18} /> : <EyeOff size={18} />}</button>
           </div>
         </div>
-
-        {/* Mobile Sort Bar */}
         <div className="mobile-only sort-bar-mobile">
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '4px' }}>Ordenar:</span>
-          <button 
-            className={`sort-chip ${sortConfig.key === 'payment_date' ? 'active' : ''}`}
-            onClick={() => handleSort('payment_date')}
-          >
-            Data {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-          </button>
-          <button 
-            className={`sort-chip ${sortConfig.key === 'status' ? 'active' : ''}`}
-            onClick={() => handleSort('status')}
-          >
-            Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-          </button>
-          <button 
-            className={`sort-chip ${sortConfig.key === 'amount' ? 'active' : ''}`}
-            onClick={() => handleSort('amount')}
-          >
-            Valor {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-          </button>
+          <button className={`sort-chip ${sortConfig.key === 'payment_date' ? 'active' : ''}`} onClick={() => handleSort('payment_date')}>Data {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
+          <button className={`sort-chip ${sortConfig.key === 'status' ? 'active' : ''}`} onClick={() => handleSort('status')}>Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
+          <button className={`sort-chip ${sortConfig.key === 'amount' ? 'active' : ''}`} onClick={() => handleSort('amount')}>Valor {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
         </div>
-
         <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
           <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
-          <input 
-            type="text" 
-            placeholder="Pesquisar por descrição ou categoria..." 
-            style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 3rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.75rem', color: 'var(--text-main)', outline: 'none' }}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <input type="text" placeholder="Pesquisar por descrição ou categoria..." style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 3rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.75rem', color: 'var(--text-main)', outline: 'none' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
-
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
           <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Transações</h4>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-             {filteredFinances.length} {filteredFinances.length === 1 ? 'registro' : 'registros'}
-          </span>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>{filteredFinances.length} {filteredFinances.length === 1 ? 'registro' : 'registros'}</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="finance-table">
             <thead>
               <tr>
-                <th onClick={() => handleSort('payment_date')} style={{ cursor: 'pointer' }}>
-                  DATA {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-                </th>
-                <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>
-                  DESCRIÇÃO {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-                </th>
-                <th onClick={() => handleSort('category')} style={{ cursor: 'pointer' }}>
-                  CATEGORIA {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-                </th>
-                 <th onClick={() => handleSort('amount')} style={{ cursor: 'pointer' }}>
-                  VALOR {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}
-                </th>
+                <th onClick={() => handleSort('payment_date')} style={{ cursor: 'pointer' }}>DATA {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>DESCRIÇÃO {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                <th onClick={() => handleSort('category')} style={{ cursor: 'pointer' }}>CATEGORIA {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                <th onClick={() => handleSort('amount')} style={{ cursor: 'pointer' }}>VALOR {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
                 {activeTab === 'DESPESA' && <th>PAGO POR</th>}
                 {activeTab === 'DESPESA' && <th>AVISO</th>}
                 <th>STATUS</th>
@@ -427,80 +326,26 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
               {loading && finances.length === 0 ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ padding: '12px' }}>
-                      <div className="skeleton" style={{ height: '2.5rem', width: '100%' }} />
-                    </td>
+                    <td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ padding: '12px' }}><div className="skeleton" style={{ height: '2.5rem', width: '100%' }} /></td>
                   </tr>
                 ))
               ) : filteredFinances.length === 0 ? (
                 <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Nenhum registro encontrado.</td></tr>
               ) : filteredFinances.map((item) => (
                 <tr key={item.id} data-testid={`finance-row-${item.description}`}>
-                  <td data-label="Data">
-                    {(() => {
-                      try {
-                        if (!item.payment_date) return 'N/A';
-                        const parts = String(item.payment_date).split('-');
-                        if (parts.length !== 3) return 'N/A';
-                        const [year, month, day] = parts.map(Number);
-                        return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
-                      } catch (e) {
-                        return 'N/A';
-                      }
-                    })()}
-                  </td>
-                  <td data-label="Descrição">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {item.credit_card && <CreditCard size={14} color="var(--primary)" title="Cartão de Crédito" />}
-                      {item.description}
-                    </div>
-                  </td>
+                  <td data-label="Data">{(() => { try { if (!item.payment_date) return 'N/A'; const parts = String(item.payment_date).split('-'); if (parts.length !== 3) return 'N/A'; const [year, month, day] = parts.map(Number); return new Date(year, month - 1, day).toLocaleDateString('pt-BR'); } catch { return 'N/A'; } })()}</td>
+                  <td data-label="Descrição"><div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{item.credit_card && <CreditCard size={14} color="var(--primary)" title="Cartão de Crédito" />}{item.description}</div></td>
                   <td data-label="Categoria"><span className="badge">{item.category}</span></td>
-                  <td data-label="Valor" style={{ fontWeight: 600, color: item.type === 'RECEITA' ? 'var(--success)' : 'white' }}>
-                    {item.type === 'RECEITA' ? '+' : '-'} {showValues ? `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}
-                  </td>
-                  {activeTab === 'DESPESA' && (
-                    <td data-label="Pago Por">
-                      {item.paid_by || '-'}
-                    </td>
-                  )}
-                  {activeTab === 'DESPESA' && (
-                    <td data-label="Aviso" style={{ textAlign: 'center' }}>
-                      <Send 
-                        size={16} 
-                        color={item.email_sent ? 'var(--primary)' : 'var(--text-muted)'} 
-                        style={{ opacity: item.email_sent ? 1 : 0.3 }}
-                        title={item.email_sent ? 'E-mail enviado' : 'Ainda não enviado'}
-                      />
-                    </td>
-                  )}
-                  <td data-label="Status">
-                    <span 
-                      className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`}
-                      onClick={() => item.status === 'PENDENTE' && handleMarkAsPaid(item.id)}
-                      style={{ cursor: item.status === 'PENDENTE' ? 'pointer' : 'default' }}
-                      title={item.status === 'PENDENTE' ? 'Clique para marcar como pago' : ''}
-                    >
-                      {item.status === 'PAGO' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                      {item.status}
-                    </span>
-                  </td>
+                  <td data-label="Valor" style={{ fontWeight: 600, color: item.type === 'RECEITA' ? 'var(--success)' : 'white' }}>{item.type === 'RECEITA' ? '+' : '-'} {showValues ? `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}</td>
+                  {activeTab === 'DESPESA' && <td data-label="Pago Por">{item.paid_by || '-'}</td>}
+                  {activeTab === 'DESPESA' && <td data-label="Aviso" style={{ textAlign: 'center' }}><Send size={16} color={item.email_sent ? 'var(--primary)' : 'var(--text-muted)'} style={{ opacity: item.email_sent ? 1 : 0.3 }} title={item.email_sent ? 'E-mail enviado' : 'Ainda não enviado'}/></td>}
+                  <td data-label="Status"><span className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} onClick={() => item.status === 'PENDENTE' && handleMarkAsPaid(item.id)} style={{ cursor: item.status === 'PENDENTE' ? 'pointer' : 'default' }} title={item.status === 'PENDENTE' ? 'Clique para marcar como pago' : ''}>{item.status === 'PAGO' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}{item.status}</span></td>
                   <td data-label={isMobile ? "" : "Ações"} className="actions-cell">
                     <div className="actions-row">
-                      {item.status === 'PENDENTE' && (
-                        <button className="action-btn success" onClick={() => handleMarkAsPaid(item.id)} title="Marcar Pago">
-                          <CheckCircle2 size={18} />
-                        </button>
-                      )}
-                      <button className="action-btn primary" onClick={() => handleSendEmail(item)} title="Enviar E-mail">
-                        <Send size={18} />
-                      </button>
-                      <button className="action-btn" onClick={() => onEdit(item)} title="Editar">
-                        <Edit2 size={18} />
-                      </button>
-                      <button className="action-btn danger" onClick={() => handleDelete(item.id)} title="Excluir">
-                        <Trash2 size={18} />
-                      </button>
+                      {item.status === 'PENDENTE' && <button className="action-btn success" onClick={() => handleMarkAsPaid(item.id)} title="Marcar Pago"><CheckCircle2 size={18} /></button>}
+                      <button className="action-btn primary" onClick={() => handleSendEmail(item)} title="Enviar E-mail"><Send size={18} /></button>
+                      <button className="action-btn" onClick={() => onEdit(item)} title="Editar"><Edit2 size={18} /></button>
+                      <button className="action-btn danger" onClick={() => handleDelete(item.id)} title="Excluir"><Trash2 size={18} /></button>
                     </div>
                   </td>
                 </tr>
@@ -509,36 +354,18 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
           </table>
         </div>
       </div>
-      {/* Email Recipient Modal */}
       {isEmailModalOpen && (
         <div className="modal-overlay" onClick={() => setEmailModalOpen(false)}>
           <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Mail size={20} /> Selecionar Destinatário
-              </h3>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}><Mail size={20} /> Selecionar Destinatário</h3>
               <button className="icon-btn" onClick={() => setEmailModalOpen(false)}><X size={20} /></button>
             </div>
-            
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Escolha para quem deseja enviar os detalhes desta transação:
-            </p>
-
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Escolha para quem deseja enviar os detalhes desta transação:</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {responsibles.map(resp => (
-                <button
-                  key={resp.id}
-                  onClick={() => sendEmailToRecipient(resp.email)}
-                  disabled={emailLoading || !resp.email}
-                  className="glass-card"
-                  style={{ 
-                    display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--glass-border)',
-                    textAlign: 'left', cursor: 'pointer', opacity: resp.email ? 1 : 0.5
-                  }}
-                >
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                    <User size={20} />
-                  </div>
+                <button key={resp.id} onClick={() => sendEmailToRecipient(resp.email)} disabled={emailLoading || !resp.email} className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--glass-border)', textAlign: 'left', cursor: 'pointer', opacity: resp.email ? 1 : 0.5 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}><User size={20} /></div>
                   <div style={{ flex: 1 }}>
                     <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{resp.name}</p>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{resp.email || 'Sem e-mail'}</p>
@@ -546,12 +373,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 </button>
               ))}
             </div>
-
-            {emailLoading && (
-              <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--primary)', fontSize: '0.85rem' }}>
-                Enviando e-mail...
-              </div>
-            )}
+            {emailLoading && <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--primary)', fontSize: '0.85rem' }}>Enviando e-mail...</div>}
           </div>
         </div>
       )}

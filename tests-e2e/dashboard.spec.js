@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Autenticação e Dashboard', () => {
+  /** Desbloqueia o app com a senha mestre padrão para testes. */
+  async function unlockApp(page) {
+    const unlockModal = page.getByText('Acesso Seguro');
+    if (await unlockModal.isVisible()) {
+      await page.getByTestId('master-password-input').fill('password123');
+      await page.getByRole('button', { name: 'Desbloquear Dados' }).click();
+      await expect(unlockModal).not.toBeVisible();
+    }
+  }
+
   test.beforeEach(async ({ page }) => {
     // Intercepta chamadas do Supabase Auth
     await page.route('**/auth/v1/token*', async (route) => {
@@ -48,6 +58,7 @@ test.describe('Autenticação e Dashboard', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.click('button:has-text("Entrar")');
+    await unlockApp(page);
 
     // Espera a navegação e carregamento inicial
     await page.waitForLoadState('networkidle');

@@ -3,6 +3,8 @@ import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 
+import { EncryptionProvider } from './contexts/EncryptionContext';
+
 function App() {
   const [session, setSession] = useState(null);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -44,7 +46,11 @@ function App() {
     );
   }
 
-  return <Dashboard user={session.user} />;
+  return (
+    <EncryptionProvider user={session.user}>
+      <Dashboard user={session.user} />
+    </EncryptionProvider>
+  );
 }
 
 export default App;

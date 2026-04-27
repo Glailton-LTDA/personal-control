@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { LogIn, Mail, Lock, ArrowLeft, KeyRound, CheckCircle2, RefreshCw } from 'lucide-react';
 
@@ -186,12 +186,12 @@ export default function Login({ onLogin, recoveryMode, onRecoveryComplete }) {
   if (recoveryMode) {
     return (
       <div className="login-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
+        <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
           <ResetPasswordForm onDone={() => {
             window.location.hash = '';
             onRecoveryComplete();
           }} />
-        </motion.div>
+        </Motion.div>
       </div>
     );
   }
@@ -199,7 +199,7 @@ export default function Login({ onLogin, recoveryMode, onRecoveryComplete }) {
   return (
     <div className="login-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
       <AnimatePresence mode="wait">
-        <motion.div
+        <Motion.div
           key={view}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -212,7 +212,7 @@ export default function Login({ onLogin, recoveryMode, onRecoveryComplete }) {
             ? <LoginForm onLogin={onLogin} onForgot={() => setView('forgot')} />
             : <ForgotPasswordForm onBack={() => setView('login')} />
           }
-        </motion.div>
+        </Motion.div>
       </AnimatePresence>
     </div>
   );

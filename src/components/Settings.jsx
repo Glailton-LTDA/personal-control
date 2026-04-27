@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { motion as Motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
 export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
@@ -26,7 +26,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
   }, []);
 
   async function fetchSettings() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('notification_settings')
       .select('*')
       .single();
@@ -123,7 +123,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
     <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Menu Reordering Section */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem' }}>
+      <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
             <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
                 <Layout size={24} />
@@ -179,10 +179,10 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
             );
           })}
         </div>
-      </motion.div>
+      </Motion.div>
 
       {/* Notifications Section */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card" style={{ padding: '2rem' }}>
+      <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card" style={{ padding: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
             <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
                 <Bell size={24} />
@@ -269,10 +269,10 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
                 Nota: O disparo de e-mail requer a configuração de uma Edge Function no Supabase vinculada ao seu serviço de e-mail (Resend/SendGrid).
             </p>
         </div>
-      </motion.div>
+      </Motion.div>
 
       {/* Change Password Section */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card" style={{ padding: '2rem' }}>
+      <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card" style={{ padding: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
           <div style={{ padding: '0.75rem', background: 'rgba(99,102,241,0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
             <KeyRound size={24} />
@@ -320,8 +320,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems }) {
             {pwSaving ? 'Alterando...' : <><Lock size={18} /> Alterar Senha</>}
           </button>
         </form>
-      </motion.div>
-
+      </Motion.div>
     </div>
   );
 }

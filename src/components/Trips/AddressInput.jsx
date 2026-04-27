@@ -12,9 +12,7 @@ export default function AddressInput({ value, onChange, placeholder, style, clas
 
   // Sync with external value changes
   useEffect(() => {
-    if (value !== localValue) {
-      setLocalValue(value || '');
-    }
+    setLocalValue(value || '');
   }, [value]);
 
   // Update dropdown position when suggestions change or on focus

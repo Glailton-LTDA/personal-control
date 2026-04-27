@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Mail, User, Tag, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function FinanceSettings() {
   const [categories, setCategories] = useState([]);
@@ -11,23 +12,37 @@ export default function FinanceSettings() {
   const [newResp, setNewResp] = useState({ name: '', email: '' });
   const [loading, setLoading] = useState(false);
   const [emailTemplate, setEmailTemplate] = useState('');
+  const { encryptObject, decryptObject } = useEncryption();
+
+  const fetchConfig = useCallback(async () => {
+    const { data } = await supabase.from('finance_config').select('value').eq('key', 'email_template').single();
+    if (data) setEmailTemplate(data.value);
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    const { data: catData } = await supabase.from('finance_categories').select('*').order('name');
+    const { data: respData } = await supabase.from('finance_responsibles').select('*').order('name');
+    
+    if (catData) {
+      const decryptedCats = await decryptObject(catData, ['name']);
+      setCategories(decryptedCats);
+    }
+    if (respData) {
+      const decryptedResps = await decryptObject(respData, ['name', 'email']);
+      setResponsibles(decryptedResps);
+    }
+  }, [decryptObject]);
 
   useEffect(() => {
     fetchData();
     fetchConfig();
-  }, []);
-
-  async function fetchData() {
-    const { data: catData } = await supabase.from('finance_categories').select('*').order('name');
-    const { data: respData } = await supabase.from('finance_responsibles').select('*').order('name');
-    if (catData) setCategories(catData);
-    if (respData) setResponsibles(respData);
-  }
+  }, [fetchData, fetchConfig]);
 
   async function addCategory() {
     if (!newCat.name) return;
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('finance_categories').insert([{ ...newCat, user_id: user.id }]);
+    const encryptedCat = await encryptObject(newCat, ['name']);
+    await supabase.from('finance_categories').insert([{ ...encryptedCat, user_id: user.id }]);
     setNewCat({ name: '', type: 'DESPESA' });
     fetchData();
   }
@@ -35,7 +50,8 @@ export default function FinanceSettings() {
   async function addResponsible() {
     if (!newResp.name) return;
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('finance_responsibles').insert([{ ...newResp, user_id: user.id }]);
+    const encryptedResp = await encryptObject(newResp, ['name', 'email']);
+    await supabase.from('finance_responsibles').insert([{ ...encryptedResp, user_id: user.id }]);
     setNewResp({ name: '', email: '' });
     fetchData();
   }
@@ -61,10 +77,7 @@ export default function FinanceSettings() {
     }, { danger: true });
   }
 
-  async function fetchConfig() {
-    const { data } = await supabase.from('finance_config').select('value').eq('key', 'email_template').single();
-    if (data) setEmailTemplate(data.value);
-  }
+
 
   async function saveConfig() {
     setLoading(true);

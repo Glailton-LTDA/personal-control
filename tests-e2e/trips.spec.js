@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Módulo de Viagens', () => {
+  /** Desbloqueia o app com a senha mestre padrão para testes. */
+  async function unlockApp(page) {
+    const unlockModal = page.getByText('Acesso Seguro');
+    if (await unlockModal.isVisible()) {
+      await page.getByTestId('master-password-input').fill('password123');
+      await page.getByRole('button', { name: 'Desbloquear Dados' }).click();
+      await expect(unlockModal).not.toBeVisible({ timeout: 10000 });
+    }
+  }
+
   test.beforeEach(async ({ page }) => {
     // Intercepta Auth
     await page.route('**/auth/v1/token*', async (route) => {
@@ -68,6 +78,9 @@ test.describe('Módulo de Viagens', () => {
         ]),
       });
     });
+    await page.addInitScript(() => {
+      window.localStorage.setItem('pc_e2e_test', 'true');
+    });
   });
 
   test('deve carregar a viagem e mostrar os novos elementos da UI', async ({ page }) => {
@@ -79,17 +92,19 @@ test.describe('Módulo de Viagens', () => {
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
     
-    // Aguarda o Dashboard carregar
+    // Aguarda o Dashboard carregar e desbloqueia os dados
     await expect(page.getByText('Personal')).toBeVisible({ timeout: 15000 });
+    await unlockApp(page);
 
     // Navega para Viagens
     await page.getByRole('button', { name: 'Minhas Viagens' }).click();
+    await page.getByRole('button', { name: 'Listagem' }).click();
     
     // Verifica se carregou o título da seção
-    await expect(page.getByRole('heading', { name: 'Minhas Viagens' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('header-title').first()).toHaveText(/Minhas Viagens/i, { timeout: 15000 });
 
     // Verifica se a viagem mockada apareceu
-    await expect(page.getByText('Viagem Teste')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Viagem Teste').first()).toBeVisible({ timeout: 15000 });
     
     // Seleciona a viagem explicitamente pelo ID do mock
     await page.getByTestId('trip-tab-trip-1').click();
@@ -122,9 +137,11 @@ test.describe('Módulo de Viagens', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
+    await unlockApp(page);
     
     // Navega para Viagens
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
+    await page.getByRole('button', { name: 'Viagens' }).click();
+    await page.getByRole('button', { name: 'Listagem' }).click();
     
     // Verifica se o seletor de moeda para EUR está ativo e salva no localStorage
     await expect(page.getByRole('button', { name: /EUR/ })).toBeVisible();
@@ -142,9 +159,11 @@ test.describe('Módulo de Viagens', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
+    await unlockApp(page);
     
     // Navega para Viagens
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
+    await page.getByRole('button', { name: 'Viagens' }).click();
+    await page.getByRole('button', { name: 'Listagem' }).click();
     
     // Abre detalhes da viagem
     await page.getByTestId('view-trip-details-btn').click();

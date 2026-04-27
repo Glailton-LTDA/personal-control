@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar, Clock, MapPin, CheckCircle2, Circle, 
   Plus, Trash2, ChevronDown, ChevronUp, Map, 
@@ -254,7 +254,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
         if (days.length > 0) setActiveDay(days[0]);
       }
     }
-  }, [trip.id]);
+  }, [trip.id, generateDays]);
 
   useEffect(() => {
     if (activeDay && trip.id) {
@@ -262,7 +262,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
     }
   }, [activeDay, trip.id]);
 
-  const generateDays = () => {
+  const generateDays = useCallback(() => {
     if (!trip.start_date || !trip.end_date) return [];
     
     const start = new Date(trip.start_date + 'T00:00:00');
@@ -275,7 +275,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
       current.setDate(current.getDate() + 1);
     }
     return days;
-  };
+  }, [trip.start_date, trip.end_date]);
 
   const days = generateDays();
 

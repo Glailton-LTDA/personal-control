@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import TripsList from './TripsList';
 import TripsSettings from './TripsSettings';
@@ -8,6 +8,7 @@ import ExpenseModal from './ExpenseModal';
 import TripChecklists from './TripChecklists';
 import TripsStats from './TripsStats';
 import { Plus, TrendingUp } from 'lucide-react';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function Trips({ user, refreshKey, mode, showValues }) {
   const [isAddingExpense, setIsAddingExpense] = useState(false);
@@ -15,6 +16,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   const [categories, setCategories] = useState([]);
   const [trips, setTrips] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const { decryptObject } = useEncryption();
   
   // New state for page-based navigation within Trips module
   const [currentView, setCurrentView] = useState(() => {
@@ -24,6 +26,14 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     return 'main';
   });
   const [editingTrip, setEditingTrip] = useState(null);
+
+  useEffect(() => {
+    if (mode === 'settings') setCurrentView('settings');
+    else if (mode === 'itinerary') setCurrentView('itinerary');
+    else if (mode === 'checklists') setCurrentView('checklists');
+    else if (mode === 'stats') setCurrentView('stats');
+    else if (mode === 'main') setCurrentView('main');
+  }, [mode]);
 
   useEffect(() => {
     // If mode prop changes, update currentView
@@ -43,17 +53,13 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     }
   }, [selectedTrip]);
 
-  useEffect(() => {
-    fetchTrips();
-    fetchCategories();
-  }, [user, refreshKey, localRefreshKey, selectedTrip?.user_id]);
-
-  async function fetchTrips() {
+  const fetchTrips = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
     
     if (data && data.length > 0) {
-      setTrips(data);
+      const decryptedTrips = await decryptObject(data, ['title', 'cities', 'hotels']);
+      setTrips(decryptedTrips);
       
       const savedTripId = localStorage.getItem(STORAGE_KEY);
       
@@ -61,25 +67,33 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
 
       // 1. Prioridade: Se já temos um objeto real em memória, atualizamos ele com dados novos do banco
       if (selectedTrip?.id && !selectedTrip._isPlaceholder) {
-        tripToSelect = data.find(t => String(t.id) === String(selectedTrip.id));
+        tripToSelect = decryptedTrips.find(t => String(t.id) === String(selectedTrip.id));
       } 
       
       // 2. Segunda Prioridade: Se não temos nada ou a atualização falhou, tentamos o localStorage
       if (!tripToSelect && savedTripId) {
-        tripToSelect = data.find(t => String(t.id) === String(savedTripId));
+        tripToSelect = decryptedTrips.find(t => String(t.id) === String(savedTripId));
       }
 
       // 3. Fallback: Se nada funcionou, pegamos a primeira (mais recente)
-      setSelectedTrip(tripToSelect || data[0]);
+      setSelectedTrip(tripToSelect || decryptedTrips[0]);
     }
-  }
+  }, [user, decryptObject, selectedTrip?.id, selectedTrip?._isPlaceholder]);
 
-  async function fetchCategories() {
+  const fetchCategories = useCallback(async () => {
     const targetUserId = selectedTrip?.user_id || user?.id;
     if (!targetUserId) return;
     const { data } = await supabase.from('trip_categories').select('*').eq('user_id', targetUserId).order('name', { ascending: true });
-    if (data) setCategories(data);
-  }
+    if (data) {
+      const decryptedCats = await decryptObject(data, ['name']);
+      setCategories(decryptedCats);
+    }
+  }, [selectedTrip?.user_id, user?.id, decryptObject]);
+
+  useEffect(() => {
+    fetchTrips();
+    fetchCategories();
+  }, [user, refreshKey, localRefreshKey, selectedTrip?.user_id, fetchTrips, fetchCategories]);
 
   const handleExpenseSaved = () => {
     setIsAddingExpense(false);

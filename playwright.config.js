@@ -1,3 +1,4 @@
+/* global process */
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -15,6 +16,16 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    storageState: {
+      origins: [
+        {
+          origin: 'http://localhost:5173',
+          localStorage: [
+            { name: 'pc_e2e_test', value: 'true' }
+          ]
+        }
+      ]
+    }
   },
 
   /* Configure projects for major browsers */

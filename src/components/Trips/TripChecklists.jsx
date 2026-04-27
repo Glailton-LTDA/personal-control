@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
   ChevronLeft, Plus, Trash2, CheckCircle2, Circle, 
-  Copy, ListTodo, Search, AlertCircle, Save, X, Edit2, Check
+  ListTodo, Save, X, Edit2, Check, Copy, Search
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
-export default function TripChecklists({ user, trip, onBack, onSave }) {
+export default function TripChecklists({ user, trip, onBack }) {
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -20,14 +21,11 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
   const [newListTitle, setNewListTitle] = useState('');
   const [addingItemToId, setAddingItemToId] = useState(null);
   const [newItemTask, setNewItemTask] = useState('');
+  const { decryptObject, encryptData } = useEncryption();
 
-  useEffect(() => {
-    fetchChecklists();
-  }, [trip?.id]);
-
-  async function fetchChecklists() {
+  const fetchChecklists = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('trip_checklists')
       .select(`
         *,
@@ -37,15 +35,19 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
       .order('created_at', { ascending: true });
 
     if (data) {
-      // Sort items by created_at inside each checklist
-      const formatted = data.map(c => ({
+      const decrypted = await decryptObject(data, ['title', 'items.*.task']);
+      const formatted = decrypted.map(c => ({
         ...c,
         items: (c.items || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       }));
       setChecklists(formatted);
     }
     setLoading(false);
-  }
+  }, [trip?.id, decryptObject]);
+
+  useEffect(() => {
+    fetchChecklists();
+  }, [trip?.id, fetchChecklists]);
 
   const handleAddChecklist = async () => {
     if (!newListTitle.trim()) {
@@ -54,18 +56,20 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
     }
     setLoading(true);
 
-    const { data, error } = await supabase
+    const encryptedTitle = await encryptData(newListTitle.trim());
+
+    const { data } = await supabase
       .from('trip_checklists')
       .insert({
         trip_id: trip.id,
         user_id: user.id,
-        title: newListTitle.trim()
+        title: encryptedTitle
       })
       .select()
       .single();
 
     if (data) {
-      setChecklists([...checklists, { ...data, items: [] }]);
+      setChecklists([...checklists, { ...data, title: newListTitle.trim(), items: [] }]);
       setNewListTitle('');
       setIsAddingList(false);
       toast.success('Lista criada');
@@ -97,11 +101,13 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
       return;
     }
 
-    const { data, error } = await supabase
+    const encryptedTask = await encryptData(newItemTask.trim());
+
+    const { data } = await supabase
       .from('trip_checklist_items')
       .insert({
         checklist_id: checklistId,
-        task: newItemTask.trim(),
+        task: encryptedTask,
         completed: false
       })
       .select()
@@ -110,7 +116,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
     if (data) {
       setChecklists(checklists.map(c => {
         if (c.id === checklistId) {
-          return { ...c, items: [...c.items, data] };
+          return { ...c, items: [...c.items, { ...data, task: newItemTask.trim() }] };
         }
         return c;
       }));
@@ -169,9 +175,11 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
   const saveTitle = async (id) => {
     if (!tempTitle.trim()) return setEditingTitleId(null);
 
+    const encryptedTitle = await encryptData(tempTitle.trim());
+
     const { error } = await supabase
       .from('trip_checklists')
-      .update({ title: tempTitle })
+      .update({ title: encryptedTitle })
       .eq('id', id);
 
     if (!error) {
@@ -204,10 +212,12 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
             .select('id, title')
             .eq('trip_id', t.id);
           
-          tripsWithChecklists.push({ ...t, checklists: cData || [] });
+          const decryptedChecklists = await decryptObject(cData || [], ['title']);
+          tripsWithChecklists.push({ ...t, checklists: decryptedChecklists });
         }
       }
-      setOtherTrips(tripsWithChecklists);
+      const decryptedTrips = await decryptObject(tripsWithChecklists, ['title']);
+      setOtherTrips(decryptedTrips);
     }
   };
 
@@ -218,16 +228,17 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
       .select('*')
       .eq('checklist_id', otherChecklistId);
 
-    const { data: originalChecklist } = await supabase
+    const { data: originalChecklistEnc } = await supabase
       .from('trip_checklists')
       .select('title')
       .eq('id', otherChecklistId)
       .single();
 
-    if (!originalChecklist) return;
+    if (!originalChecklistEnc) return;
+    const originalChecklist = await decryptObject(originalChecklistEnc, ['title']);
 
     // Create new checklist
-    const { data: newChecklist, error: cError } = await supabase
+    const { data: newChecklist } = await supabase
       .from('trip_checklists')
       .insert({
         trip_id: trip.id,
@@ -238,7 +249,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
       .single();
 
     if (newChecklist && originalItems && originalItems.length > 0) {
-      // Insert items
+      // We can just copy the encrypted tasks since they use the same master key
       const itemsToInsert = originalItems.map(item => ({
         checklist_id: newChecklist.id,
         task: item.task,
@@ -250,9 +261,10 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
         .insert(itemsToInsert)
         .select();
 
-      setChecklists([...checklists, { ...newChecklist, items: newItems || [] }]);
+      const decryptedItems = await decryptObject(newItems || [], ['task']);
+      setChecklists([...checklists, { ...newChecklist, title: `${originalChecklist.title} (Importado)`, items: decryptedItems }]);
     } else if (newChecklist) {
-      setChecklists([...checklists, { ...newChecklist, items: [] }]);
+      setChecklists([...checklists, { ...newChecklist, title: `${originalChecklist.title} (Importado)`, items: [] }]);
     }
     
     setIsImportModalOpen(false);
@@ -301,7 +313,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
 
       <AnimatePresence mode="wait">
         {isAddingList && (
-          <motion.div 
+          <Motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
@@ -331,7 +343,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
             <button onClick={handleAddChecklist} className="btn-primary" style={{ width: '100%' }}>
               <Plus size={18} /> Criar Lista
             </button>
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
 
@@ -354,8 +366,8 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
 
           {checklists.map(checklist => (
-            <motion.div 
-              layout
+            <Motion.div 
+              layout="position"
               key={checklist.id} 
               className="glass-card" 
               style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignSelf: 'flex-start' }}
@@ -389,7 +401,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <AnimatePresence>
                   {checklist.items.map(item => (
-                    <motion.div 
+                    <Motion.div 
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10 }}
@@ -425,7 +437,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
                       >
                         <X size={14} />
                       </button>
-                    </motion.div>
+                    </Motion.div>
                   ))}
                 </AnimatePresence>
               </div>
@@ -472,7 +484,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
                   <Plus size={16} /> Adicionar item
                 </button>
               )}
-            </motion.div>
+            </Motion.div>
           ))}
         </div>
       )}
@@ -481,7 +493,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
       <AnimatePresence>
         {isImportModalOpen && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-            <motion.div 
+            <Motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -542,7 +554,7 @@ export default function TripChecklists({ user, trip, onBack, onSave }) {
                   )}
                 </div>
               </div>
-            </motion.div>
+            </Motion.div>
           </div>
         )}
       </AnimatePresence>

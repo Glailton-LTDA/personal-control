@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { motion as Motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, Ticket, Users, Calendar, ArrowLeft, Map } from 'lucide-react';
+import { Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, Ticket, Users, Calendar, ArrowLeft, Map, FileText } from 'lucide-react';
 import CurrencySelector from './CurrencySelector';
 import BadgeInput from './BadgeInput';
 import AttachmentManager from './AttachmentManager';
 import ItineraryManager from './ItineraryManager';
-import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TripForm({ user, trip, onBack, onSave }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const { encryptObject } = useEncryption();
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -23,7 +25,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     const safeGenerateId = () => {
       try {
         return crypto.randomUUID();
-      } catch (e) {
+      } catch {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
       }
     };
@@ -46,6 +48,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     hotels: prepareItems(trip?.hotels),
     transports: prepareItems(trip?.transports),
     tickets: prepareItems(trip?.tickets),
+    misc_docs: prepareItems(trip?.misc_docs),
     daily_limits: trip?.daily_limits || {},
     currencies: trip?.currencies || ['BRL'],
     start_date: trip?.start_date || '',
@@ -73,20 +76,35 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     if (e) e.preventDefault();
     setIsSaving(true);
     
+    const encryptedPayload = await encryptObject(formData, [
+      'title',
+      'cities.*',
+      'countries.*',
+      'participants.*',
+      'hotels.*.name',
+      'transports.*.name',
+      'tickets.*.name',
+      'misc_docs.*.name',
+      'itinerary.*.activity',
+      'itinerary.*.location',
+      'itinerary.*.notes'
+    ]);
+
     const payload = {
       user_id: user.id,
-      title: formData.title,
-      cities: formData.cities,
-      countries: formData.countries,
-      hotels: formData.hotels,
-      transports: formData.transports,
-      tickets: formData.tickets,
+      title: encryptedPayload.title,
+      cities: encryptedPayload.cities,
+      countries: encryptedPayload.countries,
+      hotels: encryptedPayload.hotels,
+      transports: encryptedPayload.transports,
+      tickets: encryptedPayload.tickets,
+      misc_docs: encryptedPayload.misc_docs,
       daily_limits: formData.daily_limits,
       currencies: formData.currencies,
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
-      participants: formData.participants,
-      itinerary: formData.itinerary
+      participants: encryptedPayload.participants,
+      itinerary: encryptedPayload.itinerary
     };
 
     let result;
@@ -105,7 +123,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
   }
 
   return (
-    <motion.div 
+    <Motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="fade-in"
@@ -231,6 +249,15 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             onItemsChange={(newItems) => setFormData({...formData, tickets: newItems})} 
             defaultExpanded={false}
           />
+
+          <AttachmentManager 
+            label="Documentos Diversos (Seguros/Recibos)" 
+            icon={FileText} 
+            items={formData.misc_docs} 
+            tripId={trip?.id || 'new'}
+            onItemsChange={(newItems) => setFormData({...formData, misc_docs: newItems})} 
+            defaultExpanded={false}
+          />
         </div>
 
         {/* Participants and Money Card */}
@@ -278,7 +305,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           </div>
         </div>
 
-        {/* Global Save Button - Sticky at bottom on mobile? */}
+        {/* Global Save Button */}
         <div style={{ 
           position: 'sticky', bottom: '1rem', zIndex: 10,
           background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(12px)',
@@ -316,6 +343,6 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           transform: translateX(-3px);
         }
       `}} />
-    </motion.div>
+    </Motion.div>
   );
 }

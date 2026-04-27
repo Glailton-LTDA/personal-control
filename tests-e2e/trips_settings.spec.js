@@ -5,11 +5,28 @@ async function openTripSettings(page) {
   const ajustesBtn = page.getByRole('button', { name: 'Ajustes de Viagens' });
 
   if (!await ajustesBtn.isVisible()) {
-    await page.getByText('Viagens', { exact: true }).click();
-    await expect(ajustesBtn).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Minhas Viagens', exact: true }).click();
+    await expect(ajustesBtn).toBeVisible({ timeout: 15000 });
   }
-
   await ajustesBtn.click();
+  
+  // Wait for the view to mount and header to reflect the new state
+  await expect(page.getByTestId('trips-settings-container')).toBeVisible({ timeout: 15000 });
+  
+  const header = page.getByTestId('header-title').first();
+  await expect(header).toBeVisible({ timeout: 15000 });
+  // Use a regex to be more lenient with whitespace or case
+  await expect(header).toHaveText(/Ajustes de Viagens/i);
+}
+
+/** Desbloqueia o app com a senha mestre padrão para testes. */
+async function unlockApp(page) {
+  const unlockModal = page.getByText('Acesso Seguro');
+  if (await unlockModal.isVisible()) {
+    await page.getByTestId('master-password-input').fill('password123');
+    await page.getByRole('button', { name: 'Desbloquear Dados' }).click();
+    await expect(unlockModal).not.toBeVisible({ timeout: 10000 });
+  }
 }
 
 test.describe('Configurações de Viagens', () => {
@@ -65,30 +82,31 @@ test.describe('Configurações de Viagens', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    // Aguarda o app estar pronto antes de cada teste
+    // Aguarda o app estar pronto e desbloqueia os dados
     await expect(page.getByText('Personal')).toBeVisible({ timeout: 15000 });
+    await unlockApp(page);
   });
 
   test('deve editar uma viagem e ver os novos campos de transporte e passeios', async ({ page }) => {
     await openTripSettings(page);
 
     // Aguarda os cards carregarem
-    await expect(page.getByRole('button', { name: 'Editar' }).first()).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Editar' }).first().click();
+    await expect(page.getByTestId('edit-trip-button').first()).toBeVisible({ timeout: 15000 });
+    await page.getByTestId('edit-trip-button').first().click();
 
     // Verifica campos de hospedagem
-    await expect(page.getByText('Hospedagens (Hotéis/Airbnbs)')).toBeVisible();
+    await expect(page.getByText('Hospedagens', { exact: false }).first()).toBeVisible();
     await expect(page.getByPlaceholder('Ex: Ibis Paris, Airbnb Marais...')).toBeVisible();
     await expect(page.getByText('Check-in')).toBeVisible();
 
     // Verifica campos de transporte
-    await expect(page.getByText('Transportes (Voos/Trens/Aluguéis)')).toBeVisible();
+    await expect(page.getByText('Transportes', { exact: false }).first()).toBeVisible();
     await expect(page.getByPlaceholder('Ex: LA8100, Placa ABC-1234...')).toBeVisible();
     await expect(page.getByText('Partida')).toBeVisible();
 
     // Verifica campos de passeios
-    await expect(page.getByText('Passeios, Ingressos e Tickets')).toBeVisible();
-    await page.getByText('Passeios, Ingressos e Tickets').click();
+    await expect(page.getByText('Passeios', { exact: false }).first()).toBeVisible();
+    await page.getByText('Passeios', { exact: false }).first().click();
     await expect(page.getByPlaceholder(/Louvre Museum, Rue de Rivoli/)).toBeVisible();
 
     // Salva

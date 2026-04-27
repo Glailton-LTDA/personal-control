@@ -36,6 +36,9 @@ test.describe('MyCars Module', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
 
+    await page.addInitScript(() => {
+      window.localStorage.setItem('pc_e2e_test', 'true');
+    });
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password');
@@ -47,9 +50,9 @@ test.describe('MyCars Module', () => {
     await page.getByRole('button', { name: 'Carros' }).click();
     
     // Wait for car card
-    await expect(page.locator('text=Audi')).toBeVisible();
-    await expect(page.locator('text=A3')).toBeVisible();
-    await expect(page.locator('text=ABC-1234')).toBeVisible();
+    await expect(page.locator('text=Audi').first()).toBeVisible();
+    await expect(page.locator('text=A3').first()).toBeVisible();
+    await expect(page.locator('text=ABC-1234').first()).toBeVisible();
   });
 
   test('should show maintenance info when selected', async ({ page }) => {
@@ -63,6 +66,6 @@ test.describe('MyCars Module', () => {
      
      // Expect maintenance section (it's called "Manutenção e Revisões" inside CarRevisionTable usually)
      // Let's check for "Kilometragem" or similar table headers
-     await expect(page.locator('text=KM')).toBeVisible();
+     await expect(page.locator('text=KM').first()).toBeVisible();
   });
 });

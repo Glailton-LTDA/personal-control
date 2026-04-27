@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Viagens - Checklists (TODOs)', () => {
+  /** Desbloqueia o app com a senha mestre padrão para testes. */
+  async function unlockApp(page) {
+    const unlockModal = page.getByText('Acesso Seguro');
+    if (await unlockModal.isVisible()) {
+      await page.getByTestId('master-password-input').fill('password123');
+      await page.getByRole('button', { name: 'Desbloquear Dados' }).click();
+      await expect(unlockModal).not.toBeVisible({ timeout: 10000 });
+    }
+  }
+
   test.beforeEach(async ({ page }) => {
 
     // Mock Auth (Simplified to match debug script)
@@ -80,17 +90,21 @@ test.describe('Viagens - Checklists (TODOs)', () => {
       }
     });
 
+    await page.addInitScript(() => {
+      window.localStorage.setItem('pc_e2e_test', 'true');
+    });
     await page.goto('/');
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.locator('input[type="email"]').fill('test@example.com');
     await page.locator('input[type="password"]').fill('password123');
     await page.getByRole('button', { name: /entrar/i }).click();
 
-    // Aguardar o Dashboard (Sidebar) carregar via DOM
+    // Aguardar o Dashboard (Sidebar) carregar via DOM e desbloquear
     await page.waitForFunction(() => !!document.querySelector('aside'), { timeout: 20000 });
+    await unlockApp(page);
 
     // Navegação para Viagens
-    await page.getByRole('button', { name: /minhas viagens/i }).click();
+    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
   });
 
   test('deve criar uma nova lista e adicionar itens', async ({ page }) => {

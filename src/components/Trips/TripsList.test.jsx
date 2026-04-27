@@ -38,8 +38,8 @@ describe('TripsList', () => {
 
   it('renders expense cards with text buttons on mobile', async () => {
     // Mock mobile width
-    global.innerWidth = 400;
-    global.dispatchEvent(new Event('resize'));
+    window.innerWidth = 400;
+    window.dispatchEvent(new Event('resize'));
 
     const mockExpenses = [
       { id: 'exp-1', description: 'Almoço', amount: 50, date: '2026-04-01', paid_by: 'João', currency: 'BRL' }
@@ -76,8 +76,8 @@ describe('TripsList', () => {
 
   it('renders icon-only buttons on desktop', async () => {
     // Mock desktop width
-    global.innerWidth = 1024;
-    global.dispatchEvent(new Event('resize'));
+    window.innerWidth = 1024;
+    window.dispatchEvent(new Event('resize'));
 
     const mockExpenses = [
       { id: 'exp-1', description: 'Almoço', amount: 50, date: '2026-04-01', paid_by: 'João', currency: 'BRL' }

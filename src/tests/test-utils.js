@@ -22,11 +22,6 @@ export const createSupabaseMock = (dataOverrides = {}) => {
     }),
   };
 
-  // Helper to make a method return a resolved promise
-  const resolveWith = (data, error = null) => {
-    return vi.fn().mockResolvedValue({ data, error });
-  };
-
   const mock = {
     from: vi.fn((table) => {
       const tableChain = { ...chain };

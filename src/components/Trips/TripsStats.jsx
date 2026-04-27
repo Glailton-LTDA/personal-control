@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { 
   Globe, Map, MapPin, Compass, Award, 
   Calendar, DollarSign, ArrowLeft, TrendingUp,
@@ -91,7 +91,7 @@ export default function TripsStats({ trips, onBack }) {
         marginBottom: '2.5rem'
       }}>
         {cards.map((card, idx) => (
-          <motion.div
+          <Motion.div
             key={card.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -134,7 +134,7 @@ export default function TripsStats({ trips, onBack }) {
             }}>
               <card.icon size={80} />
             </div>
-          </motion.div>
+          </Motion.div>
         ))}
       </div>
 

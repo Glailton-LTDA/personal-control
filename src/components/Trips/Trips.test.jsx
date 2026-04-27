@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import Trips from './Trips';
 
 // Mock child components to keep tests focused on orchestration
@@ -35,39 +36,48 @@ vi.mock('./TripForm', () => ({
 describe('Trips Component', () => {
   const mockUser = { id: 'user-123' };
 
-  it('renders TripsList by default (mode="list")', () => {
+  it('renders TripsList by default (mode="list")', async () => {
     render(<Trips user={mockUser} mode="list" />);
-    expect(screen.getByTestId('trips-list')).toBeInTheDocument();
+    expect(await screen.findByTestId('trips-list')).toBeInTheDocument();
   });
 
-  it('switches to itinerary view when mode="itinerary"', () => {
+  it('switches to itinerary view when mode="itinerary"', async () => {
     render(<Trips user={mockUser} mode="itinerary" />);
-    expect(screen.getByTestId('trips-itinerary')).toBeInTheDocument();
+    expect(await screen.findByTestId('trips-itinerary')).toBeInTheDocument();
   });
 
-  it('switches to settings view when mode="settings"', () => {
+  it('switches to settings view when mode="settings"', async () => {
     render(<Trips user={mockUser} mode="settings" />);
-    expect(screen.getByTestId('trips-settings')).toBeInTheDocument();
+    expect(await screen.findByTestId('trips-settings')).toBeInTheDocument();
   });
 
-  it('switches to form view internally when onEditTrip is called', () => {
+  it('switches to form view internally when onEditTrip is called', async () => {
+    const user = userEvent.setup();
     render(<Trips user={mockUser} mode="list" />);
-    fireEvent.click(screen.getByText('Edit Trip'));
-    expect(screen.getByTestId('trip-form')).toBeInTheDocument();
+    
+    const editBtn = await screen.findByText('Edit Trip');
+    await user.click(editBtn);
+    
+    expect(await screen.findByTestId('trip-form')).toBeInTheDocument();
   });
 
-  it('dispatches set-active-tab event when backing out of itinerary', () => {
+  it('dispatches set-active-tab event when backing out of itinerary', async () => {
+    const user = userEvent.setup();
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     render(<Trips user={mockUser} mode="itinerary" />);
     
-    fireEvent.click(screen.getByText('Back to List'));
+    const backBtn = await screen.findByText('Back to List');
+    await user.click(backBtn);
     
-    expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'set-active-tab',
-        detail: { tab: 'trips-list' }
-      })
-    );
-    expect(screen.getByTestId('trips-list')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'set-active-tab',
+          detail: { tab: 'trips-list' }
+        })
+      );
+    });
+    
+    expect(await screen.findByTestId('trips-list')).toBeInTheDocument();
   });
 });

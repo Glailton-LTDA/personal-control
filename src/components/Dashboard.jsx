@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -21,6 +21,8 @@ import {
   EyeOff,
   Calendar,
   Globe,
+  PieChart,
+  ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -34,9 +36,9 @@ import Trips from './Trips/Trips';
 
 const defaultMenuItems = [
   { id: 'finances', icon: LayoutDashboard, label: 'Finanças' },
+  { id: 'cars', icon: Car, label: 'Carros' },
   { id: 'investments', icon: TrendingUp, label: 'Investimentos' },
-  { id: 'trips', icon: Plane, label: 'Viagens' },
-  { id: 'cars', icon: Car, label: 'Meus Carros' },
+  { id: 'trips', icon: Plane, label: 'Minhas Viagens' },
   { id: 'settings', icon: Settings, label: 'Configurações' },
 ];
 
@@ -47,22 +49,23 @@ const moduleSubItems = {
     { tab: 'finances-settings', icon: Settings, label: 'Ajustes' },
   ],
   cars: [
-    { tab: 'cars-list', icon: Car, label: 'Carros' },
-    { tab: 'cars-settings', icon: Wrench, label: 'Ajustes' },
+    { tab: 'cars-list', icon: Car, label: 'Meus Carros' },
+    { tab: 'cars-settings', icon: Settings, label: 'Ajustes' }
   ],
   investments: [
-    { tab: 'investments-dashboard', icon: TrendingUp, label: 'Dashboard' },
-    { tab: 'investments-list', icon: BarChart2, label: 'Planilha de Investimentos' },
-    { tab: 'investments-settings', icon: Settings, label: 'Ajustes' },
+    { tab: 'investments-dashboard', icon: BarChart2, label: 'Dashboard' },
+    { tab: 'investments-list', icon: TrendingUp, label: 'Planilha de Investimentos' },
+    { tab: 'investments-settings', icon: Settings, label: 'Ajustes' }
   ],
   trips: [
-    { tab: 'trips-list', icon: Plane, label: 'Minhas Viagens' },
+    { tab: 'trips-list', icon: Globe, label: 'Listagem' },
     { tab: 'trips-itinerary', icon: Calendar, label: 'Roteiros' },
-    { tab: 'trips-stats', icon: Globe, label: 'Minha Jornada' },
-    { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' },
+    { tab: 'trips-stats', icon: PieChart, label: 'Minha Jornada' },
+    { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' }
   ],
   settings: [
-    { tab: 'settings', icon: Settings, label: 'Geral' }
+    { tab: 'settings-general', icon: Settings, label: 'Geral' },
+    { tab: 'settings-security', icon: ShieldCheck, label: 'Segurança' }
   ]
 };
 
@@ -77,11 +80,14 @@ export default function Dashboard({ user }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [theme, setTheme] = useState('dark');
   const [invitationCount, setInvitationCount] = useState(0);
-  const [expandedSections, setExpandedSections] = useState({
-    finances: true,
-    cars: true,
-    investments: true,
-    trips: true,
+  const [expandedSections, setExpandedSections] = useState(() => {
+    return {
+      finances: true,
+      cars: false,
+      investments: false,
+      trips: false,
+      settings: false,
+    };
   });
   const [showValues, setShowValues] = useState(() => {
     const saved = localStorage.getItem('personal-control-show-values');
@@ -117,26 +123,23 @@ export default function Dashboard({ user }) {
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
 
   const toggleSection = (section) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    const isExpanding = !expandedSections[section];
+    setExpandedSections(prev => ({ ...prev, [section]: isExpanding }));
+    
+    if (isExpanding) {
+      const subItems = moduleSubItems[section] || [];
+      if (subItems.length > 0) {
+        setActiveTab(subItems[0].tab);
+      }
+    }
   };
-
-  useEffect(() => {
-    localStorage.setItem('personal-control-active-tab', activeTab);
-  }, [activeTab]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  useEffect(() => {
-    if (user) {
-      fetchInvitations();
-      fetchMenuOrder();
-    }
-  }, [user, refreshKey]);
-
-  async function fetchMenuOrder() {
-    const { data, error } = await supabase
+  const fetchMenuOrder = useCallback(async () => {
+    const { data } = await supabase
       .from('notification_settings')
       .select('menu_order')
       .single();
@@ -144,16 +147,24 @@ export default function Dashboard({ user }) {
     if (data?.menu_order) {
       setMenuOrder(data.menu_order);
     }
-  }
+  }, []);
 
-  async function fetchInvitations() {
+  const fetchInvitations = useCallback(async () => {
+    if (!user) return;
     const { count } = await supabase
       .from('car_shares')
       .select('*', { count: 'exact', head: true })
       .eq('shared_with_email', user.email)
       .eq('status', 'PENDING');
     setInvitationCount(count || 0);
-  }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchInvitations();
+      fetchMenuOrder();
+    }
+  }, [user, refreshKey, fetchInvitations, fetchMenuOrder]);
 
   // Close drawer when clicking outside
   useEffect(() => {
@@ -223,43 +234,50 @@ export default function Dashboard({ user }) {
           return (
             <div key={module.id} className="sidebar-group" style={{ marginTop: idx === 0 ? 0 : '1rem' }}>
               {!collapsed && (
-                <div
+                <button
+                  type="button"
                   data-testid={`sidebar-group-${module.id}`}
+                  aria-label={module.label}
                   onClick={() => toggleSection(module.id)}
+                  className="sidebar-group-header"
                   style={{
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '0 1rem',
+                    padding: '0.5rem 1rem',
                     marginBottom: '0.5rem',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
                     color: 'var(--text-muted)',
+                    borderRadius: '8px',
+                    transition: 'var(--transition)'
                   }}
                 >
-                  <small style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>{module.label}</small>
-                  <motion.div animate={{ rotate: isExpanded ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <module.icon size={18} />
+                    <small style={{ fontSize: '0.85rem', fontWeight: 600 }}>{module.label}</small>
+                  </div>
+                  <Motion.div animate={{ rotate: isExpanded ? 0 : -90 }} transition={{ duration: 0.2 }}>
                     <ChevronDown size={14} />
-                  </motion.div>
-                </div>
+                  </Motion.div>
+                </button>
               )}
               <AnimatePresence initial={false}>
                 {(isExpanded || collapsed) && (
-                  <motion.div
-                    initial={false}
+                  <Motion.div
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                     style={{ overflow: 'hidden' }}
                   >
-                    {subItems.map(({ tab, icon: Icon, label }) => (
-                      <button key={tab} onClick={() => onNavigate(tab)} title={label}
-                        style={{ ...navBtnStyle(tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+                    {subItems.map((item) => (
+                      <button key={item.tab} onClick={() => onNavigate(item.tab)} title={item.label}
+                        style={{ ...navBtnStyle(item.tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
                         <div style={{ position: 'relative' }}>
-                          <Icon size={20} />
-                          {tab === 'cars-list' && invitationCount > 0 && (
+                          <item.icon size={20} />
+                          {item.tab === 'cars-list' && invitationCount > 0 && (
                             <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
                               {invitationCount}
                             </span>
@@ -267,13 +285,13 @@ export default function Dashboard({ user }) {
                         </div>
                         {!collapsed && (
                           <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {label}
-                            {tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
+                            {item.label}
+                            {item.tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
                           </span>
                         )}
                       </button>
                     ))}
-                  </motion.div>
+                  </Motion.div>
                 )}
               </AnimatePresence>
             </div>
@@ -337,7 +355,7 @@ export default function Dashboard({ user }) {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)', width: '100%', overflowX: 'hidden', position: 'relative' }}>
 
       {/* ── Desktop Sidebar ── */}
-      <motion.aside
+      <Motion.aside
         animate={{ width: isSidebarOpen ? 260 : 80 }}
         className="glass-card"
         style={{ margin: '1rem', height: 'calc(100vh - 2rem)', position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', zIndex: 50 }}
@@ -354,12 +372,12 @@ export default function Dashboard({ user }) {
           </button>
         </div>
         <SidebarContent collapsed={!isSidebarOpen} onNavigate={navigate} />
-      </motion.aside>
+      </Motion.aside>
 
       {/* ── Mobile Drawer Overlay ── */}
       <AnimatePresence>
         {isDrawerOpen && (
-          <motion.div
+          <Motion.div
             key="overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -372,7 +390,7 @@ export default function Dashboard({ user }) {
 
       <AnimatePresence>
         {isDrawerOpen && (
-          <motion.div
+          <Motion.div
             key="drawer"
             ref={drawerRef}
             initial={{ x: -300 }}
@@ -401,7 +419,7 @@ export default function Dashboard({ user }) {
 
 
             <SidebarContent collapsed={false} onNavigate={(tab) => { navigate(tab); setDrawerOpen(false); }} />
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
 
@@ -418,16 +436,18 @@ export default function Dashboard({ user }) {
               <Menu size={24} />
             </button>
             <div>
-              <h2 style={{ fontSize: '1.5rem' }}>
+              <h2 data-testid="header-title" style={{ fontSize: '1.5rem' }}>
                 {activeTab === 'cars-list' ? 'Meus Carros' :
-                  activeTab === 'cars-settings' ? 'Configurações da Frota' :
-                    activeTab === 'investments-dashboard' ? 'Dashboard de Investimentos' :
-                      activeTab === 'investments-list' ? 'Planilha de Investimentos' :
-                        activeTab === 'investments-settings' ? 'Ajustes de Investimentos' :
-                          activeTab === 'trips-list' ? 'Minhas Viagens' :
-                            activeTab === 'trips-settings' ? 'Ajustes de Viagens' :
-                              menuItems.find(i => i.id === activeTab)?.label ||
-                              menuItems.find(i => i.id === (String(activeTab || '').split('-')[0]))?.label || 'Dashboard'}
+                 activeTab === 'cars-settings' ? 'Configurações da Frota' :
+                 activeTab === 'investments-dashboard' ? 'Dashboard de Investimentos' :
+                 activeTab === 'investments-list' ? 'Planilha de Investimentos' :
+                 activeTab === 'investments-settings' ? 'Ajustes de Investimentos' :
+                 activeTab === 'trips-list' ? 'Minhas Viagens' :
+                 activeTab === 'trips-itinerary' ? 'Roteiros' :
+                 activeTab === 'trips-stats' ? 'Minha Jornada' :
+                 activeTab === 'trips-settings' ? 'Ajustes de Viagens' :
+                 menuItems.find(i => i.id === activeTab)?.label ||
+                 menuItems.find(i => i.id === (String(activeTab || '').split('-')[0]))?.label || 'Dashboard'}
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gerencie seus dados aqui</p>
             </div>
@@ -442,8 +462,8 @@ export default function Dashboard({ user }) {
           </div>
         </header>
 
-        <AnimatePresence mode="wait">
-          <motion.div
+        <AnimatePresence>
+          <Motion.div
             key={activeTab + refreshKey}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -463,7 +483,7 @@ export default function Dashboard({ user }) {
             {activeTab === 'app-menu' && (
               <AppMenuGrid onNavigate={(tab) => setActiveTab(tab)} menuItems={menuItems} onLogout={() => supabase.auth.signOut()} />
             )}
-            {activeTab === 'settings' && <SettingsView user={user} menuOrder={menuOrder} setMenuOrder={setMenuOrder} menuItems={defaultMenuItems} />}
+            {activeTab.startsWith('settings') && <SettingsView user={user} menuOrder={menuOrder} setMenuOrder={setMenuOrder} menuItems={defaultMenuItems} />}
             {activeTab.startsWith('cars') && (
               <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
             )}
@@ -476,7 +496,7 @@ export default function Dashboard({ user }) {
             {activeTab !== 'finances-transactions' &&
               activeTab !== 'finances-dashboard' &&
               activeTab !== 'finances-settings' &&
-              activeTab !== 'settings' &&
+              !activeTab.startsWith('settings') &&
               activeTab !== 'app-menu' &&
               !activeTab.startsWith('cars') &&
               !activeTab.startsWith('trips') &&
@@ -485,14 +505,14 @@ export default function Dashboard({ user }) {
                   <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>
                 </div>
               )}
-          </motion.div>
+          </Motion.div>
         </AnimatePresence>
       </main>
 
       {/* ── Contextual FAB ── */}
       <AnimatePresence>
         {(activeTab.includes('finance') || activeTab === 'cars-list') && (
-          <motion.button
+          <Motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
@@ -509,7 +529,7 @@ export default function Dashboard({ user }) {
             title={activeTab.includes('finance') ? "Nova Transação" : "Novo Carro"}
           >
             <Plus size={32} />
-          </motion.button>
+          </Motion.button>
         )}
       </AnimatePresence>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
@@ -29,50 +29,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
 
   const years = [2024, 2025, 2026];
 
-  useEffect(() => {
-    fetchData();
-  }, [isGeneral, month, selectedYear, refreshKey]);
-
-  async function fetchData() {
-    setLoading(true);
-    
-    // Get main responsible name for this user's project
-    const { data: mainResp } = await supabase
-      .from('finance_responsibles')
-      .select('name')
-      .eq('user_id', user?.id)
-      .eq('is_main', true)
-      .maybeSingle();
-    
-    const mainName = mainResp?.name;
-
-    let query = supabase.from('finances').select('*').eq('user_id', user?.id);
-
-    if (isGeneral) {
-      const startOfYear = `${selectedYear}-01-01`;
-      const endOfYear = `${selectedYear}-12-31`;
-      query = query.gte('payment_date', startOfYear).lte('payment_date', endOfYear);
-    } else if (month !== undefined) {
-      const monthStr = String(month + 1).padStart(2, '0');
-      const lastDayDate = new Date(selectedYear, month + 1, 0).getDate();
-      const start = `${selectedYear}-${monthStr}-01`;
-      const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
-      query = query.gte('payment_date', start).lte('payment_date', end);
-    }
-
-    if (mainName) {
-      query = query.eq('paid_by', mainName);
-    }
-
-    const { data: finances, error } = await query;
-
-    if (finances) {
-      processCharts(finances);
-    }
-    setLoading(false);
-  }
-
-  function processCharts(finances) {
+  const processCharts = useCallback((finances) => {
     const monthsMap = new Map();
     const incomeCategoriesMap = {};
     const expenseCategoriesMap = {};
@@ -128,7 +85,50 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })));
     setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })));
     setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
-  }
+  }, [isGeneral]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    
+    // Get main responsible name for this user's project
+    const { data: mainResp } = await supabase
+      .from('finance_responsibles')
+      .select('name')
+      .eq('user_id', user?.id)
+      .eq('is_main', true)
+      .maybeSingle();
+    
+    const mainName = mainResp?.name;
+
+    let query = supabase.from('finances').select('*').eq('user_id', user?.id);
+
+    if (isGeneral) {
+      const startOfYear = `${selectedYear}-01-01`;
+      const endOfYear = `${selectedYear}-12-31`;
+      query = query.gte('payment_date', startOfYear).lte('payment_date', endOfYear);
+    } else if (month !== undefined) {
+      const monthStr = String(month + 1).padStart(2, '0');
+      const lastDayDate = new Date(selectedYear, month + 1, 0).getDate();
+      const start = `${selectedYear}-${monthStr}-01`;
+      const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
+      query = query.gte('payment_date', start).lte('payment_date', end);
+    }
+
+    if (mainName) {
+      query = query.eq('paid_by', mainName);
+    }
+
+    const { data: finances } = await query;
+
+    if (finances) {
+      processCharts(finances);
+    }
+    setLoading(false);
+  }, [isGeneral, month, selectedYear, user?.id, processCharts]);
+
+  useEffect(() => {
+    fetchData();
+  }, [isGeneral, month, selectedYear, refreshKey, fetchData]);
 
   const formatValue = (val) => {
     if (!showValues) return 'R$ ••••••';

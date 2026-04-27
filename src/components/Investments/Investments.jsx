@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import InvestmentDashboard from './InvestmentDashboard';
 import InvestmentList from './InvestmentList';
 import InvestmentSettings from './InvestmentSettings';
-import { supabase } from '../../lib/supabase';
 
 export default function Investments({ user, refreshKey, mode, showValues = true }) {
   const [key, setKey] = useState(0);

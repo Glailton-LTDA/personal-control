@@ -26,7 +26,7 @@ vi.mock('framer-motion', () => ({
     get: (target, prop) => {
       return ({ children, ...props }) => {
         const Tag = prop;
-        const { animate, initial, exit, transition, whileHover, whileTap, layout, ...domProps } = props;
+        const { _animate, _initial, _exit, _transition, _whileHover, _whileTap, _layout, ...domProps } = props;
         return <Tag {...domProps}>{children}</Tag>;
       };
     }
@@ -36,7 +36,7 @@ vi.mock('framer-motion', () => ({
 
 // Mock Lucide React
 vi.mock('lucide-react', () => {
-  const mockIcon = (name) => ({ size, color, ...props }) => <div data-testid={`icon-${name}`} {...props} />;
+  const mockIcon = (name) => ({ ...props }) => <div data-testid={`icon-${name}`} {...props} />;
   return {
     LayoutDashboard: mockIcon('layout-dashboard'),
     TrendingUp: mockIcon('trending-up'),
@@ -58,6 +58,8 @@ vi.mock('lucide-react', () => {
     EyeOff: mockIcon('eye-off'),
     Calendar: mockIcon('calendar'),
     Globe: mockIcon('globe'),
+    PieChart: mockIcon('pie-chart'),
+    ShieldCheck: mockIcon('shield-check'),
   };
 });
 

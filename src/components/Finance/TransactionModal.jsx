@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Calendar, Tag, DollarSign, User, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TransactionModal({ isOpen, onClose, onRefresh, user, initialData = null }) {
   const [formData, setFormData] = useState({
@@ -17,42 +17,58 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
   const [categories, setCategories] = useState([]);
   const [responsibles, setResponsibles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { encryptObject, decryptObject } = useEncryption();
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        ...initialData,
-        payment_date: initialData.payment_date // Atribuir diretamente a string do banco
-      });
-    } else {
-      setFormData({
-        description: '',
-        amount: '',
-        payment_date: new Date().toLocaleDateString('en-CA'),
-        type: 'DESPESA',
-        category: '',
-        paid_by: '',
-        status: 'PENDENTE'
-      });
+    async function setup() {
+      if (initialData) {
+        const decrypted = await decryptObject(initialData, ['description', 'category', 'paid_by']);
+        setFormData({
+          ...decrypted,
+          payment_date: initialData.payment_date
+        });
+      } else {
+        setFormData({
+          description: '',
+          amount: '',
+          payment_date: new Date().toLocaleDateString('en-CA'),
+          type: 'DESPESA',
+          category: '',
+          paid_by: '',
+          status: 'PENDENTE'
+        });
+      }
+      async function fetchOptions() {
+        const { data: catData } = await supabase.from('finance_categories').select('name, type');
+        const { data: respData } = await supabase.from('finance_responsibles').select('name');
+        
+        if (catData) {
+          const decryptedCats = await decryptObject(catData, ['name']);
+          setCategories(decryptedCats);
+        }
+        if (respData) {
+          const decryptedResps = await decryptObject(respData, ['name']);
+          setResponsibles(decryptedResps);
+        }
+      }
+      
+      fetchOptions();
     }
-    fetchOptions();
-  }, [initialData, isOpen]);
+    setup();
+  }, [initialData, isOpen, decryptObject]);
 
-  async function fetchOptions() {
-    const { data: catData } = await supabase.from('finance_categories').select('name, type');
-    const { data: respData } = await supabase.from('finance_responsibles').select('name');
-    if (catData) setCategories(catData);
-    if (respData) setResponsibles(respData);
-  }
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    const encryptedData = await encryptObject(formData, ['description', 'category', 'paid_by']);
+
     if (initialData?.id) {
       // Edit
       const { error } = await supabase.from('finances')
-        .update({ ...formData })
+        .update({ ...encryptedData })
         .eq('id', initialData.id);
       if (!error) {
         onRefresh();
@@ -61,7 +77,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
     } else {
       // Create
       const { error } = await supabase.from('finances').insert([
-        { ...formData, user_id: user.id }
+        { ...encryptedData, user_id: user.id }
       ]);
       if (!error) {
         onRefresh();

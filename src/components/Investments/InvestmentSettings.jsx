@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Edit2, Save, X, Palette } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function InvestmentSettings({ user }) {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const { encryptObject, decryptObject } = useEncryption();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -17,11 +19,7 @@ export default function InvestmentSettings({ user }) {
     color: '#6366f1'
   });
 
-  useEffect(() => {
-    fetchAccounts();
-  }, [user]);
-
-  async function fetchAccounts() {
+  const fetchAccounts = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('investment_accounts')
@@ -29,19 +27,27 @@ export default function InvestmentSettings({ user }) {
       .order('institution', { ascending: true })
       .order('name', { ascending: true });
     
-    if (!error) setAccounts(data);
+    if (!error && data) {
+      const decrypted = await decryptObject(data, ['name', 'institution']);
+      setAccounts(decrypted);
+    }
     setLoading(false);
-  }
+  }, [decryptObject]);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [user, fetchAccounts]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (editingId) {
+      const encrypted = await encryptObject(formData, ['name', 'institution']);
       const { error } = await supabase
         .from('investment_accounts')
         .update({
-          name: formData.name,
-          institution: formData.institution,
-          color: formData.color
+          name: encrypted.name,
+          institution: encrypted.institution,
+          color: encrypted.color
         })
         .eq('id', editingId);
       
@@ -52,10 +58,11 @@ export default function InvestmentSettings({ user }) {
         fetchAccounts();
       }
     } else {
+      const encrypted = await encryptObject(formData, ['name', 'institution']);
       const { error } = await supabase
         .from('investment_accounts')
         .insert([{
-          ...formData,
+          ...encrypted,
           user_id: user.id
         }]);
       

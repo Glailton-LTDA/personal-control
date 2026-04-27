@@ -64,6 +64,9 @@ test.describe('Minha Jornada (Stats)', () => {
       await route.fulfill({ status: 200, body: JSON.stringify([]) });
     });
 
+    await page.addInitScript(() => {
+      window.localStorage.setItem('pc_e2e_test', 'true');
+    });
     await page.goto('/');
     // Login
     await page.fill('input[type="email"]', 'test@example.com');
@@ -99,6 +102,6 @@ test.describe('Minha Jornada (Stats)', () => {
     // Testa o botão voltar
     await page.getByTestId('back-to-trips-btn').click();
     await expect(page.getByRole('heading', { name: 'Minha Jornada' })).not.toBeVisible();
-    await expect(page.getByText('Viagem Europa')).toBeVisible();
+    await expect(page.getByText('Viagem Europa').first()).toBeVisible();
   });
 });

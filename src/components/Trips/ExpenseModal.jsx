@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { X, Save, DollarSign, Calendar, Tag, Users, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const [categories, setCategories] = useState(initialCategories || []);
+  const { encryptObject, decryptObject } = useEncryption();
   const formatDateToDisplay = (dateStr) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
@@ -67,15 +69,18 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     : ['Glailton', 'Deisianne'];
 
   useEffect(() => {
+    async function fetchCategories() {
+      const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
+      if (data) {
+        const decrypted = await decryptObject(data, ['name']);
+        setCategories(decrypted);
+      }
+    }
+
     if (!initialCategories || initialCategories.length === 0) {
       fetchCategories();
     }
-  }, []);
-
-  async function fetchCategories() {
-    const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
-    if (data) setCategories(data);
-  }
+  }, [initialCategories, user.id, decryptObject]);
 
   const handleDateChange = (e) => {
     const val = e.target.value.replace(/\D/g, '');
@@ -135,14 +140,16 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       return;
     }
 
+    const encrypted = await encryptObject(formData, ['description', 'paid_by']);
+    
     const payload = {
       user_id: user.id,
       trip_id: trip.id,
-      description: formData.description,
+      description: encrypted.description,
       amount: parseFloat(formData.amount),
       currency: formData.currency,
       date: isoDate,
-      paid_by: formData.paid_by,
+      paid_by: encrypted.paid_by,
       category_id: formData.category_id || null,
       receipt_url: formData.receipt_url
     };

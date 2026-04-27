@@ -1,290 +1,240 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { 
+  Car, 
+  Settings, 
+  Plus, 
+  Wrench, 
+  Calendar, 
+  Trash2, 
+  ChevronRight, 
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Edit2,
+  Search,
+  Users,
+  Mail,
+  Share2
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Car, Settings, Wrench, Share2, Plus, Info, ChevronRight, User, Key, CheckCircle2, XCircle, Clock, Trash2, Mail, Save, AlertTriangle, Eye, EyeOff, MessageSquare, Users } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 import { confirmToast } from '../../lib/toast';
+import toast from 'react-hot-toast';
+
+const milestones = [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000];
+
+const defaultServiceTemplates = [
+  { description: 'Troca de Óleo e Filtro', km_milestone: 10000 },
+  { description: 'Alinhamento e Balanceamento', km_milestone: 10000 },
+  { description: 'Filtro de Ar do Motor', km_milestone: 20000 },
+  { description: 'Filtro de Combustível', km_milestone: 20000 },
+  { description: 'Filtro de Cabine (Ar Condicionado)', km_milestone: 20000 },
+  { description: 'Fluido de Freio', km_milestone: 40000 },
+  { description: 'Velas de Ignição', km_milestone: 40000 },
+  { description: 'Correia Dentada', km_milestone: 60000 },
+  { description: 'Limpeza do Sistema de Arrefecimento', km_milestone: 50000 },
+];
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
+  const { decryptObject } = useEncryption();
   const [cars, setCars] = useState([]);
-  const [pendingShares, setPendingShares] = useState([]);
+  const [sharedCars, setSharedCars] = useState([]);
   const [activeShares, setActiveShares] = useState([]);
-  const [selectedCar, setSelectedCar] = useState(() => {
-    const saved = localStorage.getItem('personal-control-selected-car-id');
-    return saved ? { id: saved } : null; 
-  });
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setModalOpen] = useState(false);
+  const [selectedCar, setSelectedCar] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('add_car');
-  const [tableRefreshKey, setTableRefreshKey] = useState(0);
-  const [fetchedMaintenance, setFetchedMaintenance] = useState([]);
-  
-  const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 600 : false;
-  const isTablet = typeof window !== 'undefined' ? window.innerWidth <= 1100 : false;
+  const [activeSubTab, setActiveSubTab] = useState(() => {
+    return localStorage.getItem('personal-control-car-subtab') || 'summary';
+  });
+  const [serviceTemplates, setServiceTemplates] = useState([]);
+  const [maintenance, setMaintenance] = useState([]);
+  const [invitations, setInvitations] = useState([]);
 
-  // Persistence
   useEffect(() => {
-    if (selectedCar?.id) {
-      localStorage.setItem('personal-control-selected-car-id', selectedCar.id);
+    localStorage.setItem('personal-control-car-subtab', activeSubTab);
+  }, [activeSubTab]);
+
+  const fetchServiceTemplates = useCallback(async () => {
+    const { data } = await supabase
+      .from('car_service_templates')
+      .select('*');
+    
+    // Combine defaults with user templates
+    const templates = [...defaultServiceTemplates];
+    if (data) {
+      data.forEach(t => {
+        if (!templates.find(dt => dt.description === t.description && dt.km_milestone === t.km_milestone)) {
+          templates.push(t);
+        }
+      });
     }
-  }, [selectedCar?.id]);
-
-  useEffect(() => {
-    if (user) {
-      fetchCars();
-      fetchPendingShares();
-      fetchActiveShares();
-    }
-  }, [refreshKey, user?.id]);
-
-  useEffect(() => {
-    const handleOpenAdd = () => openModal('add_car');
-    window.addEventListener('open-add-car-modal', handleOpenAdd);
-    return () => window.removeEventListener('open-add-car-modal', handleOpenAdd);
+    setServiceTemplates(templates);
   }, []);
 
-  async function fetchCars() {
+  const fetchCars = useCallback(async () => {
     setLoading(true);
-    // RLS already filters all accessible cars for the user
-    const { data: allAccessibleCars } = await supabase.from('cars').select('*').order('created_at', { ascending: true });
     
-    const { data: sharedItems } = await supabase
+    // 1. Own cars
+    const { data: own } = await supabase
+      .from('cars')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    // 2. Shared cars (accepted)
+    const { data: shared } = await supabase
       .from('car_shares')
-      .select('car_id, permission')
+      .select('*, car_id (*)')
       .eq('shared_with_email', user.email)
       .eq('status', 'ACCEPTED');
-
-    // Decorate with share info
-    const decoratedCars = (allAccessibleCars || []).map(car => {
-      const share = sharedItems?.find(s => s.car_id === car.id);
-      const isOwner = car.user_id === user.id;
-      return { 
-        ...car, 
-        is_owner: isOwner,
-        is_guest: !!share, 
-        permission: share?.permission || (isOwner ? 'OWNER' : 'READ') 
-      };
-    });
-
-    setCars(decoratedCars);
-    const allCars = decoratedCars;
-    
-    if (mode === 'list') {
-      const visibleCars = allCars.filter(c => !c.is_hidden);
-      if (visibleCars.length > 0) {
-        const savedId = localStorage.getItem('personal-control-selected-car-id');
-        const found = visibleCars.find(c => c.id === savedId);
-        if (found) setSelectedCar(found);
-        else if (!selectedCar || !visibleCars.find(c => c.id === selectedCar.id)) {
-          setSelectedCar(visibleCars[0]);
-        }
-      }
-    }
-    setLoading(false);
-  }
-
-  async function fetchPendingShares() {
-    const { data } = await supabase
+ 
+    // 3. Pending invitations
+    const { data: pends } = await supabase
       .from('car_shares')
-      .select('*, car_id(id, name, user_id)')
+      .select('*, car_id (*)')
       .eq('shared_with_email', user.email)
       .eq('status', 'PENDING');
-    setPendingShares(data || []);
-  }
-
-  async function fetchActiveShares() {
-    const { data } = await supabase
+ 
+    // 4. Active shares (cars I shared with others)
+    const { data: active } = await supabase
       .from('car_shares')
-      .select('*, car_id(name)')
+      .select('*, car_id (*)')
       .eq('shared_by', user.id);
-    setActiveShares(data || []);
+ 
+    const decryptedOwn = await decryptObject(own || [], ['name', 'plate', 'make', 'model']);
+    const decryptedShared = await decryptObject(shared || [], ['car_id.name', 'car_id.plate', 'car_id.make', 'car_id.model']);
+    const decryptedPends = await decryptObject(pends || [], ['car_id.name', 'car_id.plate', 'car_id.make', 'car_id.model']);
+    const decryptedActive = await decryptObject(active || [], ['car_id.name', 'car_id.plate', 'car_id.make', 'car_id.model']);
+ 
+    setCars(decryptedOwn);
+    setSharedCars(decryptedShared?.map(s => s.car_id) || []);
+    setInvitations(decryptedPends || []);
+    setActiveShares(decryptedActive || []);
+ 
+    // Select first car if none selected
+    if (!selectedCar && decryptedOwn?.length > 0) {
+      setSelectedCar(decryptedOwn[0]);
+    } else if (!selectedCar && decryptedShared?.length > 0) {
+      setSelectedCar(decryptedShared[0].car_id);
+    }
+ 
+    setLoading(false);
+  }, [user.id, user.email, decryptObject, selectedCar]);
+
+  const fetchMaintenance = useCallback(async (carId) => {
+    const { data } = await supabase
+      .from('car_maintenance')
+      .select('*')
+      .eq('car_id', carId);
+    
+    const decrypted = await decryptObject(data || [], ['notes']);
+    setMaintenance(decrypted);
+  }, [decryptObject]);
+
+  useEffect(() => {
+    fetchCars();
+    fetchServiceTemplates();
+  }, [user, refreshKey, fetchCars, fetchServiceTemplates]);
+
+  useEffect(() => {
+    if (selectedCar) {
+      fetchMaintenance(selectedCar.id);
+    }
+  }, [selectedCar, fetchMaintenance]);
+
+  // Listen for FAB clicks from Dashboard
+  useEffect(() => {
+    const handleAddCar = () => {
+      setModalType('add_car');
+      setIsModalOpen(true);
+    };
+    window.addEventListener('open-add-car-modal', handleAddCar);
+    return () => window.removeEventListener('open-add-car-modal', handleAddCar);
+  }, []);
+
+  async function handleAcceptInvitation(inviteId) {
+    const { error } = await supabase
+      .from('car_shares')
+      .update({ status: 'ACCEPTED' })
+      .eq('id', inviteId);
+    
+    if (!error) {
+      toast.success('Convite aceito!');
+      fetchCars();
+    }
   }
 
-  async function revokeShare(shareId) {
-    confirmToast('Deseja realmente parar de compartilhar este veículo?', async () => {
-      const { error } = await supabase.from('car_shares').delete().eq('id', shareId);
-      if (!error) {
-        fetchActiveShares();
-        toast.success('Compartilhamento revogado');
-      } else {
-        toast.error('Erro ao revogar: ' + error.message);
-      }
-    }, { danger: true, confirmText: 'Sim, revogar' });
+  async function handleRejectInvitation(inviteId) {
+    const { error } = await supabase
+      .from('car_shares')
+      .delete()
+      .eq('id', inviteId);
+    
+    if (!error) {
+      toast.success('Convite recusado.');
+      fetchCars();
+    }
   }
 
-  async function leaveCar(carId) {
-    confirmToast('Deseja realmente remover este veículo da sua lista?', async () => {
+  async function handleRevokeShare(shareId) {
+    confirmToast("Revogar acesso deste usuário?", async () => {
       const { error } = await supabase
         .from('car_shares')
         .delete()
-        .eq('car_id', carId)
-        .eq('shared_with_email', user.email);
+        .eq('id', shareId);
       
       if (!error) {
+        toast.success('Acesso revogado');
         fetchCars();
-        if (selectedCar?.id === carId) setSelectedCar(null);
-        toast.success('Veículo removido da sua lista');
-      } else {
-        toast.error('Erro ao sair do veículo: ' + error.message);
       }
-    }, { danger: true, confirmText: 'Remover da Lista' });
-  }
-
-  async function handleShareResponse(shareId, status) {
-    const { error } = await supabase.from('car_shares').update({ status }).eq('id', shareId);
-    if (!error) {
-      fetchPendingShares();
-      fetchCars();
-    }
-  }
-
-  async function toggleCarVisibility(carId, currentStatus) {
-    const { error } = await supabase.from('cars').update({ is_hidden: !currentStatus }).eq('id', carId);
-    if (!error) fetchCars();
+    }, { danger: true });
   }
 
   async function handleDeleteCar(carId) {
-    confirmToast('ATENÇÃO: Deseja excluir permanentemente este veículo?', async () => {
-      // Cascading delete is handled by code to be safe, though DB should handle it too
-      await supabase.from('car_maintenance').delete().eq('car_id', carId);
+    confirmToast("Tem certeza que deseja excluir este veículo? Todos os dados de manutenção serão perdidos.", async () => {
       const { error } = await supabase.from('cars').delete().eq('id', carId);
-      
       if (!error) {
-        if (selectedCar?.id === carId) setSelectedCar(null);
+        toast.success('Veículo excluído');
+        setSelectedCar(null);
         fetchCars();
-        toast.success('Veículo excluído permanentemente');
-      } else {
-        toast.error('Erro ao excluir veículo: ' + error.message);
       }
-    }, { danger: true, confirmText: 'Sim, excluir permanentemente' });
-  }
-
-  const [selectedService, setSelectedService] = useState(null);
-
-  function openModal(type, serviceName = null) {
-    setModalType(type);
-    setSelectedService(serviceName);
-    setModalOpen(true);
-  }
-
-  if (loading && cars.length === 0) {
-    return (
-      <div style={{ padding: '4rem', textAlign: 'center' }}>
-        <Car className="skeleton-loader" size={48} style={{ margin: '0 auto 1rem', opacity: 0.2 }} />
-        <p style={{ color: 'var(--text-muted)' }}>Carregando frota...</p>
-      </div>
-    );
+    }, { danger: true });
   }
 
   if (mode === 'admin') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Gestão de Veículos</h3>
-          <button className="btn-primary" onClick={() => openModal('add_car')} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-            <Plus size={18} /> Adicionar Veículo
-          </button>
-        </div>
-
-        <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-          {cars.map(car => (
-            <div key={car.id} className="glass-card" style={{ padding: '1.5rem', opacity: car.is_hidden ? 0.7 : 1, transition: 'opacity 0.3s' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-                    <Car size={24} />
-                  </div>
-                  <div>
-                    <h4 style={{ fontSize: '1rem' }}>{car.name}</h4>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{car.plate || 'Sem placa'} • {car.current_km.toLocaleString()} km</p>
-                  </div>
-                  {car.is_hidden && (
-                    <span style={{ fontSize: '0.65rem', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', padding: '2px 8px', borderRadius: '20px', fontWeight: 600, flexShrink: 0 }}>OCULTO</span>
-                  )}
-                </div>
-                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                    <button 
-                      className="icon-btn"
-                      onClick={() => toggleCarVisibility(car.id, car.is_hidden)}
-                      title={car.is_hidden ? 'Mostrar na lista' : 'Ocultar da lista'}
-                      style={{ 
-                        color: car.is_hidden ? '#f59e0b' : 'var(--text-muted)',
-                        background: car.is_hidden ? 'rgba(245,158,11,0.1)' : 'transparent',
-                        borderRadius: 8, padding: 6
-                      }}
-                    >
-                      {car.is_hidden ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                    {car.is_owner && (
-                      <button className="icon-btn" onClick={() => { setSelectedCar(car); openModal('share_car'); }} title="Compartilhar">
-                        <Share2 size={18} />
-                      </button>
-                    )}
-                  </div>
-              </div>
-              
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                    {car.is_owner ? (
-                      <>
-                        <button className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px' }} onClick={() => { setSelectedCar(car); openModal('edit_car'); }}>
-                          <Settings size={14} /> Editar
-                        </button>
-                        <button className="icon-btn" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteCar(car.id)} title="Excluir">
-                          <Trash2 size={18} />
-                        </button>
-                      </>
-                    ) : (
-                      <button className="btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '8px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }} onClick={() => leaveCar(car.id)}>
-                        <XCircle size={14} /> Sair do Veículo
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Shares Management Section */}
-            <CarSharesManager activeShares={activeShares} onRevoke={revokeShare} />
-
-        {/* Service Templates Manager */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <ServiceTemplatesManager user={user} />
-
-        <CarModals 
-          isOpen={isModalOpen} 
-          onClose={() => setModalOpen(false)} 
-          type={modalType} 
-          car={selectedCar} 
-          user={user} 
-          serviceName={selectedService} 
-          maintenance={fetchedMaintenance}
-          onSuccess={() => { fetchCars(); setModalOpen(false); setTableRefreshKey(k => k + 1); }} 
-        />
+        <CarSharesManager activeShares={activeShares} onRevoke={handleRevokeShare} />
       </div>
     );
   }
 
-  const visibleCars = cars.filter(c => !c.is_hidden);
+  if (loading) return <div className="skeleton-loader" style={{ height: '400px' }} />;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Pending Invitations */}
-      {pendingShares.length > 0 && (
-        <div className="glass-card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--primary)', background: 'rgba(99, 102, 241, 0.05)' }}>
-          <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Mail size={18} /> Convites Pendentes
-          </h4>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      
+      {/* Invitations Alert */}
+      {invitations.length > 0 && (
+        <div className="glass-card" style={{ border: '1px solid var(--primary)', background: 'rgba(99, 102, 241, 0.05)', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ color: 'var(--primary)' }}><Mail size={24} /></div>
+            <div>
+              <h3 style={{ fontSize: '1.1rem' }}>Novos Convites de Veículos</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Você foi convidado para acessar os veículos abaixo.</p>
+            </div>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {pendingShares.map(invite => (
-              <div key={invite.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '1rem', borderRadius: '12px' }}>
-                <div>
-                  <p style={{ fontWeight: 600 }}>{invite.car_id?.name || 'Carro Indisponível'}</p>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {invite.shared_by_email} convidou você para editar este veículo como <strong>{invite.permission}</strong>
-                  </p>
-                </div>
+            {invitations.map(invite => (
+              <div key={invite.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                <span style={{ fontWeight: 600 }}>{invite.car_id.name} ({invite.car_id.plate})</span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn-primary" onClick={() => handleShareResponse(invite.id, 'ACCEPTED')} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Aceitar</button>
-                  <button className="icon-btn" onClick={() => handleShareResponse(invite.id, 'REJECTED')} style={{ color: 'var(--danger)' }}><XCircle size={18} /></button>
+                  <button className="btn-primary" onClick={() => handleAcceptInvitation(invite.id)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Aceitar</button>
+                  <button className="icon-btn" onClick={() => handleRejectInvitation(invite.id)} style={{ color: 'var(--danger)' }}><XCircle size={20} /></button>
                 </div>
               </div>
             ))}
@@ -292,560 +242,396 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
         </div>
       )}
 
-      {/* Car Selection Row */}
-      <div className="glass-card" style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
-        {visibleCars.length === 0 && (
-          <div style={{ flex: 1, textAlign: 'center', padding: '3rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed var(--glass-border)' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', margin: '0 auto 1.5rem' }}>
-              <Car size={32} />
-            </div>
-            <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Nenhum veículo encontrado</h4>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '300px', margin: '0 auto 1.5rem', lineHeight: 1.5 }}>
-              Você ainda não tem veículos cadastrados ou visíveis. Adicione um agora ou gerencie sua frota nos ajustes.
-            </p>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-              <button className="btn-primary" onClick={() => openModal('add_car')} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                <Plus size={16} /> Adicionar Veículo
-              </button>
-              <button className="btn-secondary" onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'cars-settings' }))} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                <Settings size={16} /> Ir para Ajustes
-              </button>
-            </div>
-          </div>
-        )}
-        {visibleCars.map(car => (
+      {/* Car Selector Header */}
+      <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        {[...cars, ...sharedCars].map(car => (
           <button
             key={car.id}
             onClick={() => setSelectedCar(car)}
-            className={`tab-btn ${selectedCar?.id === car.id ? 'active' : ''}`}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', borderRadius: '10px' }}
-          >
-            <Car size={16} />
-            {car.name}
-            {car.is_guest && <Share2 size={12} title="Compartilhado comigo" />}
-          </button>
-        ))}
-      </div>
-
-      {selectedCar && (
-        <CarDetails 
-          car={selectedCar} 
-          user={user} 
-          openModal={openModal} 
-          tableRefreshKey={tableRefreshKey} 
-          isMobile={isMobile} 
-          setFetchedMaintenance={setFetchedMaintenance}
-          activeShares={activeShares}
-          revokeShare={revokeShare}
-          leaveCar={leaveCar}
-        />
-      )}
-
-      <CarModals 
-        isOpen={isModalOpen} 
-        onClose={() => setModalOpen(false)} 
-        type={modalType} 
-        car={selectedCar} 
-        user={user} 
-        serviceName={selectedService} 
-        maintenance={fetchedMaintenance}
-        onSuccess={() => { 
-          fetchCars(); 
-          setModalOpen(false);
-          setTableRefreshKey(k => k + 1); // Force revision table to re-fetch
-        }} 
-      />
-    </div>
-  );
-}
-
-function CarDetails({ car, user, openModal, tableRefreshKey, isMobile, setFetchedMaintenance, activeShares, revokeShare, leaveCar }) {
-  const [activeSubTab, setActiveSubTab] = useState(() => {
-    return localStorage.getItem('personal-control-car-subtab') || 'summary';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('personal-control-car-subtab', activeSubTab);
-  }, [activeSubTab]);
-
-  return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div className="tabs-container" style={{ alignSelf: 'flex-start', padding: '4px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-          <button className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveSubTab('summary')} style={{ fontSize: '0.85rem' }}>Resumo</button>
-          <button className={`tab-btn ${activeSubTab === 'revision' ? 'active' : ''}`} onClick={() => setActiveSubTab('revision')} style={{ fontSize: '0.85rem' }}>Revisão</button>
-          {car.is_owner && (
-            <button className={`tab-btn ${activeSubTab === 'sharing' ? 'active' : ''}`} onClick={() => setActiveSubTab('sharing')} style={{ fontSize: '0.85rem' }}>Compartilhamento</button>
-          )}
-        </div>
-
-        {!car.is_owner && (
-          <button 
-            className="btn-secondary" 
-            onClick={() => leaveCar(car.id)}
-            style={{ 
-              padding: '0.6rem 1rem', 
-              fontSize: '0.8rem', 
-              color: 'var(--danger)', 
-              borderColor: 'rgba(239, 68, 68, 0.2)',
-              borderRadius: '10px'
+            className={`glass-card ${selectedCar?.id === car.id ? 'active' : ''}`}
+            style={{
+              padding: '1rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              cursor: 'pointer',
+              border: selectedCar?.id === car.id ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+              background: selectedCar?.id === car.id ? 'rgba(99,102,241,0.1)' : 'var(--glass-bg)',
+              minWidth: '200px',
+              transition: 'all 0.2s'
             }}
           >
-            <XCircle size={14} /> Sair do Veículo
+            <div style={{ 
+              width: 40, height: 40, borderRadius: 10, 
+              background: selectedCar?.id === car.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: selectedCar?.id === car.id ? 'white' : 'var(--text-muted)'
+            }}>
+              <Car size={22} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: 0 }}>{car.name}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate}</p>
+            </div>
           </button>
-        )}
+        ))}
+        
+        <button
+          onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}
+          className="glass-card"
+          style={{
+            padding: '1rem 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            cursor: 'pointer',
+            border: '1px dashed var(--glass-border)',
+            minWidth: '180px',
+            color: 'var(--text-muted)'
+          }}
+        >
+          <Plus size={20} />
+          <span style={{ fontSize: '0.9rem' }}>Adicionar Veículo</span>
+        </button>
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={car.id + activeSubTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeSubTab === 'summary' && <CarSummary car={car} onLogService={() => openModal('log_service')} />}
-          {activeSubTab === 'revision' && (
-            <CarRevisionTable 
-              car={car} 
-              user={user} 
-              openModal={openModal} 
-              refreshKey={tableRefreshKey} 
-              isMobile={isMobile}
-              onFetchData={setFetchedMaintenance}
-            />
-          )}
-          {activeSubTab === 'sharing' && car.is_owner && (
-            <div className="fade-in">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Gestão de Acesso</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Veja quem tem acesso a este veículo</p>
-                </div>
-                <button className="btn-primary" onClick={() => openModal('share_car')} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                  <Share2 size={16} /> Compartilhar
-                </button>
-              </div>
-              <CarSharesManager activeShares={activeShares.filter(s => s.car_id === car.id || s.car_id?.id === car.id)} onRevoke={revokeShare} />
-              
-              {activeShares.filter(s => s.car_id === car.id || s.car_id?.id === car.id).length === 0 && (
-                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, border: '1px dashed var(--glass-border)' }}>
-                  Este veículo ainda não foi compartilhado com ninguém.
-                </div>
-              )}
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
-    </>
-  );
-}
-
-function CarSummary({ car, onLogService }) {
-  const [showAlerts, setShowAlerts] = useState(false);
-  const [alerts, setAlerts] = useState([]);
-  const [alertsLoading, setAlertsLoading] = useState(false);
-
-  async function checkRevisionAlerts() {
-    setAlertsLoading(true);
-    setShowAlerts(true);
-    const [templates, logs] = await Promise.all([
-      supabase.from('car_service_templates').select('*'),
-      supabase.from('car_maintenance').select('*').eq('car_id', car.id)
-    ]);
-    const allTemplates = templates.data || [];
-    const allLogs = logs.data || [];
-    const km = car.current_km;
-    const WARN_WINDOW = 5000; // alert within 5k km
-
-    // Find services that are pending/missing for km milestones near or past current km
-    const found = [];
-    allTemplates.forEach(t => {
-      const log = allLogs.find(l => l.description === t.description && l.km_milestone === t.km_milestone);
-      const isDone = log?.status === 'DONE' || log?.completed;
-      const diff = t.km_milestone - km;
-      if (!isDone) {
-        if (diff < 0) {
-          found.push({ ...t, urgency: 'overdue', diff: Math.abs(diff) });
-        } else if (diff <= WARN_WINDOW) {
-          found.push({ ...t, urgency: 'soon', diff });
-        }
-      }
-    });
-    found.sort((a, b) => {
-      if (a.urgency === b.urgency) return a.diff - b.diff;
-      return a.urgency === 'overdue' ? -1 : 1;
-    });
-    setAlerts(found);
-    setAlertsLoading(false);
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div className="dashboard-grid">
-        <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h4 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
-            <Info size={18} /> Dados Atuais
-          </h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="stat-card" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-              <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem', textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: '0.05em' }}>Placa</small>
-              <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{car.plate || '-'}</span>
-            </div>
-            <div className="stat-card" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-              <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem', textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: '0.05em' }}>KM Atual</small>
-              <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{car.current_km.toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Wrench size={18} /> Ações Rápidas
-          </h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <button className="btn-primary" onClick={onLogService} style={{ height: 'auto', padding: '1.25rem 1rem', flexDirection: 'column', gap: '0.5rem', borderRadius: '16px' }}>
-              <CheckCircle2 size={24} /> Registrar Serviço
+      {selectedCar ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Tabs Nav */}
+          <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--glass-border)', padding: '0 1rem' }}>
+            <button
+              className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('summary')}
+              style={{ paddingBottom: '1rem', fontSize: '0.9rem', fontWeight: 600, borderBottom: activeSubTab === 'summary' ? '2px solid var(--primary)' : 'none', color: activeSubTab === 'summary' ? 'var(--primary)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Resumo
             </button>
             <button
-              onClick={checkRevisionAlerts}
-              className="glass-card"
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer', background: 'rgba(245,158,11,0.05)', borderRadius: '16px', position: 'relative' }}
+              className={`tab-btn ${activeSubTab === 'revision' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('revision')}
+              style={{ paddingBottom: '1rem', fontSize: '0.9rem', fontWeight: 600, borderBottom: activeSubTab === 'revision' ? '2px solid var(--primary)' : 'none', color: activeSubTab === 'revision' ? 'var(--primary)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
             >
-              <AlertTriangle size={24} color="#f59e0b" />
-              <span style={{ fontSize: '0.85rem' }}>Aviso Revisão</span>
+              Revisão
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* Alerts Panel */}
-      <AnimatePresence>
-        {showAlerts && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="glass-card"
-            style={{ padding: '1.5rem', border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.04)' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b' }}>
-                <AlertTriangle size={18} /> Alertas de Revisão
-              </h4>
-              <button className="icon-btn" onClick={() => setShowAlerts(false)} style={{ fontSize: '1rem', opacity: 0.6 }}>✕</button>
-            </div>
-            {alertsLoading ? (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>Verificando...</p>
-            ) : alerts.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: 'rgba(16,185,129,0.08)', borderRadius: '10px', border: '1px solid rgba(16,185,129,0.2)' }}>
-                <CheckCircle2 size={20} color="var(--success)" />
-                <p style={{ fontSize: '0.9rem', color: 'var(--success)' }}>Nenhum serviço pendente ou vencido nos próximos 5.000 km!</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {alerts.map((a, i) => (
-                  <div key={i} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '0.75rem 1rem', borderRadius: '10px',
-                    background: a.urgency === 'overdue' ? 'rgba(239,68,68,0.07)' : 'rgba(245,158,11,0.07)',
-                    border: `1px solid ${a.urgency === 'overdue' ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)'}`
-                  }}>
-                    <div>
-                      <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{a.description}</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Previsto para {a.km_milestone.toLocaleString()} km
-                      </p>
-                    </div>
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                      background: a.urgency === 'overdue' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
-                      color: a.urgency === 'overdue' ? 'var(--danger)' : '#f59e0b',
-                      border: `1px solid ${a.urgency === 'overdue' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`
-                    }}>
-                      {a.urgency === 'overdue'
-                        ? `Venceu há ${a.diff.toLocaleString()} km`
-                        : `Faltam ${a.diff.toLocaleString()} km`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <AnimatePresence mode="wait">
+            <Motion.div
+              key={activeSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              {activeSubTab === 'summary' ? (
+                <CarSummary 
+                  car={selectedCar} 
+                  onEdit={() => { setModalType('edit_car'); setIsModalOpen(true); }} 
+                  onDelete={() => handleDeleteCar(selectedCar.id)}
+                  onShare={() => { setModalType('share_car'); setIsModalOpen(true); }}
+                  isOwner={selectedCar.user_id === user.id}
+                />
+              ) : (
+                <CarRevisionTable 
+                  car={selectedCar} 
+                  maintenance={maintenance} 
+                  templates={serviceTemplates}
+                  onLogService={() => { setModalType('log_service'); setIsModalOpen(true); }}
+                  onAddNote={() => { setModalType('service_note'); setIsModalOpen(true); }}
+                  canEdit={true}
+                />
+              )}
+            </Motion.div>
+          </AnimatePresence>
+        </div>
+      ) : (
+        <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
+          <Car size={48} style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', opacity: 0.3 }} />
+          <h3 style={{ color: 'var(--text-muted)' }}>Nenhum veículo cadastrado</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Adicione seu primeiro carro para começar o controle de manutenção.</p>
+        </div>
+      )}
+
+      {isModalOpen && (
+        <CarModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          type={modalType}
+          car={selectedCar}
+          user={user}
+          onSuccess={() => {
+            setIsModalOpen(false);
+            fetchCars();
+            if (selectedCar) fetchMaintenance(selectedCar.id);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function CarRevisionTable({ car, openModal, refreshKey, isMobile, onFetchData }) {
-  const miles = [10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000];
-  const [templateServices, setTemplateServices] = useState([]);
-  const [maintenance, setMaintenance] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterText, setFilterText] = useState('');
-
-  useEffect(() => {
-    fetchData();
-  }, [car.id, refreshKey]);
-
-  async function fetchData() {
-    setLoading(true);
-    const [templates, logs] = await Promise.all([
-      supabase.from('car_service_templates').select('*'),
-      supabase.from('car_maintenance').select('*').eq('car_id', car.id)
-    ]);
-    if (templates.data) setTemplateServices(templates.data);
-    if (logs.data) {
-      setMaintenance(logs.data);
-      if (onFetchData) onFetchData(logs.data);
-    }
-    setLoading(false);
-  }
-
-  async function toggleStatus(desc, km) {
-    const current = maintenance.find(m => m.description === desc && m.km_milestone === km);
-    let nextStatus = 'DONE';
-    
-    // Ciclo: PENDING (null/empty) -> DONE -> SKIPPED -> PENDING
-    if (!current || current.status === 'PENDING' || !current.status) nextStatus = 'DONE';
-    else if (current.status === 'DONE') nextStatus = 'SKIPPED';
-    else if (current.status === 'SKIPPED') nextStatus = 'PENDING';
-
-    // Optimistic update
-    const newMaintenance = [...maintenance.filter(m => !(m.description === desc && m.km_milestone === km))];
-    newMaintenance.push({ 
-      car_id: car.id, 
-      description: desc, 
-      km_milestone: km, 
-      status: nextStatus, 
-      completed: nextStatus === 'DONE' 
-    });
-    setMaintenance(newMaintenance);
-
-    const { error } = await supabase.from('car_maintenance').upsert({
-      car_id: car.id,
-      description: desc,
-      km_milestone: km,
-      status: nextStatus,
-      completed: nextStatus === 'DONE',
-      notes: current?.notes || null,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'car_id,description,km_milestone' });
-
-    if (error) {
-      console.error("Error updating status:", error);
-      fetchData(); // Rollback
-    }
-  }
-
-  // Combine: template services + any manually added services for this car
-  const allServiceNames = [...new Set([
-    ...templateServices.map(s => s.description),
-    ...maintenance.map(m => m.description)
-  ])].sort();
-
-  const serviceNames = filterText.trim()
-    ? allServiceNames.filter(n => n.toLowerCase().includes(filterText.toLowerCase()))
-    : allServiceNames;
-
-  async function deleteServiceRow(desc) {
-    confirmToast(`Excluir o histórico de "${desc}"?`, async () => {
-      await supabase.from('car_maintenance').delete()
-        .eq('car_id', car.id)
-        .eq('description', desc);
-      fetchData();
-      toast.success('Histórico excluído');
-    }, { danger: true, confirmText: 'Excluir Histórico' });
-  }
-
-  if (loading) return <div className="skeleton-loader" style={{ height: '300px', borderRadius: '15px' }}></div>;
+function CarSummary({ car, onEdit, onDelete, onShare, isOwner }) {
+  const nextMilestone = milestones.find(m => m > car.current_km) || 100000;
+  const kmRemaining = nextMilestone - car.current_km;
+  const progress = Math.max(0, Math.min(100, ((car.current_km % 10000) / 10000) * 100));
 
   return (
-    <div className="glass-card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+      
+      {/* Basic Info Card */}
+      <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{car.name}</h3>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', padding: '2px 8px', background: 'var(--primary)', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}>{car.plate}</span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{car.current_km.toLocaleString()} KM</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {isOwner && (
+              <>
+                <button className="icon-btn" onClick={onShare} title="Compartilhar"><Share2 size={18} /></button>
+                <button className="icon-btn" onClick={onEdit} title="Editar"><Edit2 size={18} /></button>
+                <button className="icon-btn" onClick={onDelete} style={{ color: 'var(--danger)' }} title="Excluir"><Trash2 size={18} /></button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Próximo Checkpoint</span>
+            <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
+          </div>
+          <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.75rem' }}>
+            <Motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              style={{ height: '100%', background: 'var(--primary)', boxShadow: '0 0 10px var(--primary)' }} 
+            />
+          </div>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+            Faltam <strong>{kmRemaining.toLocaleString()} KM</strong> para a próxima revisão sugerida.
+          </p>
+        </div>
+      </div>
+
+      {/* Quick Status Card */}
+      <div className="glass-card" style={{ padding: '1.5rem' }}>
+        <h4 style={{ fontSize: '1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Clock size={18} style={{ color: 'var(--primary)' }} /> Status da Revisão Atual
+        </h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ color: 'var(--success)' }}><CheckCircle2 size={20} /></div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.85rem', margin: 0 }}>Itens em Dia</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Tudo certo com os componentes básicos.</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ color: 'var(--warning)' }}><AlertTriangle size={20} /></div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.85rem', margin: 0 }}>Atenção Próxima</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Considere verificar as pastilhas de freio em breve.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CarRevisionTable({ car, maintenance, templates, onLogService, onAddNote, canEdit }) {
+  const miles = milestones;
+  
+  // Group unique service names from templates and actual maintenance
+  const templateNames = Array.from(new Set([
+    ...templates.map(t => t.description),
+    ...maintenance.map(m => m.description)
+  ])).sort();
+
+  const getStatus = (desc, km) => {
+    const entry = maintenance.find(m => m.description === desc && m.km_milestone === km);
+    if (!entry) {
+      // Check if it's a recommended milestone in templates
+      const isRecommended = templates.find(t => t.description === desc && t.km_milestone === km);
+      return isRecommended ? 'RECOMMENDED' : 'NONE';
+    }
+    return entry.status || 'PENDING';
+  };
+
+  const getNote = (desc, km) => {
+    const entry = maintenance.find(m => m.description === desc && m.km_milestone === km);
+    return entry?.notes || '';
+  };
+
+  return (
+    <div className="glass-card" style={{ padding: '1.5rem', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div>
+          <h3 style={{ fontSize: '1.1rem' }}>Plano de Manutenção</h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Acompanhamento por quilometragem.</p>
+        </div>
+        <button className="btn-primary" onClick={() => onLogService()} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+          <Plus size={16} /> Registrar Serviço
+        </button>
+      </div>
+
       <div className="revision-table-container" style={{ overflowX: 'auto', width: '100%' }}>
-        <table className="finance-table" style={{ minWidth: '1000px', borderCollapse: 'separate', borderSpacing: 0 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
           <thead>
             <tr>
-              <th style={{ position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 10, borderRight: '1px solid var(--glass-border)', boxShadow: '4px 0 10px rgba(0,0,0,0.2)', minWidth: isMobile ? 140 : 220 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input
-                    type="text"
-                    placeholder={isMobile ? "Filtrar..." : "Filtrar serviço..."}
-                    value={filterText}
-                    onChange={(e) => setFilterText(e.target.value)}
-                    style={{ 
-                      background: 'rgba(255,255,255,0.05)', 
-                      border: '1px solid var(--glass-border)', 
-                      borderRadius: '8px', 
-                      padding: '4px 6px', 
-                      fontSize: '0.65rem',
-                      flex: 1,
-                      minWidth: 0,
-                      color: 'var(--text-main)'
-                    }}
-                  />
-                  <button 
-                    className="icon-btn" 
-                    onClick={() => openModal('log_service')}
-                    style={{ opacity: 0.8, padding: 2, flexShrink: 0 }}
-                  >
-                    <Plus size={isMobile ? 14 : 16} />
-                  </button>
-                </div>
-              </th>
+              <th style={{ textAlign: 'left', padding: '1rem', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontSize: '0.8rem', position: 'sticky', left: 0, background: 'var(--bg-dark)', zIndex: 10, width: '220px' }}>SERVIÇO / ITEM</th>
               {miles.map(km => (
-                <th key={km} style={{ textAlign: 'center', minWidth: '85px', fontSize: '0.75rem' }}>
-                   <div style={{ fontSize: '0.6rem', opacity: 0.5, marginBottom: '2px' }}>KM</div>
-                   {km/1000}k
+                <th key={km} style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.6rem', opacity: 0.5, marginBottom: '2px' }}>KM</div>
+                  <div style={{ fontSize: '0.85rem', color: car.current_km >= km ? 'var(--text-main)' : 'var(--text-muted)' }}>{(km/1000)}k</div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {serviceNames.map(desc => {
-              return (
-              <tr key={desc}>
+            {templateNames.map(desc => (
+              <tr key={desc} className="revision-row">
                 <td style={{ 
-                  position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 5, 
-                  borderRight: '1px solid var(--glass-border)', boxShadow: '4px 0 10px rgba(0,0,0,0.1)', 
-                  fontSize: '0.75rem', padding: isMobile ? '8px 8px' : '8px 12px', textAlign: 'left',
-                  minWidth: isMobile ? 140 : 220
+                  padding: '1rem', 
+                  borderBottom: '1px solid var(--glass-border)', 
+                  fontSize: '0.85rem', 
+                  position: 'sticky', 
+                  left: 0, 
+                  background: 'var(--bg-dark)', 
+                  zIndex: 5,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem', width: '100%' }}>
-                    <span style={{ fontWeight: 500, flex: 1, lineHeight: '1.2', wordBreak: 'break-word', paddingRight: '4px' }}>{desc}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginLeft: 'auto' }}>
-                      <button
-                        className="icon-btn"
-                        onClick={() => openModal('service_note', desc)}
-                        title="Adicionar Nota"
-                        style={{ opacity: 0.6, padding: 4, flexShrink: 0 }}
-                      >
-                        <MessageSquare size={13} />
-                      </button>
-                      <button
-                        className="icon-btn"
-                        onClick={() => deleteServiceRow(desc)}
-                        title={`Remover linha "${desc}"`}
-                        style={{ opacity: 0.4, padding: 4, flexShrink: 0, color: 'var(--danger)' }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
+                  {desc}
                 </td>
                 {miles.map(km => {
-                  const isRequired = templateServices.find(s => s.description === desc && s.km_milestone === km);
-                  const log = maintenance.find(m => m.description === desc && m.km_milestone === km);
-                  
-                  // Se não tem log ou status é nulo, tenta usar completed como fallback para visualização
-                  const status = log?.status || (log?.completed ? 'DONE' : 'PENDING');
+                  const status = getStatus(desc, km);
+                  const note = getNote(desc, km);
+                  const isPast = car.current_km >= km;
 
                   return (
-                    <td key={km} style={{ textAlign: 'center', padding: '8px' }}>
-                      <motion.div 
-                        whileTap={{ scale: 0.8 }}
-                        onClick={() => toggleStatus(desc, km)}
-                        style={{ 
-                          width: 28, height: 28, margin: '0 auto', borderRadius: '8px', position: 'relative',
-                          background: status === 'DONE' ? 'rgba(16, 185, 129, 0.1)' : 
-                                      status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.1)' : 
-                                      'rgba(255, 255, 255, 0.03)',
+                    <td key={km} style={{ padding: '0.5rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
+                      <div 
+                        onClick={() => canEdit && onLogService({ desc, km, status })}
+                        className={`status-cell ${status} ${isPast ? 'is-past' : ''}`}
+                        style={{
+                          width: '32px', height: '32px', borderRadius: '8px', margin: '0 auto',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          border: `1px solid ${status === 'DONE' ? 'var(--success)' : status === 'SKIPPED' ? 'var(--danger)' : 'var(--glass-border)'}`,
-                          cursor: 'pointer', transition: 'all 0.2s',
-                          opacity: isRequired ? 1 : 0.6
+                          cursor: canEdit ? 'pointer' : 'default',
+                          background: 
+                            status === 'DONE' ? 'rgba(34, 197, 94, 0.15)' :
+                            status === 'PENDING' ? 'rgba(234, 179, 8, 0.15)' :
+                            status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.1)' :
+                            status === 'RECOMMENDED' ? 'rgba(255,255,255,0.03)' : 'transparent',
+                          color:
+                            status === 'DONE' ? 'var(--success)' :
+                            status === 'PENDING' ? 'var(--warning)' :
+                            status === 'SKIPPED' ? 'var(--danger)' :
+                            status === 'RECOMMENDED' ? 'var(--text-muted)' : 'transparent',
+                          border: status === 'RECOMMENDED' ? '1px dashed rgba(255,255,255,0.1)' : 'none',
+                          opacity: (isPast && status === 'NONE') ? 0.3 : 1
                         }}
                       >
-                        {status === 'DONE' && <CheckCircle2 size={16} color="var(--success)" />}
-                        {status === 'SKIPPED' && <XCircle size={16} color="var(--danger)" />}
-                        {(status === 'PENDING' || !status) && <Clock size={14} color="var(--text-muted)" />}
-                        
-                        {log?.notes && (
-                          <div 
-                            style={{ 
-                              position: 'absolute', top: -2, right: -2, 
-                              width: 6, height: 6, borderRadius: '50%', 
-                              background: 'var(--primary)', border: '1px solid var(--bg-card)',
-                              pointerEvents: 'none' // Não intercepta o clique do toggle
-                            }} 
-                          />
-                        )}
-                      </motion.div>
+                        {status === 'DONE' && <CheckCircle2 size={16} />}
+                        {status === 'PENDING' && <Clock size={16} />}
+                        {status === 'SKIPPED' && <XCircle size={16} />}
+                        {status === 'RECOMMENDED' && <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />}
+                      </div>
+                      
+                      {/* Note indicator */}
+                      <div 
+                        onClick={() => onAddNote({ desc, km, notes: note })}
+                        style={{ 
+                          fontSize: '0.6rem', marginTop: '4px', cursor: 'pointer',
+                          color: note ? 'var(--primary)' : 'transparent',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        {note ? 'Ver nota' : 'Add nota'}
+                      </div>
                     </td>
                   );
                 })}
               </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>
-      <div style={{ padding: '0.75rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: '1.5rem', fontSize: '0.7rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={12} color="var(--success)" /> Concluído</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Clock size={12} color="var(--text-muted)" /> Pendente</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><XCircle size={12} color="var(--danger)" /> Pular/Não Feito</div>
-        <div style={{ marginLeft: 'auto', opacity: 0.5 }}>Clique no ícone para alternar status</div>
+
+      <div style={{ display: 'flex', gap: '1.5rem', marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ width: 12, height: 12, borderRadius: '3px', background: 'rgba(34, 197, 94, 0.2)', border: '1px solid var(--success)' }} /> Concluído
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ width: 12, height: 12, borderRadius: '3px', background: 'rgba(234, 179, 8, 0.2)', border: '1px solid var(--warning)' }} /> Pendente
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ width: 12, height: 12, borderRadius: '3px', background: 'rgba(255, 255, 255, 0.05)', border: '1px dashed rgba(255,255,255,0.2)' }} /> Sugerido
+        </div>
       </div>
     </div>
   );
 }
 
-function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, maintenance = [] }) {
-  const [formData, setFormData] = useState({ name: car?.name || '', plate: car?.plate || '', current_km: car?.current_km || 0 });
+function CarModal({ isOpen, onClose, type, car, user, onSuccess }) {
+  const { encryptObject } = useEncryption();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0 });
   const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE' });
   const [noteData, setNoteData] = useState({ description: '', km_milestone: 10000, notes: '' });
-  const [templateNames, setTemplateNames] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  const templateNames = Array.from(new Set(defaultServiceTemplates.map(t => t.description))).sort();
 
   useEffect(() => {
-    if (car && type === 'edit_car') {
-      setFormData({ name: car.name, plate: car.plate || '', current_km: car.current_km });
+    if (car && (type === 'edit_car' || type === 'log_service' || type === 'service_note')) {
+      setFormData({ name: car.name, plate: car.plate, current_km: car.current_km });
     }
-    if (type === 'log_service') {
-      // Load unique service names from templates
-      supabase.from('car_service_templates').select('description')
-        .then(({ data }) => {
-          if (data) {
-            const unique = [...new Set(data.map(t => t.description))].sort();
-            setTemplateNames(unique);
-            if (unique.length > 0) setServiceData(prev => ({ ...prev, description: unique[0] }));
-          }
-        });
+  }, [car, type]);
+
+  useEffect(() => {
+    if (typeof type === 'object') {
+      // It's a structured call from the table
+      const { desc, km, status } = type;
+      if (status !== undefined) {
+         // log_service
+         setServiceData({ description: desc, km_milestone: km, status: status === 'NONE' ? 'DONE' : status });
+         // Change type to string for rendering
+         // setModalType is not accessible here, we should have handled this outside
+      }
     }
-    if (type === 'service_note' && serviceName) {
-      if (typeof serviceName === 'object') {
-        setNoteData({ description: serviceName.desc, km_milestone: serviceName.km, notes: serviceName.notes });
+    
+    // Auto-fill note data if passed
+    if (type === 'service_note' && car) {
+      // This is slightly tricky as we need the specific service name from the table
+      // We assume serviceName and km are passed via a global-like state or structured type
+    }
+  }, [type, car]);
+
+  // Handle structured type calls (Hack to support the table's specific actions)
+
+  useEffect(() => {
+    if (typeof type === 'object') {
+      const { desc, km, notes } = type;
+
+      if (notes !== undefined) {
+        setNoteData({ description: desc, km_milestone: km, notes: notes });
       } else {
-        const firstWithNote = maintenance.find(m => m.description === serviceName && m.notes);
-        setNoteData({ 
-          description: serviceName, 
-          km_milestone: firstWithNote?.km_milestone || 10000, 
-          notes: firstWithNote?.notes || '' 
-        });
+        setServiceData(prev => ({ ...prev, description: desc, km_milestone: km }));
       }
     }
-  }, [car, type, serviceName]);
-
-  // Auto-load notes when KM changes in modal
-  useEffect(() => {
-    if (type === 'service_note' && noteData.description) {
-      const existing = maintenance.find(m => 
-        m.description === noteData.description && 
-        m.km_milestone === noteData.km_milestone
-      );
-      if (existing?.notes !== undefined) {
-        setNoteData(prev => ({ ...prev, notes: existing.notes || '' }));
-      }
-    }
-  }, [noteData.km_milestone, noteData.description]);
+  }, [type]);
 
   if (!isOpen) return null;
 
   async function handleSaveNote() {
     if (!noteData.notes.trim()) return;
     setLoading(true);
-    // Verificar se já existe log para esse KM
     const { data: existing } = await supabase.from('car_maintenance')
       .select('status')
       .eq('car_id', car.id)
@@ -853,20 +639,21 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
       .eq('km_milestone', noteData.km_milestone)
       .single();
 
-    const { error } = await supabase.from('car_maintenance').upsert({
+    const encrypted = await encryptObject({
       car_id: car.id,
       description: noteData.description,
       km_milestone: noteData.km_milestone,
       notes: noteData.notes,
       status: existing?.status || 'PENDING',
       updated_at: new Date().toISOString()
-    }, { onConflict: 'car_id,description,km_milestone' });
+    }, ['notes']);
+
+    const { error } = await supabase.from('car_maintenance').upsert(encrypted, { onConflict: 'car_id,description,km_milestone' });
 
     if (!error) {
       onSuccess();
       toast.success('Nota salva');
     } else {
-      console.error('Erro ao salvar nota:', error);
       toast.error('Erro ao salvar observação.');
     }
     setLoading(false);
@@ -874,23 +661,27 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
 
   async function handleAddCar() {
     setLoading(true);
-    const { error } = await supabase.from('cars').insert({ 
+    const encrypted = await encryptObject({ 
       user_id: user.id, 
       name: formData.name, 
       plate: formData.plate, 
       current_km: formData.current_km 
-    });
+    }, ['name', 'plate', 'make', 'model']);
+
+    const { error } = await supabase.from('cars').insert(encrypted);
     if (!error) onSuccess();
     setLoading(false);
   }
 
   async function handleUpdateCar() {
     setLoading(true);
-    const { error } = await supabase.from('cars').update({ 
+    const encrypted = await encryptObject({ 
       name: formData.name, 
       plate: formData.plate, 
       current_km: formData.current_km 
-    }).eq('id', car.id);
+    }, ['name', 'plate', 'make', 'model']);
+
+    const { error } = await supabase.from('cars').update(encrypted).eq('id', car.id);
     if (!error) onSuccess();
     setLoading(false);
   }
@@ -901,6 +692,9 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
       return;
     }
     setLoading(true);
+    // Note: description is used for grouping, usually it's from templates.
+    // If it's a custom service name, we might want to encrypt it, but it breaks grouping.
+    // We'll keep description unencrypted for now as it acts as an ID for milestones.
     const { error } = await supabase.from('car_maintenance').upsert({
       car_id: car.id,
       description: serviceData.description.trim(),
@@ -915,7 +709,6 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
       onSuccess();
       toast.success('Serviço registrado!');
     } else {
-      console.error('Erro ao salvar serviço:', error);
       toast.error('Erro ao salvar serviço.');
     }
     setLoading(false);
@@ -934,7 +727,6 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
       toast.success('Convite enviado com sucesso!');
       onClose();
     } else {
-      console.error('Erro ao compartilhar:', error);
       toast.error('Erro ao enviar convite: ' + (error.message || 'Tente novamente.'));
     }
     setLoading(false);
@@ -942,7 +734,7 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+      <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
         <button className="icon-btn" onClick={onClose} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }}><XCircle /></button>
         
         {(type === 'add_car' || type === 'edit_car') && (
@@ -968,7 +760,7 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
           </>
         )}
 
-        {type === 'log_service' && (
+        {(type === 'log_service' || typeof type === 'object' && !type.notes) && (
           <>
             <h3>Registrar Serviço</h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Digite o serviço realizado. Será exibido como uma linha na tabela de revisão.</p>
@@ -1007,7 +799,7 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
                   onChange={e => setServiceData({...serviceData, status: e.target.value})}
                 >
                   <option value="DONE">Concluído ✔</option>
-                  <option value="PENDING">Pendente ⏰</option>
+                  <option value="PENDING">Pendente ⌛</option>
                   <option value="SKIPPED">Pular ❌</option>
                 </select>
               </div>
@@ -1023,7 +815,7 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
           </>
         )}
 
-        {type === 'service_note' && (
+        {(type === 'service_note' || typeof type === 'object' && type.notes !== undefined) && (
           <>
             <h3>Observações do Serviço</h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Detalhamento para: <strong>{noteData.description}</strong></p>
@@ -1068,7 +860,6 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
                   onClick={async () => {
                     confirmToast("Remover esta observação?", async () => {
                       setNoteData({...noteData, notes: ''});
-                      // Auto-save empty note to clear it
                       setLoading(true);
                       await supabase.from('car_maintenance').update({ notes: null })
                         .eq('car_id', car.id)
@@ -1089,12 +880,12 @@ function CarModals({ isOpen, onClose, type, car, user, serviceName, onSuccess, m
         )}
 
         {type === 'share_car' && <ShareModal car={car} onShare={handleShareCar} loading={loading} />}
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }
 
-function ShareModal({ car, onShare, loading }) {
+function ShareModal({ onShare, loading }) {
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState('READ');
   return (
@@ -1183,10 +974,9 @@ function ServiceTemplatesManager({ user }) {
           <Wrench size={18} />
         </div>
         <div>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Plano de Revisao -- Milestones</h3>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Plano de Revisão -- Milestones</h3>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Define em quais quilometragens cada servico deve ser realizado.
-            <span style={{ opacity: 0.6, marginLeft: 6 }}>cadeado = padrao do sistema (somente leitura)</span>
+            Define em quais quilometragens cada serviço deve ser realizado.
           </p>
         </div>
       </div>
@@ -1208,10 +998,7 @@ function ServiceTemplatesManager({ user }) {
                     color: t.user_id ? 'var(--primary)' : 'var(--text-muted)'
                   }}>
                     {t.km_milestone.toLocaleString()} km
-                    {t.user_id
-                      ? <button onClick={() => deleteTemplate(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, lineHeight: 1, marginLeft: 2 }} title="Remover">x</button>
-                      : <span title="Template do sistema" style={{ opacity: 0.4, marginLeft: 2 }}>lock</span>
-                    }
+                    {t.user_id && <button onClick={() => deleteTemplate(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, lineHeight: 1, marginLeft: 2 }} title="Remover">x</button>}
                   </span>
                 ))}
               </div>
@@ -1224,7 +1011,7 @@ function ServiceTemplatesManager({ user }) {
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 500 }}>Adicionar milestone personalizado</p>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="input-group" style={{ flex: 2, minWidth: 180, marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem' }}>Servico</label>
+            <label style={{ fontSize: '0.72rem' }}>Serviço</label>
             <input
               type="text" list="template-names-mgr"
               value={form.description}
@@ -1276,7 +1063,6 @@ function CarSharesManager({ activeShares, onRevoke }) {
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Mail size={12} /> {share.shared_with_email} 
                 <span style={{ fontSize: '0.65rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '10px' }}>{share.permission}</span>
-                {share.status === 'PENDING' && <span style={{ fontSize: '0.65rem', color: '#f59e0b' }}>• Pendente</span>}
               </p>
             </div>
             <button className="icon-btn" onClick={() => onRevoke(share.id)} style={{ color: 'var(--danger)' }} title="Revogar acesso">

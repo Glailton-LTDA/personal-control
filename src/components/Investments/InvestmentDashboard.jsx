@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area, PieChart, Pie, Cell, Legend
@@ -8,7 +8,6 @@ import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown } from
 
 export default function InvestmentDashboard({ user, showValues = true }) {
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(() => {
     const saved = localStorage.getItem('investment_dashboard_year');
     return saved ? Number(saved) : new Date().getFullYear();
@@ -25,29 +24,7 @@ export default function InvestmentDashboard({ user, showValues = true }) {
   const years = [2024, 2025, 2026];
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
 
-  useEffect(() => {
-    localStorage.setItem('investment_dashboard_year', selectedYear);
-    fetchData();
-  }, [user, selectedYear]);
-
-  async function fetchData() {
-    setLoading(true);
-    
-    const { data: records, error } = await supabase
-      .from('investment_records')
-      .select(`
-        *,
-        investment_accounts (*)
-      `)
-      .order('record_date', { ascending: true });
-
-    if (!error && records) {
-      processData(records);
-    }
-    setLoading(false);
-  }
-
-  function processData(records) {
+  const processData = useCallback((records) => {
     // 1. Monthly totals for the selected year
     const monthlyDataMap = {};
     for (let i = 1; i <= 12; i++) {
@@ -114,7 +91,26 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       instYield: instYieldData,
       instBalance: instBalanceData
     });
-  }
+  }, [selectedYear]);
+
+  const fetchData = useCallback(async () => {
+    const { data: records, error } = await supabase
+      .from('investment_records')
+      .select(`
+        *,
+        investment_accounts (*)
+      `)
+      .order('record_date', { ascending: true });
+
+    if (!error && records) {
+      processData(records);
+    }
+  }, [processData]);
+
+  useEffect(() => {
+    localStorage.setItem('investment_dashboard_year', selectedYear);
+    fetchData();
+  }, [user, selectedYear, fetchData]);
 
   const formatCurrency = (val) => {
     if (!showValues) return 'R$ ••••••';

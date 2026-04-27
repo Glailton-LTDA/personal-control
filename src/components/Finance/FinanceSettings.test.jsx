@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import FinanceSettings from './FinanceSettings';
 import { supabase } from '../../lib/supabase';
@@ -87,37 +88,40 @@ describe('FinanceSettings', () => {
   });
 
   it('adds a new category', async () => {
+    const user = userEvent.setup();
     render(<FinanceSettings />);
     
     const input = screen.getByPlaceholderText(/Nova Categoria/i);
-    fireEvent.change(input, { target: { value: 'Comida' } });
+    await user.type(input, 'Comida');
     
     // Find the add button near this input
-    const addButton = screen.getByPlaceholderText(/Nova Categoria/i).nextSibling;
-    fireEvent.click(addButton);
+    const addButton = input.nextSibling;
+    await user.click(addButton);
 
-    expect(supabase.from).toHaveBeenCalledWith('finance_categories');
+    await waitFor(() => {
+      expect(supabase.from).toHaveBeenCalledWith('finance_categories');
+    });
   });
 
   it('adds a new responsible', async () => {
+    const user = userEvent.setup();
     render(<FinanceSettings />);
     
     // FILL NAME
     const nameInput = screen.getByPlaceholderText(/Nome do Responsável/i);
-    fireEvent.change(nameInput, { target: { value: 'Carlos' } });
+    await user.type(nameInput, 'Carlos');
 
     // FILL EMAIL
     const emailInput = screen.getByPlaceholderText(/E-mail para notificações/i);
-    fireEvent.change(emailInput, { target: { value: 'carlos@example.com' } });
+    await user.type(emailInput, 'carlos@example.com');
     
     // CLICK ADD
     const addButton = emailInput.nextSibling;
-    fireEvent.click(addButton);
+    await user.click(addButton);
 
     // WAIT FOR CALL
     await waitFor(() => {
       const resCalls = vi.mocked(supabase.from).mock.calls.filter(args => args[0] === 'finance_responsibles');
-      // Look for the insert call (it should have 'insert' called on the return of from)
       expect(resCalls.length).toBeGreaterThan(0);
     });
   });
