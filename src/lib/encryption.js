@@ -96,3 +96,25 @@ export async function initializeEncryptionKey(password, email) {
 export function isEncrypted(value) {
   return typeof value === 'string' && value.startsWith(ENCRYPTION_PREFIX);
 }
+
+/**
+ * Exports a crypto key to a Base64 string.
+ */
+export async function exportKeyToBase64(key) {
+  const exported = await crypto.subtle.exportKey('raw', key);
+  return btoa(String.fromCharCode(...new Uint8Array(exported)));
+}
+
+/**
+ * Imports a crypto key from a Base64 string.
+ */
+export async function importKeyFromBase64(base64Key) {
+  const binaryKey = new Uint8Array(atob(base64Key).split('').map(c => c.charCodeAt(0)));
+  return crypto.subtle.importKey(
+    'raw',
+    binaryKey,
+    'AES-GCM',
+    true,
+    ['encrypt', 'decrypt']
+  );
+}

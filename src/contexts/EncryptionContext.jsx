@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeEncryptionKey, encrypt, decrypt, isEncrypted } from '../lib/encryption';
+import { initializeEncryptionKey, encrypt, decrypt, isEncrypted, exportKeyToBase64, importKeyFromBase64 } from '../lib/encryption';
 import toast from 'react-hot-toast';
 
 const EncryptionContext = createContext();
@@ -9,11 +9,30 @@ export function EncryptionProvider({ children, user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
 
-  // Auto-show unlock modal if user is logged in but key is not set
+  // Auto-show unlock modal or load from session
   useEffect(() => {
-    if (user && !masterKey && window.localStorage.getItem('pc_e2e_test') !== 'true') {
-      setShowUnlockModal(true);
-    }
+    const checkSession = async () => {
+      // Check if we have a key in sessionStorage
+      const savedKey = sessionStorage.getItem('pc_master_key');
+      if (savedKey && user && !masterKey) {
+        try {
+          const key = await importKeyFromBase64(savedKey);
+          setMasterKey(key);
+          setIsUnlocked(true);
+          setShowUnlockModal(false);
+          return;
+        } catch (e) {
+          console.error('Failed to import key from session', e);
+          sessionStorage.removeItem('pc_master_key');
+        }
+      }
+
+      if (user && !masterKey && window.localStorage.getItem('pc_e2e_test') !== 'true') {
+        setShowUnlockModal(true);
+      }
+    };
+
+    checkSession();
   }, [user, masterKey]);
 
   const unlock = async (password) => {
@@ -21,6 +40,11 @@ export function EncryptionProvider({ children, user }) {
       if (!user?.email) throw new Error('Usuário não identificado');
       const key = await initializeEncryptionKey(password, user.email);
       setMasterKey(key);
+      
+      // Persist in session storage (persists through refresh, not tab close)
+      const exported = await exportKeyToBase64(key);
+      sessionStorage.setItem('pc_master_key', exported);
+
       setIsUnlocked(true);
       setShowUnlockModal(false);
       toast.success('Dados descriptografados com sucesso!');
@@ -34,6 +58,7 @@ export function EncryptionProvider({ children, user }) {
   const lock = () => {
     setMasterKey(null);
     setIsUnlocked(false);
+    sessionStorage.removeItem('pc_master_key');
   };
 
   const encryptObject = async (obj, fields) => {
