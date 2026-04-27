@@ -31,6 +31,9 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   const [finances, setFinances] = useState([]);
   const { decryptObject } = useEncryption();
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState(() => {
+    return localStorage.getItem('personal-control-finance-view') || 'lista';
+  }); // 'resumo' ou 'lista'
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('personal-control-finance-tab') || 'DESPESA';
   });
@@ -104,9 +107,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     localStorage.setItem('personal-control-selected-month', selectedMonth);
     localStorage.setItem('personal-control-selected-year', selectedYear);
     localStorage.setItem('personal-control-finance-tab', activeTab);
+    localStorage.setItem('personal-control-finance-view', activeView);
     fetchFinances();
     fetchResponsibles();
-  }, [activeTab, selectedMonth, selectedYear, refreshKey, fetchFinances, fetchResponsibles]);
+  }, [activeTab, activeView, selectedMonth, selectedYear, refreshKey, fetchFinances, fetchResponsibles]);
 
   async function handleDelete(id) {
     confirmToast('Tem certeza que deseja excluir este registro?', async () => {
@@ -273,87 +277,108 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <SummaryDashboard user={user} isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} showValues={showValues} onToggleValues={onToggleValues} />
-      <div className="glass-card" style={{ padding: '1.5rem' }}>
-        <div className="mobile-filters-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
-          <div className="tabs-container">
-            <button className={`tab-btn ${activeTab === 'RECEITA' ? 'active' : ''}`} onClick={() => setActiveTab('RECEITA')}>Receitas</button>
-            <button className={`tab-btn ${activeTab === 'DESPESA' ? 'active' : ''}`} onClick={() => setActiveTab('DESPESA')}>Despesas</button>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'nowrap' }}>
-            <select className="select-filter" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem', padding: '0.25rem' }}>
-              <button className="icon-btn" onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)}><ChevronLeft size={18} /></button>
-              <span style={{ minWidth: '80px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>{months[selectedMonth].substring(0, 3)}</span>
-              <button className="icon-btn" onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)}><ChevronRight size={18} /></button>
-            </div>
-            <button className="icon-btn" onClick={handleCopyMonth} title="Copiar transações do mês anterior" style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', borderRadius: '0.75rem' }}><Copy size={18} /></button>
-            <button className="icon-btn" onClick={onToggleValues} title={showValues ? "Ocultar Valores" : "Mostrar Valores"} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem' }}>{showValues ? <Eye size={18} /> : <EyeOff size={18} />}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      
+      {/* GLOBAL FILTERS AT TOP */}
+      <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="tabs-container" style={{ marginBottom: 0 }}>
+            <button className={`tab-btn ${activeView === 'resumo' ? 'active' : ''}`} onClick={() => setActiveView('resumo')}>Resumo</button>
+            <button className={`tab-btn ${activeView === 'lista' ? 'active' : ''}`} onClick={() => setActiveView('lista')}>Transações</button>
           </div>
         </div>
-        <div className="mobile-only sort-bar-mobile">
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '4px' }}>Ordenar:</span>
-          <button className={`sort-chip ${sortConfig.key === 'payment_date' ? 'active' : ''}`} onClick={() => handleSort('payment_date')}>Data {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
-          <button className={`sort-chip ${sortConfig.key === 'status' ? 'active' : ''}`} onClick={() => handleSort('status')}>Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
-          <button className={`sort-chip ${sortConfig.key === 'amount' ? 'active' : ''}`} onClick={() => handleSort('amount')}>Valor {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
-        </div>
-        <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
-          <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
-          <input type="text" placeholder="Pesquisar por descrição ou categoria..." style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 3rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.75rem', color: 'var(--text-main)', outline: 'none' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
-          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Transações</h4>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>{filteredFinances.length} {filteredFinances.length === 1 ? 'registro' : 'registros'}</span>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="finance-table">
-            <thead>
-              <tr>
-                <th onClick={() => handleSort('payment_date')} style={{ cursor: 'pointer' }}>DATA {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
-                <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>DESCRIÇÃO {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
-                <th onClick={() => handleSort('category')} style={{ cursor: 'pointer' }}>CATEGORIA {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
-                <th onClick={() => handleSort('amount')} style={{ cursor: 'pointer' }}>VALOR {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
-                {activeTab === 'DESPESA' && <th>PAGO POR</th>}
-                {activeTab === 'DESPESA' && <th>AVISO</th>}
-                <th>STATUS</th>
-                <th>AÇÕES</th>
-              </tr>
-            </thead>
-            <tbody style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.3s' }}>
-              {loading && finances.length === 0 ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ padding: '12px' }}><div className="skeleton" style={{ height: '2.5rem', width: '100%' }} /></td>
-                  </tr>
-                ))
-              ) : filteredFinances.length === 0 ? (
-                <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Nenhum registro encontrado.</td></tr>
-              ) : filteredFinances.map((item) => (
-                <tr key={item.id} data-testid={`finance-row-${item.description}`}>
-                  <td data-label="Data">{(() => { try { if (!item.payment_date) return 'N/A'; const parts = String(item.payment_date).split('-'); if (parts.length !== 3) return 'N/A'; const [year, month, day] = parts.map(Number); return new Date(year, month - 1, day).toLocaleDateString('pt-BR'); } catch { return 'N/A'; } })()}</td>
-                  <td data-label="Descrição"><div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{item.credit_card && <CreditCard size={14} color="var(--primary)" title="Cartão de Crédito" />}{item.description}</div></td>
-                  <td data-label="Categoria"><span className="badge">{item.category}</span></td>
-                  <td data-label="Valor" style={{ fontWeight: 600, color: item.type === 'RECEITA' ? 'var(--success)' : 'white' }}>{item.type === 'RECEITA' ? '+' : '-'} {showValues ? `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}</td>
-                  {activeTab === 'DESPESA' && <td data-label="Pago Por">{item.paid_by || '-'}</td>}
-                  {activeTab === 'DESPESA' && <td data-label="Aviso" style={{ textAlign: 'center' }}><Send size={16} color={item.email_sent ? 'var(--primary)' : 'var(--text-muted)'} style={{ opacity: item.email_sent ? 1 : 0.3 }} title={item.email_sent ? 'E-mail enviado' : 'Ainda não enviado'}/></td>}
-                  <td data-label="Status"><span className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} onClick={() => item.status === 'PENDENTE' && handleMarkAsPaid(item.id)} style={{ cursor: item.status === 'PENDENTE' ? 'pointer' : 'default' }} title={item.status === 'PENDENTE' ? 'Clique para marcar como pago' : ''}>{item.status === 'PAGO' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}{item.status}</span></td>
-                  <td data-label={isMobile ? "" : "Ações"} className="actions-cell">
-                    <div className="actions-row">
-                      {item.status === 'PENDENTE' && <button className="action-btn success" onClick={() => handleMarkAsPaid(item.id)} title="Marcar Pago"><CheckCircle2 size={18} /></button>}
-                      <button className="action-btn primary" onClick={() => handleSendEmail(item)} title="Enviar E-mail"><Send size={18} /></button>
-                      <button className="action-btn" onClick={() => onEdit(item)} title="Editar"><Edit2 size={18} /></button>
-                      <button className="action-btn danger" onClick={() => handleDelete(item.id)} title="Excluir"><Trash2 size={18} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <select className="select-filter" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem', padding: '0.25rem' }}>
+            <button className="icon-btn" onClick={() => setSelectedMonth(prev => prev === 0 ? 11 : prev - 1)}><ChevronLeft size={18} /></button>
+            <span style={{ minWidth: '80px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>{months[selectedMonth]}</span>
+            <button className="icon-btn" onClick={() => setSelectedMonth(prev => prev === 11 ? 0 : prev + 1)}><ChevronRight size={18} /></button>
+          </div>
+          <button className="icon-btn" onClick={handleCopyMonth} title="Copiar transações do mês anterior" style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', borderRadius: '0.75rem' }}><Copy size={18} /></button>
         </div>
       </div>
+
+      {activeView === 'resumo' ? (
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <SummaryDashboard user={user} isGeneral={false} month={selectedMonth} year={selectedYear} refreshKey={refreshKey} showValues={showValues} onToggleValues={onToggleValues} />
+        </div>
+      ) : (
+        <div className="glass-card fade-in" style={{ padding: '1.5rem' }}>
+          <div className="mobile-filters-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
+            <div className="tabs-container">
+              <button className={`tab-btn ${activeTab === 'RECEITA' ? 'active' : ''}`} onClick={() => setActiveTab('RECEITA')}>Receitas</button>
+              <button className={`tab-btn ${activeTab === 'DESPESA' ? 'active' : ''}`} onClick={() => setActiveTab('DESPESA')}>Despesas</button>
+            </div>
+          </div>
+          
+          <div className="mobile-only sort-bar-mobile">
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '4px' }}>Ordenar:</span>
+            <button className={`sort-chip ${sortConfig.key === 'payment_date' ? 'active' : ''}`} onClick={() => handleSort('payment_date')}>Data {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
+            <button className={`sort-chip ${sortConfig.key === 'status' ? 'active' : ''}`} onClick={() => handleSort('status')}>Status {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
+            <button className={`sort-chip ${sortConfig.key === 'amount' ? 'active' : ''}`} onClick={() => handleSort('amount')}>Valor {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</button>
+          </div>
+
+          <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+            <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
+            <input type="text" placeholder="Pesquisar por descrição ou categoria..." style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 3rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', borderRadius: '0.75rem', color: 'var(--text-main)', outline: 'none' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
+            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Transações</h4>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>{filteredFinances.length} {filteredFinances.length === 1 ? 'registro' : 'registros'}</span>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="finance-table">
+              <thead>
+                <tr>
+                  <th onClick={() => handleSort('payment_date')} style={{ cursor: 'pointer' }}>DATA {sortConfig.key === 'payment_date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                  <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>DESCRIÇÃO {sortConfig.key === 'description' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                  <th onClick={() => handleSort('category')} style={{ cursor: 'pointer' }}>CATEGORIA {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                  <th onClick={() => handleSort('amount')} style={{ cursor: 'pointer' }}>VALOR {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>)}</th>
+                  {activeTab === 'DESPESA' && <th>PAGO POR</th>}
+                  {activeTab === 'DESPESA' && <th>AVISO</th>}
+                  <th>STATUS</th>
+                  <th>AÇÕES</th>
+                </tr>
+              </thead>
+              <tbody style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.3s' }}>
+                {loading && finances.length === 0 ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ padding: '12px' }}><div className="skeleton" style={{ height: '2.5rem', width: '100%' }} /></td>
+                    </tr>
+                  ))
+                ) : filteredFinances.length === 0 ? (
+                  <tr><td colSpan={activeTab === 'DESPESA' ? 8 : 6} style={{ textAlign: 'center', padding: '2rem' }}>Nenhum registro encontrado.</td></tr>
+                ) : filteredFinances.map((item) => (
+                  <tr key={item.id} data-testid={`finance-row-${item.description}`}>
+                    <td data-label="Data">{(() => { try { if (!item.payment_date) return 'N/A'; const parts = String(item.payment_date).split('-'); if (parts.length !== 3) return 'N/A'; const [year, month, day] = parts.map(Number); return new Date(year, month - 1, day).toLocaleDateString('pt-BR'); } catch { return 'N/A'; } })()}</td>
+                    <td data-label="Descrição"><div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{item.credit_card && <CreditCard size={14} color="var(--primary)" title="Cartão de Crédito" />}{item.description}</div></td>
+                    <td data-label="Categoria"><span className="badge">{item.category}</span></td>
+                    <td data-label="Valor" style={{ fontWeight: 600, color: item.type === 'RECEITA' ? 'var(--success)' : 'white' }}>{item.type === 'RECEITA' ? '+' : '-'} {showValues ? `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}</td>
+                    {activeTab === 'DESPESA' && <td data-label="Pago Por">{item.paid_by || '-'}</td>}
+                    {activeTab === 'DESPESA' && <td data-label="Aviso" style={{ textAlign: 'center' }}><Send size={16} color={item.email_sent ? 'var(--primary)' : 'var(--text-muted)'} style={{ opacity: item.email_sent ? 1 : 0.3 }} title={item.email_sent ? 'E-mail enviado' : 'Ainda não enviado'}/></td>}
+                    <td data-label="Status"><span className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} onClick={() => item.status === 'PENDENTE' && handleMarkAsPaid(item.id)} style={{ cursor: item.status === 'PENDENTE' ? 'pointer' : 'default' }} title={item.status === 'PENDENTE' ? 'Clique para marcar como pago' : ''}>{item.status === 'PAGO' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}{item.status}</span></td>
+                    <td data-label={isMobile ? "" : "Ações"} className="actions-cell">
+                      <div className="actions-row">
+                        {item.status === 'PENDENTE' && <button className="action-btn success" onClick={() => handleMarkAsPaid(item.id)} title="Marcar Pago"><CheckCircle2 size={18} /></button>}
+                        <button className="action-btn primary" onClick={() => handleSendEmail(item)} title="Enviar E-mail"><Send size={18} /></button>
+                        <button className="action-btn" onClick={() => onEdit(item)} title="Editar"><Edit2 size={18} /></button>
+                        <button className="action-btn danger" onClick={() => handleDelete(item.id)} title="Excluir"><Trash2 size={18} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {isEmailModalOpen && (
         <div className="modal-overlay" onClick={() => setEmailModalOpen(false)}>
           <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>

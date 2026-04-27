@@ -174,6 +174,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         onEditTrip={handleOpenForm}
         onViewChecklists={() => setCurrentView('checklists')}
         onViewStats={() => setCurrentView('stats')}
+        onViewItinerary={() => setCurrentView('itinerary')}
       />
 
       {/* FAB - Global Trip Expense Trigger */}

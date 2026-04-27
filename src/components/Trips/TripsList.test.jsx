@@ -28,7 +28,11 @@ describe('TripsList', () => {
     render(<TripsList user={mockUser} trips={mockTrips} externalSelectedTrip={mockTrips[0]} onEditTrip={() => {}} />);
     expect(screen.getByText(/Viagem 1/i)).toBeInTheDocument();
 
-    const detailsBtn = screen.getByText(/Detalhes/i);
+    // Click the action menu first
+    const moreBtn = screen.getByRole('button', { name: '' }); // The MoreVertical button
+    fireEvent.click(moreBtn);
+
+    const detailsBtn = screen.getByText(/Detalhes da Viagem/i);
     fireEvent.click(detailsBtn);
 
     await waitFor(() => {
@@ -74,7 +78,7 @@ describe('TripsList', () => {
     expect(screen.getByTitle('Excluir')).toBeInTheDocument();
   });
 
-  it('renders icon-only buttons on desktop', async () => {
+  it('renders correctly and handles actions in menu', async () => {
     // Mock desktop width
     window.innerWidth = 1024;
     window.dispatchEvent(new Event('resize'));
@@ -106,9 +110,17 @@ describe('TripsList', () => {
       expect(screen.getByText(/Almoço/i)).toBeInTheDocument();
     });
 
-    // In desktop, the expense item buttons are icons with no text node "Editar"
-    // The only "Editar..." text should be "Editar Viagem" in the header
-    expect(screen.queryByText('Editar')).not.toBeInTheDocument();
+    // In desktop, the action buttons are inside a menu
+    // Initially they shouldn't be visible
+    expect(screen.queryByText(/Editar Viagem/i)).not.toBeInTheDocument();
+    
+    // Open menu
+    const moreBtn = screen.getAllByRole('button')[0]; // The first button is the trip selector, second is more
+    // Actually better to be specific
+    fireEvent.click(moreBtn);
+
+    // Now actions should be visible
     expect(screen.getByText(/Editar Viagem/i)).toBeInTheDocument();
+    expect(screen.getByText(/Roteiro da Viagem/i)).toBeInTheDocument();
   });
 });

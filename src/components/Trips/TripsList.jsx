@@ -29,7 +29,10 @@ import {
   FileText,
   Globe,
   ChevronUp,
-  ArrowUpDown
+  ArrowUpDown,
+  MoreVertical,
+  Map,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
@@ -39,11 +42,14 @@ import { CURRENCIES } from '../../constants/currencies';
 import { AnimatePresence } from 'framer-motion';
 import { useEncryption } from '../../contexts/EncryptionContext';
 
-export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists }) {
+export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists, onViewItinerary }) {
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
   const { decryptObject } = useEncryption();
+  const [isTripMenuOpen, setIsTripMenuOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [tripSearchQuery, setTripSearchQuery] = useState('');
   
   // Persist currency choice per trip
   useEffect(() => {
@@ -262,84 +268,155 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
         />
       )}
       
-      {/* ── Trips Selector & View Mode ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
-        {/* Trip Buttons */}
-        <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem', flex: 1 }}>
-          {trips.map(trip => (
-            <button
-              key={trip.id}
-              onClick={() => handleTripSelect(trip)}
-              data-testid={`trip-tab-${trip.id}`}
-              className="glass-card"
-              style={{ 
-                padding: '0.75rem 1.25rem', 
-                whiteSpace: 'nowrap',
-                border: selectedTrip?.id === trip.id ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
-                background: selectedTrip?.id === trip.id ? 'var(--primary)' : 'var(--bg-card)',
-                color: selectedTrip?.id === trip.id ? 'white' : 'var(--text-muted)',
-                fontWeight: selectedTrip?.id === trip.id ? '700' : '500',
-                transition: '0.3s'
-              }}
-            >
-              {trip.title}
-            </button>
-          ))}
+      {/* ── Trips Selector & Action Menu ── */}
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 100 }}>
+        {/* Searchable Trip Selector */}
+        <div style={{ position: 'relative', flex: 1, maxWidth: isMobile ? '100%' : '400px' }}>
+          <div 
+            className="glass-card" 
+            onClick={() => setIsTripMenuOpen(!isTripMenuOpen)}
+            style={{ 
+              padding: '0.75rem 1.25rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--bg-card)',
+              borderRadius: '14px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+              <Plane size={18} className="text-primary" />
+              <span style={{ fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedTrip?.title || 'Selecionar Viagem...'}
+              </span>
+            </div>
+            <ChevronDown size={18} style={{ transform: isTripMenuOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+          </div>
+
+          <AnimatePresence>
+            {isTripMenuOpen && (
+              <div 
+                className="glass-card fade-in"
+                style={{ 
+                  position: 'absolute', top: '110%', left: 0, right: 0, 
+                  padding: '0.5rem', zIndex: 110,
+                  maxHeight: '300px', overflowY: 'auto',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                  border: '1px solid var(--glass-border)'
+                }}
+              >
+                <div style={{ position: 'relative', marginBottom: '0.5rem', padding: '0.25rem' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                  <input 
+                    autoFocus
+                    type="text"
+                    placeholder="Buscar viagem..."
+                    value={tripSearchQuery}
+                    onChange={(e) => setTripSearchQuery(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ 
+                      width: '100%', padding: '0.5rem 0.5rem 0.5rem 2.2rem', 
+                      background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)',
+                      borderRadius: '8px', color: 'white', fontSize: '0.85rem'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {trips
+                    .filter(t => t.title.toLowerCase().includes(tripSearchQuery.toLowerCase()))
+                    .map(trip => (
+                    <button
+                      key={trip.id}
+                      onClick={() => {
+                        handleTripSelect(trip);
+                        setIsTripMenuOpen(false);
+                        setTripSearchQuery('');
+                      }}
+                      style={{ 
+                        padding: '0.75rem 1rem', border: 'none', borderRadius: '8px',
+                        background: selectedTrip?.id === trip.id ? 'var(--primary)' : 'transparent',
+                        color: selectedTrip?.id === trip.id ? 'white' : 'var(--text-main)',
+                        textAlign: 'left', cursor: 'pointer', transition: '0.2s',
+                        fontWeight: selectedTrip?.id === trip.id ? '700' : '500',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {trip.title}
+                    </button>
+                  ))}
+                  {trips.filter(t => t.title.toLowerCase().includes(tripSearchQuery.toLowerCase())).length === 0 && (
+                    <p style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Nenhuma viagem encontrada</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Details and Edit Buttons */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '0.75rem',
-          width: isMobile ? '100%' : 'auto',
-          flexDirection: isMobile ? 'column' : 'row'
-        }}>
-          {selectedTrip && (
+        {/* Action Menu (3 dots) */}
+        {selectedTrip && (
+          <div style={{ position: 'relative' }}>
             <button 
-              onClick={() => onEditTrip(selectedTrip)}
-              className="glass-card"
+              onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)}
+              className="icon-btn"
               style={{ 
-                padding: '0.65rem 1.25rem', border: '1px solid var(--glass-border)', borderRadius: '14px', 
-                background: 'var(--bg-card)',
-                color: 'var(--text-main)',
-                display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
-                width: isMobile ? '100%' : 'auto'
+                width: '46px', height: '46px', background: 'var(--bg-card)', 
+                border: '1px solid var(--glass-border)', borderRadius: '14px' 
               }}
             >
-              <Edit2 size={18} /> Editar Viagem
+              <MoreVertical size={22} />
             </button>
-          )}
-          {selectedTrip && (
-            <button 
-              onClick={() => setIsDetailsOpen(true)}
-              data-testid="view-trip-details-btn"
-              style={{ 
-                padding: '0.65rem 1.5rem', border: '1px solid var(--glass-border)', borderRadius: '14px', 
-                background: 'rgba(255,255,255,0.03)',
-                color: 'white', 
-                display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
-                width: isMobile ? '100%' : 'auto'
-              }}
-            >
-              <FileText size={18} /> Detalhes
-            </button>
-          )}
-          {selectedTrip && (
-            <button 
-              onClick={onViewChecklists}
-              style={{ 
-                padding: '0.65rem 1.5rem', border: '1px solid var(--primary)', borderRadius: '14px', 
-                background: 'var(--primary)',
-                color: 'white',
-                display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.6rem', fontWeight: '800', fontSize: '0.9rem', cursor: 'pointer', transition: '0.3s',
-                width: isMobile ? '100%' : 'auto',
-                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
-              }}
-            >
-              <ListTodo size={18} /> Checklists
-            </button>
-          )}
-        </div>
+
+            <AnimatePresence>
+              {isActionsMenuOpen && (
+                <>
+                  <div 
+                    style={{ position: 'fixed', inset: 0, zIndex: 105 }} 
+                    onClick={() => setIsActionsMenuOpen(false)} 
+                  />
+                  <div 
+                    className="glass-card fade-in"
+                    style={{ 
+                      position: 'absolute', top: '110%', right: 0, 
+                      width: '220px', padding: '0.5rem', zIndex: 110,
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                      border: '1px solid var(--glass-border)'
+                    }}
+                  >
+                    {[
+                      { icon: <Edit2 size={16} />, label: 'Editar Viagem', onClick: () => onEditTrip(selectedTrip) },
+                      { icon: <FileText size={16} />, label: 'Detalhes da Viagem', onClick: () => setIsDetailsOpen(true) },
+                      { icon: <ListTodo size={16} />, label: 'Checklist', onClick: onViewChecklists },
+                      { icon: <Map size={16} />, label: 'Roteiro da Viagem', onClick: () => {
+                        if (onViewItinerary) onViewItinerary();
+                        setIsActionsMenuOpen(false);
+                      } }
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => { item.onClick(); setIsActionsMenuOpen(false); }}
+                        style={{ 
+                          width: '100%', padding: '0.75rem 1rem', border: 'none', borderRadius: '8px',
+                          background: 'transparent', color: 'var(--text-main)',
+                          display: 'flex', alignItems: 'center', gap: '0.75rem',
+                          cursor: 'pointer', transition: '0.2s', fontWeight: '600',
+                          fontSize: '0.85rem'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <span style={{ color: 'var(--primary)' }}>{item.icon}</span>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {selectedTrip && (

@@ -63,10 +63,6 @@ export default function InvestmentList({ user, showValues = true }) {
     { value: 12, label: 'Dezembro' }
   ];
 
-  useEffect(() => {
-    fetchData();
-  }, [user, filterYear, filterMonth, fetchData]);
-
   const fetchData = useCallback(async () => {
     setLoading(true);
     
@@ -113,6 +109,10 @@ export default function InvestmentList({ user, showValues = true }) {
     }
     setLoading(false);
   }, [filterYear, filterMonth, decryptObject]);
+
+  useEffect(() => {
+    fetchData();
+  }, [user, filterYear, filterMonth, fetchData]);
 
   async function handleCopyFromPreviousMonth() {
     if (filterMonth === 0) {

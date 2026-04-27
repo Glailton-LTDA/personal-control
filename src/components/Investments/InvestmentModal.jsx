@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calendar } from 'lucide-react';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { X, Save, Calendar, Search, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export default function InvestmentModal({ isOpen, onClose, onRefresh, user, initialData, accounts }) {
@@ -10,6 +11,9 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
     final_balance: '',
     yield: ''
   });
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (initialData) {
@@ -66,10 +70,10 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
   return (
     <div className="modal-overlay" style={{ zIndex: 1050 }}>
       <AnimatePresence>
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95, y: 30 }}
+        <Motion.div 
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 30 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20 }}
           className="glass-card" 
           style={{ 
             width: '100%', 
@@ -104,20 +108,112 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
           <form onSubmit={handleSubmit} style={{ padding: '2.5rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
               
-              <div className="input-group">
+              <div className="input-group" style={{ position: 'relative' }}>
                 <label>Conta de Investimento</label>
-                <select 
-                  value={formData.account_id}
-                  onChange={e => setFormData({...formData, account_id: e.target.value})}
-                  required
-                  className="select-filter"
-                  style={{ width: '100%', padding: '0.75rem 1rem' }}
+                <div 
+                  className="glass-input" 
+                  style={{ 
+                    padding: '0.75rem 1rem', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--glass-border)'
+                  }}
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 >
-                  <option value="" disabled>Selecione uma conta...</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.institution ? `${acc.institution} - ` : ''}{acc.name}</option>
-                  ))}
-                </select>
+                  <span style={{ color: formData.account_id ? 'var(--text-main)' : 'var(--text-muted)', fontWeight: formData.account_id ? '700' : '400' }}>
+                    {formData.account_id 
+                      ? (() => {
+                          const acc = accounts.find(a => a.id === formData.account_id);
+                          return acc ? `${acc.institution ? `${acc.institution} - ` : ''}${acc.name}` : 'Selecione uma conta...';
+                        })()
+                      : 'Selecione uma conta...'}
+                  </span>
+                  <ChevronDown size={18} style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+                </div>
+
+                <AnimatePresence>
+                  {isDropdownOpen && (
+                    <Motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="glass-card"
+                      style={{ 
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '0.5rem',
+                        zIndex: 2000,
+                        padding: '0.5rem',
+                        boxShadow: 'var(--shadow)',
+                        border: '1px solid var(--primary)',
+                        maxHeight: '250px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      <div style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', padding: '0.5rem', marginBottom: '0.5rem', zIndex: 10 }}>
+                        <div style={{ position: 'relative' }}>
+                          <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                          <input 
+                            type="text"
+                            placeholder="Buscar conta..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ 
+                              width: '100%',
+                              padding: '0.5rem 0.5rem 0.5rem 2.2rem',
+                              background: 'rgba(255,255,255,0.03)',
+                              border: '1px solid var(--glass-border)',
+                              borderRadius: '8px',
+                              color: 'white',
+                              fontSize: '0.85rem'
+                            }}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {accounts
+                        .filter(acc => {
+                          const label = `${acc.institution || ''} ${acc.name}`.toLowerCase();
+                          return label.includes(searchTerm.toLowerCase());
+                        })
+                        .map(acc => (
+                          <div 
+                            key={acc.id}
+                            className="dropdown-item"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFormData({...formData, account_id: acc.id});
+                              setIsDropdownOpen(false);
+                              setSearchTerm('');
+                            }}
+                            style={{ 
+                              padding: '0.75rem 1rem',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                              background: formData.account_id === acc.id ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                              border: formData.account_id === acc.id ? '1px solid var(--primary)' : '1px solid transparent'
+                            }}
+                          >
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: acc.color || 'var(--primary)' }}></div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{acc.name}</span>
+                              <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{acc.institution}</span>
+                            </div>
+                          </div>
+                        ))}
+                    </Motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div className="input-group">
@@ -182,7 +278,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 </div>
               </div>
 
-              <motion.div 
+              <Motion.div 
                 animate={{ 
                   backgroundColor: formData.yield >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                   borderColor: formData.yield >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
@@ -203,7 +299,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 <span style={{ fontSize: '1.5rem', fontWeight: 800, color: formData.yield >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.yield)}
                 </span>
-              </motion.div>
+              </Motion.div>
 
               <div style={{ display: 'flex', gap: '1.25rem', marginTop: '1rem' }}>
                 <button type="button" className="btn-secondary" onClick={onClose} style={{ flex: 1, padding: '1rem' }}>Cancelar</button>
@@ -213,7 +309,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
               </div>
             </div>
           </form>
-        </motion.div>
+        </Motion.div>
       </AnimatePresence>
     </div>
   );

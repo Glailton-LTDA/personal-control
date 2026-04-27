@@ -45,13 +45,24 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
         </div>
         
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'visible' }}>
-          <input 
-            type="text"
+          <textarea 
             value={entry.activity || ''}
             placeholder="O que vamos fazer?"
             onFocus={() => setFocusedId(entry.id)}
             onBlur={() => setFocusedId(null)}
-            onChange={(e) => updateEntry(entry.id, 'activity', e.target.value)}
+            rows={1}
+            onChange={(e) => {
+              updateEntry(entry.id, 'activity', e.target.value);
+              // Auto-expand logic
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
+            ref={el => {
+              if (el) {
+                el.style.height = 'auto';
+                el.style.height = el.scrollHeight + 'px';
+              }
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -61,7 +72,11 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
               fontWeight: '700',
               width: '100%',
               padding: '0.2rem 0',
-              outline: 'none'
+              outline: 'none',
+              resize: 'none',
+              fontFamily: 'inherit',
+              overflow: 'hidden',
+              minHeight: '1.5rem'
             }}
           />
 
@@ -214,15 +229,38 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
         </label>
 
         <div style={{ flex: 1, minWidth: isMobile ? '140px' : '200px' }}>
-          <input 
-            type="text"
+          <textarea 
             value={entry.notes || ''}
             onFocus={() => setFocusedId(entry.id)}
             onBlur={() => setFocusedId(null)}
-            onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
+            rows={1}
+            onChange={(e) => {
+              updateEntry(entry.id, 'notes', e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
+            ref={el => {
+              if (el) {
+                el.style.height = 'auto';
+                el.style.height = el.scrollHeight + 'px';
+              }
+            }}
             className="glass-input"
             placeholder="Nota rápida..."
-            style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'transparent', border: 'none', borderBottom: '1px solid var(--glass-border)', borderRadius: 0, color: 'var(--text-main)' }}
+            style={{ 
+              width: '100%', 
+              padding: '0.4rem', 
+              fontSize: '0.8rem', 
+              background: 'transparent', 
+              border: 'none', 
+              borderBottom: '1px solid var(--glass-border)', 
+              borderRadius: 0, 
+              color: 'var(--text-main)',
+              resize: 'none',
+              fontFamily: 'inherit',
+              overflow: 'hidden',
+              minHeight: '1.2rem'
+            }}
           />
         </div>
       </div>
@@ -231,6 +269,21 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
 };
 
 export default function ItineraryManager({ trip, items, onItemsChange, onAddToTickets }) {
+  const generateDays = useCallback(() => {
+    if (!trip.start_date || !trip.end_date) return [];
+    
+    const start = new Date(trip.start_date + 'T00:00:00');
+    const end = new Date(trip.end_date + 'T00:00:00');
+    const days = [];
+    
+    let current = new Date(start);
+    while (current <= end) {
+      days.push(new Date(current).toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  }, [trip.start_date, trip.end_date]);
+
   const [activeDay, setActiveDay] = useState(() => {
     if (!trip.id) return null;
     return localStorage.getItem(`pc_itinerary_active_day_${trip.id}`);
@@ -261,21 +314,6 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
       localStorage.setItem(`pc_itinerary_active_day_${trip.id}`, activeDay);
     }
   }, [activeDay, trip.id]);
-
-  const generateDays = useCallback(() => {
-    if (!trip.start_date || !trip.end_date) return [];
-    
-    const start = new Date(trip.start_date + 'T00:00:00');
-    const end = new Date(trip.end_date + 'T00:00:00');
-    const days = [];
-    
-    let current = new Date(start);
-    while (current <= end) {
-      days.push(new Date(current).toISOString().split('T')[0]);
-      current.setDate(current.getDate() + 1);
-    }
-    return days;
-  }, [trip.start_date, trip.end_date]);
 
   const days = generateDays();
 

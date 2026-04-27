@@ -47,12 +47,6 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
   const [shares, setShares] = useState([]);
   const [isAddingShare, setIsAddingShare] = useState(false);
 
-  useEffect(() => {
-    fetchTrips();
-    fetchCategories();
-    fetchShares();
-  }, [user, refreshKey, fetchTrips, fetchCategories, fetchShares]);
-
   const fetchTrips = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
@@ -70,6 +64,12 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
     const { data } = await supabase.from('trip_shares').select('*, trips(title)').eq('shared_by', user.id);
     if (data) setShares(data);
   }, [user]);
+
+  useEffect(() => {
+    fetchTrips();
+    fetchCategories();
+    fetchShares();
+  }, [user, refreshKey, fetchTrips, fetchCategories, fetchShares]);
 
   async function deleteItem(table, id, callback) {
     confirmToast('Deseja realmente excluir este item?', async () => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Edit2, Save, X, Palette } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -114,7 +114,7 @@ export default function InvestmentSettings({ user }) {
       <AnimatePresence>
         {isAdding && (
           <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pading: '1.5rem', zIndex: 2000 }}>
-            <motion.div 
+            <Motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -200,7 +200,7 @@ export default function InvestmentSettings({ user }) {
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </Motion.div>
           </div>
         )}
       </AnimatePresence>
