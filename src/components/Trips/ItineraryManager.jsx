@@ -38,10 +38,18 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.5rem' : '1rem' }}>
         <div 
           onPointerDown={(e) => controls.start(e)}
-          style={{ cursor: 'grab', opacity: 0.3, flexShrink: 0, marginTop: '0.75rem' }} 
+          style={{ 
+            cursor: 'grab', 
+            opacity: 0.3, 
+            flexShrink: 0, 
+            marginTop: '0.75rem',
+            touchAction: 'none',
+            padding: '0.5rem',
+            margin: '-0.5rem'
+          }} 
           title="Arraste para reordenar"
         >
-          <GripVertical size={isMobile ? 16 : 20} />
+          <GripVertical size={isMobile ? 18 : 20} />
         </div>
         
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'visible' }}>
