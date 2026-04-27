@@ -20,12 +20,21 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   
   // New state for page-based navigation within Trips module
   const [currentView, setCurrentView] = useState(() => {
+    const savedView = localStorage.getItem('pc_trips_view_v1');
     if (mode === 'settings') return 'settings';
     if (mode === 'itinerary') return 'itinerary';
     if (mode === 'checklists') return 'checklists';
-    return 'main';
+    if (mode === 'stats') return 'stats';
+    return savedView || 'main';
   });
   const [editingTrip, setEditingTrip] = useState(null);
+
+  // Persist currentView
+  useEffect(() => {
+    if (currentView !== 'form') {
+      localStorage.setItem('pc_trips_view_v1', currentView);
+    }
+  }, [currentView]);
 
   useEffect(() => {
     if (mode === 'settings') setCurrentView('settings');

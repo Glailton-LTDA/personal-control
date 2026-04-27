@@ -53,7 +53,6 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         const updated = trips.find(t => t.id === selectedTrip.id);
         if (updated) {
           setSelectedTrip(updated);
-          setItinerary(updated.itinerary || []);
         }
       }
     }
