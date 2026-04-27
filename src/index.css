@@ -160,6 +160,35 @@ select:focus option {
 .finance-table { width: 100%; border-collapse: collapse; }
 .finance-table td { padding: 12px; border-bottom: 1px solid var(--glass-border); }
 
+/* Ícone contextual de categoria — container rounded com fundo tinted */
+.cat-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cat-color) 14%, transparent);
+  color: var(--cat-color);
+  flex-shrink: 0;
+}
+
+/* Chip de categoria — pill pill com fundo tinted e texto na cor da categoria */
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--cat-color) 14%, transparent);
+  color: var(--cat-color);
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--cat-color) 28%, transparent);
+}
+
+
 .actions-row {
   display: flex;
   gap: 0.5rem;
@@ -366,19 +395,30 @@ select.glass-input {
 
   /* Destaque para descrição e valor */
   .finance-table td:nth-child(2) { /* Descrição */
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 700;
-    margin-bottom: 8px;
+    margin-bottom: 0.5rem;
     border-bottom: 1px solid var(--glass-border);
-    padding-bottom: 12px;
+    padding: 0.5rem 0 1rem 0;
+    justify-content: flex-start;
   }
 
-  .finance-table td:nth-child(2)::before { content: ''; } /* Remove prefixo da descrição */
+  .finance-table td:nth-child(2)::before { display: none; } 
+
+  .finance-table td:nth-child(4) { /* Valor */
+    font-size: 1.25rem;
+    padding: 0.5rem 0;
+  }
+  
+  .finance-table td:nth-child(4)::before {
+    font-size: 0.7rem;
+    margin-top: 4px;
+  }
 
   .finance-table td:last-child {
     border-top: 1px solid var(--glass-border);
-    margin-top: 10px;
-    padding-top: 15px;
+    margin-top: 0.75rem;
+    padding-top: 1rem;
     justify-content: center;
   }
 

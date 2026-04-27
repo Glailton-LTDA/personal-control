@@ -19,13 +19,51 @@ import {
   X,
   Copy,
   Eye,
-  EyeOff
+  EyeOff,
+  ShoppingCart,
+  Home,
+  Car,
+  Utensils,
+  Zap,
+  Heart,
+  GraduationCap,
+  Plane,
+  TrendingUp,
+  Smartphone,
+  Coffee,
+  Package,
+  DollarSign,
+  Repeat
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import SummaryDashboard from './SummaryDashboard';
 import { useEncryption } from '../../contexts/EncryptionContext';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#06b6d4', '#8b5cf6'];
+
+// Mapa keyword → { icon, color } para chips e ícones de categoria
+const CATEGORY_META = [
+  { keywords: ['aliment', 'comida', 'restaur', 'refeiç', 'mercado', 'superm'],   icon: Utensils,      color: '#f97316' },
+  { keywords: ['aluguel', 'moradia', 'casa', 'condom', 'iptu'],                  icon: Home,          color: '#6366f1' },
+  { keywords: ['transporte', 'uber', 'ônibus', 'onibus', 'gasolina', 'carro', 'estacion'], icon: Car, color: '#06b6d4' },
+  { keywords: ['saúde', 'saude', 'médico', 'medico', 'farmácia', 'farmacia', 'plano'],     icon: Heart,        color: '#ef4444' },
+  { keywords: ['educaç', 'educac', 'escola', 'curso', 'facul', 'livro'],         icon: GraduationCap, color: '#8b5cf6' },
+  { keywords: ['viagem', 'viag', 'hotel', 'passag', 'hospedagem'],               icon: Plane,         color: '#0ea5e9' },
+  { keywords: ['invest', 'poupan', 'ativo', 'fundo'],                            icon: TrendingUp,    color: '#10b981' },
+  { keywords: ['celular', 'telefon', 'internet', 'telecom', 'digital', 'assin'], icon: Smartphone,    color: '#a855f7' },
+  { keywords: ['café', 'cafe', 'lazer', 'entretenimento', 'cinema', 'bar'],      icon: Coffee,        color: '#fb923c' },
+  { keywords: ['compra', 'roupa', 'loja'],                                        icon: ShoppingCart,  color: '#ec4899' },
+  { keywords: ['energia', 'luz', 'água', 'agua', 'gás', 'gas', 'utilid'],       icon: Zap,           color: '#eab308' },
+  { keywords: ['receit', 'salário', 'salario', 'renda', 'receita'],              icon: DollarSign,    color: '#10b981' },
+  { keywords: ['parcel', 'cartão', 'cartao', 'crédito', 'credito'],              icon: CreditCard,    color: '#64748b' },
+  { keywords: ['fixo', 'recorr', 'mensalid'],                                    icon: Repeat,        color: '#94a3b8' },
+];
+
+function getCategoryMeta(category = '') {
+  const lower = category.toLowerCase();
+  const match = CATEGORY_META.find(m => m.keywords.some(k => lower.includes(k)));
+  return match || { icon: Package, color: '#64748b' };
+}
 
 export default function FinanceList({ refreshKey, onEdit, user, showValues = true, onToggleValues }) {
   const [finances, setFinances] = useState([]);
@@ -357,10 +395,25 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 ) : filteredFinances.map((item) => (
                   <tr key={item.id} data-testid={`finance-row-${item.description}`}>
                     <td data-label="Data">{(() => { try { if (!item.payment_date) return 'N/A'; const parts = String(item.payment_date).split('-'); if (parts.length !== 3) return 'N/A'; const [year, month, day] = parts.map(Number); return new Date(year, month - 1, day).toLocaleDateString('pt-BR'); } catch { return 'N/A'; } })()}</td>
-                    <td data-label="Descrição"><div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{item.credit_card && <CreditCard size={14} color="var(--primary)" title="Cartão de Crédito" />}{item.description}</div></td>
-                    <td data-label="Categoria"><span className="badge">{item.category}</span></td>
+                    <td data-label="Descrição">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                        {/* Ícone contextual por categoria */}
+                        {(() => { const meta = getCategoryMeta(item.category); const Icon = meta.icon; return (
+                          <span className="cat-icon-wrap" style={{ '--cat-color': meta.color }}><Icon size={14} /></span>
+                        ); })()}
+                        {item.credit_card && <CreditCard size={13} color="var(--primary)" title="Cartão de Crédito" />}
+                        {item.description}
+                      </div>
+                    </td>
+                    <td data-label="Categoria">
+                      {(() => { const meta = getCategoryMeta(item.category); return (
+                        <span className="cat-chip" style={{ '--cat-color': meta.color }}>{item.category}</span>
+                      ); })()}
+                    </td>
                     <td data-label="Valor" style={{ fontWeight: 600, color: item.type === 'RECEITA' ? 'var(--success)' : 'white' }}>{item.type === 'RECEITA' ? '+' : '-'} {showValues ? `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}</td>
-                    {activeTab === 'DESPESA' && <td data-label="Pago Por">{item.paid_by || '-'}</td>}
+                    {activeTab === 'DESPESA' && <td data-label="Pago Por">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><User size={12} style={{ opacity: 0.5 }}/>{item.paid_by || '-'}</div>
+                    </td>}
                     {activeTab === 'DESPESA' && <td data-label="Aviso" style={{ textAlign: 'center' }}><Send size={16} color={item.email_sent ? 'var(--primary)' : 'var(--text-muted)'} style={{ opacity: item.email_sent ? 1 : 0.3 }} title={item.email_sent ? 'E-mail enviado' : 'Ainda não enviado'}/></td>}
                     <td data-label="Status"><span className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} onClick={() => item.status === 'PENDENTE' && handleMarkAsPaid(item.id)} style={{ cursor: item.status === 'PENDENTE' ? 'pointer' : 'default' }} title={item.status === 'PENDENTE' ? 'Clique para marcar como pago' : ''}>{item.status === 'PAGO' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}{item.status}</span></td>
                     <td data-label={isMobile ? "" : "Ações"} className="actions-cell">

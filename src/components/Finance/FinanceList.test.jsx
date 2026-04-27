@@ -40,6 +40,20 @@ vi.mock('lucide-react', () => ({
   Copy: () => <div />,
   Eye: () => <div />,
   EyeOff: () => <div />,
+  ShoppingCart: () => <div />,
+  Home: () => <div />,
+  Car: () => <div />,
+  Utensils: () => <div />,
+  Zap: () => <div />,
+  Heart: () => <div />,
+  GraduationCap: () => <div />,
+  Plane: () => <div />,
+  TrendingUp: () => <div />,
+  Smartphone: () => <div />,
+  Coffee: () => <div />,
+  Package: () => <div />,
+  DollarSign: () => <div />,
+  Repeat: () => <div />,
 }));
 
 // Mock Supabase
