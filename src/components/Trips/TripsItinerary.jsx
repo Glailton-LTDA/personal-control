@@ -8,6 +8,8 @@ import { AnimatePresence } from 'framer-motion';
 import ItineraryManager from './ItineraryManager';
 import toast from 'react-hot-toast';
 
+import { useEncryption } from '../../contexts/EncryptionContext';
+
 export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const [trips, setTrips] = useState([]);
   const [selectedTrip, setSelectedTrip] = useState(null);
@@ -16,6 +18,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+  const { decryptObject, encryptObject, isUnlocked } = useEncryption();
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -25,33 +28,72 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
 
   useEffect(() => {
     fetchTrips();
-  }, [user]);
+  }, [user, isUnlocked]);
 
   const initialTripProcessed = React.useRef(false);
 
   useEffect(() => {
-    if (trips.length > 0 && !initialTripProcessed.current) {
-      if (initialTripId) {
-        const trip = trips.find(t => String(t.id) === String(initialTripId));
-        if (trip) {
-          handleSelectTrip(trip);
-          initialTripProcessed.current = true;
-          return;
+    if (trips.length > 0) {
+      if (!initialTripProcessed.current) {
+        if (initialTripId) {
+          const trip = trips.find(t => String(t.id) === String(initialTripId));
+          if (trip) {
+            handleSelectTrip(trip);
+            initialTripProcessed.current = true;
+            return;
+          }
+        }
+
+        const savedId = localStorage.getItem('pc_selected_trip_v1');
+        const trip = trips.find(t => String(t.id) === String(savedId)) || trips[0];
+        if (trip) handleSelectTrip(trip);
+        initialTripProcessed.current = true;
+      } else if (selectedTrip) {
+        // Sync selected trip with updated data (e.g. after decryption)
+        const updated = trips.find(t => t.id === selectedTrip.id);
+        if (updated) {
+          setSelectedTrip(updated);
+          setItinerary(updated.itinerary || []);
         }
       }
-
-      const savedId = localStorage.getItem('pc_selected_trip_v1');
-      const trip = trips.find(t => String(t.id) === String(savedId)) || trips[0];
-      if (trip) handleSelectTrip(trip);
-      initialTripProcessed.current = true;
     }
   }, [trips, initialTripId]);
 
   async function fetchTrips() {
     setIsLoading(true);
-    const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
-    if (data) setTrips(data);
-    setIsLoading(false);
+    try {
+      const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
+      if (data) {
+        // Pre-process trips to handle stringified itineraries
+        const processedData = data.map(trip => {
+          if (typeof trip.itinerary === 'string' && trip.itinerary.startsWith('[')) {
+            try {
+              return { ...trip, itinerary: JSON.parse(trip.itinerary) };
+            } catch (e) {
+              console.error('Error parsing itinerary for trip', trip.id, e);
+            }
+          }
+          return trip;
+        });
+
+        const decrypted = await decryptObject(processedData, [
+          'title', 
+          'cities.*', 
+          'countries.*',
+          'participants.*',
+          'itinerary.*',
+          'hotels.*',
+          'transports.*',
+          'tickets.*',
+          'misc_docs.*'
+        ]);
+        setTrips(decrypted);
+      }
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const handleSelectTrip = (trip) => {
@@ -64,19 +106,27 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     if (!selectedTrip) return;
     setIsSaving(true);
     try {
+      // Encrypt itinerary before saving
+      const encryptedItinerary = await encryptObject(itinerary, [
+        '*.activity',
+        '*.location',
+        '*.notes'
+      ]);
+
       const { error } = await supabase
         .from('trips')
-        .update({ itinerary })
+        .update({ itinerary: encryptedItinerary })
         .eq('id', selectedTrip.id);
       
       if (error) throw error;
       
+      // Update local state with the clear text version
       setTrips(trips.map(t => t.id === selectedTrip.id ? { ...t, itinerary } : t));
       window.dispatchEvent(new CustomEvent('trip-updated'));
       toast.success('Roteiro salvo com sucesso!');
     } catch (error) {
-      console.error('Error saving itinerary:', error);
-      toast.error('Erro ao salvar roteiro.');
+      console.error('Save error:', error);
+      toast.error('Erro ao salvar roteiro');
     } finally {
       setIsSaving(false);
     }

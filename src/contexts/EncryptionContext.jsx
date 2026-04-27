@@ -73,6 +73,14 @@ export function EncryptionProvider({ children, user }) {
     const process = async (current, pathParts) => {
       if (current === null || current === undefined) return current;
       
+      // If no more path parts, we might be at a direct value (like an item in an array of strings)
+      if (pathParts.length === 0) {
+        if (typeof current === 'string' && current.trim() !== '') {
+          return await encryptData(current);
+        }
+        return current;
+      }
+
       const [head, ...tail] = pathParts;
       
       if (head === '*') {
@@ -82,21 +90,26 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
+      if (current[head] === undefined || current[head] === null) {
+        return current;
+      }
+
       if (tail.length === 0) {
-        // We reached the target field
-        if (current[head] !== undefined && current[head] !== null && typeof current[head] === 'string' && current[head].trim() !== '') {
+        // Terminal field
+        if (typeof current[head] === 'string' && current[head].trim() !== '') {
           return { ...current, [head]: await encryptData(current[head]) };
+        }
+        // Handle case where we have an array but the path was just 'field' instead of 'field.*'
+        if (Array.isArray(current[head])) {
+          const encryptedArray = await Promise.all(current[head].map(item => process(item, [])));
+          return { ...current, [head]: encryptedArray };
         }
         return current;
       }
       
-      // We are in the middle of the path
-      if (current[head] !== undefined && current[head] !== null) {
-        const processedValue = await process(current[head], tail);
-        return { ...current, [head]: processedValue };
-      }
-      
-      return current;
+      // Middle of the path
+      const processedValue = await process(current[head], tail);
+      return { ...current, [head]: processedValue };
     };
 
     let result = obj;
@@ -117,6 +130,35 @@ export function EncryptionProvider({ children, user }) {
     const process = async (current, pathParts) => {
       if (current === null || current === undefined) return current;
       
+      // If no more path parts, we might be at a direct value, an array, or an object
+      if (pathParts.length === 0) {
+        // Deep decrypt strings (handles potential double-encryption)
+        if (typeof current === 'string' && isEncrypted(current.trim())) {
+          let decryptedValue = current.trim();
+          let iterations = 0;
+          while (isEncrypted(decryptedValue) && iterations < 3) {
+            const next = await decryptData(decryptedValue);
+            if (next === decryptedValue) break;
+            decryptedValue = next;
+            iterations++;
+          }
+          return decryptedValue;
+        }
+        // If it's an array, recurse into items
+        if (Array.isArray(current)) {
+          return await Promise.all(current.map(item => process(item, [])));
+        }
+        // If it's an object, try to decrypt all its keys recursively
+        if (typeof current === 'object' && current !== null) {
+          const decryptedObj = { ...current };
+          for (const key in decryptedObj) {
+            decryptedObj[key] = await process(decryptedObj[key], []);
+          }
+          return decryptedObj;
+        }
+        return current;
+      }
+
       const [head, ...tail] = pathParts;
       
       if (head === '*') {
@@ -126,23 +168,26 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
+      if (current[head] === undefined || current[head] === null) {
+        return current;
+      }
+
       if (tail.length === 0) {
-        if (current[head] && isEncrypted(current[head])) {
-          return { ...current, [head]: await decryptData(current[head]) };
+        // Terminal field
+        if (typeof current[head] === 'string' && isEncrypted(current[head].trim())) {
+          return { ...current, [head]: await decryptData(current[head].trim()) };
         }
-        // Handle array of strings case if path ends in *
-        if (head === '' && typeof current === 'string' && isEncrypted(current)) {
-           return await decryptData(current);
+        // Handle case where we have an array or object
+        if (typeof current[head] === 'object' && current[head] !== null) {
+          const decryptedValue = await process(current[head], []);
+          return { ...current, [head]: decryptedValue };
         }
         return current;
       }
       
-      if (current[head] !== undefined && current[head] !== null) {
-        const processedValue = await process(current[head], tail);
-        return { ...current, [head]: processedValue };
-      }
-      
-      return current;
+      // Middle of the path
+      const processedValue = await process(current[head], tail);
+      return { ...current, [head]: processedValue };
     };
 
     // Special case for array of strings or simple values

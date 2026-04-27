@@ -244,14 +244,19 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   const remainingBudget = totalBudget - totalSpent;
   const budgetProgress = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="fade-in">
-      {isDetailsOpen && (
+    if (isDetailsOpen) {
+      return (
         <TripDetails 
           trip={selectedTrip} expenses={expenses} showValues={showValues}
-          onBack={() => setIsDetailsOpen(false)} onViewChecklists={() => { setIsDetailsOpen(false); onViewChecklists(); }} 
+          onBack={() => setIsDetailsOpen(false)} 
+          onEdit={() => onEditTrip(selectedTrip)}
+          onViewChecklists={() => { setIsDetailsOpen(false); onViewChecklists(); }} 
         />
-      )}
+      );
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="fade-in">
       
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 100 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: isMobile ? '100%' : '400px' }}>
@@ -308,31 +313,39 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
 
       {selectedTrip && (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {isMobile && (
-            <div className="trip-active-header">
+          {/* Trip Summary Card (Mobile Only) */}
+          {isMobile && selectedTrip && (
+            <div className="trip-active-header glass-card" style={{ padding: '1.5rem', marginBottom: '0.5rem', border: '1px solid var(--primary-light)', background: 'rgba(99,102,241,0.05)', borderRadius: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
                 <div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: '800', marginBottom: '4px' }}>Viagem Ativa</div>
-                  <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800', lineHeight: 1.2 }}>{selectedTrip.title}</h2>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    <Calendar size={12} /> {formatDate(selectedTrip.start_date, { day: '2-digit', month: 'short' })} - {formatDate(selectedTrip.end_date, { day: '2-digit', month: 'short' })}
+                  <div className="trip-hero-badge" style={{ marginBottom: '0.5rem' }}>
+                    {new Date(selectedTrip.end_date) < new Date() ? 'Concluída' : 
+                     new Date(selectedTrip.start_date) > new Date() ? 'Próxima' : 'Em Andamento'}
                   </div>
-                </div>
-                <div className="trip-status-pill">
-                  {new Date(selectedTrip.end_date) < new Date() ? 'Concluída' : 
-                   new Date(selectedTrip.start_date) > new Date() ? 'Próxima' : 'Em Andamento'}
+                  <h4 style={{ margin: '0.25rem 0 0.4rem 0', fontSize: '1.4rem', fontWeight: '900' }}>{selectedTrip.title}</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <Calendar size={14} /> {formatDate(selectedTrip.start_date, { month: 'short', day: '2-digit' })} - {formatDate(selectedTrip.end_date, { month: 'short', day: '2-digit' })}
+                  </div>
                 </div>
               </div>
-              <div className="trip-budget-progress">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.75rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>Orçamento Restante</span>
-                    <span style={{ fontSize: '1.15rem', fontWeight: '800', color: remainingBudget < 0 ? 'var(--danger)' : 'white' }}>{showValues ? `${activeCurrency} ${remainingBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '••••'}</span>
-                  </div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '700' }}>{Math.round(budgetProgress)}%</span>
+
+              <div style={{ marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.6rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.8 }}>Progresso do Orçamento</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: '900' }}>{Math.round(budgetProgress)}%</span>
                 </div>
-                <div className="trip-progress-track">
-                  <div className="trip-progress-fill" style={{ width: `${Math.min(budgetProgress, 100)}%`, background: budgetProgress > 90 ? 'var(--danger)' : (budgetProgress > 70 ? '#f59e0b' : 'var(--primary)') }} />
+                <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                  <div style={{ 
+                    width: `${Math.min(budgetProgress, 100)}%`, 
+                    height: '100%', 
+                    background: budgetProgress > 90 ? 'var(--danger)' : 'linear-gradient(90deg, var(--primary), var(--success))',
+                    borderRadius: '10px',
+                    transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.8rem', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Consumido: <b style={{ color: 'var(--text-main)' }}>{activeCurrency} {totalSpent.toLocaleString('pt-BR')}</b></span>
+                  <span style={{ color: 'var(--text-muted)' }}>Meta Total: {activeCurrency} {totalBudget.toLocaleString('pt-BR')}</span>
                 </div>
               </div>
             </div>

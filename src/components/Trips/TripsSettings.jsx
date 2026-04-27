@@ -8,8 +8,10 @@ import AttachmentManager from './AttachmentManager';
 import { CURRENCIES } from '../../constants/currencies';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip }) {
+  const { decryptObject } = useEncryption();
   const [activeTab, setActiveTab] = useState('trips'); // 'trips', 'categories', 'shares'
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -50,20 +52,61 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
   const fetchTrips = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
-    if (data) setTrips(data);
-  }, [user]);
+    if (data) {
+      const decrypted = await decryptObject(data, [
+        'title', 
+        'cities.*', 
+        'countries.*',
+        'participants.*',
+        'hotels.*.name',
+        'hotels.*.address',
+        'hotels.*.confirmation',
+        'hotels.*.notes',
+        'transports.*.name',
+        'transports.*.confirmation',
+        'transports.*.origin',
+        'transports.*.destination',
+        'transports.*.transport_id',
+        'transports.*.coach',
+        'transports.*.notes',
+        'tickets.*.name',
+        'tickets.*.address',
+        'tickets.*.confirmation',
+        'tickets.*.notes',
+        'misc_docs.*.name',
+        'misc_docs.*.notes',
+        'itinerary.*.activity',
+        'itinerary.*.location',
+        'itinerary.*.notes'
+      ]);
+      setTrips(decrypted);
+    }
+  }, [user, decryptObject]);
 
   const fetchCategories = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
-    if (data) setCategories(data);
-  }, [user]);
+    if (data) {
+      const decrypted = await decryptObject(data, ['name']);
+      setCategories(decrypted);
+    }
+  }, [user, decryptObject]);
 
   const fetchShares = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trip_shares').select('*, trips(title)').eq('shared_by', user.id);
-    if (data) setShares(data);
-  }, [user]);
+    if (data) {
+      // Decrypt trip titles inside shares
+      const decrypted = await Promise.all(data.map(async (share) => {
+        if (share.trips) {
+          const decTrip = await decryptObject([share.trips], ['title']);
+          return { ...share, trips: decTrip[0] };
+        }
+        return share;
+      }));
+      setShares(decrypted);
+    }
+  }, [user, decryptObject]);
 
   useEffect(() => {
     fetchTrips();

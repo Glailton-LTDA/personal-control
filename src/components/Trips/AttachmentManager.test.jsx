@@ -24,7 +24,7 @@ describe('AttachmentManager', () => {
       />
     );
 
-    expect(screen.getByText(/Hospedagem/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Hospedagem/i).length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue(/Hotel 1/i)).toBeInTheDocument();
     // Correct text is "+ Adicionar novo..."
     expect(screen.getByText(/\+ Adicionar novo/i)).toBeInTheDocument();

@@ -58,7 +58,32 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
     
     if (data && data.length > 0) {
-      const decryptedTrips = await decryptObject(data, ['title', 'cities', 'hotels']);
+      const decryptedTrips = await decryptObject(data, [
+        'title', 
+        'cities.*', 
+        'countries.*',
+        'participants.*',
+        'hotels.*.name',
+        'hotels.*.address',
+        'hotels.*.confirmation',
+        'hotels.*.notes',
+        'transports.*.name',
+        'transports.*.confirmation',
+        'transports.*.origin',
+        'transports.*.destination',
+        'transports.*.transport_id',
+        'transports.*.coach',
+        'transports.*.notes',
+        'tickets.*.name',
+        'tickets.*.address',
+        'tickets.*.confirmation',
+        'tickets.*.notes',
+        'misc_docs.*.name',
+        'misc_docs.*.notes',
+        'itinerary.*.activity',
+        'itinerary.*.location',
+        'itinerary.*.notes'
+      ]);
       setTrips(decryptedTrips);
       
       const savedTripId = localStorage.getItem(STORAGE_KEY);

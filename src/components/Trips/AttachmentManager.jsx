@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { AIRPORTS } from '../../lib/constants';
 
-export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true }) {
+export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true, readOnly = false }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   React.useEffect(() => {
@@ -245,15 +245,25 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Nome / Descrição</label>
                           <input 
-                            className="glass-input" 
-                            value={item.name}
+                            className="glass-input"
+                            value={item.name || ''}
+                            disabled={readOnly}
                             onChange={(e) => updateItemField(item.id, 'name', e.target.value)}
-                            style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)', borderRadius: '12px' }}
+                            style={{ 
+                              width: '100%', 
+                              background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                              border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                              padding: readOnly ? '0 0 0.5rem 0' : '0.75rem', 
+                              fontWeight: '700', 
+                              fontSize: '1.2rem', 
+                              color: 'var(--text-main)', 
+                              borderRadius: '12px' 
+                            }}
                             placeholder={isTransport ? "Ex: Voo LATAM, Aluguel Hertz..." : isTour ? "Ex: Museu do Louvre, Ingresso Show..." : isMisc ? "Ex: Seguro Viagem Porto, Recibo Jantar..." : "Ex: Ibis Paris, Airbnb Marais..."}
                           />
                         </div>
 
-                        {!isMobile && (
+                        {!isMobile && !readOnly && (
                           <button 
                             type="button"
                             onClick={() => removeItem(item.id)}
@@ -320,7 +330,17 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             className="glass-input"
                             value={item.confirmation || ''}
                             onChange={(e) => updateItemField(item.id, 'confirmation', e.target.value)}
-                            style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                            disabled={readOnly}
+                            style={{ 
+                              width: '100%', 
+                              background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                              border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                              padding: readOnly ? '0' : '0.75rem', 
+                              fontSize: '0.9rem', 
+                              color: 'var(--text-main)', 
+                              borderRadius: '10px', 
+                              opacity: 1 
+                            }}
                             placeholder="Código..."
                           />
                         </div>
@@ -336,7 +356,17 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 list={currentType === 'flight' ? `airports-origin-${item.id}` : undefined}
                                 value={item.origin || ''}
                                 onChange={(e) => updateItemField(item.id, 'origin', currentType === 'flight' ? e.target.value.toUpperCase() : e.target.value)}
-                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                disabled={readOnly}
+                                 style={{ 
+                                   width: '100%', 
+                                   background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                                   border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                                   padding: readOnly ? '0' : '0.75rem', 
+                                   fontSize: '0.9rem', 
+                                   color: 'var(--text-main)', 
+                                   borderRadius: '10px', 
+                                   opacity: 1 
+                                 }}
                                 placeholder={currentType === 'flight' ? "Ex: GRU" : "Ex: Gare du Nord, Rodoviária..."}
                               />
                             </div>
@@ -350,7 +380,17 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 list={currentType === 'flight' ? `airports-destination-${item.id}` : undefined}
                                 value={item.destination || ''}
                                 onChange={(e) => updateItemField(item.id, 'destination', currentType === 'flight' ? e.target.value.toUpperCase() : e.target.value)}
-                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                disabled={readOnly}
+                                 style={{ 
+                                   width: '100%', 
+                                   background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                                   border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                                   padding: readOnly ? '0' : '0.75rem', 
+                                   fontSize: '0.9rem', 
+                                   color: 'var(--text-main)', 
+                                   borderRadius: '10px', 
+                                   opacity: 1 
+                                 }}
                                 placeholder={currentType === 'flight' ? "Ex: GIG" : "Ex: St Pancras, Terminal 1..."}
                               />
                             </div>
@@ -363,7 +403,8 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 className="glass-input"
                                 value={item.transport_id || ''}
                                 onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
-                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                disabled={readOnly}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px', opacity: readOnly ? 0.7 : 1 }}
                                 placeholder={currentType === 'flight' ? "Ex: LA8100, Placa ABC-1234..." : "Ex: Eurostar 9010..."}
                               />
                             </div>
@@ -377,7 +418,17 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                   className="glass-input"
                                   value={item.coach || ''}
                                   onChange={(e) => updateItemField(item.id, 'coach', e.target.value)}
-                                  style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                                  style={{ 
+                                    width: '100%', 
+                                    background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                                    border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                                    padding: readOnly ? '0' : '0.75rem', 
+                                    fontSize: '0.9rem', 
+                                    color: 'var(--text-main)', 
+                                    borderRadius: '10px', 
+                                    opacity: 1,
+                                    height: readOnly ? 'auto' : '44px'
+                                  }}
                                   placeholder="Ex: 06, 12..."
                                 />
                               </div>
@@ -388,17 +439,74 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         {isTour && (
                           <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                             <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Endereço / Local</label>
-                            <AddressInput 
-                              value={item.address}
-                              onChange={(val, coords) => {
-                                updateItemField(item.id, 'address', val);
-                                if (coords) {
-                                  updateItemField(item.id, 'coordinates', coords);
-                                }
-                              }}
-                              placeholder="Ex: Louvre Museum, Rue de Rivoli..."
-                              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
-                            />
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <AddressInput 
+                                value={item.address}
+                                onChange={(val, coords) => {
+                                  updateItemField(item.id, 'address', val);
+                                  if (coords) {
+                                    updateItemField(item.id, 'coordinates', coords);
+                                  }
+                                }}
+                                disabled={readOnly}
+                                placeholder="Ex: Louvre Museum, Rue de Rivoli..."
+                                style={{ 
+                                  background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                                  border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                                  padding: readOnly ? '0' : '0.75rem', 
+                                  fontSize: '0.9rem', 
+                                  color: 'var(--text-main)', 
+                                  borderRadius: '10px', 
+                                  opacity: 1 
+                                }}
+                              />
+                              {readOnly && item.address && (
+                                <button 
+                                  onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`, '_blank')}
+                                  style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '0 0.75rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: '700' }}
+                                  title="Ver no Google Maps"
+                                >
+                                  <MapPin size={14} /> MAPS
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {isLodging && (
+                          <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+                            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.5, marginBottom: '0.4rem', display: 'block', fontWeight: 'bold' }}>Endereço da Hospedagem</label>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <AddressInput 
+                                value={item.address}
+                                onChange={(val, coords) => {
+                                  updateItemField(item.id, 'address', val);
+                                  if (coords) {
+                                    updateItemField(item.id, 'coordinates', coords);
+                                  }
+                                }}
+                                disabled={readOnly}
+                                placeholder="Ex: Rua das Flores, 123..."
+                                style={{ 
+                                  background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                                  border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                                  padding: readOnly ? '0' : '0.75rem', 
+                                  fontSize: '0.9rem', 
+                                  color: 'var(--text-main)', 
+                                  borderRadius: '10px', 
+                                  opacity: 1 
+                                }}
+                              />
+                              {readOnly && item.address && (
+                                <button 
+                                  onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`, '_blank')}
+                                  style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '0 0.75rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: '700' }}
+                                  title="Ver no Google Maps"
+                                >
+                                  <MapPin size={14} /> MAPS
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -415,6 +523,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         type="text"
                         className="glass-input"
                         placeholder="DD/MM/AAAA"
+                        disabled={readOnly}
                         value={localDateValues[`${item.id}_start_date`] ?? (item.start_date ? formatDateToDisplay(item.start_date) : '')}
                         onChange={(e) => {
                           const masked = handleDateMask(e.target.value);
@@ -427,14 +536,24 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             updateItemField(item.id, 'start_date', '');
                           }
                         }}
-                        style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                        style={{ width: '100%', background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', border: readOnly ? 'none' : '1px solid var(--glass-border)', padding: readOnly ? '0' : '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px', opacity: 1 }}
                       />
                       <input 
                         type="time"
                         className="glass-input"
                         value={item.start_time || ''}
                         onChange={(e) => updateItemField(item.id, 'start_time', e.target.value)}
-                        style={{ width: isMobile ? '100%' : '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                        disabled={readOnly}
+                        style={{ 
+                          width: isMobile ? '100%' : '115px', 
+                          background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                          border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                          padding: readOnly ? '0' : '0.75rem', 
+                          fontSize: '0.9rem', 
+                          color: 'var(--text-main)', 
+                          borderRadius: '10px', 
+                          opacity: 1 
+                        }}
                       />
                     </div>
                   </div>
@@ -447,6 +566,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           type="text"
                           className="glass-input"
                           placeholder="DD/MM/AAAA"
+                          disabled={readOnly}
                           value={localDateValues[`${item.id}_end_date`] ?? (item.end_date ? formatDateToDisplay(item.end_date) : '')}
                           onChange={(e) => {
                             const masked = handleDateMask(e.target.value);
@@ -459,14 +579,33 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               updateItemField(item.id, 'end_date', '');
                             }
                           }}
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          style={{ 
+                            width: '100%', 
+                            background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                            border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                            padding: readOnly ? '0' : '0.75rem', 
+                            fontSize: '0.9rem', 
+                            color: 'var(--text-main)', 
+                            borderRadius: '10px', 
+                            opacity: 1 
+                          }}
                         />
                         <input 
                           type="time"
                           className="glass-input"
                           value={item.end_time || ''}
                           onChange={(e) => updateItemField(item.id, 'end_time', e.target.value)}
-                          style={{ width: isMobile ? '100%' : '115px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px' }}
+                          disabled={readOnly}
+                          style={{ 
+                          width: isMobile ? '100%' : '115px', 
+                          background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                          border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                          padding: readOnly ? '0' : '0.75rem', 
+                          fontSize: '0.9rem', 
+                          color: 'var(--text-main)', 
+                          borderRadius: '10px', 
+                          opacity: 1 
+                        }}
                         />
                       </div>
                     </div>
@@ -480,7 +619,19 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                     className="glass-input"
                     value={item.notes || ''}
                     onChange={(e) => updateItemField(item.id, 'notes', e.target.value)}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.9rem', color: 'var(--text-main)', borderRadius: '10px', minHeight: '60px', resize: 'vertical' }}
+                    disabled={readOnly}
+                    style={{ 
+                      width: '100%', 
+                      background: readOnly ? 'transparent' : 'rgba(255,255,255,0.03)', 
+                      border: readOnly ? 'none' : '1px solid var(--glass-border)', 
+                      padding: readOnly ? '0' : '0.75rem', 
+                      fontSize: '0.9rem', 
+                      color: 'var(--text-main)', 
+                      borderRadius: '10px', 
+                      minHeight: readOnly ? 'auto' : '60px', 
+                      resize: readOnly ? 'none' : 'vertical', 
+                      opacity: 1 
+                    }}
                     placeholder="Check-in às 14h, portão C3..."
                   />
                 </div>
@@ -497,53 +648,59 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       >
                         <FileText size={18} /> Ver Voucher / Comprovante
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.id)}
-                        style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div style={{ width: '100%' }}>
-                      <input 
-                        type="file" 
-                        id={`file-${item.id}`} 
-                        style={{ display: 'none' }} 
-                        onChange={(e) => handleFileUpload(index, e.target.files[0])}
-                      />
-                      <label 
-                        htmlFor={`file-${item.id}`}
-                        style={{ 
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', 
-                          width: '100%', height: '44px', background: 'rgba(255,255,255,0.03)', 
-                          borderRadius: '12px', fontSize: '0.85rem', color: 'var(--text-muted)', 
-                          cursor: 'pointer', border: '1px dashed var(--glass-border)', fontWeight: '600'
-                        }}
-                      >
-                        {isUploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
-                        {isUploading ? 'Enviando...' : 'Anexar Voucher / Comprovante'}
-                      </label>
-                    </div>
+                    !readOnly ? (
+                      <div style={{ width: '100%' }}>
+                        <input 
+                          type="file" 
+                          id={`file-${item.id}`} 
+                          style={{ display: 'none' }} 
+                          onChange={(e) => handleFileUpload(index, e.target.files[0])}
+                        />
+                        <label 
+                          htmlFor={`file-${item.id}`}
+                          style={{ 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', 
+                            width: '100%', height: '44px', background: 'rgba(255,255,255,0.03)', 
+                            borderRadius: '12px', fontSize: '0.85rem', color: 'var(--text-muted)', 
+                            cursor: 'pointer', border: '1px dashed var(--glass-border)', fontWeight: '600'
+                          }}
+                        >
+                          {isUploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
+                          {isUploading ? 'Enviando...' : 'Anexar Voucher / Comprovante'}
+                        </label>
+                      </div>
+                    ) : null
                   )}
                 </div>
               </div>
             ))}
 
-            <button
-              type="button"
-              onClick={addItem}
-              style={{
-                width: '100%', padding: '1.25rem', borderRadius: '16px', 
-                background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.9rem', 
-                fontWeight: '600', cursor: 'pointer'
-              }}
-            >
-              <Plus size={18} /> + Adicionar novo...
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={addItem}
+                style={{
+                  width: '100%', padding: '1.25rem', borderRadius: '16px', 
+                  background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.9rem', 
+                  fontWeight: '600', cursor: 'pointer'
+                }}
+              >
+                <Plus size={18} /> + Adicionar novo...
+              </button>
+            )}
           </Motion.div>
         )}
       </AnimatePresence>

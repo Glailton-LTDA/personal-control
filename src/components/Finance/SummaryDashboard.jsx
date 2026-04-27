@@ -6,6 +6,8 @@ import {
 import { supabase } from '../../lib/supabase';
 import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock, Eye, EyeOff } from 'lucide-react';
 
+import { useEncryption } from '../../contexts/EncryptionContext';
+
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey, showValues = true, onToggleValues }) {
@@ -17,6 +19,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   const [selectedYear, setSelectedYear] = useState(initialYear || 2026);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth < 1024);
+  const { decryptObject } = useEncryption();
 
   useEffect(() => {
     const handleResize = () => {
@@ -90,16 +93,6 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   const fetchData = useCallback(async () => {
     setLoading(true);
     
-    // Get main responsible name for this user's project
-    const { data: mainResp } = await supabase
-      .from('finance_responsibles')
-      .select('name')
-      .eq('user_id', user?.id)
-      .eq('is_main', true)
-      .maybeSingle();
-    
-    const mainName = mainResp?.name;
-
     let query = supabase.from('finances').select('*').eq('user_id', user?.id);
 
     if (isGeneral) {
@@ -114,17 +107,13 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
       query = query.gte('payment_date', start).lte('payment_date', end);
     }
 
-    if (mainName) {
-      query = query.eq('paid_by', mainName);
-    }
-
     const { data: finances } = await query;
-
     if (finances) {
-      processCharts(finances);
+      const decrypted = await decryptObject(finances, ['description', 'category']);
+      processCharts(decrypted);
     }
     setLoading(false);
-  }, [isGeneral, month, selectedYear, user?.id, processCharts]);
+  }, [isGeneral, month, selectedYear, user?.id, processCharts, decryptObject]);
 
   useEffect(() => {
     fetchData();
