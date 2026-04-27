@@ -37,20 +37,14 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   }, [currentView]);
 
   useEffect(() => {
+    // If mode prop changes, update currentView only if it's an explicit navigation
     if (mode === 'settings') setCurrentView('settings');
     else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'checklists') setCurrentView('checklists');
     else if (mode === 'stats') setCurrentView('stats');
-    else if (mode === 'main') setCurrentView('main');
-  }, [mode]);
-
-  useEffect(() => {
-    // If mode prop changes, update currentView
-    if (mode === 'settings') setCurrentView('settings');
-    else if (mode === 'itinerary') setCurrentView('itinerary');
-    else if (mode === 'checklists') setCurrentView('checklists');
-    else if (mode === 'stats') setCurrentView('stats');
-    else if (mode === 'list') setCurrentView('main');
+    else if (mode === 'list' && !['settings', 'itinerary', 'checklists', 'stats'].includes(currentView)) {
+      setCurrentView('main');
+    }
   }, [mode]);
 
   const STORAGE_KEY = 'pc_selected_trip_v1';

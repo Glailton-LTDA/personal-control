@@ -90,7 +90,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         .select('*')
         .eq('trip_id', tripId)
         .order('day', { ascending: true })
-        .order('time', { ascending: true });
+        .order('order_index', { ascending: true }); // Order by index
       
       if (error) throw error;
       
@@ -118,8 +118,8 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     if (!selectedTrip) return;
     setIsSaving(true);
     try {
-      // 1. Prepare data (sanitize and assign keys)
-      const sanitizedItinerary = itinerary.map(item => ({
+      // 1. Prepare data (assign order_index based on position)
+      const sanitizedItinerary = itinerary.map((item, index) => ({
         trip_id: selectedTrip.id,
         user_id: user.id,
         day: item.day,
@@ -130,7 +130,8 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         completed: !!item.completed,
         needs_booking: !!item.needs_booking,
         is_booked: !!item.is_booked,
-        coordinates: item.coordinates || null
+        coordinates: item.coordinates || null,
+        order_index: index // Save the order!
       }));
 
       // 2. Encrypt itinerary before saving

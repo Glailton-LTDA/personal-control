@@ -36,6 +36,11 @@ vi.mock('./TripForm', () => ({
 describe('Trips Component', () => {
   const mockUser = { id: 'user-123' };
 
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
   it('renders TripsList by default (mode="list")', async () => {
     render(<Trips user={mockUser} mode="list" />);
     expect(await screen.findByTestId('trips-list')).toBeInTheDocument();
