@@ -23,6 +23,7 @@ describe('TripsItinerary Component', () => {
     vi.mocked(supabase.from).mockReturnValue({
       select: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
       then: vi.fn((cb) => Promise.resolve({ data: mockTrips, error: null }).then(cb)),
     });
   });

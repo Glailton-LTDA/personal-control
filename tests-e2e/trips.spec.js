@@ -140,7 +140,7 @@ test.describe('Módulo de Viagens', () => {
     await unlockApp(page);
     
     // Navega para Viagens
-    await page.getByRole('button', { name: 'Viagens' }).click();
+    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
     await page.getByRole('button', { name: 'Listagem' }).click();
     
     // Verifica se o seletor de moeda para EUR está ativo e salva no localStorage
@@ -162,7 +162,7 @@ test.describe('Módulo de Viagens', () => {
     await unlockApp(page);
     
     // Navega para Viagens
-    await page.getByRole('button', { name: 'Viagens' }).click();
+    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
     await page.getByRole('button', { name: 'Listagem' }).click();
     
     // Abre detalhes da viagem

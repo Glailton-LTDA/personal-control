@@ -74,10 +74,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
         'tickets.*.confirmation',
         'tickets.*.notes',
         'misc_docs.*.name',
-        'misc_docs.*.notes',
-        'itinerary.*.activity',
-        'itinerary.*.location',
-        'itinerary.*.notes'
+        'misc_docs.*.notes'
       ]);
       setTrips(decrypted);
     }

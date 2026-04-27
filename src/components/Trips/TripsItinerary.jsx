@@ -64,24 +64,11 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     try {
       const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
       if (data) {
-        // Pre-process trips to handle stringified itineraries
-        const processedData = data.map(trip => {
-          if (typeof trip.itinerary === 'string' && trip.itinerary.startsWith('[')) {
-            try {
-              return { ...trip, itinerary: JSON.parse(trip.itinerary) };
-            } catch (e) {
-              console.error('Error parsing itinerary for trip', trip.id, e);
-            }
-          }
-          return trip;
-        });
-
-        const decrypted = await decryptObject(processedData, [
+        const decrypted = await decryptObject(data, [
           'title', 
           'cities.*', 
           'countries.*',
           'participants.*',
-          'itinerary.*',
           'hotels.*',
           'transports.*',
           'tickets.*',
@@ -96,9 +83,35 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     }
   }
 
+  const fetchItinerary = async (tripId) => {
+    if (!tripId) return;
+    try {
+      const { data, error } = await supabase
+        .from('trip_itinerary')
+        .select('*')
+        .eq('trip_id', tripId)
+        .order('day', { ascending: true })
+        .order('time', { ascending: true });
+      
+      if (error) throw error;
+      
+      if (data) {
+        const decrypted = await decryptObject(data, [
+          'activity',
+          'location',
+          'notes'
+        ]);
+        setItinerary(decrypted);
+      }
+    } catch (err) {
+      console.error('Error fetching itinerary:', err);
+      toast.error('Erro ao carregar roteiro');
+    }
+  };
+
   const handleSelectTrip = (trip) => {
     setSelectedTrip(trip);
-    setItinerary(trip.itinerary || []);
+    fetchItinerary(trip.id);
     if (trip.id) localStorage.setItem('pc_selected_trip_v1', trip.id);
   };
 
@@ -106,23 +119,45 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     if (!selectedTrip) return;
     setIsSaving(true);
     try {
-      // Encrypt itinerary before saving
-      const encryptedItinerary = await encryptObject(itinerary, [
-        '*.activity',
-        '*.location',
-        '*.notes'
+      // 1. Prepare data (sanitize and assign keys)
+      const sanitizedItinerary = itinerary.map(item => ({
+        trip_id: selectedTrip.id,
+        user_id: user.id,
+        day: item.day,
+        time: item.time || null,
+        activity: item.activity || '',
+        location: item.location || '',
+        notes: item.notes || '',
+        completed: !!item.completed,
+        needs_booking: !!item.needs_booking,
+        is_booked: !!item.is_booked,
+        coordinates: item.coordinates || null
+      }));
+
+      // 2. Encrypt itinerary before saving
+      const encryptedItinerary = await encryptObject(sanitizedItinerary, [
+        'activity',
+        'location',
+        'notes'
       ]);
 
-      const { error } = await supabase
-        .from('trips')
-        .update({ itinerary: encryptedItinerary })
-        .eq('id', selectedTrip.id);
+      // 3. Clear existing itinerary for this trip and insert new one
+      // We use a transaction-like approach (delete then insert)
+      const { error: deleteError } = await supabase
+        .from('trip_itinerary')
+        .delete()
+        .eq('trip_id', selectedTrip.id);
       
-      if (error) throw error;
+      if (deleteError) throw deleteError;
+
+      if (encryptedItinerary.length > 0) {
+        const { error: insertError } = await supabase
+          .from('trip_itinerary')
+          .insert(encryptedItinerary);
+        
+        if (insertError) throw insertError;
+      }
       
-      // Update local state with the clear text version
-      setTrips(trips.map(t => t.id === selectedTrip.id ? { ...t, itinerary } : t));
-      window.dispatchEvent(new CustomEvent('trip-updated'));
       toast.success('Roteiro salvo com sucesso!');
     } catch (error) {
       console.error('Save error:', error);

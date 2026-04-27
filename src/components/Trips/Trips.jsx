@@ -79,10 +79,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         'tickets.*.confirmation',
         'tickets.*.notes',
         'misc_docs.*.name',
-        'misc_docs.*.notes',
-        'itinerary.*.activity',
-        'itinerary.*.location',
-        'itinerary.*.notes'
+        'misc_docs.*.notes'
       ]);
       setTrips(decryptedTrips);
       

@@ -97,10 +97,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       'tickets.*.confirmation',
       'tickets.*.notes',
       'misc_docs.*.name',
-      'misc_docs.*.notes',
-      'itinerary.*.activity',
-      'itinerary.*.location',
-      'itinerary.*.notes'
+      'misc_docs.*.notes'
     ]);
 
     const payload = {
@@ -116,8 +113,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       currencies: formData.currencies,
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
-      participants: encryptedPayload.participants,
-      itinerary: encryptedPayload.itinerary
+      participants: encryptedPayload.participants
     };
 
     let result;

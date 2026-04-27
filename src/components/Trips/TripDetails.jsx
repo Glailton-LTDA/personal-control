@@ -17,15 +17,27 @@ import { CURRENCIES } from '../../constants/currencies';
 export default function TripDetails({ trip, onBack, onEdit, onViewChecklists, expenses = [], showValues = true }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
   const [showActions, setShowActions] = useState(false);
-
-
-  const estimatedDistance = useMemo(() => estimateItineraryDistance(trip?.itinerary || []), [trip?.itinerary]);
+  const [itinerary, setItinerary] = useState([]);
+  const estimatedDistance = useMemo(() => estimateItineraryDistance(itinerary), [itinerary]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
+    
+    // Fetch itinerary for distance calculation
+    const fetchItinerary = async () => {
+      if (!trip?.id) return;
+      const { data } = await supabase
+        .from('trip_itinerary')
+        .select('location, coordinates')
+        .eq('trip_id', trip.id);
+      
+      if (data) setItinerary(data);
+    };
+    
+    fetchItinerary();
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [trip?.id]);
 
   if (!trip) return null;
 
