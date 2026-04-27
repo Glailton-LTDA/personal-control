@@ -93,12 +93,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
 
   return (
     <div className="modal-overlay">
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 20, opacity: 0 }}
-        className="glass-card modal-content"
-      >
+      <div className="glass-card modal-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{initialData ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
@@ -182,7 +177,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
             </button>
           </div>
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 }
