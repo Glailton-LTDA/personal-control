@@ -415,56 +415,52 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
             </div>
           )}
 
-          {!isMobile && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem' }}>
-              <div className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Resumo da Viagem</div>
-                <h2 style={{ fontSize: '2.5rem', margin: 0, fontWeight: '900' }}>{showValues ? `${activeCurrency} ${totalSpent.toLocaleString('pt-BR')}` : '••••••'}</h2>
-                <div style={{ display: 'flex', gap: '2rem', marginTop: '1.5rem' }}>
-                  <div><div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Média Diária</div><div style={{ fontSize: '1.25rem', fontWeight: '800' }}>{showValues ? dailyAverage.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '•••'}</div></div>
-                  <div><div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Economia</div><div style={{ fontSize: '1.25rem', fontWeight: '800', color: remainingBudget > 0 ? 'var(--success)' : 'var(--danger)' }}>{totalBudget > 0 ? `${Math.round((remainingBudget/totalBudget)*100)}%` : '0%'}</div></div>
-                </div>
-              </div>
-              <div className="glass-card" style={{ padding: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}><PieChart size={20} className="text-primary" /> Gastos por Categoria</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                  {Object.entries(categoryMap).slice(0, 4).map(([cat, total]) => (
-                    <div key={cat}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.4rem' }}><span>{cat}</span><span style={{ fontWeight: '700' }}>{showValues ? total.toLocaleString('pt-BR') : '•••'}</span></div>
-                      <div className="stat-track"><div className="stat-fill" style={{ width: `${(total/totalSpent)*100}%` }} /></div>
-                    </div>
-                  ))}
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1.5fr', gap: '1.5rem' }}>
+            <div className="glass-card" style={{ padding: isMobile ? '1.5rem' : '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Resumo da Viagem</div>
+              <h2 style={{ fontSize: isMobile ? '1.75rem' : '2.5rem', margin: 0, fontWeight: '900' }}>{showValues ? `${activeCurrency} ${totalSpent.toLocaleString('pt-BR')}` : '••••••'}</h2>
+              <div style={{ display: 'flex', gap: isMobile ? '1rem' : '2rem', marginTop: '1.5rem' }}>
+                <div><div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Média Diária</div><div style={{ fontSize: isMobile ? '1rem' : '1.25rem', fontWeight: '800' }}>{showValues ? dailyAverage.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '•••'}</div></div>
+                <div><div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Economia</div><div style={{ fontSize: isMobile ? '1rem' : '1.25rem', fontWeight: '800', color: remainingBudget > 0 ? 'var(--success)' : 'var(--danger)' }}>{totalBudget > 0 ? `${Math.round((remainingBudget/totalBudget)*100)}%` : '0%'}</div></div>
               </div>
             </div>
-          )}
+            <div className="glass-card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}><PieChart size={20} className="text-primary" /> Gastos por Categoria</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
+                {Object.entries(categoryMap).slice(0, 4).map(([cat, total]) => (
+                  <div key={cat}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.4rem' }}><span>{cat}</span><span style={{ fontWeight: '700' }}>{showValues ? total.toLocaleString('pt-BR') : '•••'}</span></div>
+                    <div className="stat-track"><div className="stat-fill" style={{ width: `${(total/totalSpent)*100}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-          {!isMobile && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-              <div className="glass-card" style={{ padding: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}><Users size={20} className="text-primary" /> Gastos por Viajante</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {Object.entries(paidByMap).sort((a,b) => b[1]-a[1]).map(([person, total]) => (
-                    <div key={person}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}><span>{person}</span><span style={{ fontWeight: '700' }}>{showValues ? total.toLocaleString('pt-BR') : '•••'}</span></div>
-                      <div className="stat-track"><div className="stat-fill" style={{ width: `${(total/totalSpent)*100}%`, background: 'var(--primary)' }} /></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="glass-card" style={{ padding: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}><Calendar size={20} className="text-primary" /> Gastos Diários</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '200px', overflowY: 'auto' }} className="custom-scrollbar">
-                  {allDays.map(date => (
-                    <div key={date}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}><span>{formatDate(date, { day: '2-digit', month: 'short' })}</span><span style={{ fontWeight: '700' }}>{showValues ? dailyMap[date].toLocaleString('pt-BR') : '•••'}</span></div>
-                      <div className="stat-track"><div className="stat-fill" style={{ width: `${(dailyMap[date]/totalSpent)*100}%`, background: 'var(--success)' }} /></div>
-                    </div>
-                  ))}
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+            <div className="glass-card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}><Users size={20} className="text-primary" /> Gastos por Viajante</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {Object.entries(paidByMap).sort((a,b) => b[1]-a[1]).map(([person, total]) => (
+                  <div key={person}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}><span>{person}</span><span style={{ fontWeight: '700' }}>{showValues ? total.toLocaleString('pt-BR') : '•••'}</span></div>
+                    <div className="stat-track"><div className="stat-fill" style={{ width: `${(total/totalSpent)*100}%`, background: 'var(--primary)' }} /></div>
+                  </div>
+                ))}
               </div>
             </div>
-          )}
+            <div className="glass-card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}><Calendar size={20} className="text-primary" /> Gastos Diários</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '200px', overflowY: 'auto' }} className="custom-scrollbar">
+                {allDays.map(date => (
+                  <div key={date}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}><span>{formatDate(date, { day: '2-digit', month: 'short' })}</span><span style={{ fontWeight: '700' }}>{showValues ? dailyMap[date].toLocaleString('pt-BR') : '•••'}</span></div>
+                    <div className="stat-track"><div className="stat-fill" style={{ width: `${(dailyMap[date]/totalSpent)*100}%`, background: 'var(--success)' }} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
           <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
