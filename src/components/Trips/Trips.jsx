@@ -42,7 +42,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'checklists') setCurrentView('checklists');
     else if (mode === 'stats') setCurrentView('stats');
-    else if (mode === 'list' && !['itinerary', 'checklists', 'stats'].includes(currentView)) {
+    else if (mode === 'list') {
       setCurrentView('main');
     }
   }, [mode]);

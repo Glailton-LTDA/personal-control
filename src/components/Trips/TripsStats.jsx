@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { 
-  Globe, Compass, Loader2
+  Globe, Compass, Loader2, ChevronLeft
 } from 'lucide-react';
 import { 
   ComposableMap, 
@@ -46,7 +46,7 @@ const countryZoomConfig = {
   'Paraguai': { center: [-58, -23], scale: 1500 }
 };
 
-export default function TripsStats({ trips }) {
+export default function TripsStats({ trips, onBack }) {
   const [itineraries, setItineraries] = useState({});
   const [isLoadingItineraries, setIsLoadingItineraries] = useState(true);
   const [selectedCountry, setSelectedCountry] = useState(null);

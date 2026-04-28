@@ -203,13 +203,9 @@
 }
 
 /* Responsive */
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .summary-card:last-child {
-    grid-column: span 2;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
   
   .dashboard-grid {
@@ -218,5 +214,45 @@
   
   .col-span-2 {
     grid-column: span 1;
+  }
+  
+  .side-content {
+    flex-direction: row;
+  }
+  
+  .continents-card, .countries-card {
+    flex: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .side-content {
+    flex-direction: column;
+  }
+  
+  .visualization-card {
+    min-height: 350px;
+  }
+  
+  .summary-card:last-child {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .summary-card:last-child {
+    grid-column: span 1;
+  }
+  
+  .countries-grid {
+    grid-template-columns: 1fr;
   }
 }
