@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { formatDate } from '../../lib/utils';
+import { supabase } from '../../lib/supabase';
 import { 
   X, Calendar, MapPin, Users, Building, Plane, Ticket, 
   DollarSign, FileText, Globe, Clock, ChevronLeft,
@@ -29,7 +30,7 @@ export default function TripDetails({ trip, onBack, onEdit, onViewChecklists, ex
       if (!trip?.id) return;
       const { data } = await supabase
         .from('trip_itinerary')
-        .select('location, coordinates')
+        .select('day, time, location, coordinates')
         .eq('trip_id', trip.id);
       
       if (data) setItinerary(data);

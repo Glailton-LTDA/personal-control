@@ -26,27 +26,30 @@ export function calculateDistance(lat1, lon1, lat2, lon2) {
 export function estimateItineraryDistance(itinerary) {
   if (!itinerary || itinerary.length < 2) return 0;
 
-  // Group by day to calculate sequential distances
-  const byDay = itinerary.reduce((acc, entry) => {
-    if (!acc[entry.day]) acc[entry.day] = [];
-    acc[entry.day].push(entry);
-    return acc;
-  }, {});
+  // Filter and sort all entries by day and time
+  const sortedEntries = itinerary
+    .filter(e => e.coordinates && Array.isArray(e.coordinates) && e.coordinates.length === 2)
+    .sort((a, b) => {
+      const dayCompare = (a.day || '').localeCompare(b.day || '');
+      if (dayCompare !== 0) return dayCompare;
+      return (a.time || '00:00').localeCompare(b.time || '00:00');
+    });
+
+  if (sortedEntries.length < 2) return 0;
 
   let totalDist = 0;
 
-  Object.keys(byDay).sort().forEach(day => {
-    const dayEntries = byDay[day]
-      .filter(e => e.coordinates && e.coordinates.length === 2)
-      .sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
-
-    for (let i = 0; i < dayEntries.length - 1; i++) {
-      const p1 = dayEntries[i].coordinates;
-      const p2 = dayEntries[i + 1].coordinates;
-      // Photon returns [lon, lat]
-      totalDist += calculateDistance(p1[1], p1[0], p2[1], p2[0]);
+  for (let i = 0; i < sortedEntries.length - 1; i++) {
+    const p1 = sortedEntries[i].coordinates;
+    const p2 = sortedEntries[i + 1].coordinates;
+    
+    // Photon/Leaflet usually returns [lon, lat] or [lat, lon] depending on convention.
+    // Our system uses [lon, lat] based on previous logs.
+    const dist = calculateDistance(p1[1], p1[0], p2[1], p2[0]);
+    if (!isNaN(dist)) {
+      totalDist += dist;
     }
-  });
+  }
 
   return Math.round(totalDist);
 }
