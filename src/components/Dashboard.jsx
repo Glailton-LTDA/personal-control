@@ -81,7 +81,8 @@ export default function Dashboard({ user }) {
   const [theme, setTheme] = useState('dark');
   const [invitationCount, setInvitationCount] = useState(0);
   const [expandedSections, setExpandedSections] = useState(() => {
-    return {
+    const saved = localStorage.getItem('personal-control-expanded-sections');
+    return saved ? JSON.parse(saved) : {
       finances: true,
       cars: false,
       investments: false,
@@ -119,6 +120,10 @@ export default function Dashboard({ user }) {
   useEffect(() => {
     localStorage.setItem('personal-control-show-values', showValues);
   }, [showValues]);
+
+  useEffect(() => {
+    localStorage.setItem('personal-control-expanded-sections', JSON.stringify(expandedSections));
+  }, [expandedSections]);
 
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
 
