@@ -13,13 +13,44 @@ import {
 import { getContinent } from '../../data/continents';
 import { estimateItineraryDistance } from '../../lib/geo';
 import { supabase } from '../../lib/supabase';
+import { useEncryption } from '../../contexts/EncryptionContext';
 import './TripsStats.css';
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
+// Mapping for countries that might have different names in TopoJSON
+const countryNameMap = {
+  'Brasil': 'Brazil',
+  'França': 'France',
+  'Inglaterra': 'United Kingdom',
+  'Espanha': 'Spain',
+  'Itália': 'Italy',
+  'Alemanha': 'Germany',
+  'Estados Unidos': 'United States of America',
+  'Japão': 'Japan',
+  'Portugal': 'Portugal',
+  'Argentina': 'Argentina'
+};
+
+// Zoom and center configurations for specific countries
+const countryZoomConfig = {
+  'Brasil': { center: [-55, -10], scale: 600 },
+  'França': { center: [2, 46], scale: 2000 },
+  'Inglaterra': { center: [-2, 54], scale: 2000 },
+  'Espanha': { center: [-3, 40], scale: 2000 },
+  'Itália': { center: [12, 42], scale: 2000 },
+  'Portugal': { center: [-8, 39], scale: 3000 },
+  'Argentina': { center: [-63, -38], scale: 600 },
+  'Estados Unidos': { center: [-95, 37], scale: 600 },
+  'Peru': { center: [-75, -9], scale: 1200 },
+  'Paraguai': { center: [-58, -23], scale: 1500 }
+};
+
 export default function TripsStats({ trips }) {
   const [itineraries, setItineraries] = useState({});
   const [isLoadingItineraries, setIsLoadingItineraries] = useState(true);
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const { decryptObject } = useEncryption();
 
   useEffect(() => {
     async function fetchAllItineraries() {
@@ -30,7 +61,6 @@ export default function TripsStats({ trips }) {
 
       try {
         const tripIds = trips.map(t => t.id);
-        // We select ALL columns to ensure we get coordinates and location
         const { data, error } = await supabase
           .from('trip_itinerary')
           .select('*')
@@ -38,8 +68,15 @@ export default function TripsStats({ trips }) {
 
         if (error) throw error;
 
+        // Decrypt the data
+        const decryptedData = await decryptObject(data, [
+          'activity',
+          'location',
+          'notes'
+        ]);
+
         const grouped = {};
-        data.forEach(item => {
+        decryptedData.forEach(item => {
           if (!grouped[item.trip_id]) grouped[item.trip_id] = [];
           grouped[item.trip_id].push(item);
         });
@@ -52,7 +89,7 @@ export default function TripsStats({ trips }) {
     }
 
     fetchAllItineraries();
-  }, [trips]);
+  }, [trips, decryptObject]);
 
   const stats = useMemo(() => {
     if (!trips || trips.length === 0) return null;
@@ -276,7 +313,11 @@ export default function TripsStats({ trips }) {
             </div>
             <div className="countries-grid">
               {stats.countriesList.slice(0, 8).map((country, i) => (
-                <div key={i} className="country-chip">
+                <div 
+                  key={i} 
+                  className="country-chip clickable"
+                  onClick={() => setSelectedCountry(country)}
+                >
                   <div className="country-flag-placeholder"></div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{country.name}</span>
@@ -294,7 +335,188 @@ export default function TripsStats({ trips }) {
         </div>
       </div>
 
+      {/* Country Detail Modal */}
+      {selectedCountry && (
+        <div className="country-modal-overlay" onClick={() => setSelectedCountry(null)}>
+          <Motion.div 
+            className="country-modal-content"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <h2>{selectedCountry.name}</h2>
+                <p>{selectedCountry.cityCount} {selectedCountry.cityCount === 1 ? 'Cidade visitada' : 'Cidades visitadas'}</p>
+              </div>
+              <button className="close-modal-btn" onClick={() => setSelectedCountry(null)}>&times;</button>
+            </div>
+
+            <div className="modal-map-container">
+              <ComposableMap 
+                projectionConfig={{ 
+                  scale: countryZoomConfig[selectedCountry.name]?.scale || 400 
+                }}
+              >
+                <ZoomableGroup 
+                  center={countryZoomConfig[selectedCountry.name]?.center || [0, 0]}
+                  zoom={1}
+                  maxZoom={1}
+                >
+                  <Geographies geography={geoUrl}>
+                    {({ geographies }) =>
+                      geographies.map((geo) => {
+                        // Highlight the selected country
+                        const isSelected = geo.properties.name === selectedCountry.name || 
+                                           geo.properties.name === countryNameMap[selectedCountry.name];
+                        return (
+                          <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            fill={isSelected ? "rgba(124, 58, 237, 0.2)" : "#1e293b"}
+                            stroke={isSelected ? "#7c3aed" : "#334155"}
+                            strokeWidth={isSelected ? 1.5 : 0.5}
+                            style={{ default: { outline: "none" } }}
+                          />
+                        );
+                      })
+                    }
+                  </Geographies>
+
+                  {/* Markers only for this country */}
+                  {stats.mapPoints
+                    .filter(p => {
+                      // Note: This is a simplification. Ideally we'd map cities to countries more robustly.
+                      // For now we check if the city count matches what we calculated.
+                      // Actually, the best way is to only show points that are within this country's trips.
+                      return trips.some(t => t.countries.includes(selectedCountry.name) && itineraries[t.id]?.some(i => i.location === p.name || i.activity === p.name));
+                    })
+                    .map((point, index) => (
+                      <Marker key={index} coordinates={point.coordinates}>
+                        <circle r={6} fill="#7c3aed" stroke="#fff" strokeWidth={2} className="map-pulse" />
+                        <title>{point.name}</title>
+                      </Marker>
+                    ))
+                  }
+                </ZoomableGroup>
+              </ComposableMap>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="modal-primary-btn" onClick={() => setSelectedCountry(null)}>Fechar Detalhes</button>
+            </div>
+          </Motion.div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{ __html: `
+        .country-chip.clickable {
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .country-chip.clickable:hover {
+          background: rgba(124, 58, 237, 0.1);
+          border-color: rgba(124, 58, 237, 0.3);
+          transform: translateY(-2px);
+        }
+        .country-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(2, 6, 23, 0.85);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 2rem;
+        }
+        .country-modal-content {
+          background: #0f172a;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 2rem;
+          width: 100%;
+          max-width: 800px;
+          max-height: 90vh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .modal-header {
+          padding: 1.5rem 2rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .modal-title-group h2 {
+          font-size: 1.5rem;
+          font-weight: 800;
+          margin: 0;
+          color: #f8fafc;
+        }
+        .modal-title-group p {
+          font-size: 0.875rem;
+          color: #94a3b8;
+          margin: 0.25rem 0 0 0;
+        }
+        .close-modal-btn {
+          background: rgba(255, 255, 255, 0.05);
+          border: none;
+          color: #94a3b8;
+          font-size: 1.25rem;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .close-modal-btn:hover {
+          background: rgba(239, 68, 68, 0.2);
+          color: #ef4444;
+        }
+        .modal-map-container {
+          flex: 1;
+          background: #020617;
+          min-height: 300px;
+          position: relative;
+          overflow: hidden;
+        }
+        @media (max-width: 768px) {
+          .country-modal-content {
+            max-height: 95vh;
+            border-radius: 1.5rem;
+          }
+          .modal-map-container {
+            min-height: 250px;
+          }
+        }
+        .modal-footer {
+          padding: 1.5rem 2rem;
+          display: flex;
+          justify-content: flex-end;
+          background: rgba(2, 6, 23, 0.3);
+        }
+        .modal-primary-btn {
+          background: #7c3aed;
+          color: white;
+          border: none;
+          padding: 0.75rem 1.5rem;
+          border-radius: 0.75rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .modal-primary-btn:hover {
+          background: #6d28d9;
+          transform: translateY(-1px);
+        }
         .map-pulse {
           animation: pulse 2s infinite;
         }
