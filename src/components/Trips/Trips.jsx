@@ -42,7 +42,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'checklists') setCurrentView('checklists');
     else if (mode === 'stats') setCurrentView('stats');
-    else if (mode === 'list' && !['settings', 'itinerary', 'checklists', 'stats'].includes(currentView)) {
+    else if (mode === 'list' && !['itinerary', 'checklists', 'stats'].includes(currentView)) {
       setCurrentView('main');
     }
   }, [mode]);
@@ -155,7 +155,18 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   }
 
   if (currentView === 'settings') {
-    return <TripsSettings user={user} refreshKey={refreshKey || localRefreshKey} onEditTrip={handleOpenForm} onAddTrip={() => handleOpenForm(null)} />;
+    return (
+      <TripsSettings 
+        user={user} 
+        refreshKey={refreshKey || localRefreshKey} 
+        onEditTrip={handleOpenForm} 
+        onAddTrip={() => handleOpenForm(null)}
+        onSelectTrip={(trip) => {
+          setSelectedTrip(trip);
+          setCurrentView('main');
+        }}
+      />
+    );
   }
 
   if (currentView === 'itinerary') {

@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { useEncryption } from '../../contexts/EncryptionContext';
 
-export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip }) {
+export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip, onSelectTrip }) {
   const { decryptObject } = useEncryption();
   const [activeTab, setActiveTab] = useState('trips'); // 'trips', 'categories', 'shares'
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -294,6 +294,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
                             style={{ color: 'var(--primary)' }}
                             onClick={() => {
                               localStorage.setItem('pc_selected_trip_v1', trip.id);
+                              if (onSelectTrip) onSelectTrip(trip);
                               window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
                             }} 
                             title="Ver no Dashboard"
@@ -311,6 +312,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip 
                             style={{ color: 'var(--primary)', width: 'auto', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                             onClick={() => {
                               localStorage.setItem('pc_selected_trip_v1', trip.id);
+                              if (onSelectTrip) onSelectTrip(trip);
                               window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
                             }} 
                             title="Ver no Dashboard"
