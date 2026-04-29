@@ -51,7 +51,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
 
   const fetchTrips = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
     if (data) {
       const decrypted = await decryptObject(data, [
         'title', 

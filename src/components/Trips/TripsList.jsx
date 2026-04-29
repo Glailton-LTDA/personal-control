@@ -297,11 +297,11 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                   <div className="glass-card fade-in" style={{ position: 'absolute', top: '110%', right: 0, width: '220px', padding: '0.5rem', zIndex: 110, border: '1px solid var(--glass-border)' }}>
                     {[
                       { icon: <Edit2 size={16} />, label: 'Editar Viagem', onClick: () => onEditTrip(selectedTrip) },
-                      { icon: <FileText size={16} />, label: 'Detalhes da Viagem', onClick: () => setIsDetailsOpen(true) },
-                      { icon: <ListTodo size={16} />, label: 'Checklist', onClick: onViewChecklists },
-                      { icon: <Map size={16} />, label: 'Roteiro da Viagem', onClick: () => { if (onViewItinerary) onViewItinerary(); setIsActionsMenuOpen(false); } }
+                      { icon: <FileText size={16} />, label: 'Detalhes da Viagem', testId: 'view-trip-details-btn', onClick: () => setIsDetailsOpen(true) },
+                      { icon: <ListTodo size={16} />, label: 'Checklist', testId: 'view-checklists-btn', onClick: onViewChecklists },
+                      { icon: <Map size={16} />, label: 'Roteiro da Viagem', testId: 'view-itinerary-btn', onClick: () => { if (onViewItinerary) onViewItinerary(); setIsActionsMenuOpen(false); } }
                     ].map((item, idx) => (
-                      <button key={idx} onClick={() => { item.onClick(); setIsActionsMenuOpen(false); }} style={{ width: '100%', padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', transition: '0.2s', fontWeight: '600', fontSize: '0.85rem' }}><span style={{ color: 'var(--primary)' }}>{item.icon}</span>{item.label}</button>
+                      <button key={idx} data-testid={item.testId} onClick={() => { item.onClick(); setIsActionsMenuOpen(false); }} style={{ width: '100%', padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', transition: '0.2s', fontWeight: '600', fontSize: '0.85rem' }}><span style={{ color: 'var(--primary)' }}>{item.icon}</span>{item.label}</button>
                     ))}
                   </div>
                 </>

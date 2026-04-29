@@ -206,6 +206,21 @@ export default function TripsStats({ trips, onBack }) {
 
   return (
     <div className="trips-stats-content">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
+        <button 
+          onClick={onBack} 
+          data-testid="back-button"
+          className="icon-btn" 
+          style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', letterSpacing: '-0.02em' }}>Minha Jornada</h2>
+          <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Suas estatísticas globais e mapa de aventuras</p>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="summary-grid">
         {summaryCards.map((card, i) => (

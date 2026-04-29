@@ -269,36 +269,29 @@ export default function Dashboard({ user }) {
                   </Motion.div>
                 </button>
               )}
-              <AnimatePresence initial={false}>
-                {(isExpanded || collapsed) && (
-                  <Motion.div
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    style={{ overflow: 'hidden' }}
-                  >
-                    {subItems.map((item) => (
-                      <button key={item.tab} onClick={() => onNavigate(item.tab)} title={item.label}
-                        style={{ ...navBtnStyle(item.tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-                        <div style={{ position: 'relative' }}>
-                          <item.icon size={20} />
-                          {item.tab === 'cars-list' && invitationCount > 0 && (
-                            <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
-                              {invitationCount}
-                            </span>
-                          )}
-                        </div>
-                        {!collapsed && (
-                          <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {item.label}
-                            {item.tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
+              {(isExpanded || collapsed) && (
+                <div style={{ overflow: 'hidden' }}>
+                  {subItems.map((item) => (
+                    <button key={item.tab} onClick={() => onNavigate(item.tab)} title={item.label}
+                      style={{ ...navBtnStyle(item.tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
+                      <div style={{ position: 'relative' }}>
+                        <item.icon size={20} />
+                        {item.tab === 'cars-list' && invitationCount > 0 && (
+                          <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
+                            {invitationCount}
                           </span>
                         )}
-                      </button>
-                    ))}
-                  </Motion.div>
-                )}
-              </AnimatePresence>
+                      </div>
+                      {!collapsed && (
+                        <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {item.label}
+                          {item.tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -360,10 +353,19 @@ export default function Dashboard({ user }) {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)', width: '100%', overflowX: 'hidden', position: 'relative' }}>
 
       {/* ── Desktop Sidebar ── */}
-      <Motion.aside
-        animate={{ width: isSidebarOpen ? 260 : 80 }}
+      <aside
         className="glass-card"
-        style={{ margin: '1rem', height: 'calc(100vh - 2rem)', position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', zIndex: 50 }}
+        style={{ 
+          margin: '1rem', 
+          height: 'calc(100vh - 2rem)', 
+          position: 'sticky', 
+          top: '1rem', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          zIndex: 50,
+          width: isSidebarOpen ? 260 : 80,
+          transition: 'width 0.2s ease-in-out'
+        }}
       >
         <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -377,7 +379,7 @@ export default function Dashboard({ user }) {
           </button>
         </div>
         <SidebarContent collapsed={!isSidebarOpen} onNavigate={navigate} />
-      </Motion.aside>
+      </aside>
 
       {/* ── Mobile Drawer Overlay ── */}
       <AnimatePresence>
