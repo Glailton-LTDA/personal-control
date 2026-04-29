@@ -91,6 +91,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       'transports.*.destination',
       'transports.*.transport_id',
       'transports.*.coach',
+      'transports.*.seats.*',
       'transports.*.notes',
       'tickets.*.name',
       'tickets.*.address',

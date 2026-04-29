@@ -8,7 +8,7 @@ import {
   CheckCircle2, Circle, ExternalLink, ListTodo, Check, Bell, Compass, Edit2, MoreVertical
 } from 'lucide-react';
 
-import { AIRPORTS } from '../../lib/constants';
+import { AIRPORTS } from '../../data/airports';
 import { estimateItineraryDistance } from '../../lib/geo';
 
 import AttachmentManager from './AttachmentManager';

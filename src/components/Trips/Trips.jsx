@@ -76,6 +76,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         'transports.*.destination',
         'transports.*.transport_id',
         'transports.*.coach',
+        'transports.*.seats.*',
         'transports.*.notes',
         'tickets.*.name',
         'tickets.*.address',

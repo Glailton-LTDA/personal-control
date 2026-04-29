@@ -5,7 +5,8 @@ import AddressInput from './AddressInput';
 import { AnimatePresence, motion as Motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
-import { AIRPORTS } from '../../lib/constants';
+import BadgeInput from './BadgeInput';
+import { AIRPORTS } from '../../data/airports';
 
 export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true, readOnly = false }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -156,7 +157,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
         return { origin: 'Local de Retirada', destination: 'Local de Devolução', id: 'Modelo / Placa', showSeats: false, showCoach: false };
       case 'flight':
       default:
-        return { origin: 'Origem (IATA)', destination: 'Destino (IATA)', id: 'Nº Voo / Cia', showSeats: false, showCoach: true, coachLabel: 'Portão / Grupo' };
+        return { origin: 'Origem (IATA)', destination: 'Destino (IATA)', id: 'Nº Voo / Cia', showSeats: true, showCoach: true, coachLabel: 'Portão / Grupo' };
     }
   };
 
@@ -369,6 +370,13 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                  }}
                                 placeholder={currentType === 'flight' ? "Ex: GRU" : "Ex: Gare du Nord, Rodoviária..."}
                               />
+                              {currentType === 'flight' && (
+                                <datalist id={`airports-origin-${item.id}`}>
+                                  {AIRPORTS.map(ap => (
+                                    <option key={ap.iata} value={ap.iata}>{ap.city} ({ap.iata}) - {ap.name}</option>
+                                  ))}
+                                </datalist>
+                              )}
                             </div>
 
                             <div>
@@ -393,6 +401,13 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                  }}
                                 placeholder={currentType === 'flight' ? "Ex: GIG" : "Ex: St Pancras, Terminal 1..."}
                               />
+                              {currentType === 'flight' && (
+                                <datalist id={`airports-destination-${item.id}`}>
+                                  {AIRPORTS.map(ap => (
+                                    <option key={ap.iata} value={ap.iata}>{ap.city} ({ap.iata}) - {ap.name}</option>
+                                  ))}
+                                </datalist>
+                              )}
                             </div>
 
                             <div>
@@ -429,7 +444,19 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                     opacity: 1,
                                     height: readOnly ? 'auto' : '44px'
                                   }}
-                                  placeholder="Ex: 06, 12..."
+                                  />
+                              </div>
+                            )}
+
+                            {labels.showSeats && (
+                              <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+                                <BadgeInput 
+                                  label="Assentos do Passageiro" 
+                                  icon={Ticket} 
+                                  values={item.seats || []} 
+                                  placeholder="Ex: 12A, 12B..."
+                                  onValuesChange={(newValues) => updateItemField(item.id, 'seats', newValues)} 
+                                  readOnly={readOnly}
                                 />
                               </div>
                             )}

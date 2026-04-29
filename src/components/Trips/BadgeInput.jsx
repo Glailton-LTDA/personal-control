@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 
-export default function BadgeInput({ label, icon: Icon, values, onValuesChange, placeholder }) {
+export default function BadgeInput({ label, icon: Icon, values, onValuesChange, placeholder, readOnly = false }) {
   const [inputValue, setInputValue] = useState('');
 
   const addValue = () => {
@@ -12,6 +12,7 @@ export default function BadgeInput({ label, icon: Icon, values, onValuesChange, 
   };
 
   const removeValue = (indexToRemove) => {
+    if (readOnly) return;
     onValuesChange(values.filter((_, index) => index !== indexToRemove));
   };
 
@@ -28,14 +29,14 @@ export default function BadgeInput({ label, icon: Icon, values, onValuesChange, 
         {Icon && <Icon size={16} />} {label}
       </label>
       
-      <div className="glass-card" style={{ 
-        padding: '0.5rem', 
-        minHeight: '45px', 
+      <div className={readOnly ? "" : "glass-card"} style={{ 
+        padding: readOnly ? '0' : '0.5rem', 
+        minHeight: readOnly ? 'auto' : '45px', 
         display: 'flex', 
         flexWrap: 'wrap', 
         gap: '0.5rem', 
-        background: 'var(--input-bg)', 
-        border: '1px solid var(--glass-border)',
+        background: readOnly ? 'transparent' : 'var(--input-bg)', 
+        border: readOnly ? 'none' : '1px solid var(--glass-border)',
         borderRadius: '12px',
         alignItems: 'center'
       }}>
@@ -56,62 +57,71 @@ export default function BadgeInput({ label, icon: Icon, values, onValuesChange, 
             }}
           >
             {val}
-            <button 
-              type="button"
-              onClick={() => removeValue(idx)}
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: 'white', 
-                padding: 0, 
-                cursor: 'pointer', 
-                display: 'flex', 
-                alignItems: 'center',
-                opacity: 0.8
-              }}
-            >
-              <X size={14} />
-            </button>
+            {!readOnly && (
+              <button 
+                type="button"
+                onClick={() => removeValue(idx)}
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  color: 'white', 
+                  padding: 0, 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  opacity: 0.8
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </span>
         ))}
         
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={values.length === 0 ? placeholder : ""}
-          style={{
-            flex: 1,
-            minWidth: '100px',
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-main)',
-            outline: 'none',
-            padding: '0.4rem',
-            fontSize: '0.9rem'
-          }}
-        />
-        
-        {inputValue.trim() && (
-          <button 
-            type="button"
-            onClick={addValue}
-            style={{
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              width: '24px',
-              height: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <Plus size={14} />
-          </button>
+        {!readOnly && (
+          <>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={values.length === 0 ? placeholder : ""}
+              style={{
+                flex: 1,
+                minWidth: '100px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-main)',
+                outline: 'none',
+                padding: '0.4rem',
+                fontSize: '0.9rem'
+              }}
+            />
+            
+            {inputValue.trim() && (
+              <button 
+                type="button"
+                onClick={addValue}
+                style={{
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <Plus size={14} />
+              </button>
+            )}
+          </>
+        )}
+        {readOnly && values.length === 0 && (
+          <span style={{ fontSize: '0.85rem', opacity: 0.5, color: 'var(--text-muted)' }}>Nenhum informado</span>
         )}
       </div>
 
