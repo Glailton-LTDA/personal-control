@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, Ticket, Users, Calendar, ArrowLeft, Map, FileText } from 'lucide-react';
 import CurrencySelector from './CurrencySelector';
 import BadgeInput from './BadgeInput';
+import CityBadgeInput from './CityBadgeInput';
 import AttachmentManager from './AttachmentManager';
 import ItineraryManager from './ItineraryManager';
 import toast from 'react-hot-toast';
@@ -189,21 +190,39 @@ export default function TripForm({ user, trip, onBack, onSave }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', gridAutoFlow: 'row dense' }}>
             <div className="mobile-full">
-              <BadgeInput 
-                label="Cidades" 
+              <CityBadgeInput 
+                label="Locais Visitados" 
                 icon={MapPin} 
                 values={formData.cities} 
-                placeholder="Cusco, Lima..."
-                onValuesChange={(newValues) => setFormData({...formData, cities: newValues})} 
+                placeholder="Ex: Londres, Reino Unido..."
+                onValuesChange={(newValues) => {
+                  // Update cities
+                  setFormData(prev => {
+                    const next = {...prev, cities: newValues};
+                    
+                    // Automatically derive countries from the "City, Country" strings
+                    const derivedCountries = new Set(prev.countries);
+                    newValues.forEach(val => {
+                      const parts = val.split(',').map(p => p.trim());
+                      if (parts.length > 1) {
+                        derivedCountries.add(parts[parts.length - 1]);
+                      }
+                    });
+                    
+                    next.countries = Array.from(derivedCountries);
+                    return next;
+                  });
+                }} 
               />
             </div>
             <div className="mobile-full">
               <BadgeInput 
-                label="Países" 
+                label="Países Detectados" 
                 icon={Globe} 
                 values={formData.countries} 
-                placeholder="Peru, Chile..."
+                placeholder="Identificados automaticamente..."
                 onValuesChange={(newValues) => setFormData({...formData, countries: newValues})} 
+                readOnly={true}
               />
             </div>
           </div>

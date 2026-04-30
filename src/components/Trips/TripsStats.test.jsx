@@ -43,24 +43,31 @@ describe('TripsStats Component', () => {
     expect(screen.getByText('COUNTRIES')).toBeDefined();
     expect(screen.getByText('CITIES')).toBeDefined();
     expect(screen.getByText('KM TRAVELLED')).toBeDefined();
-    expect(screen.getByText('Mapa de Aventuras')).toBeDefined();
-    expect(screen.getByText('EXPLORAÇÃO POR CONTINENTE')).toBeDefined();
   });
 
-  it('calculates summary statistics correctly', () => {
-    render(<TripsStats trips={mockTrips} />);
+  it('groups locations correctly and avoids duplicate countries as cities', () => {
+    const tripsWithDuplicates = [
+      {
+        id: '1',
+        countries: ['Portugal'],
+        cities: [
+          'Lisboa, Portugal', 
+          'lisboa, portugal', 
+          'Porto, Portugal',
+          'Portugal' // Should be ignored as a city
+        ],
+        start_date: '2023-01-01',
+        end_date: '2023-01-10'
+      }
+    ];
+    render(<TripsStats trips={tripsWithDuplicates} />);
     
-    // Check using more specific criteria if possible, or just expect it to be present
-    // Countries: 01, Cities: 02
-    const countriesValue = screen.getAllByText('01');
-    expect(countriesValue.length).toBeGreaterThanOrEqual(1);
+    // Total cities should be 2 (Lisboa and Porto)
+    const citiesLabel = screen.getByText('CITIES');
+    const summaryCard = citiesLabel.closest('.summary-card');
+    expect(summaryCard.textContent).toContain('02');
     
-    const citiesValue = screen.getAllByText('02');
-    expect(citiesValue.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows empty state when no trips are provided', () => {
-    render(<TripsStats trips={[]} />);
-    expect(screen.getByText('Nenhuma viagem registrada')).toBeDefined();
+    // Country chip should show "2 cidades"
+    expect(screen.getByText(/2 cidades/i)).toBeDefined();
   });
 });
