@@ -177,4 +177,34 @@ describe('TripChecklists', () => {
       expect(supabase.from).toHaveBeenCalledWith('trip_checklist_items');
     });
   });
+
+  it('allows collapsing/expanding all checklists', async () => {
+    const user = userEvent.setup();
+    const mockChecklists = [
+      { id: 'list-1', title: 'Checklist 1', items: [{ id: 'item-1', task: 'Tarefa 1' }] },
+      { id: 'list-2', title: 'Checklist 2', items: [{ id: 'item-2', task: 'Tarefa 2' }] }
+    ];
+    
+    supabase.from.mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: mockChecklists, error: null }),
+    }));
+
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+
+    await waitFor(() => screen.getByText('Checklist 1'));
+    
+    expect(screen.getByText('Tarefa 1')).toBeInTheDocument();
+
+    const collapseButton = screen.getByText(/recolher/i);
+    await user.click(collapseButton);
+
+    // After collapse, items should not be visible
+    expect(screen.queryByText('Tarefa 1')).not.toBeInTheDocument();
+
+    const expandButton = screen.getByText(/expandir/i);
+    await user.click(expandButton);
+    expect(screen.getByText('Tarefa 1')).toBeInTheDocument();
+  });
 });

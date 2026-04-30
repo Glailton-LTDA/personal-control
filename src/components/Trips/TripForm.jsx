@@ -345,8 +345,8 @@ export default function TripForm({ user, trip, onBack, onSave }) {
            <button 
              type="button" 
              onClick={onBack}
-             className="btn" 
-             style={{ flex: 1, padding: '1.25rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', fontWeight: '700', borderRadius: '16px', border: 'none' }}
+             className="btn-cancel" 
+             style={{ flex: 1, padding: '1.25rem' }}
            >
              Cancelar
            </button>

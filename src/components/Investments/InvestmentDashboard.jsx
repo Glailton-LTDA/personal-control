@@ -4,7 +4,7 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
-import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown } from 'lucide-react';
+import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown, Layers } from 'lucide-react';
 
 export default function InvestmentDashboard({ user, showValues = true }) {
   const [data, setData] = useState([]);
@@ -18,7 +18,9 @@ export default function InvestmentDashboard({ user, showValues = true }) {
     currentBalance: 0,
     distribution: [],
     instYield: [],
-    instBalance: []
+    instBalance: [],
+    typeYield: [],
+    typeBalance: []
   });
 
   const years = [2024, 2025, 2026];
@@ -36,12 +38,16 @@ export default function InvestmentDashboard({ user, showValues = true }) {
     let allTimeYield = 0;
     let currentBalanceMap = {};
     let instYieldMap = {};
+    let typeYieldMap = {};
 
     records.forEach(r => {
       const date = new Date(r.record_date);
       const rYear = date.getUTCFullYear();
       const rMonth = date.getUTCMonth() + 1;
-      const instName = r.investment_accounts?.institution || 'Sem Instituição';
+      
+      const acc = r.investment_accounts;
+      const instName = acc?.institution?.name || 'Sem Instituição';
+      const typeName = acc?.type?.name || 'Sem Tipo';
       
       if (rYear <= selectedYear) {
         allTimeYield += Number(r.yield);
@@ -52,8 +58,9 @@ export default function InvestmentDashboard({ user, showValues = true }) {
         monthlyDataMap[rMonth].balance += Number(r.final_balance);
         yearYield += Number(r.yield);
         
-        // Yield by Institution
+        // Yield by Institution & Type
         instYieldMap[instName] = (instYieldMap[instName] || 0) + Number(r.yield);
+        typeYieldMap[typeName] = (typeYieldMap[typeName] || 0) + Number(r.yield);
       }
 
       // Track last balance per account (only up to the selected year)
@@ -62,9 +69,10 @@ export default function InvestmentDashboard({ user, showValues = true }) {
           currentBalanceMap[r.account_id] = { 
             amount: Number(r.final_balance), 
             date: r.record_date,
-            name: r.investment_accounts?.name,
-            color: r.investment_accounts?.color,
-            institution: r.investment_accounts?.institution
+            name: acc?.name,
+            color: acc?.color,
+            institution: instName,
+            type: typeName
           };
         }
       }
@@ -72,15 +80,18 @@ export default function InvestmentDashboard({ user, showValues = true }) {
 
     const currentBalance = Object.values(currentBalanceMap).reduce((sum, item) => sum + item.amount, 0);
     
-    // Process Institution Balance
+    // Process Grouped Balances
     const instBalanceMap = {};
+    const typeBalanceMap = {};
     Object.values(currentBalanceMap).forEach(acc => {
-      const instName = acc.institution || 'Sem Instituição';
-      instBalanceMap[instName] = (instBalanceMap[instName] || 0) + acc.amount;
+      instBalanceMap[acc.institution] = (instBalanceMap[acc.institution] || 0) + acc.amount;
+      typeBalanceMap[acc.type] = (typeBalanceMap[acc.type] || 0) + acc.amount;
     });
 
     const instYieldData = Object.keys(instYieldMap).map(name => ({ name, value: instYieldMap[name] })).sort((a,b) => b.value - a.value);
     const instBalanceData = Object.keys(instBalanceMap).map(name => ({ name, value: instBalanceMap[name] })).sort((a,b) => b.value - a.value);
+    const typeYieldData = Object.keys(typeYieldMap).map(name => ({ name, value: typeYieldMap[name] })).sort((a,b) => b.value - a.value);
+    const typeBalanceData = Object.keys(typeBalanceMap).map(name => ({ name, value: typeBalanceMap[name] })).sort((a,b) => b.value - a.value);
 
     setData(Object.values(monthlyDataMap));
     setSummary({ 
@@ -89,7 +100,9 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       currentBalance: currentBalance,
       distribution: Object.values(currentBalanceMap).filter(a => a.amount > 0),
       instYield: instYieldData,
-      instBalance: instBalanceData
+      instBalance: instBalanceData,
+      typeYield: typeYieldData,
+      typeBalance: typeBalanceData
     });
   }, [selectedYear]);
 
@@ -98,7 +111,11 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       .from('investment_records')
       .select(`
         *,
-        investment_accounts (*)
+        investment_accounts (
+          *,
+          institution:investment_institutions(name),
+          type:investment_account_types(name)
+        )
       `)
       .order('record_date', { ascending: true });
 
@@ -215,73 +232,54 @@ export default function InvestmentDashboard({ user, showValues = true }) {
         </div>
       </div>
 
-      {/* Institution Charts Grid */}
+      {/* Grouped Charts Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }} className="responsive-grid">
         
-        {/* Patrimonio por Instituição */}
+        {/* Rendimento por Tipo de Conta */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Wallet size={18} /> Patrimônio por Instituição
+            <Layers size={18} /> Rendimento por Tipo ({selectedYear})
           </h4>
-          <div style={{ height: '320px', paddingTop: '1rem' }}>
+          <div style={{ height: '300px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={summary.instBalance || []} 
-                layout="vertical" 
-                margin={{ left: -10, right: 40, top: 0, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} tick={{ fill: 'var(--text-muted)' }} />
-                <Tooltip 
-                  formatter={(val) => formatCurrency(val)}
-                  contentStyle={{ 
-                    background: 'var(--bg-canvas)', 
-                    border: '1px solid var(--glass-border)', 
-                    borderRadius: '8px',
-                    boxShadow: 'var(--shadow)'
-                  }}
-                  itemStyle={{ color: 'var(--text-main)' }}
-                  labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
-                />
-                <Bar dataKey="value" name="Saldo" radius={[0, 4, 4, 0]} barSize={25}>
-                  {summary.instBalance?.map((entry, index) => (
+              <PieChart>
+                <Pie
+                  data={summary.typeYield || []}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {summary.typeYield?.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip 
+                  formatter={(val) => formatCurrency(val)} 
+                  contentStyle={{ background: 'var(--bg-canvas)', border: '1px solid var(--glass-border)', borderRadius: '12px' }} 
+                />
+                <Legend iconType="circle" />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Rendimento por Instituição */}
+        {/* Patrimônio por Instituição */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ArrowUpRight size={18} /> Rendimento por Instituição ({selectedYear})
+            <Building2 size={18} style={{ color: 'var(--primary)' }} /> Patrimônio por Instituição
           </h4>
-          <div style={{ height: '320px', paddingTop: '1rem' }}>
+          <div style={{ height: '300px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={summary.instYield || []} 
-                layout="vertical" 
-                margin={{ left: -10, right: 40, top: 0, bottom: 0 }}
-              >
+              <BarChart data={summary.instBalance || []} layout="vertical" margin={{ left: -10, right: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} tick={{ fill: 'var(--text-muted)' }} />
-                <Tooltip 
-                  formatter={(val) => formatCurrency(val)}
-                  contentStyle={{ 
-                    background: 'var(--bg-canvas)', 
-                    border: '1px solid var(--glass-border)', 
-                    borderRadius: '8px',
-                    boxShadow: 'var(--shadow)'
-                  }}
-                  itemStyle={{ color: 'var(--text-main)' }}
-                  labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
-                />
-                <Bar dataKey="value" name="Rendimento" radius={[0, 4, 4, 0]} barSize={25}>
-                  {summary.instYield?.map((entry, index) => (
+                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} />
+                <Tooltip formatter={(val) => formatCurrency(val)} contentStyle={{ background: 'var(--bg-canvas)', border: '1px solid var(--glass-border)', borderRadius: '8px' }} />
+                <Bar dataKey="value" name="Saldo" radius={[0, 4, 4, 0]} barSize={25}>
+                  {summary.instBalance?.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Bar>
@@ -312,3 +310,9 @@ function StatCard({ title, value, icon, color, showValues }) {
     </div>
   );
 }
+
+const Building2 = ({ size, style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/>
+  </svg>
+);

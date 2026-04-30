@@ -273,6 +273,7 @@ export default function Dashboard({ user }) {
                 <div style={{ overflow: 'hidden' }}>
                   {subItems.map((item) => (
                     <button key={item.tab} onClick={() => onNavigate(item.tab)} title={item.label}
+                      data-testid={`sidebar-sub-item-${item.tab}`}
                       style={{ ...navBtnStyle(item.tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
                       <div style={{ position: 'relative' }}>
                         <item.icon size={20} />

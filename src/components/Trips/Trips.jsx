@@ -13,6 +13,7 @@ import { useEncryption } from '../../contexts/EncryptionContext';
 export default function Trips({ user, refreshKey, mode, showValues }) {
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [trips, setTrips] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
@@ -164,6 +165,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         onAddTrip={() => handleOpenForm(null)}
         onSelectTrip={(trip) => {
           setSelectedTrip(trip);
+          setIsDetailsOpen(false);
           setCurrentView('main');
         }}
       />
@@ -211,8 +213,13 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
       <TripsList 
         user={user} 
         refreshKey={refreshKey || localRefreshKey} 
-        onTripSelect={setSelectedTrip}
+        onTripSelect={(trip) => {
+          setSelectedTrip(trip);
+          setIsDetailsOpen(true);
+        }}
         externalSelectedTrip={selectedTrip}
+        isDetailsOpen={isDetailsOpen}
+        setIsDetailsOpen={setIsDetailsOpen}
         trips={trips}
         showValues={showValues}
         onEditTrip={handleOpenForm}

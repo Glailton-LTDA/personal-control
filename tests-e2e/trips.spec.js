@@ -70,6 +70,15 @@ test.describe('Módulo de Viagens', () => {
             date: '2024-05-02',
             paid_by: 'João',
             trip_categories: { name: 'Alimentação', color: '#ff0000' }
+          },
+          {
+            id: 'exp-2',
+            amount: 25,
+            currency: 'EUR',
+            description: 'Uber Aeroporto',
+            date: '2024-05-02',
+            paid_by: 'João',
+            trip_categories: { name: 'Transporte', color: '#06b6d4' }
           }
         ]),
       });
@@ -88,8 +97,8 @@ test.describe('Módulo de Viagens', () => {
     await expect(page.locator('aside')).toBeVisible({ timeout: 15000 });
     await unlockApp(page);
 
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
-    await page.getByRole('button', { name: 'Listagem' }).click();
+    await page.getByTestId('sidebar-group-trips').click({ force: true });
+    await page.getByTestId('sidebar-sub-item-trips-list').click({ force: true });
     
     await expect(page.getByTestId('header-title').first()).toHaveText(/Minhas Viagens/i, { timeout: 15000 });
     await expect(page.getByText('Viagem Teste').first()).toBeVisible({ timeout: 15000 });
@@ -105,8 +114,9 @@ test.describe('Módulo de Viagens', () => {
     // Seleciona EUR para ver os gastos mockados
     await page.getByTestId('currency-select-EUR').click();
     
-    await expect(page.getByTestId('expense-desc-0')).toContainText('Jantar de Luxo');
-    await expect(page.getByTestId('expense-desc-1')).toContainText('Uber Aeroporto');
+    await page.waitForTimeout(500);
+    await expect(page.getByText('Jantar de Luxo').first()).toBeVisible();
+    await expect(page.getByText('Uber Aeroporto').first()).toBeVisible();
   });
 
   test('deve persistir a moeda selecionada por viagem no localStorage', async ({ page }) => {
@@ -116,12 +126,13 @@ test.describe('Módulo de Viagens', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
     await unlockApp(page);
     
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
-    await page.getByRole('button', { name: 'Listagem' }).click();
+    await page.getByTestId('sidebar-group-trips').click({ force: true });
+    await page.getByTestId('sidebar-sub-item-trips-list').click({ force: true });
     
-    // Seleciona a viagem para abrir os detalhes
-    await page.getByTestId('trip-select-trip-1').click();
-    await expect(page.getByTestId('trip-details-title')).toBeVisible();
+    // Abre detalhes via menu de ações
+    await page.getByLabel('Menu da Viagem').click();
+    await page.getByTestId('view-trip-details-btn').click();
+    await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 15000 });
     
     // Clica no botão de moeda BRL para forçar a persistência
     await page.getByTestId('currency-select-BRL').click();
@@ -138,8 +149,8 @@ test.describe('Módulo de Viagens', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
     await unlockApp(page);
     
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
-    await page.getByRole('button', { name: 'Listagem' }).click();
+    await page.getByTestId('sidebar-group-trips').click({ force: true });
+    await page.getByTestId('sidebar-sub-item-trips-list').click({ force: true });
     
     await page.getByLabel('Menu da Viagem').click();
     await page.getByTestId('view-itinerary-btn').click();

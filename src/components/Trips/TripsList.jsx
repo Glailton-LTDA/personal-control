@@ -72,14 +72,24 @@ function getTripCategoryMeta(category = '') {
   return match || { icon: Tag, color: '#94a3b8' };
 }
 
-export default function TripsList({ user, refreshKey, onTripSelect, externalSelectedTrip, trips, showValues = true, onEditTrip, onViewChecklists, onViewItinerary }) {
+export default function TripsList({ 
+  user, refreshKey, onTripSelect, externalSelectedTrip, trips, 
+  showValues = true, onEditTrip, onViewChecklists, onViewItinerary,
+  isDetailsOpen: externalIsDetailsOpen, setIsDetailsOpen: setExternalIsDetailsOpen
+}) {
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
   const { decryptObject } = useEncryption();
-  const [isTripMenuOpen, setIsTripMenuOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isTripMenuOpen, setIsTripMenuOpen] = useState(false);
   const [tripSearchQuery, setTripSearchQuery] = useState('');
+
+  // Sync with props
+  useEffect(() => {
+    setIsDetailsOpen(externalIsDetailsOpen);
+  }, [externalIsDetailsOpen]);
   
   useEffect(() => {
     if (externalSelectedTrip?.id) {
@@ -99,7 +109,6 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [categories, setCategories] = useState([]);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,6 +177,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
 
   const handleTripSelect = (trip) => {
     if (onTripSelect) onTripSelect(trip);
+    setIsDetailsOpen(true);
   };
 
   const handleSort = (key) => {
@@ -304,9 +314,18 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                   <div style={{ position: 'fixed', inset: 0, zIndex: 105 }} onClick={() => setIsActionsMenuOpen(false)} />
                   <div className="glass-card fade-in" style={{ position: 'absolute', top: '110%', right: 0, width: '220px', padding: '0.5rem', zIndex: 110, border: '1px solid var(--glass-border)' }}>
                     {[
-                      { icon: <Edit2 size={16} />, label: 'Editar Viagem', onClick: () => onEditTrip(selectedTrip) },
-                      { icon: <FileText size={16} />, label: 'Detalhes da Viagem', testId: 'view-trip-details-btn', onClick: () => setIsDetailsOpen(true) },
-                      { icon: <ListTodo size={16} />, label: 'Checklist', testId: 'view-checklists-btn', onClick: onViewChecklists },
+                      { icon: <Edit2 size={16} />, label: 'Editar Viagem', onClick: () => { if (onEditTrip) onEditTrip(selectedTrip); } },
+                      { 
+                        icon: <FileText size={16} />, 
+                        label: 'Detalhes da Viagem', 
+                        testId: 'view-trip-details-btn', 
+                        onClick: () => {
+                          if (onTripSelect) onTripSelect(selectedTrip);
+                          setIsDetailsOpen(true);
+                          if (setExternalIsDetailsOpen) setExternalIsDetailsOpen(true);
+                        } 
+                      },
+                      { icon: <ListTodo size={16} />, label: 'Checklist', testId: 'view-checklists-btn', onClick: () => { if (onViewChecklists) onViewChecklists(); } },
                       { icon: <Map size={16} />, label: 'Roteiro da Viagem', testId: 'view-itinerary-btn', onClick: () => { if (onViewItinerary) onViewItinerary(); setIsActionsMenuOpen(false); } }
                     ].map((item, idx) => (
                       <button key={idx} data-testid={item.testId} onClick={() => { item.onClick(); setIsActionsMenuOpen(false); }} style={{ width: '100%', padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', transition: '0.2s', fontWeight: '600', fontSize: '0.85rem' }}><span style={{ color: 'var(--primary)' }}>{item.icon}</span>{item.label}</button>
@@ -521,7 +540,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                         <div className="trip-expense-header">
                           <div className="trip-cat-icon" style={{ '--cat-color': meta.color }}><Icon size={18} /></div>
                           <div className="trip-expense-info">
-                            <div className="trip-expense-title" data-testid={`expense-desc-${idx}`}>{exp.description}</div>
+                            <div className="trip-expense-title" data-testid={`expense-desc-mobile-${idx}`}>{exp.description}</div>
                             <div className="trip-expense-subtitle">{exp.date ? formatDate(exp.date, { day: '2-digit', month: 'short' }) : '--'} • {exp.trip_categories?.name || 'Geral'}</div>
                           </div>
                           <div className="trip-expense-amount">

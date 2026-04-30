@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Minha Jornada (Stats)', () => {
+  /** Desbloqueia o app com a senha mestre padrão para testes. */
+  async function unlockApp(page) {
+    const unlockModal = page.getByText('Acesso Seguro');
+    if (await unlockModal.isVisible()) {
+      await page.getByTestId('master-password-input').fill('password123');
+      await page.getByRole('button', { name: 'Desbloquear Dados' }).click();
+      await expect(unlockModal).not.toBeVisible({ timeout: 10000 });
+    }
+  }
+
   test.beforeEach(async ({ page }) => {
     // Intercepta Auth
     await page.route('**/auth/v1/token*', async (route) => {
@@ -26,6 +36,11 @@ test.describe('Minha Jornada (Stats)', () => {
       });
     });
 
+    // Intercepta Categorias
+    await page.route('**/rest/v1/trip_categories*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: 1, name: 'Alimentação', color: '#ff0000' }]) });
+    });
+
     // Intercepta Viagens
     await page.route('**/rest/v1/trips*', async (route) => {
       await route.fulfill({
@@ -34,29 +49,20 @@ test.describe('Minha Jornada (Stats)', () => {
         body: JSON.stringify([
           {
             id: 'trip-1',
-            title: 'Viagem Europa',
-            countries: ['França', 'Itália'],
-            cities: ['Paris', 'Roma'],
+            title: 'Viagem Teste',
+            currencies: ['EUR', 'BRL'],
+            daily_limits: { EUR: 100 },
+            countries: ['França', 'Itália', 'Brasil'],
+            cities: ['Paris', 'Roma', 'Natal'],
+            participants: ['João'],
+            hotels: [],
+            transports: [],
             start_date: '2024-05-01',
-            end_date: '2024-05-15',
-            user_id: 'user-123'
-          },
-          {
-            id: 'trip-2',
-            title: 'Viagem Brasil',
-            countries: ['Brasil'],
-            cities: ['Fortaleza'],
-            start_date: '2024-06-01',
-            end_date: '2024-06-05',
+            end_date: '2024-05-10',
             user_id: 'user-123'
           }
         ]),
       });
-    });
-
-    // Intercepta Categorias
-    await page.route('**/rest/v1/trip_categories*', async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify([]) });
     });
 
     // Intercepta Despesas (vazio para simplificar)
@@ -75,17 +81,24 @@ test.describe('Minha Jornada (Stats)', () => {
     
     // Aguarda o Dashboard carregar e navega para Viagens
     await expect(page.getByText('Personal')).toBeVisible({ timeout: 15000 });
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
+    
+    await unlockApp(page);
+    
+    const tripsGroup = page.getByTestId('sidebar-group-trips');
+    await tripsGroup.click({ force: true });
+    const listBtn = page.getByTestId('sidebar-sub-item-trips-list');
+    if (!(await listBtn.isVisible())) {
+       await tripsGroup.click({ force: true });
+    }
+    await listBtn.click({ force: true });
     
     // Verifica se carregou
-    await expect(page.getByRole('heading', { name: 'Minhas Viagens' })).toBeVisible();
+    await expect(page.getByTestId('header-title')).toContainText('Minhas Viagens');
   });
 
   test('deve navegar para Minha Jornada via sidebar e exibir estatísticas', async ({ page }) => {
-    // Clica no botão "Minha Jornada" na sidebar
-    const journeySidebarBtn = page.getByRole('button', { name: 'Minha Jornada' });
-    await expect(journeySidebarBtn).toBeVisible();
-    await journeySidebarBtn.click();
+    // Navega para Minha Jornada
+    await page.getByTestId('sidebar-sub-item-trips-stats').click();
 
     // Verifica se o título da página mudou
     await expect(page.getByRole('heading', { name: 'Minha Jornada' })).toBeVisible();

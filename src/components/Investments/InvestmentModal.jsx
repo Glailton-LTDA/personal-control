@@ -127,7 +127,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                     {formData.account_id 
                       ? (() => {
                           const acc = accounts.find(a => a.id === formData.account_id);
-                          return acc ? `${acc.institution ? `${acc.institution} - ` : ''}${acc.name}` : 'Selecione uma conta...';
+                           return acc ? `${acc.institution?.name ? `${acc.institution.name} - ` : ''}${acc.name}` : 'Selecione uma conta...';
                         })()
                       : 'Selecione uma conta...'}
                   </span>
@@ -180,7 +180,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
 
                       {accounts
                         .filter(acc => {
-                          const label = `${acc.institution || ''} ${acc.name}`.toLowerCase();
+                           const label = `${acc.institution?.name || ''} ${acc.name}`.toLowerCase();
                           return label.includes(searchTerm.toLowerCase());
                         })
                         .map(acc => (
@@ -207,7 +207,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: acc.color || 'var(--primary)' }}></div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{acc.name}</span>
-                              <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{acc.institution}</span>
+                               <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{acc.institution?.name}</span>
                             </div>
                           </div>
                         ))}
@@ -302,7 +302,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
               </Motion.div>
 
               <div style={{ display: 'flex', gap: '1.25rem', marginTop: '1rem' }}>
-                <button type="button" className="btn-secondary" onClick={onClose} style={{ flex: 1, padding: '1rem' }}>Cancelar</button>
+                <button type="button" className="btn-cancel" onClick={onClose} style={{ flex: 1, padding: '1rem' }}>Cancelar</button>
                 <button type="submit" className="btn-primary" style={{ flex: 2, padding: '1rem', justifyContent: 'center' }}>
                   <Save size={20} /> {initialData ? 'Salvar Alterações' : 'Cadastrar Registro'}
                 </button>

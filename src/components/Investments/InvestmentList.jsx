@@ -69,9 +69,9 @@ export default function InvestmentList({ user, showValues = true }) {
     // Fetch accounts first to have the mapping (names, colors, institutions)
     const { data: accountsData } = await supabase
       .from('investment_accounts')
-      .select('*');
+      .select('*, institution:investment_institutions(name), type:investment_account_types(name)');
     if (accountsData) {
-      const decryptedAccs = await decryptObject(accountsData, ['name', 'institution']);
+      const decryptedAccs = await decryptObject(accountsData, ['name']);
       setAccounts(decryptedAccs);
     }
 
@@ -79,7 +79,11 @@ export default function InvestmentList({ user, showValues = true }) {
       .from('investment_records')
       .select(`
         *,
-        investment_accounts (*)
+        investment_accounts (
+          *,
+          institution:investment_institutions(name),
+          type:investment_account_types(name)
+        )
       `)
       .order('record_date', { ascending: false });
 
@@ -99,8 +103,7 @@ export default function InvestmentList({ user, showValues = true }) {
     const { data, error } = await query;
     if (!error && data) {
       const decryptedRecords = await decryptObject(data, [
-        'investment_accounts.name',
-        'investment_accounts.institution'
+        'investment_accounts.name'
       ]);
       setRecords(decryptedRecords);
       // Expand all groups by default
@@ -206,7 +209,7 @@ export default function InvestmentList({ user, showValues = true }) {
 
   // Prepare chart data: Yield per Institution for the selected period
   const chartData = Object.values(records.reduce((acc, curr) => {
-    const instName = curr.investment_accounts?.institution || 'Desconhecido';
+    const instName = curr.investment_accounts?.institution?.name || 'Desconhecido';
     if (!acc[instName]) acc[instName] = { name: instName, yield: 0, color: curr.investment_accounts?.color || '#6366f1' };
     acc[instName].yield += Number(curr.yield);
     return acc;
@@ -218,7 +221,7 @@ export default function InvestmentList({ user, showValues = true }) {
   // Group records by Institution for the table view
   const groupedRecords = useMemo(() => {
     const groups = records.reduce((acc, record) => {
-      const inst = record.investment_accounts?.institution || 'Outros';
+      const inst = record.investment_accounts?.institution?.name || 'Outros';
       if (!acc[inst]) {
         acc[inst] = { 
           name: inst, 

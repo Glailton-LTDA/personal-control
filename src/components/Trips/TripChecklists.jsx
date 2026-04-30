@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { 
   ChevronLeft, Plus, Trash2, CheckCircle2, Circle, 
   ListTodo, Save, X, Edit2, Check, Copy, Search,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Layers
 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -286,7 +286,13 @@ export default function TripChecklists({ user, trip, onBack }) {
       .single();
 
     if (!originalChecklistEnc) return;
-    const originalChecklist = await decryptObject(originalChecklistEnc, ['title']);
+    const decrypted = await decryptObject(originalChecklistEnc, ['title']);
+    const originalChecklist = Array.isArray(decrypted) ? decrypted[0] : decrypted;
+
+    if (!originalChecklist || !originalChecklist.title) {
+      toast.error('Erro ao ler título original');
+      return;
+    }
 
     // Create new checklist
     const { data: newChecklist } = await supabase
@@ -325,7 +331,7 @@ export default function TripChecklists({ user, trip, onBack }) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
         <p>Carregando informações da viagem...</p>
-        <button onClick={onBack} className="btn-secondary" style={{ marginTop: '1rem' }}>Voltar</button>
+        <button onClick={onBack} className="btn-cancel" style={{ marginTop: '1rem' }}>Voltar</button>
       </div>
     );
   }
@@ -344,6 +350,30 @@ export default function TripChecklists({ user, trip, onBack }) {
           </div>
         </div>
         <div className="header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
+          <button 
+            onClick={() => {
+              if (collapsedIds.size === checklists.length) {
+                setCollapsedIds(new Set());
+              } else {
+                setCollapsedIds(new Set(checklists.map(c => c.id)));
+              }
+            }}
+            className="btn"
+            style={{ 
+              background: 'rgba(255,255,255,0.05)', 
+              color: 'white', 
+              padding: '0.6rem 1rem', 
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.85rem',
+              border: '1px solid var(--glass-border)'
+            }}
+          >
+            {collapsedIds.size === checklists.length ? <ChevronDown size={18} /> : <Layers size={18} />}
+            <span className="btn-text">{collapsedIds.size === checklists.length ? 'Expandir' : 'Recolher'}</span>
+          </button>
           <button 
             onClick={openImportModal}
             className="btn" 
@@ -514,12 +544,13 @@ export default function TripChecklists({ user, trip, onBack }) {
                               onChange={e => setTempItemTask(e.target.value)}
                               onBlur={() => saveItem(checklist.id, item)}
                               onKeyDown={e => e.key === 'Enter' && saveItem(checklist.id, item)}
+                              data-testid={`edit-item-input-${item.id}`}
                               className="glass-input"
                               style={{ flex: 1, fontSize: '0.9rem', padding: '0.2rem 0.5rem' }}
                             />
                           ) : (
                             <span 
-                              data-testid={`task-name-${item.id}`}
+                              data-testid={`checklist-item-task-${item.id}`}
                               style={{ 
                                 flex: 1, 
                                 fontSize: '0.95rem', 
@@ -535,21 +566,25 @@ export default function TripChecklists({ user, trip, onBack }) {
 
                           <div style={{ display: 'flex', gap: '0.25rem' }}>
                             {editingItemId !== item.id && (
-                              <button 
-                                onClick={() => startEditingItem(item)} 
-                                className="icon-btn edit-item-btn" 
-                                style={{ padding: '4px', opacity: 0, transition: '0.2s' }}
-                              >
-                                <Edit2 size={12} />
-                              </button>
+                              <>
+                                <button 
+                                  onClick={() => startEditingItem(item)} 
+                                  className="icon-btn edit-item-btn" 
+                                  style={{ padding: '4px', transition: '0.2s' }}
+                                  title="Editar item"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                                <button 
+                                  onClick={() => removeItem(checklist.id, item.id)} 
+                                  className="icon-btn delete-item-btn" 
+                                  style={{ padding: '4px', transition: '0.2s', color: 'var(--danger)' }}
+                                  title="Remover item"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </>
                             )}
-                            <button 
-                              onClick={() => removeItem(checklist.id, item.id)} 
-                              className="icon-btn delete-item-btn" 
-                              style={{ padding: '4px', opacity: 0, transition: '0.2s' }}
-                            >
-                              <X size={14} />
-                            </button>
                           </div>
                         </Motion.div>
                       ))}
@@ -571,7 +606,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                       />
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button onClick={() => handleAddItem(checklist.id)} className="btn-primary" style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}>Adicionar</button>
-                        <button onClick={() => setAddingItemToId(null)} className="btn-secondary" style={{ padding: '0.5rem', fontSize: '0.8rem' }}>Cancelar</button>
+                        <button onClick={() => setAddingItemToId(null)} className="btn-cancel" style={{ padding: '0.5rem', fontSize: '0.8rem' }}>Cancelar</button>
                       </div>
                     </div>
                   ) : (
@@ -702,6 +737,15 @@ export default function TripChecklists({ user, trip, onBack }) {
           }
           .btn-text {
             display: none;
+          }
+          .header-actions .btn, 
+          .header-actions .btn-primary {
+            padding: 0.6rem !important;
+            min-width: 44px;
+            justify-content: center;
+          }
+          .edit-item-btn, .delete-item-btn {
+            opacity: 1 !important;
           }
         }
       `}</style>

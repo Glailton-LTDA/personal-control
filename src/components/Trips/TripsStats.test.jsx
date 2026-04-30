@@ -40,9 +40,9 @@ describe('TripsStats Component', () => {
   it('renders correctly with trip data', () => {
     render(<TripsStats trips={mockTrips} />);
     
-    expect(screen.getByText('COUNTRIES')).toBeDefined();
-    expect(screen.getByText('CITIES')).toBeDefined();
-    expect(screen.getByText('KM TRAVELLED')).toBeDefined();
+    expect(screen.getAllByText('Países Visitados')[0]).toBeDefined();
+    expect(screen.getAllByText('Cidades Visitadas')[0]).toBeDefined();
+    expect(screen.getByText('Km Percorridos')).toBeDefined();
   });
 
   it('groups locations correctly and avoids duplicate countries as cities', () => {
@@ -63,7 +63,7 @@ describe('TripsStats Component', () => {
     render(<TripsStats trips={tripsWithDuplicates} />);
     
     // Total cities should be 2 (Lisboa and Porto)
-    const citiesLabel = screen.getByText('CITIES');
+    const citiesLabel = screen.getAllByText('Cidades Visitadas')[0];
     const summaryCard = citiesLabel.closest('.summary-card');
     expect(summaryCard.textContent).toContain('02');
     

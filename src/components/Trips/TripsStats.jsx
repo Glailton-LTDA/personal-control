@@ -261,11 +261,12 @@ export default function TripsStats({ trips, onBack }) {
   );
 
   const summaryCards = [
-    { label: 'COUNTRIES', value: stats.countriesCount.toString().padStart(2, '0'), color: '#a78bfa' },
-    { label: 'CITIES', value: stats.citiesCount.toString().padStart(2, '0'), color: '#4edea3' },
-    { label: 'KM TRAVELLED', value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#d2bbff' },
-    { label: 'DAYS AWAY', value: stats.totalDays.toString().padStart(2, '0'), color: '#adc6ff' },
-    { label: 'CONTINENTS', value: stats.continentsCount.toString().padStart(2, '0'), color: '#7c3aed' },
+    { label: 'Países Visitados', value: stats.countriesCount.toString().padStart(2, '0'), color: '#a78bfa' },
+    { label: 'Cidades Visitadas', value: stats.citiesCount.toString().padStart(2, '0'), color: '#4edea3' },
+    { label: 'Km Percorridos', value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#d2bbff' },
+    { label: 'Dias Fora', value: stats.totalDays.toString().padStart(2, '0'), color: '#adc6ff' },
+    { label: 'Continentes', value: stats.continentsCount.toString().padStart(2, '0'), color: '#7c3aed' },
+    { label: 'Total de Viagens', value: stats.tripsCount.toString().padStart(2, '0'), color: '#ec4899' },
   ];
 
   return (
@@ -273,7 +274,7 @@ export default function TripsStats({ trips, onBack }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
         <button
           onClick={viewMode === 'all' ? () => setViewMode('dashboard') : onBack}
-          data-testid="back-button"
+          data-testid="back-to-trips-btn"
           className="icon-btn"
           style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
         >
@@ -364,7 +365,7 @@ export default function TripsStats({ trips, onBack }) {
 
             <div className="side-content">
               <section className="continents-card">
-                <h3 className="section-subtitle">EXPLORAÇÃO POR CONTINENTE</h3>
+                <h3 className="section-subtitle">Exploração por Continente</h3>
                 <div className="continent-list">
                   {stats.continentStats.map((cont, i) => (
                     <div key={i} className="continent-item">
@@ -391,7 +392,7 @@ export default function TripsStats({ trips, onBack }) {
 
               <section className="countries-card">
                 <div className="card-header">
-                  <h3 className="section-subtitle">PAÍSES VISITADOS</h3>
+                  <h3 className="section-subtitle">Países Visitados</h3>
                   <button className="see-all-btn" onClick={() => setViewMode('all')}>
                     Ver Todos
                   </button>
@@ -599,6 +600,47 @@ export default function TripsStats({ trips, onBack }) {
 
       <style dangerouslySetInnerHTML={{
         __html: `
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+        .summary-card {
+          background: var(--bg-card);
+          border: 1px solid var(--glass-border);
+          padding: 1.5rem 1rem;
+          border-radius: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 0.5rem;
+          transition: all 0.3s ease;
+        }
+        .summary-card:hover {
+          transform: translateY(-5px);
+          border-color: var(--primary);
+          background: rgba(99, 102, 241, 0.05);
+        }
+        .summary-value {
+          font-size: 2.5rem;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.05em;
+        }
+        .summary-label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: var(--text-muted);
+          letter-spacing: 0.05em;
+        }
+        @media (max-width: 1200px) {
+          .summary-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+          .summary-grid { grid-template-columns: repeat(2, 1fr); }
+        }
         .country-chip.clickable {
           cursor: pointer;
           transition: all 0.2s ease;
