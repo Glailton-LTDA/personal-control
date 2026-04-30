@@ -262,6 +262,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
         <div style={{ position: 'relative', flex: 1, maxWidth: isMobile ? '100%' : '400px' }}>
           <div 
             className="glass-card" onClick={() => setIsTripMenuOpen(!isTripMenuOpen)}
+            data-testid="trip-selector"
             style={{ padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', border: '1px solid var(--glass-border)', background: 'var(--bg-card)', borderRadius: '14px' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
@@ -279,7 +280,14 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {trips.filter(t => t.title.toLowerCase().includes(tripSearchQuery.toLowerCase())).map(trip => (
-                    <button key={trip.id} onClick={() => { handleTripSelect(trip); setIsTripMenuOpen(false); setTripSearchQuery(''); }} style={{ padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: selectedTrip?.id === trip.id ? 'var(--primary)' : 'transparent', color: selectedTrip?.id === trip.id ? 'white' : 'var(--text-main)', textAlign: 'left', cursor: 'pointer', transition: '0.2s', fontWeight: selectedTrip?.id === trip.id ? '700' : '500', fontSize: '0.9rem' }}>{trip.title}</button>
+                    <button 
+                      key={trip.id} 
+                      data-testid={`trip-select-${trip.id}`}
+                      onClick={() => { handleTripSelect(trip); setIsTripMenuOpen(false); setTripSearchQuery(''); }} 
+                      style={{ padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: selectedTrip?.id === trip.id ? 'var(--primary)' : 'transparent', color: selectedTrip?.id === trip.id ? 'white' : 'var(--text-main)', textAlign: 'left', cursor: 'pointer', transition: '0.2s', fontWeight: selectedTrip?.id === trip.id ? '700' : '500', fontSize: '0.9rem' }}
+                    >
+                      {trip.title}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -353,10 +361,15 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
 
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div className="glass-card" style={{ display: 'flex', padding: '0.25rem', borderRadius: '12px' }}>
-              {selectedTrip.currencies?.map(currCode => {
+              {selectedTrip?.currencies?.map(currCode => {
                 const currData = CURRENCIES.find(c => c.code === currCode);
                 return (
-                  <button key={currCode} onClick={() => setActiveCurrency(currCode)} style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '10px', background: activeCurrency === currCode ? 'var(--primary)' : 'transparent', color: activeCurrency === currCode ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: '0.2s' }}>
+                  <button 
+                    key={currCode} 
+                    onClick={() => setActiveCurrency(currCode)} 
+                    style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '10px', background: activeCurrency === currCode ? 'var(--primary)' : 'transparent', color: activeCurrency === currCode ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: '0.2s' }}
+                    data-testid={`currency-select-${currCode}`}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center' }}>{renderFlag(currData?.flag)}</div>{currCode}
                   </button>
                 );
@@ -508,7 +521,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                         <div className="trip-expense-header">
                           <div className="trip-cat-icon" style={{ '--cat-color': meta.color }}><Icon size={18} /></div>
                           <div className="trip-expense-info">
-                            <div className="trip-expense-title">{exp.description}</div>
+                            <div className="trip-expense-title" data-testid={`expense-desc-${idx}`}>{exp.description}</div>
                             <div className="trip-expense-subtitle">{exp.date ? formatDate(exp.date, { day: '2-digit', month: 'short' }) : '--'} • {exp.trip_categories?.name || 'Geral'}</div>
                           </div>
                           <div className="trip-expense-amount">
@@ -540,7 +553,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredExpenses.map(exp => {
+                        {filteredExpenses.map((exp, idx) => {
                           const meta = getTripCategoryMeta(exp.trip_categories?.name);
                           const Icon = meta.icon;
                           return (
@@ -549,7 +562,7 @@ export default function TripsList({ user, refreshKey, onTripSelect, externalSele
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                   <span className="cat-icon-wrap" style={{ '--cat-color': meta.color }}><Icon size={14} /></span>
-                                  <div style={{ fontWeight: '700' }}>{exp.description}</div>
+                                  <div style={{ fontWeight: '700' }} data-testid={`expense-desc-${idx}`}>{exp.description}</div>
                                 </div>
                               </td>
                               <td><span className="cat-chip" style={{ '--cat-color': meta.color }}>{exp.trip_categories?.name || 'Geral'}</span></td>

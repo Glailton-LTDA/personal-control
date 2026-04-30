@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
   Calendar, MapPin, ChevronLeft, Save, Loader2, 
@@ -20,6 +20,64 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
   const { decryptObject, encryptObject, isUnlocked } = useEncryption();
 
+  const initialTripProcessed = useRef(false);
+
+  const fetchTrips = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
+      if (data) {
+        const decrypted = await decryptObject(data, [
+          'title', 
+          'cities.*', 
+          'countries.*',
+          'participants.*',
+          'hotels.*',
+          'transports.*',
+          'tickets.*',
+          'misc_docs.*'
+        ]);
+        setTrips(decrypted);
+      }
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [decryptObject]);
+
+  const fetchItinerary = useCallback(async (tripId) => {
+    if (!tripId) return;
+    try {
+      const { data, error } = await supabase
+        .from('trip_itinerary')
+        .select('*')
+        .eq('trip_id', tripId)
+        .order('day', { ascending: true })
+        .order('order_index', { ascending: true }); // Order by index
+      
+      if (error) throw error;
+      
+      if (data) {
+        const decrypted = await decryptObject(data, [
+          'activity',
+          'location',
+          'notes'
+        ]);
+        setItinerary(decrypted);
+      }
+    } catch (err) {
+      console.error('Error fetching itinerary:', err);
+      toast.error('Erro ao carregar roteiro');
+    }
+  }, [decryptObject]);
+
+  const handleSelectTrip = useCallback((trip) => {
+    setSelectedTrip(trip);
+    fetchItinerary(trip.id);
+    if (trip.id) localStorage.setItem('pc_selected_trip_v1', trip.id);
+  }, [fetchItinerary]);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
@@ -28,9 +86,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
 
   useEffect(() => {
     fetchTrips();
-  }, [user, isUnlocked]);
-
-  const initialTripProcessed = React.useRef(false);
+  }, [fetchTrips, isUnlocked]);
 
   useEffect(() => {
     if (trips.length > 0) {
@@ -56,63 +112,8 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         }
       }
     }
-  }, [trips, initialTripId]);
+  }, [trips, initialTripId, handleSelectTrip, selectedTrip]);
 
-  async function fetchTrips() {
-    setIsLoading(true);
-    try {
-      const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
-      if (data) {
-        const decrypted = await decryptObject(data, [
-          'title', 
-          'cities.*', 
-          'countries.*',
-          'participants.*',
-          'hotels.*',
-          'transports.*',
-          'tickets.*',
-          'misc_docs.*'
-        ]);
-        setTrips(decrypted);
-      }
-    } catch (error) {
-      console.error('Error fetching trips:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const fetchItinerary = async (tripId) => {
-    if (!tripId) return;
-    try {
-      const { data, error } = await supabase
-        .from('trip_itinerary')
-        .select('*')
-        .eq('trip_id', tripId)
-        .order('day', { ascending: true })
-        .order('order_index', { ascending: true }); // Order by index
-      
-      if (error) throw error;
-      
-      if (data) {
-        const decrypted = await decryptObject(data, [
-          'activity',
-          'location',
-          'notes'
-        ]);
-        setItinerary(decrypted);
-      }
-    } catch (err) {
-      console.error('Error fetching itinerary:', err);
-      toast.error('Erro ao carregar roteiro');
-    }
-  };
-
-  const handleSelectTrip = (trip) => {
-    setSelectedTrip(trip);
-    fetchItinerary(trip.id);
-    if (trip.id) localStorage.setItem('pc_selected_trip_v1', trip.id);
-  };
 
   const handleSave = async () => {
     if (!selectedTrip) return;

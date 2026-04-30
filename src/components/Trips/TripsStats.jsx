@@ -68,16 +68,7 @@ const COUNTRY_BOUNDS = {
   'Chile': { lat: [-56.0, -17.5], lng: [-75.7, -66.4] }
 };
 
-function getCountryByCoords(lng, lat) {
-  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
-  for (const [country, bounds] of Object.entries(COUNTRY_BOUNDS)) {
-    if (lat >= bounds.lat[0] && lat <= bounds.lat[1] &&
-        lng >= bounds.lng[0] && lng <= bounds.lng[1]) {
-      return country;
-    }
-  }
-  return null;
-}
+
 
 // Zoom and center configurations for specific countries
 const countryZoomConfig = {
