@@ -141,19 +141,15 @@ export function EncryptionProvider({ children, user }) {
   /**
    * Retrieves or generates a resource-specific encryption key.
    */
-  const getResourceKey = useCallback(async (resourceId, resourceType, options = {}) => {
-    if (!resourceId) return null;
+  const getResourceKey = useCallback(async (resourceId, resourceType = 'TRIP', options = { createIfMissing: false }) => {
+    if (!resourceId || !user || !masterKey) return null;
     
-    // 1. Check memory cache
     if (resourceKeys.current[resourceId]) return resourceKeys.current[resourceId];
-    
-    // 2. Check for pending request to avoid duplicates
-    if (pendingRequests.current[resourceId]) {
-      return pendingRequests.current[resourceId];
-    }
+    if (pendingRequests.current[resourceId]) return pendingRequests.current[resourceId];
 
     const fetchKey = async () => {
       try {
+        console.log(`[Encryption] getResourceKey: Fetching key for ${resourceId}`);
         const { data: keyData, error } = await supabase
           .from('resource_keys')
           .select('*')
@@ -162,51 +158,53 @@ export function EncryptionProvider({ children, user }) {
           .maybeSingle();
 
         if (error) {
-          console.error('Error fetching resource key:', error);
+          console.error(`[Encryption] Error fetching resource key for ${resourceId}:`, error);
           return null;
         }
 
         if (keyData) {
-          let key;
-          if (keyData.encryption_method === 'PUBLIC_KEY') {
-            if (!privateKey) {
-              console.warn(`[Encryption] Cannot unwrap key for ${resourceId}: Private key not loaded`);
-              return null;
+          console.log(`[Encryption] Found key in DB for ${resourceId}. Method: ${keyData.encryption_method}`);
+          try {
+            if (keyData.encryption_method === 'PUBLIC_KEY' || !keyData.encryption_method) {
+              if (!privateKey) {
+                console.warn(`[Encryption] Private key missing, cannot unwrap key for ${resourceId}`);
+                return null;
+              }
+              const key = await unwrapKeyWithPrivateKey(keyData.encrypted_key, privateKey);
+              console.log(`[Encryption] Successfully unwrapped key for ${resourceId}`);
+              resourceKeys.current[resourceId] = key;
+              return key;
+            } else if (keyData.encryption_method === 'MASTER_KEY') {
+              console.log(`[Encryption] Attempting legacy MASTER_KEY decryption for ${resourceId}`);
+              const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
+              const key = await importKeyFromBase64(keyBase64);
+              resourceKeys.current[resourceId] = key;
+              return key;
             }
-            key = await unwrapKeyWithPrivateKey(keyData.encrypted_key, privateKey);
-          } else {
-            if (!masterKey) {
-              console.warn(`[Encryption] Cannot decrypt key for ${resourceId}: Master key not loaded`);
-              return null;
-            }
-            const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
-            key = await importKeyFromBase64(keyBase64);
+          } catch (unwrapErr) {
+            console.error(`[Encryption] Failed to unwrap key for ${resourceId}:`, unwrapErr);
           }
-          resourceKeys.current[resourceId] = key;
-          return key;
         }
 
-        if (options.createIfMissing && masterKey) {
-          console.log(`Generating new resource key for ${resourceType}:${resourceId}`);
+        if (options.createIfMissing && publicKey) {
+          console.log(`[Encryption] Generating new PUBLIC_KEY resource key for ${resourceId}`);
           const newKey = await generateResourceKey();
-          const keyBase64 = await exportKeyToBase64(newKey);
-          const encryptedKey = await encrypt(keyBase64, masterKey);
+          const wrapped = await wrapKeyWithPublicKey(newKey, publicKey);
           
           const { error: insertError } = await supabase.from('resource_keys').insert({
             resource_id: resourceId,
             resource_type: resourceType,
             user_id: user.id,
-            encrypted_key: encryptedKey,
-            encryption_method: 'MASTER_KEY'
+            encrypted_key: wrapped,
+            encryption_method: 'PUBLIC_KEY'
           });
 
           if (insertError) {
-            console.error('Failed to save resource key:', insertError);
-            throw new Error('Não foi possível salvar a chave de segurança do recurso.');
+            console.error(`[Encryption] Failed to save resource key:`, insertError);
+          } else {
+            resourceKeys.current[resourceId] = newKey;
+            return newKey;
           }
-
-          resourceKeys.current[resourceId] = newKey;
-          return newKey;
         }
       } finally {
         delete pendingRequests.current[resourceId];
@@ -216,7 +214,7 @@ export function EncryptionProvider({ children, user }) {
 
     pendingRequests.current[resourceId] = fetchKey();
     return pendingRequests.current[resourceId];
-  }, [user, masterKey, privateKey]);
+  }, [user, masterKey, privateKey, publicKey]);
 
   /**
    * Encrypts a key for another user.
