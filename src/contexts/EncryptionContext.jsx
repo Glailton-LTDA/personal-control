@@ -165,17 +165,24 @@ export function EncryptionProvider({ children, user }) {
 
     // If no key exists and we are the owner, we can generate one
     if (options.createIfMissing && masterKey) {
+      console.log(`Generating new resource key for ${resourceType}:${resourceId}`);
       const newKey = await generateResourceKey();
       const keyBase64 = await exportKeyToBase64(newKey);
       const encryptedKey = await encrypt(keyBase64, masterKey);
       
-      await supabase.from('resource_keys').insert({
+      const { error: insertError } = await supabase.from('resource_keys').insert({
         resource_id: resourceId,
         resource_type: resourceType,
         user_id: user.id,
         encrypted_key: encryptedKey,
         encryption_method: 'MASTER_KEY'
       });
+
+      if (insertError) {
+        console.error('Failed to save resource key:', insertError);
+        // If we can't save the key, we shouldn't return it because the data encrypted with it will be lost
+        throw new Error('Não foi possível salvar a chave de segurança do recurso.');
+      }
 
       setResourceKeys(prev => ({ ...prev, [resourceId]: newKey }));
       return newKey;
@@ -193,7 +200,7 @@ export function EncryptionProvider({ children, user }) {
       if (!currentKey) throw new Error('Chave do recurso não encontrada');
 
       // 1. Get target's public key
-      const { data, error } = await supabase.rpc('get_public_key_by_email', { target_email: targetEmail.toLowerCase() });
+      const { data, error } = await supabase.rpc('get_public_key_by_email', { p_email: targetEmail.toLowerCase() });
       if (error || !data || data.length === 0) {
         throw new Error('Usuário não encontrado ou não configurou chaves de segurança.');
       }
