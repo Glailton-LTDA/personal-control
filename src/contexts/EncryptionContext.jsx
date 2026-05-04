@@ -259,26 +259,14 @@ export function EncryptionProvider({ children, user }) {
   const encryptObject = useCallback(async (obj, fields, options = {}) => {
     if (!obj) return obj;
     
-    // Determine key to use
     let activeKey = masterKey;
     if (options.resourceId) {
-      // Force creation if missing to migrate old data to resource-specific keys
       const rKey = await getResourceKey(options.resourceId, options.resourceType, { createIfMissing: true });
       if (rKey) activeKey = rKey;
     }
 
-    if (!activeKey) {
-      console.warn('No encryption key available (master or resource)');
-      return obj;
-    }
+    if (!activeKey) return obj;
 
-    if (Array.isArray(obj)) {
-      return await Promise.all(obj.map(item => encryptObject(item, fields, {
-        ...options,
-        resourceId: options.resourceId || item.id
-      })));
-    }
-    
     const process = async (current, pathParts) => {
       if (current === null || current === undefined) return current;
       if (pathParts.length === 0) {
@@ -296,7 +284,7 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
-      if (current[head] === undefined || current[head] === null) return current;
+      if (!current[head]) return current;
 
       if (tail.length === 0) {
         if (typeof current[head] === 'string' && current[head].trim() !== '') {
@@ -306,12 +294,16 @@ export function EncryptionProvider({ children, user }) {
           const encryptedArray = await Promise.all(current[head].map(item => process(item, [])));
           return { ...current, [head]: encryptedArray };
         }
-        return current;
+        return { ...current, [head]: await process(current[head], []) };
       }
       
       const processedValue = await process(current[head], tail);
       return { ...current, [head]: processedValue };
     };
+
+    if (Array.isArray(obj)) {
+      return await Promise.all(obj.map(item => process(item, [])));
+    }
 
     let result = { ...obj };
     for (const fieldPath of fields) {
@@ -323,52 +315,30 @@ export function EncryptionProvider({ children, user }) {
   const decryptObject = useCallback(async (obj, fields, options = {}) => {
     if (!obj) return obj;
 
-    // Determine key to use
     let activeKey = masterKey;
     if (options.resourceId) {
-      console.log(`[Decryption] Requesting key for ${options.resourceType || 'RESOURCE'}:${options.resourceId}`);
       const rKey = await getResourceKey(options.resourceId, options.resourceType);
-      if (rKey) {
-        console.log(`[Decryption] Resource key FOUND for ${options.resourceId}`);
-        activeKey = rKey;
-      } else {
-        console.warn(`[Decryption] Resource key NOT FOUND for ${options.resourceId}, falling back to Master Key`);
-      }
+      if (rKey) activeKey = rKey;
     }
 
-    if (!activeKey || !(activeKey instanceof CryptoKey)) {
-      console.warn(`[Decryption] ABORTED: No valid CryptoKey for ${options.resourceId || 'Master'}`);
-      return obj;
-    }
+    if (!activeKey || !(activeKey instanceof CryptoKey)) return obj;
 
-    if (Array.isArray(obj)) {
-      return await Promise.all(obj.map(item => decryptObject(item, fields, {
-        ...options,
-        resourceId: options.resourceId || item.id
-      })));
-    }
-    
     const process = async (current, pathParts) => {
       if (current === null || current === undefined) return current;
+      
       if (pathParts.length === 0) {
         if (typeof current === 'string' && isEncrypted(current.trim())) {
           try {
-            let decryptedValue = current.trim();
-            let iterations = 0;
-            while (isEncrypted(decryptedValue) && iterations < 3) {
-              const next = await decrypt(decryptedValue, activeKey);
-              if (next === decryptedValue) break;
-              decryptedValue = next;
-              iterations++;
+            let val = current.trim();
+            let i = 0;
+            while (isEncrypted(val) && i < 3) {
+              const next = await decrypt(val, activeKey);
+              if (next === val) break;
+              val = next;
+              i++;
             }
-            return decryptedValue;
-          } catch (e) {
-            console.error('Decryption failed for value:', current, e);
-            return '[Decryption Error]';
-          }
-        }
-        if (Array.isArray(current)) {
-          return await Promise.all(current.map(item => process(item, [])));
+            return val;
+          } catch (e) { return '[Decryption Error]'; }
         }
         return current;
       }
@@ -381,34 +351,34 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
-      if (current[head] === undefined || current[head] === null) return current;
+      if (!current[head]) return current;
 
       if (tail.length === 0) {
         if (typeof current[head] === 'string' && isEncrypted(current[head].trim())) {
           try {
-            let decryptedValue = current[head].trim();
-            let iterations = 0;
-            while (isEncrypted(decryptedValue) && iterations < 3) {
-              const next = await decrypt(decryptedValue, activeKey);
-              if (next === decryptedValue) break;
-              decryptedValue = next;
-              iterations++;
+            let val = current[head].trim();
+            let i = 0;
+            while (isEncrypted(val) && i < 3) {
+              const next = await decrypt(val, activeKey);
+              if (next === val) break;
+              val = next;
+              i++;
             }
-            return { ...current, [head]: decryptedValue };
-          } catch (e) {
-            return { ...current, [head]: '[Decryption Error]' };
-          }
+            return { ...current, [head]: val };
+          } catch (e) { return { ...current, [head]: '[Decryption Error]' }; }
         }
         if (Array.isArray(current[head])) {
-          const decryptedArray = await Promise.all(current[head].map(item => process(item, [])));
-          return { ...current, [head]: decryptedArray };
+          return { ...current, [head]: await Promise.all(current[head].map(item => process(item, []))) };
         }
         return { ...current, [head]: await process(current[head], []) };
       }
       
-      const processedValue = await process(current[head], tail);
-      return { ...current, [head]: processedValue };
+      return { ...current, [head]: await process(current[head], tail) };
     };
+
+    if (Array.isArray(obj)) {
+      return await Promise.all(obj.map(item => process(item, [])));
+    }
 
     let result = { ...obj };
     for (const fieldPath of fields) {

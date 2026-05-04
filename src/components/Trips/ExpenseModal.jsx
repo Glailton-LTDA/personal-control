@@ -72,7 +72,10 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     async function fetchCategories() {
       const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
       if (data) {
-        const decrypted = await decryptObject(data, ['name']);
+        const decrypted = await decryptObject(data, ['name'], {
+          resourceId: trip?.id,
+          resourceType: 'TRIP'
+        });
         setCategories(decrypted);
       }
     }

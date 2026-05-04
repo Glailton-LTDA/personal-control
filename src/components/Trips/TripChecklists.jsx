@@ -40,7 +40,10 @@ export default function TripChecklists({ user, trip, onBack }) {
       .order('created_at', { ascending: true });
 
     if (data) {
-      const decrypted = await decryptObject(data, ['title', 'items.*.task']);
+      const decrypted = await decryptObject(data, ['title', 'items.*.task'], {
+        resourceId: trip.id,
+        resourceType: 'TRIP'
+      });
       const formatted = decrypted.map(c => ({
         ...c,
         items: (c.items || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
@@ -262,11 +265,16 @@ export default function TripChecklists({ user, trip, onBack }) {
             .select('id, title')
             .eq('trip_id', t.id);
           
-          const decryptedChecklists = await decryptObject(cData || [], ['title']);
+          const decryptedChecklists = await decryptObject(cData || [], ['title'], {
+            resourceId: t.id,
+            resourceType: 'TRIP'
+          });
           tripsWithChecklists.push({ ...t, checklists: decryptedChecklists });
         }
       }
-      const decryptedTrips = await decryptObject(tripsWithChecklists, ['title']);
+      const decryptedTrips = await decryptObject(tripsWithChecklists, ['title'], {
+        resourceType: 'TRIP'
+      });
       setOtherTrips(decryptedTrips);
     }
   };
@@ -286,7 +294,10 @@ export default function TripChecklists({ user, trip, onBack }) {
       .single();
 
     if (!originalChecklistEnc) return;
-    const decrypted = await decryptObject(originalChecklistEnc, ['title']);
+    const decrypted = await decryptObject(originalChecklistEnc, ['title'], {
+      resourceId: originalChecklistEnc.trip_id || trip.id, // Fallback but trip_id is better
+      resourceType: 'TRIP'
+    });
     const originalChecklist = Array.isArray(decrypted) ? decrypted[0] : decrypted;
 
     if (!originalChecklist || !originalChecklist.title) {
@@ -318,7 +329,10 @@ export default function TripChecklists({ user, trip, onBack }) {
         .insert(itemsToInsert)
         .select();
 
-      const decryptedItems = await decryptObject(newItems || [], ['task']);
+      const decryptedItems = await decryptObject(newItems || [], ['task'], {
+        resourceId: trip.id,
+        resourceType: 'TRIP'
+      });
       setChecklists([...checklists, { ...newChecklist, title: `${originalChecklist.title} (Importado)`, items: decryptedItems }]);
     } else if (newChecklist) {
       setChecklists([...checklists, { ...newChecklist, title: `${originalChecklist.title} (Importado)`, items: [] }]);

@@ -63,7 +63,10 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
           'activity',
           'location',
           'notes'
-        ]);
+        ], { 
+          resourceId: tripId, 
+          resourceType: 'TRIP' 
+        });
         setItinerary(decrypted);
       }
     } catch (err) {

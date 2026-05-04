@@ -115,7 +115,10 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     const { data } = await supabase.from('trip_categories').select('*').eq('user_id', targetUserId).order('name', { ascending: true });
     if (data) {
       // Categories are currently master-key encrypted but scoped to owner
-      const decryptedCats = await decryptObject(data, ['name']);
+      const decryptedCats = await decryptObject(data, ['name'], {
+        resourceId: selectedTrip?.id,
+        resourceType: 'TRIP'
+      });
       setCategories(decryptedCats);
     }
   }, [selectedTrip?.user_id, user?.id, decryptObject]);
