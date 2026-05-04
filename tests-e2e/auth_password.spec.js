@@ -74,7 +74,7 @@ test.describe('Autenticação - Senha', () => {
     // Navega para Configurações expandindo o grupo e clicando em "Geral"
     const configGroup = page.getByTestId('sidebar-group-settings');
     await configGroup.click();
-    await page.getByRole('button', { name: 'Geral' }).click();
+    await page.getByTestId('sidebar-sub-item-settings-security').click();
 
     // Verifica seção de alterar senha
     await expect(page.getByRole('heading', { name: 'Alterar Senha' })).toBeVisible({ timeout: 10000 });

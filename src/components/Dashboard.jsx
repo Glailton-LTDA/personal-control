@@ -491,7 +491,7 @@ export default function Dashboard({ user }) {
             {activeTab === 'app-menu' && (
               <AppMenuGrid onNavigate={(tab) => setActiveTab(tab)} menuItems={menuItems} onLogout={() => supabase.auth.signOut()} />
             )}
-            {activeTab.startsWith('settings') && <SettingsView user={user} menuOrder={menuOrder} setMenuOrder={setMenuOrder} menuItems={defaultMenuItems} />}
+            {activeTab.startsWith('settings') && <SettingsView user={user} menuOrder={menuOrder} setMenuOrder={setMenuOrder} menuItems={defaultMenuItems} activeTab={activeTab} />}
             {activeTab.startsWith('cars') && (
               <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
             )}

@@ -30,7 +30,8 @@ test.describe('Configurações - Automação de E-mail', () => {
               recipient_email: 'test@example.com',
               bcc_email: 'bcc@example.com',
               skip_email_modal: false,
-              auto_send_on_paid: false
+              auto_send_on_paid: false,
+              skip_confirmations: false
             }),
           });
         } else {
@@ -51,8 +52,8 @@ test.describe('Configurações - Automação de E-mail', () => {
     await page.waitForFunction(() => !!document.querySelector('aside'), { timeout: 20000 });
 
     // Navegação para Configurações -> Geral
-    await page.getByText(/configurações/i).click();
-    await page.getByRole('button', { name: /geral/i }).click();
+    await page.getByTestId('sidebar-group-settings').click();
+    await page.getByTestId('sidebar-sub-item-settings-general').click();
   });
 
   test('deve permitir configurar e-mail e opções de automação', async ({ page }) => {
@@ -76,7 +77,8 @@ test.describe('Configurações - Automação de E-mail', () => {
           body: JSON.stringify({
             user_id: 'user-123',
             recipient_email: 'test@example.com',
-            skip_email_modal: true
+            skip_email_modal: true,
+            skip_confirmations: false
           }),
         });
       } else {

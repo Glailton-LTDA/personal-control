@@ -39,7 +39,14 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
     // Mock Notification Settings
     await page.route('**/rest/v1/notification_settings*', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ recipient_email: 'test@example.com' }) });
+      await route.fulfill({ 
+        status: 200, 
+        contentType: 'application/json', 
+        body: JSON.stringify({ 
+          recipient_email: 'test@example.com',
+          skip_confirmations: false 
+        }) 
+      });
     });
 
     // Mock Trip Checklists
