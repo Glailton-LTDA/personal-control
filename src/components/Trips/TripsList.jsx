@@ -130,8 +130,10 @@ export default function TripsList({
     return <span style={{ fontSize: size, lineHeight: 1 }}>{flag}</span>;
   };
 
+  const [isExpensesLoading, setIsExpensesLoading] = useState(false);
   const fetchExpenses = useCallback(async (tripId = externalSelectedTrip?.id) => {
     if (!tripId) return;
+    setIsExpensesLoading(true);
     const { data, error } = await supabase
       .from('trip_expenses')
       .select('*, trip_categories(name)')
@@ -145,6 +147,7 @@ export default function TripsList({
       });
       setExpenses(decrypted);
     }
+    setIsExpensesLoading(false);
   }, [decryptObject, externalSelectedTrip?.id]);
 
   useEffect(() => {
@@ -536,7 +539,16 @@ export default function TripsList({
             </div>
 
             <div style={{ overflowX: 'auto' }}>
-              {isMobile ? (
+              {isExpensesLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
+                  <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(99, 102, 241, 0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>Descriptografando lançamentos...</p>
+                </div>
+              ) : filteredExpenses.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)' }}>
+                  Nenhum lançamento encontrado.
+                </div>
+              ) : isMobile ? (
                 <div className="trip-expenses-mobile-list">
                   {filteredExpenses.map((exp, idx) => {
                     const meta = getTripCategoryMeta(exp.trip_categories?.name);

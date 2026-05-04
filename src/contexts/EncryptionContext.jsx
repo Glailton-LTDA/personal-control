@@ -24,7 +24,7 @@ export function EncryptionProvider({ children, user }) {
   const [masterKey, setMasterKey] = useState(null);
   const [publicKey, setPublicKey] = useState(null);
   const [privateKey, setPrivateKey] = useState(null);
-  const [resourceKeys, setResourceKeys] = useState({}); // Cache: { resourceId: CryptoKey }
+  const resourceKeys = useRef({}); // Cache: { resourceId: CryptoKey }
   const pendingRequests = useRef({});
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
@@ -133,7 +133,7 @@ export function EncryptionProvider({ children, user }) {
     setMasterKey(null);
     setPublicKey(null);
     setPrivateKey(null);
-    setResourceKeys({});
+    resourceKeys.current = {};
     setIsUnlocked(false);
     sessionStorage.removeItem('pc_master_key');
   };
@@ -145,7 +145,7 @@ export function EncryptionProvider({ children, user }) {
     if (!resourceId) return null;
     
     // 1. Check memory cache
-    if (resourceKeys[resourceId]) return resourceKeys[resourceId];
+    if (resourceKeys.current[resourceId]) return resourceKeys.current[resourceId];
     
     // 2. Check for pending request to avoid duplicates
     if (pendingRequests.current[resourceId]) {
@@ -159,7 +159,7 @@ export function EncryptionProvider({ children, user }) {
           .select('*')
           .eq('resource_id', resourceId)
           .eq('user_id', user.id)
-          .maybeSingle(); // Use maybeSingle to avoid 406/404 errors if not found
+          .maybeSingle();
 
         if (error) {
           console.error('Error fetching resource key:', error);
@@ -174,7 +174,7 @@ export function EncryptionProvider({ children, user }) {
             const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
             key = await importKeyFromBase64(keyBase64);
           }
-          setResourceKeys(prev => ({ ...prev, [resourceId]: key }));
+          resourceKeys.current[resourceId] = key;
           return key;
         }
 
@@ -197,11 +197,10 @@ export function EncryptionProvider({ children, user }) {
             throw new Error('Não foi possível salvar a chave de segurança do recurso.');
           }
 
-          setResourceKeys(prev => ({ ...prev, [resourceId]: newKey }));
+          resourceKeys.current[resourceId] = newKey;
           return newKey;
         }
       } finally {
-        // Clear pending request
         delete pendingRequests.current[resourceId];
       }
       return null;
@@ -209,7 +208,7 @@ export function EncryptionProvider({ children, user }) {
 
     pendingRequests.current[resourceId] = fetchKey();
     return pendingRequests.current[resourceId];
-  }, [resourceKeys, user, masterKey, privateKey]);
+  }, [user, masterKey, privateKey]);
 
   /**
    * Encrypts a key for another user.
@@ -249,7 +248,7 @@ export function EncryptionProvider({ children, user }) {
     }
   };
 
-  const encryptObject = async (obj, fields, options = {}) => {
+  const encryptObject = useCallback(async (obj, fields, options = {}) => {
     if (!obj) return obj;
     
     // Determine key to use
@@ -311,9 +310,9 @@ export function EncryptionProvider({ children, user }) {
       result = await process(result, fieldPath.split('.'));
     }
     return result;
-  };
+  }, [masterKey, getResourceKey]);
 
-  const decryptObject = async (obj, fields, options = {}) => {
+  const decryptObject = useCallback(async (obj, fields, options = {}) => {
     if (!obj) return obj;
 
     // Determine key to use
@@ -323,7 +322,9 @@ export function EncryptionProvider({ children, user }) {
       if (rKey) activeKey = rKey;
     }
 
-    if (!activeKey) return obj;
+    if (!activeKey || !(activeKey instanceof CryptoKey)) {
+      return obj;
+    }
 
     if (Array.isArray(obj)) {
       return await Promise.all(obj.map(item => decryptObject(item, fields, {
@@ -336,25 +337,23 @@ export function EncryptionProvider({ children, user }) {
       if (current === null || current === undefined) return current;
       if (pathParts.length === 0) {
         if (typeof current === 'string' && isEncrypted(current.trim())) {
-          let decryptedValue = current.trim();
-          let iterations = 0;
-          while (isEncrypted(decryptedValue) && iterations < 3) {
-            const next = await decrypt(decryptedValue, activeKey);
-            if (next === decryptedValue) break;
-            decryptedValue = next;
-            iterations++;
+          try {
+            let decryptedValue = current.trim();
+            let iterations = 0;
+            while (isEncrypted(decryptedValue) && iterations < 3) {
+              const next = await decrypt(decryptedValue, activeKey);
+              if (next === decryptedValue) break;
+              decryptedValue = next;
+              iterations++;
+            }
+            return decryptedValue;
+          } catch (e) {
+            console.error('Decryption failed for value:', current, e);
+            return '[Decryption Error]';
           }
-          return decryptedValue;
         }
         if (Array.isArray(current)) {
           return await Promise.all(current.map(item => process(item, [])));
-        }
-        if (typeof current === 'object' && current !== null) {
-          const decryptedObj = { ...current };
-          for (const key in decryptedObj) {
-            decryptedObj[key] = await process(decryptedObj[key], []);
-          }
-          return decryptedObj;
         }
         return current;
       }
@@ -371,13 +370,25 @@ export function EncryptionProvider({ children, user }) {
 
       if (tail.length === 0) {
         if (typeof current[head] === 'string' && isEncrypted(current[head].trim())) {
-          return { ...current, [head]: await decrypt(current[head].trim(), activeKey) };
+          try {
+            let decryptedValue = current[head].trim();
+            let iterations = 0;
+            while (isEncrypted(decryptedValue) && iterations < 3) {
+              const next = await decrypt(decryptedValue, activeKey);
+              if (next === decryptedValue) break;
+              decryptedValue = next;
+              iterations++;
+            }
+            return { ...current, [head]: decryptedValue };
+          } catch (e) {
+            return { ...current, [head]: '[Decryption Error]' };
+          }
         }
-        if (typeof current[head] === 'object' && current[head] !== null) {
-          const decryptedValue = await process(current[head], []);
-          return { ...current, [head]: decryptedValue };
+        if (Array.isArray(current[head])) {
+          const decryptedArray = await Promise.all(current[head].map(item => process(item, [])));
+          return { ...current, [head]: decryptedArray };
         }
-        return current;
+        return { ...current, [head]: await process(current[head], []) };
       }
       
       const processedValue = await process(current[head], tail);
@@ -389,7 +400,7 @@ export function EncryptionProvider({ children, user }) {
       result = await process(result, fieldPath.split('.'));
     }
     return result;
-  };
+  }, [masterKey, getResourceKey]);
 
   const encryptData = async (data) => {
     if (!masterKey) return data;
