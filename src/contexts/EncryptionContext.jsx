@@ -337,28 +337,32 @@ export function EncryptionProvider({ children, user }) {
           const encryptedVal = val.trim();
           try {
             // Attempt 1: Use the primary active key (Resource Key or Master Key)
-            let decrypted = await decrypt(encryptedVal, activeKey);
-            
-            // Handle double encryption if necessary
-            let i = 0;
-            while (isEncrypted(decrypted) && i < 2) {
-              const next = await decrypt(decrypted, activeKey);
-              if (next === decrypted) break;
-              decrypted = next;
-              i++;
-            }
-            return decrypted;
-          } catch (e) {
-            // UNIVERSAL FALLBACK: If the first attempt failed, try Master Key if it's different from the active key
-            if (masterKey && activeKey !== masterKey) {
-              try {
-                console.log(`[Decryption] Primary key failed for ${options.resourceId}, trying Master Key fallback...`);
-                return await decrypt(encryptedVal, masterKey);
-              } catch (fallbackErr) {
-                console.error(`[Decryption] Master Key fallback also failed for ${options.resourceId}`);
+            try {
+              let decrypted = await decrypt(encryptedVal, activeKey);
+              
+              // Handle double encryption if necessary
+              let i = 0;
+              while (isEncrypted(decrypted) && i < 2) {
+                const next = await decrypt(decrypted, activeKey);
+                if (next === decrypted) break;
+                decrypted = next;
+                i++;
               }
+              return decrypted;
+            } catch (primaryErr) {
+              // UNIVERSAL FALLBACK: If the first attempt failed, try Master Key
+              if (masterKey && activeKey !== masterKey) {
+                console.log(`[Decryption] Primary key failed for resource ${options.resourceId}, trying Master Key fallback...`);
+                try {
+                  return await decrypt(encryptedVal, masterKey);
+                } catch (fallbackErr) {
+                  console.error(`[Decryption] Master Key fallback also failed for ${options.resourceId}`);
+                }
+              }
+              throw primaryErr; // Rethrow to reach the final catch
             }
-            console.error(`[Decryption] Final decryption failure for ${options.resourceId}:`, e);
+          } catch (e) {
+            console.error(`[Decryption] Final failure for resource ${options.resourceId}. Value prefix: ${val.substring(0, 15)}... Error:`, e);
             return '[Decryption Error]';
           }
         }
