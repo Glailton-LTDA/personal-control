@@ -318,11 +318,18 @@ export function EncryptionProvider({ children, user }) {
     // Determine key to use
     let activeKey = masterKey;
     if (options.resourceId) {
+      console.log(`[Decryption] Requesting key for ${options.resourceType || 'RESOURCE'}:${options.resourceId}`);
       const rKey = await getResourceKey(options.resourceId, options.resourceType);
-      if (rKey) activeKey = rKey;
+      if (rKey) {
+        console.log(`[Decryption] Resource key FOUND for ${options.resourceId}`);
+        activeKey = rKey;
+      } else {
+        console.warn(`[Decryption] Resource key NOT FOUND for ${options.resourceId}, falling back to Master Key`);
+      }
     }
 
     if (!activeKey || !(activeKey instanceof CryptoKey)) {
+      console.warn(`[Decryption] ABORTED: No valid CryptoKey for ${options.resourceId || 'Master'}`);
       return obj;
     }
 

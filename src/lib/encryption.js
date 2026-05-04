@@ -60,7 +60,14 @@ export async function encrypt(value, key) {
 export async function decrypt(encryptedValue, key) {
   if (!encryptedValue || typeof encryptedValue !== 'string') return encryptedValue;
   if (!encryptedValue.startsWith(ENCRYPTION_PREFIX)) return encryptedValue;
-  if (!key) return '[Encrypted]';
+  if (!key) {
+    console.warn('Decryption skipped: Key is null or undefined');
+    return '[Encrypted]';
+  }
+  if (!(key instanceof CryptoKey)) {
+    console.error('Decryption failed: Provided key is not a CryptoKey instance', key);
+    return '[Encryption Error: Invalid Key]';
+  }
 
   try {
     const parts = encryptedValue.substring(ENCRYPTION_PREFIX.length).split(':');
