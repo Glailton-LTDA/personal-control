@@ -255,10 +255,15 @@ export function EncryptionProvider({ children, user }) {
     // Determine key to use
     let activeKey = masterKey;
     if (options.resourceId) {
-      activeKey = await getResourceKey(options.resourceId, options.resourceType, { createIfMissing: options.isCreation });
+      // Force creation if missing to migrate old data to resource-specific keys
+      const rKey = await getResourceKey(options.resourceId, options.resourceType, { createIfMissing: true });
+      if (rKey) activeKey = rKey;
     }
 
-    if (!activeKey) return obj;
+    if (!activeKey) {
+      console.warn('No encryption key available (master or resource)');
+      return obj;
+    }
 
     if (Array.isArray(obj)) {
       return await Promise.all(obj.map(item => encryptObject(item, fields, {
@@ -314,7 +319,8 @@ export function EncryptionProvider({ children, user }) {
     // Determine key to use
     let activeKey = masterKey;
     if (options.resourceId) {
-      activeKey = await getResourceKey(options.resourceId, options.resourceType);
+      const rKey = await getResourceKey(options.resourceId, options.resourceType);
+      if (rKey) activeKey = rKey;
     }
 
     if (!activeKey) return obj;
