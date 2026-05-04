@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { 
   initializeEncryptionKey, 
   encrypt, 
@@ -25,6 +25,7 @@ export function EncryptionProvider({ children, user }) {
   const [publicKey, setPublicKey] = useState(null);
   const [privateKey, setPrivateKey] = useState(null);
   const [resourceKeys, setResourceKeys] = useState({}); // Cache: { resourceId: CryptoKey }
+  const pendingRequests = useRef({});
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
 
