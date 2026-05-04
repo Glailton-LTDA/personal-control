@@ -140,7 +140,10 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       return;
     }
 
-    const encrypted = await encryptObject(formData, ['description', 'paid_by']);
+    const encrypted = await encryptObject(formData, ['description', 'paid_by'], {
+      resourceId: trip.id,
+      resourceType: 'TRIP'
+    });
     
     const payload = {
       user_id: user.id,

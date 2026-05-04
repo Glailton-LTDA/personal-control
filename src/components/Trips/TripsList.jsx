@@ -139,7 +139,10 @@ export default function TripsList({
       .order('date', { ascending: false });
     
     if (!error && data) {
-      const decrypted = await decryptObject(data, ['description', 'paid_by', 'trip_categories.name']);
+      const decrypted = await decryptObject(data, ['description', 'paid_by', 'trip_categories.name'], {
+        resourceId: tripId,
+        resourceType: 'TRIP'
+      });
       setExpenses(decrypted);
     }
   }, [decryptObject, externalSelectedTrip?.id]);
@@ -156,7 +159,10 @@ export default function TripsList({
       if (!targetUserId) return;
       const { data } = await supabase.from('trip_categories').select('*').eq('user_id', targetUserId).order('name');
       if (data) {
-        const decrypted = await decryptObject(data, ['name']);
+        const decrypted = await decryptObject(data, ['name'], {
+          resourceId: externalSelectedTrip?.id,
+          resourceType: 'TRIP'
+        });
         setCategories(decrypted);
       }
     };

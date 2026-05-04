@@ -268,7 +268,7 @@ export function EncryptionProvider({ children, user }) {
     if (Array.isArray(obj)) {
       return await Promise.all(obj.map(item => encryptObject(item, fields, {
         ...options,
-        resourceId: item.id || options.resourceId
+        resourceId: options.resourceId || item.id
       })));
     }
     
@@ -328,7 +328,7 @@ export function EncryptionProvider({ children, user }) {
     if (Array.isArray(obj)) {
       return await Promise.all(obj.map(item => decryptObject(item, fields, {
         ...options,
-        resourceId: item.id || options.resourceId
+        resourceId: options.resourceId || item.id
       })));
     }
     
