@@ -138,57 +138,76 @@ export function EncryptionProvider({ children, user }) {
   };
 
   /**
-   * Helper to get or generate a key for a resource.
+   * Retrieves or generates a resource-specific encryption key.
    */
   const getResourceKey = useCallback(async (resourceId, resourceType, options = {}) => {
+    if (!resourceId) return null;
+    
+    // 1. Check memory cache
     if (resourceKeys[resourceId]) return resourceKeys[resourceId];
-
-    const { data: keyData } = await supabase
-      .from('resource_keys')
-      .select('*')
-      .eq('resource_id', resourceId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (keyData) {
-      let key;
-      if (keyData.encryption_method === 'PUBLIC_KEY') {
-        key = await unwrapKeyWithPrivateKey(keyData.encrypted_key, privateKey);
-      } else {
-        // Wrapped with master key
-        const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
-        key = await importKeyFromBase64(keyBase64);
-      }
-      setResourceKeys(prev => ({ ...prev, [resourceId]: key }));
-      return key;
+    
+    // 2. Check for pending request to avoid duplicates
+    if (pendingRequests.current[resourceId]) {
+      return pendingRequests.current[resourceId];
     }
 
-    // If no key exists and we are the owner, we can generate one
-    if (options.createIfMissing && masterKey) {
-      console.log(`Generating new resource key for ${resourceType}:${resourceId}`);
-      const newKey = await generateResourceKey();
-      const keyBase64 = await exportKeyToBase64(newKey);
-      const encryptedKey = await encrypt(keyBase64, masterKey);
-      
-      const { error: insertError } = await supabase.from('resource_keys').insert({
-        resource_id: resourceId,
-        resource_type: resourceType,
-        user_id: user.id,
-        encrypted_key: encryptedKey,
-        encryption_method: 'MASTER_KEY'
-      });
+    const fetchKey = async () => {
+      try {
+        const { data: keyData, error } = await supabase
+          .from('resource_keys')
+          .select('*')
+          .eq('resource_id', resourceId)
+          .eq('user_id', user.id)
+          .maybeSingle(); // Use maybeSingle to avoid 406/404 errors if not found
 
-      if (insertError) {
-        console.error('Failed to save resource key:', insertError);
-        // If we can't save the key, we shouldn't return it because the data encrypted with it will be lost
-        throw new Error('Não foi possível salvar a chave de segurança do recurso.');
+        if (error) {
+          console.error('Error fetching resource key:', error);
+          return null;
+        }
+
+        if (keyData) {
+          let key;
+          if (keyData.encryption_method === 'PUBLIC_KEY') {
+            key = await unwrapKeyWithPrivateKey(keyData.encrypted_key, privateKey);
+          } else {
+            const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
+            key = await importKeyFromBase64(keyBase64);
+          }
+          setResourceKeys(prev => ({ ...prev, [resourceId]: key }));
+          return key;
+        }
+
+        if (options.createIfMissing && masterKey) {
+          console.log(`Generating new resource key for ${resourceType}:${resourceId}`);
+          const newKey = await generateResourceKey();
+          const keyBase64 = await exportKeyToBase64(newKey);
+          const encryptedKey = await encrypt(keyBase64, masterKey);
+          
+          const { error: insertError } = await supabase.from('resource_keys').insert({
+            resource_id: resourceId,
+            resource_type: resourceType,
+            user_id: user.id,
+            encrypted_key: encryptedKey,
+            encryption_method: 'MASTER_KEY'
+          });
+
+          if (insertError) {
+            console.error('Failed to save resource key:', insertError);
+            throw new Error('Não foi possível salvar a chave de segurança do recurso.');
+          }
+
+          setResourceKeys(prev => ({ ...prev, [resourceId]: newKey }));
+          return newKey;
+        }
+      } finally {
+        // Clear pending request
+        delete pendingRequests.current[resourceId];
       }
+      return null;
+    };
 
-      setResourceKeys(prev => ({ ...prev, [resourceId]: newKey }));
-      return newKey;
-    }
-
-    return null;
+    pendingRequests.current[resourceId] = fetchKey();
+    return pendingRequests.current[resourceId];
   }, [resourceKeys, user, masterKey, privateKey]);
 
   /**
