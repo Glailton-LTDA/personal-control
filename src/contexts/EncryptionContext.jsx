@@ -318,30 +318,51 @@ export function EncryptionProvider({ children, user }) {
   const decryptObject = useCallback(async (obj, fields, options = {}) => {
     if (!obj) return obj;
 
-    let activeKey = masterKey;
+    let resourceKey = null;
     if (options.resourceId) {
-      const rKey = await getResourceKey(options.resourceId, options.resourceType);
-      if (rKey) activeKey = rKey;
+      resourceKey = await getResourceKey(options.resourceId, options.resourceType);
+      if (!resourceKey) {
+        console.warn(`[Decryption] No resource key for ${options.resourceId}, will use Master Key only.`);
+      }
     }
 
-    if (!activeKey || !(activeKey instanceof CryptoKey)) return obj;
+    const activeKey = resourceKey || masterKey;
+    if (!activeKey || !(activeKey instanceof CryptoKey)) {
+      return obj;
+    }
 
     const processValue = async (val, pathParts) => {
       if (val === null || val === undefined) return val;
 
       if (pathParts.length === 0) {
         if (typeof val === 'string' && isEncrypted(val.trim())) {
+          const encryptedVal = val.trim();
           try {
-            let decrypted = val.trim();
+            // Attempt 1: Use the primary active key (Resource Key or Master Key)
+            let decrypted = await decrypt(encryptedVal, activeKey);
+            
+            // Handle double encryption if necessary
             let i = 0;
-            while (isEncrypted(decrypted) && i < 3) {
+            while (isEncrypted(decrypted) && i < 2) {
               const next = await decrypt(decrypted, activeKey);
               if (next === decrypted) break;
               decrypted = next;
               i++;
             }
             return decrypted;
-          } catch (e) { return '[Decryption Error]'; }
+          } catch (e) {
+            // FALLBACK: If Resource Key failed, try Master Key as a last resort
+            if (resourceKey && masterKey && resourceKey !== masterKey) {
+              try {
+                console.log(`[Decryption] Resource key failed for ${options.resourceId}, trying Master Key fallback...`);
+                return await decrypt(encryptedVal, masterKey);
+              } catch (fallbackErr) {
+                console.error(`[Decryption] Fallback failed for ${options.resourceId}:`, fallbackErr);
+              }
+            }
+            console.error(`[Decryption] Critical failure for value:`, e);
+            return '[Decryption Error]';
+          }
         }
         if (Array.isArray(val)) {
           return await Promise.all(val.map(item => processValue(item, [])));
