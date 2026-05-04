@@ -267,49 +267,52 @@ export function EncryptionProvider({ children, user }) {
 
     if (!activeKey) return obj;
 
-    const process = async (current, pathParts) => {
-      if (current === null || current === undefined) return current;
+    const processValue = async (val, pathParts) => {
+      if (val === null || val === undefined) return val;
+
       if (pathParts.length === 0) {
-        if (typeof current === 'string' && current.trim() !== '') {
-          return await encrypt(current, activeKey);
+        if (typeof val === 'string' && val.trim() !== '' && !isEncrypted(val)) {
+          return await encrypt(val, activeKey);
         }
-        return current;
+        if (Array.isArray(val)) {
+          return await Promise.all(val.map(item => processValue(item, [])));
+        }
+        return val;
       }
 
       const [head, ...tail] = pathParts;
       if (head === '*') {
-        if (Array.isArray(current)) {
-          return await Promise.all(current.map(item => process(item, tail)));
+        if (Array.isArray(val)) {
+          return await Promise.all(val.map(item => processValue(item, tail)));
         }
-        return current;
+        return val;
       }
-      
-      if (!current[head]) return current;
 
-      if (tail.length === 0) {
-        if (typeof current[head] === 'string' && current[head].trim() !== '') {
-          return { ...current, [head]: await encrypt(current[head], activeKey) };
-        }
-        if (Array.isArray(current[head])) {
-          const encryptedArray = await Promise.all(current[head].map(item => process(item, [])));
-          return { ...current, [head]: encryptedArray };
-        }
-        return { ...current, [head]: await process(current[head], []) };
-      }
-      
-      const processedValue = await process(current[head], tail);
-      return { ...current, [head]: processedValue };
+      if (typeof val !== 'object') return val;
+      if (!val[head]) return val;
+
+      return {
+        ...val,
+        [head]: await processValue(val[head], tail)
+      };
     };
 
-    if (Array.isArray(obj)) {
-      return await Promise.all(obj.map(item => process(item, [])));
+    let result = Array.isArray(obj) ? [...obj] : { ...obj };
+    
+    if (Array.isArray(result)) {
+      return await Promise.all(result.map(async (item) => {
+        let processedItem = { ...item };
+        for (const fieldPath of fields) {
+          processedItem = await processValue(processedItem, fieldPath.split('.'));
+        }
+        return processedItem;
+      }));
+    } else {
+      for (const fieldPath of fields) {
+        result = await processValue(result, fieldPath.split('.'));
+      }
+      return result;
     }
-
-    let result = { ...obj };
-    for (const fieldPath of fields) {
-      result = await process(result, fieldPath.split('.'));
-    }
-    return result;
   }, [masterKey, getResourceKey]);
 
   const decryptObject = useCallback(async (obj, fields, options = {}) => {
@@ -323,68 +326,62 @@ export function EncryptionProvider({ children, user }) {
 
     if (!activeKey || !(activeKey instanceof CryptoKey)) return obj;
 
-    const process = async (current, pathParts) => {
-      if (current === null || current === undefined) return current;
-      
+    const processValue = async (val, pathParts) => {
+      if (val === null || val === undefined) return val;
+
       if (pathParts.length === 0) {
-        if (typeof current === 'string' && isEncrypted(current.trim())) {
+        if (typeof val === 'string' && isEncrypted(val.trim())) {
           try {
-            let val = current.trim();
+            let decrypted = val.trim();
             let i = 0;
-            while (isEncrypted(val) && i < 3) {
-              const next = await decrypt(val, activeKey);
-              if (next === val) break;
-              val = next;
+            while (isEncrypted(decrypted) && i < 3) {
+              const next = await decrypt(decrypted, activeKey);
+              if (next === decrypted) break;
+              decrypted = next;
               i++;
             }
-            return val;
+            return decrypted;
           } catch (e) { return '[Decryption Error]'; }
         }
-        return current;
+        if (Array.isArray(val)) {
+          return await Promise.all(val.map(item => processValue(item, [])));
+        }
+        return val;
       }
 
       const [head, ...tail] = pathParts;
       if (head === '*') {
-        if (Array.isArray(current)) {
-          return await Promise.all(current.map(item => process(item, tail)));
+        if (Array.isArray(val)) {
+          return await Promise.all(val.map(item => processValue(item, tail)));
         }
-        return current;
+        return val;
       }
-      
-      if (!current[head]) return current;
 
-      if (tail.length === 0) {
-        if (typeof current[head] === 'string' && isEncrypted(current[head].trim())) {
-          try {
-            let val = current[head].trim();
-            let i = 0;
-            while (isEncrypted(val) && i < 3) {
-              const next = await decrypt(val, activeKey);
-              if (next === val) break;
-              val = next;
-              i++;
-            }
-            return { ...current, [head]: val };
-          } catch (e) { return { ...current, [head]: '[Decryption Error]' }; }
-        }
-        if (Array.isArray(current[head])) {
-          return { ...current, [head]: await Promise.all(current[head].map(item => process(item, []))) };
-        }
-        return { ...current, [head]: await process(current[head], []) };
-      }
-      
-      return { ...current, [head]: await process(current[head], tail) };
+      if (typeof val !== 'object') return val;
+      if (!val[head]) return val;
+
+      return {
+        ...val,
+        [head]: await processValue(val[head], tail)
+      };
     };
 
-    if (Array.isArray(obj)) {
-      return await Promise.all(obj.map(item => process(item, [])));
-    }
+    let result = Array.isArray(obj) ? [...obj] : { ...obj };
 
-    let result = { ...obj };
-    for (const fieldPath of fields) {
-      result = await process(result, fieldPath.split('.'));
+    if (Array.isArray(result)) {
+      return await Promise.all(result.map(async (item) => {
+        let processedItem = { ...item };
+        for (const fieldPath of fields) {
+          processedItem = await processValue(processedItem, fieldPath.split('.'));
+        }
+        return processedItem;
+      }));
+    } else {
+      for (const fieldPath of fields) {
+        result = await processValue(result, fieldPath.split('.'));
+      }
+      return result;
     }
-    return result;
   }, [masterKey, getResourceKey]);
 
   const encryptData = async (data) => {
