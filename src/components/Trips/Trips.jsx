@@ -17,7 +17,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   const [categories, setCategories] = useState([]);
   const [trips, setTrips] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
-  const { decryptObject } = useEncryption();
+  const { decryptObject, isUnlocked } = useEncryption();
   
   // New state for page-based navigation within Trips module
   const [currentView, setCurrentView] = useState(() => {
@@ -123,12 +123,12 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   // Initial fetch or explicit refresh
   useEffect(() => {
     fetchTrips();
-  }, [user, refreshKey, localRefreshKey, fetchTrips]);
+  }, [user, refreshKey, localRefreshKey, fetchTrips, isUnlocked]);
 
   // Category fetch depends on selected trip
   useEffect(() => {
     fetchCategories();
-  }, [user, selectedTrip?.user_id, fetchCategories]);
+  }, [user, selectedTrip?.user_id, fetchCategories, isUnlocked]);
 
   const handleExpenseSaved = () => {
     setIsAddingExpense(false);

@@ -80,7 +80,7 @@ export default function TripsList({
   const selectedTrip = externalSelectedTrip;
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
-  const { decryptObject } = useEncryption();
+  const { decryptObject, isUnlocked } = useEncryption();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isTripMenuOpen, setIsTripMenuOpen] = useState(false);
@@ -154,7 +154,7 @@ export default function TripsList({
     if (externalSelectedTrip?.id) {
       fetchExpenses(externalSelectedTrip.id);
     }
-  }, [externalSelectedTrip?.id, refreshKey, fetchExpenses]);
+  }, [externalSelectedTrip?.id, refreshKey, fetchExpenses, isUnlocked]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -170,7 +170,7 @@ export default function TripsList({
       }
     };
     fetchCategories();
-  }, [externalSelectedTrip?.user_id, user?.id, decryptObject]);
+  }, [externalSelectedTrip?.user_id, user?.id, decryptObject, isUnlocked]);
 
   const deleteExpense = async (id) => {
     confirmToast('Excluir esta despesa?', async () => {

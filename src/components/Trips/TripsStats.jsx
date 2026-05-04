@@ -90,7 +90,7 @@ export default function TripsStats({ trips, onBack }) {
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' or 'all'
   const [continentFilter, setContinentFilter] = useState('Todos');
-  const { decryptObject } = useEncryption();
+  const { decryptObject, isUnlocked } = useEncryption();
 
   useEffect(() => {
     async function fetchAllItineraries() {
@@ -108,12 +108,13 @@ export default function TripsStats({ trips, onBack }) {
 
         if (error) throw error;
 
-        // Decrypt the data
-        const decryptedData = await decryptObject(data, [
-          'activity',
-          'location',
-          'notes'
-        ]);
+        // Decrypt the data item by item with its respective trip key
+        const decryptedData = await Promise.all(data.map(item => 
+          decryptObject(item, ['activity', 'location', 'notes'], { 
+            resourceId: item.trip_id,
+            resourceType: 'TRIP'
+          })
+        ));
 
         const grouped = {};
         decryptedData.forEach(item => {
@@ -129,7 +130,7 @@ export default function TripsStats({ trips, onBack }) {
     }
 
     fetchAllItineraries();
-  }, [trips, decryptObject]);
+  }, [trips, decryptObject, isUnlocked]);
 
   const stats = useMemo(() => {
     if (!trips || trips.length === 0) return null;

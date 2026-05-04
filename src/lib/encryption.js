@@ -170,6 +170,9 @@ export async function wrapKeyWithPublicKey(keyToWrap, publicKey) {
  * Unwraps an AES key using a Private Key (RSA-OAEP).
  */
 export async function unwrapKeyWithPrivateKey(wrappedKeyBase64, privateKey) {
+  if (!privateKey || !(privateKey instanceof CryptoKey)) {
+    throw new Error('Chave privada não carregada ou inválida.');
+  }
   const wrapped = new Uint8Array(atob(wrappedKeyBase64).split('').map(c => c.charCodeAt(0)));
   const unwrapped = await crypto.subtle.decrypt(
     { name: 'RSA-OAEP' },

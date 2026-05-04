@@ -169,8 +169,16 @@ export function EncryptionProvider({ children, user }) {
         if (keyData) {
           let key;
           if (keyData.encryption_method === 'PUBLIC_KEY') {
+            if (!privateKey) {
+              console.warn(`[Encryption] Cannot unwrap key for ${resourceId}: Private key not loaded`);
+              return null;
+            }
             key = await unwrapKeyWithPrivateKey(keyData.encrypted_key, privateKey);
           } else {
+            if (!masterKey) {
+              console.warn(`[Encryption] Cannot decrypt key for ${resourceId}: Master key not loaded`);
+              return null;
+            }
             const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
             key = await importKeyFromBase64(keyBase64);
           }
