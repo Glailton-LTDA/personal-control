@@ -349,16 +349,16 @@ export function EncryptionProvider({ children, user }) {
             }
             return decrypted;
           } catch (e) {
-            // FALLBACK: If Resource Key failed, try Master Key as a last resort
-            if (resourceKey && masterKey && resourceKey !== masterKey) {
+            // UNIVERSAL FALLBACK: If the first attempt failed, try Master Key if it's different from the active key
+            if (masterKey && activeKey !== masterKey) {
               try {
-                console.log(`[Decryption] Resource key failed for ${options.resourceId}, trying Master Key fallback...`);
+                console.log(`[Decryption] Primary key failed for ${options.resourceId}, trying Master Key fallback...`);
                 return await decrypt(encryptedVal, masterKey);
               } catch (fallbackErr) {
-                console.error(`[Decryption] Fallback failed for ${options.resourceId}:`, fallbackErr);
+                console.error(`[Decryption] Master Key fallback also failed for ${options.resourceId}`);
               }
             }
-            console.error(`[Decryption] Critical failure for value:`, e);
+            console.error(`[Decryption] Final decryption failure for ${options.resourceId}:`, e);
             return '[Decryption Error]';
           }
         }

@@ -94,7 +94,9 @@ export async function decrypt(encryptedValue, key) {
  * Utility to initialize a session key from a password and user email (as salt).
  */
 export async function initializeEncryptionKey(password, email) {
-  return await deriveKey(password, email.toLowerCase());
+  const salt = email.toLowerCase();
+  console.log(`[Encryption] Initializing Master Key for email: "${salt}"`);
+  return await deriveKey(password, salt);
 }
 
 /**
