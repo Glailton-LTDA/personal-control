@@ -26,7 +26,7 @@ import CarSharesManager from './CarSharesManager';
 import { milestones, defaultServiceTemplates } from './constants';
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
-  const { decryptObject } = useEncryption();
+  const { decryptObject, encryptObject } = useEncryption();
   const [cars, setCars] = useState([]);
   const [sharedCars, setSharedCars] = useState([]);
   const [activeShares, setActiveShares] = useState([]);
@@ -87,11 +87,24 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .select('*, car_id (*)')
       .eq('shared_by', user.id);
  
-    const decryptedOwn = await decryptObject(own || [], ['name', 'plate', 'make', 'model']);
-    const decryptedShared = await decryptObject(shared || [], ['car_id.name', 'car_id.plate', 'car_id.make', 'car_id.model']);
-    const decryptedPends = await decryptObject(pends || [], ['car_id.name', 'car_id.plate', 'car_id.make', 'car_id.model']);
-    const decryptedActive = await decryptObject(active || [], ['car_id.name', 'car_id.plate', 'car_id.make', 'car_id.model']);
- 
+    const decryptedOwn = await decryptObject(own || [], ['name', 'plate', 'make', 'model'], { resourceType: 'CAR' });
+    
+    const decryptShareList = async (list) => {
+      if (!list) return [];
+      return await Promise.all(list.map(async (item) => {
+        if (!item.car_id) return item;
+        const decCar = await decryptObject([item.car_id], ['name', 'plate', 'make', 'model'], {
+          resourceId: item.car_id.id,
+          resourceType: 'CAR'
+        });
+        return { ...item, car_id: decCar[0] };
+      }));
+    };
+
+    const decryptedShared = await decryptShareList(shared);
+    const decryptedPends = await decryptShareList(pends);
+    const decryptedActive = await decryptShareList(active);
+
     setCars(decryptedOwn);
     setSharedCars(decryptedShared?.map(s => s.car_id) || []);
     setInvitations(decryptedPends || []);
@@ -112,7 +125,10 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .select('*')
       .eq('car_id', carId);
     
-    const decrypted = await decryptObject(data || [], ['notes']);
+    const decrypted = await decryptObject(data || [], ['notes'], { 
+      resourceId: carId, 
+      resourceType: 'CAR' 
+    });
     setMaintenance(decrypted);
   }, [decryptObject]);
 
@@ -144,7 +160,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     
     const existing = maintenance.find(m => m.description === desc && m.km_milestone === km);
     
-    const { error } = await supabase.from('car_maintenance').upsert({
+    const encrypted = await encryptObject({
       car_id: selectedCar.id,
       description: desc,
       km_milestone: km,
@@ -152,7 +168,9 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       completed: nextStatus === 'DONE',
       notes: existing?.notes || null,
       updated_at: new Date().toISOString()
-    }, { onConflict: 'car_id,description,km_milestone' });
+    }, ['notes'], { resourceId: selectedCar.id, resourceType: 'CAR' });
+
+    const { error } = await supabase.from('car_maintenance').upsert(encrypted, { onConflict: 'car_id,description,km_milestone' });
 
     if (!error) {
       fetchMaintenance(selectedCar.id);

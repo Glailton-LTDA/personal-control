@@ -85,7 +85,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         'tickets.*.notes',
         'misc_docs.*.name',
         'misc_docs.*.notes'
-      ]);
+      ], { resourceType: 'TRIP' });
       setTrips(decryptedTrips);
       
       const savedTripId = localStorage.getItem(STORAGE_KEY);
@@ -114,6 +114,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     if (!targetUserId) return;
     const { data } = await supabase.from('trip_categories').select('*').eq('user_id', targetUserId).order('name', { ascending: true });
     if (data) {
+      // Categories are currently master-key encrypted but scoped to owner
       const decryptedCats = await decryptObject(data, ['name']);
       setCategories(decryptedCats);
     }

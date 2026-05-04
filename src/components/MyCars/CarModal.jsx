@@ -35,13 +35,15 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     if (!noteData.notes.trim()) return;
     setLoading(true);
     
-    const { error } = await supabase.from('car_maintenance').upsert({
+    const encrypted = await encryptObject({
       car_id: car.id,
       description: noteData.description,
       km_milestone: noteData.km_milestone,
       notes: noteData.notes,
       updated_at: new Date().toISOString()
-    }, { onConflict: 'car_id,description,km_milestone' });
+    }, ['notes'], { resourceId: car.id, resourceType: 'CAR' });
+
+    const { error } = await supabase.from('car_maintenance').upsert(encrypted, { onConflict: 'car_id,description,km_milestone' });
 
     if (!error) {
       onSuccess();
@@ -54,12 +56,19 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
 
   async function handleAddCar() {
     setLoading(true);
+    const carId = crypto.randomUUID();
+
     const encrypted = await encryptObject({ 
+      id: carId,
       user_id: user.id, 
       name: formData.name, 
       plate: formData.plate, 
       current_km: formData.current_km 
-    }, ['name', 'plate']);
+    }, ['name', 'plate'], { 
+      resourceId: carId, 
+      resourceType: 'CAR', 
+      isCreation: true 
+    });
 
     const { error } = await supabase.from('cars').insert(encrypted);
     if (!error) onSuccess();
@@ -72,7 +81,10 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
       name: formData.name, 
       plate: formData.plate, 
       current_km: formData.current_km 
-    }, ['name', 'plate']);
+    }, ['name', 'plate'], { 
+      resourceId: car.id, 
+      resourceType: 'CAR' 
+    });
 
     const { error } = await supabase.from('cars').update(encrypted).eq('id', car.id);
     if (!error) onSuccess();
@@ -212,7 +224,81 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
             )}
           </>
         )}
+
+        {type === 'share_car' && (
+          <ShareCarSection car={car} user={user} onClose={onClose} />
+        )}
       </Motion.div>
     </div>
+  );
+}
+
+function ShareCarSection({ car, user, onClose }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { shareResourceKey } = useEncryption();
+
+  async function handleShare(e) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    
+    setLoading(true);
+    try {
+      // 1. Share the cryptographic key first
+      const shared = await shareResourceKey(car.id, 'CAR', email.toLowerCase().trim());
+      if (!shared) return; // Error already toasted
+
+      // 2. Create the sharing record in the DB
+      const { error } = await supabase.from('car_shares').insert({
+        car_id: car.id,
+        shared_by: user.id,
+        shared_with_email: email.toLowerCase().trim(),
+        status: 'PENDING'
+      });
+
+      if (!error) {
+        toast.success('Convite enviado com sucesso!');
+        onClose();
+      } else {
+        toast.error('Erro ao registrar compartilhamento: ' + error.message);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao compartilhar veículo.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <h3>Compartilhar Veículo</h3>
+      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+        Convide outra pessoa para visualizar e gerenciar a manutenção do <strong>{car.name}</strong>.
+      </p>
+      
+      <form onSubmit={handleShare} style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="input-group">
+          <label>E-mail do convidado</label>
+          <div style={{ position: 'relative' }}>
+            <input 
+              type="email" 
+              required 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              placeholder="exemplo@email.com"
+              style={{ paddingLeft: '2.5rem' }}
+            />
+            <div style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            </div>
+          </div>
+        </div>
+        
+        <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', marginTop: '1rem', justifyContent: 'center' }}>
+          {loading ? 'Enviando convite...' : 'Enviar Convite'}
+        </button>
+      </form>
+    </>
   );
 }

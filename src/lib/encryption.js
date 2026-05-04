@@ -118,3 +118,106 @@ export async function importKeyFromBase64(base64Key) {
     ['encrypt', 'decrypt']
   );
 }
+
+/**
+ * Generates a random AES-256 key for a specific resource.
+ */
+export async function generateResourceKey() {
+  return await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Generates an asymmetric RSA-OAEP key pair for a user.
+ */
+export async function generateAsymmetricKeyPair() {
+  return await crypto.subtle.generateKey(
+    {
+      name: 'RSA-OAEP',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
+    true,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Wraps an AES key using a Public Key (RSA-OAEP).
+ */
+export async function wrapKeyWithPublicKey(keyToWrap, publicKey) {
+  const exportedKey = await crypto.subtle.exportKey('raw', keyToWrap);
+  const wrapped = await crypto.subtle.encrypt(
+    { name: 'RSA-OAEP' },
+    publicKey,
+    exportedKey
+  );
+  return btoa(String.fromCharCode(...new Uint8Array(wrapped)));
+}
+
+/**
+ * Unwraps an AES key using a Private Key (RSA-OAEP).
+ */
+export async function unwrapKeyWithPrivateKey(wrappedKeyBase64, privateKey) {
+  const wrapped = new Uint8Array(atob(wrappedKeyBase64).split('').map(c => c.charCodeAt(0)));
+  const unwrapped = await crypto.subtle.decrypt(
+    { name: 'RSA-OAEP' },
+    privateKey,
+    wrapped
+  );
+  return await crypto.subtle.importKey(
+    'raw',
+    unwrapped,
+    'AES-GCM',
+    true,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Exports a Public Key to JWK string.
+ */
+export async function exportPublicKey(key) {
+  const exported = await crypto.subtle.exportKey('jwk', key);
+  return JSON.stringify(exported);
+}
+
+/**
+ * Imports a Public Key from JWK string.
+ */
+export async function importPublicKey(jwkString) {
+  const jwk = JSON.parse(jwkString);
+  return await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    true,
+    ['encrypt']
+  );
+}
+
+/**
+ * Exports a Private Key to JWK string (should be encrypted before storage!).
+ */
+export async function exportPrivateKey(key) {
+  const exported = await crypto.subtle.exportKey('jwk', key);
+  return JSON.stringify(exported);
+}
+
+/**
+ * Imports a Private Key from JWK string.
+ */
+export async function importPrivateKey(jwkString) {
+  const jwk = JSON.parse(jwkString);
+  return await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    true,
+    ['decrypt']
+  );
+}

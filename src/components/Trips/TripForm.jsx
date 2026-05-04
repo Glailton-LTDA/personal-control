@@ -77,6 +77,9 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     if (e) e.preventDefault();
     setIsSaving(true);
     
+    // For new trips, we pre-generate the ID to use it as the resourceId for encryption
+    const tripId = trip?.id || crypto.randomUUID();
+
     const encryptedPayload = await encryptObject(formData, [
       'title',
       'cities.*',
@@ -100,9 +103,14 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       'tickets.*.notes',
       'misc_docs.*.name',
       'misc_docs.*.notes'
-    ]);
+    ], { 
+      resourceId: tripId, 
+      resourceType: 'TRIP', 
+      isCreation: !trip 
+    });
 
     const payload = {
+      id: tripId, // Use the pre-generated or existing ID
       user_id: user.id,
       title: encryptedPayload.title,
       cities: encryptedPayload.cities,

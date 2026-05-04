@@ -76,7 +76,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
         'tickets.*.notes',
         'misc_docs.*.name',
         'misc_docs.*.notes'
-      ]);
+      ], { resourceType: 'TRIP' });
       setTrips(decrypted);
     }
   }, [user, decryptObject]);
@@ -97,7 +97,10 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
       // Decrypt trip titles inside shares
       const decrypted = await Promise.all(data.map(async (share) => {
         if (share.trips) {
-          const decTrip = await decryptObject([share.trips], ['title']);
+          const decTrip = await decryptObject([share.trips], ['title'], { 
+            resourceId: share.trip_id, 
+            resourceType: 'TRIP' 
+          });
           return { ...share, trips: decTrip[0] };
         }
         return share;
@@ -552,17 +555,40 @@ function CategoryModal({ user, category, onClose, onSave }) {
 function ShareModal({ user, trips, onClose, onSave }) {
   const [tripId, setTripId] = useState('');
   const [email, setEmail] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
+  const { shareResourceKey } = useEncryption();
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const { error } = await supabase.from('trip_shares').insert([{
-      shared_by: user.id,
-      trip_id: tripId,
-      shared_with_email: email.toLowerCase().trim()
-    }]);
+    setIsSharing(true);
+    
+    try {
+      // 1. Share the key first (ensures recipient can actually read the data)
+      const keyShared = await shareResourceKey(tripId, 'TRIP', email.toLowerCase().trim());
+      if (!keyShared) {
+        setIsSharing(false);
+        return;
+      }
 
-    if (!error) onSave();
-    else toast.error('Erro: ' + error.message);
+      // 2. Create the standard share record
+      const { error } = await supabase.from('trip_shares').insert([{
+        shared_by: user.id,
+        trip_id: tripId,
+        shared_with_email: email.toLowerCase().trim()
+      }]);
+
+      if (!error) {
+        toast.success('Viagem compartilhada com sucesso!');
+        onSave();
+      } else {
+        toast.error('Erro ao registrar compartilhamento: ' + error.message);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro inesperado ao compartilhar.');
+    } finally {
+      setIsSharing(false);
+    }
   }
 
   return (
@@ -587,8 +613,13 @@ function ShareModal({ user, trips, onClose, onSave }) {
             value={email} onChange={e => setEmail(e.target.value)} placeholder="amigo@exemplo.com" 
           />
         </div>
-        <button type="submit" className="btn" style={{ width: '100%', padding: '1.25rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.5)' }}>
-          <Users size={20} /> Confirmar Compartilhamento
+        <button 
+          type="submit" 
+          disabled={isSharing}
+          className="btn" 
+          style={{ width: '100%', padding: '1.25rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.5)' }}
+        >
+          <Users size={20} /> {isSharing ? 'Compartilhando...' : 'Confirmar Compartilhamento'}
         </button>
       </form>
     </BaseModal>

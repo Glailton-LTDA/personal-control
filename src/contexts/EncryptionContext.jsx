@@ -1,23 +1,94 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeEncryptionKey, encrypt, decrypt, isEncrypted, exportKeyToBase64, importKeyFromBase64 } from '../lib/encryption';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { 
+  initializeEncryptionKey, 
+  encrypt, 
+  decrypt, 
+  isEncrypted, 
+  exportKeyToBase64, 
+  importKeyFromBase64,
+  generateAsymmetricKeyPair,
+  exportPublicKey,
+  importPublicKey,
+  exportPrivateKey,
+  importPrivateKey,
+  generateResourceKey,
+  wrapKeyWithPublicKey,
+  unwrapKeyWithPrivateKey
+} from '../lib/encryption';
+import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 const EncryptionContext = createContext();
 
 export function EncryptionProvider({ children, user }) {
   const [masterKey, setMasterKey] = useState(null);
+  const [publicKey, setPublicKey] = useState(null);
+  const [privateKey, setPrivateKey] = useState(null);
+  const [resourceKeys, setResourceKeys] = useState({}); // Cache: { resourceId: CryptoKey }
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+
+  // Initialize Asymmetric Keys
+  const initializeUserKeys = useCallback(async (currentMasterKey) => {
+    if (!user || !currentMasterKey) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_keys')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error fetching user keys:', error);
+        return;
+      }
+
+      if (!data) {
+        // Generate new keys
+        const pair = await generateAsymmetricKeyPair();
+        const pubStr = await exportPublicKey(pair.publicKey);
+        const privJWK = await exportPrivateKey(pair.privateKey);
+        const encryptedPriv = await encrypt(privJWK, currentMasterKey);
+        
+        const { error: insertError } = await supabase.from('user_keys').insert({
+          user_id: user.id,
+          public_key: pubStr,
+          encrypted_private_key: encryptedPriv
+        });
+
+        if (insertError) throw insertError;
+        
+        setPublicKey(pair.publicKey);
+        setPrivateKey(pair.privateKey);
+      } else {
+        // Load existing keys
+        const pub = await importPublicKey(data.public_key);
+        const privJWK = await decrypt(data.encrypted_private_key, currentMasterKey);
+        
+        if (privJWK.startsWith('[Decryption Error]')) {
+          throw new Error('Falha ao descriptografar chave privada. Senha mestre pode estar incorreta.');
+        }
+
+        const priv = await importPrivateKey(privJWK);
+        setPublicKey(pub);
+        setPrivateKey(priv);
+      }
+    } catch (e) {
+      console.error('Failed to initialize user keys:', e);
+      toast.error('Erro ao carregar chaves de segurança.');
+    }
+  }, [user]);
 
   // Auto-show unlock modal or load from session
   useEffect(() => {
     const checkSession = async () => {
-      // Check if we have a key in sessionStorage
       const savedKey = sessionStorage.getItem('pc_master_key');
       if (savedKey && user && !masterKey) {
         try {
           const key = await importKeyFromBase64(savedKey);
           setMasterKey(key);
+          await initializeUserKeys(key);
           setIsUnlocked(true);
           setShowUnlockModal(false);
           return;
@@ -33,7 +104,7 @@ export function EncryptionProvider({ children, user }) {
     };
 
     checkSession();
-  }, [user, masterKey]);
+  }, [user, masterKey, initializeUserKeys]);
 
   const unlock = async (password) => {
     try {
@@ -41,7 +112,8 @@ export function EncryptionProvider({ children, user }) {
       const key = await initializeEncryptionKey(password, user.email);
       setMasterKey(key);
       
-      // Persist in session storage (persists through refresh, not tab close)
+      await initializeUserKeys(key);
+
       const exported = await exportKeyToBase64(key);
       sessionStorage.setItem('pc_master_key', exported);
 
@@ -49,7 +121,8 @@ export function EncryptionProvider({ children, user }) {
       setShowUnlockModal(false);
       toast.success('Dados descriptografados com sucesso!');
       return true;
-    } catch {
+    } catch (e) {
+      console.error('Unlock error:', e);
       toast.error('Senha incorreta ou erro na geração da chave');
       return false;
     }
@@ -57,32 +130,126 @@ export function EncryptionProvider({ children, user }) {
 
   const lock = () => {
     setMasterKey(null);
+    setPublicKey(null);
+    setPrivateKey(null);
+    setResourceKeys({});
     setIsUnlocked(false);
     sessionStorage.removeItem('pc_master_key');
   };
 
-  const encryptObject = async (obj, fields) => {
-    if (!obj || !masterKey) return obj;
+  /**
+   * Helper to get or generate a key for a resource.
+   */
+  const getResourceKey = useCallback(async (resourceId, resourceType, options = {}) => {
+    if (resourceKeys[resourceId]) return resourceKeys[resourceId];
 
-    // Transparently handle arrays of objects
+    const { data: keyData } = await supabase
+      .from('resource_keys')
+      .select('*')
+      .eq('resource_id', resourceId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (keyData) {
+      let key;
+      if (keyData.encryption_method === 'PUBLIC_KEY') {
+        key = await unwrapKeyWithPrivateKey(keyData.encrypted_key, privateKey);
+      } else {
+        // Wrapped with master key
+        const keyBase64 = await decrypt(keyData.encrypted_key, masterKey);
+        key = await importKeyFromBase64(keyBase64);
+      }
+      setResourceKeys(prev => ({ ...prev, [resourceId]: key }));
+      return key;
+    }
+
+    // If no key exists and we are the owner, we can generate one
+    if (options.createIfMissing && masterKey) {
+      const newKey = await generateResourceKey();
+      const keyBase64 = await exportKeyToBase64(newKey);
+      const encryptedKey = await encrypt(keyBase64, masterKey);
+      
+      await supabase.from('resource_keys').insert({
+        resource_id: resourceId,
+        resource_type: resourceType,
+        user_id: user.id,
+        encrypted_key: encryptedKey,
+        encryption_method: 'MASTER_KEY'
+      });
+
+      setResourceKeys(prev => ({ ...prev, [resourceId]: newKey }));
+      return newKey;
+    }
+
+    return null;
+  }, [resourceKeys, user, masterKey, privateKey]);
+
+  /**
+   * Encrypts a key for another user.
+   */
+  const shareResourceKey = async (resourceId, resourceType, targetEmail) => {
+    try {
+      const currentKey = await getResourceKey(resourceId, resourceType);
+      if (!currentKey) throw new Error('Chave do recurso não encontrada');
+
+      // 1. Get target's public key
+      const { data, error } = await supabase.rpc('get_public_key_by_email', { target_email: targetEmail.toLowerCase() });
+      if (error || !data || data.length === 0) {
+        throw new Error('Usuário não encontrado ou não configurou chaves de segurança.');
+      }
+
+      const { user_id: targetUserId, public_key: targetPubKeyStr } = data[0];
+      const targetPubKey = await importPublicKey(targetPubKeyStr);
+
+      // 2. Wrap current key with target's public key
+      const wrappedKey = await wrapKeyWithPublicKey(currentKey, targetPubKey);
+
+      // 3. Save to resource_keys
+      const { error: insertError } = await supabase.from('resource_keys').upsert({
+        resource_id: resourceId,
+        resource_type: resourceType,
+        user_id: targetUserId,
+        encrypted_key: wrappedKey,
+        encryption_method: 'PUBLIC_KEY'
+      }, { onConflict: 'resource_id,user_id' });
+
+      if (insertError) throw insertError;
+      return true;
+    } catch (e) {
+      console.error('Share resource key error:', e);
+      toast.error(e.message || 'Erro ao compartilhar acesso seguro.');
+      return false;
+    }
+  };
+
+  const encryptObject = async (obj, fields, options = {}) => {
+    if (!obj) return obj;
+    
+    // Determine key to use
+    let activeKey = masterKey;
+    if (options.resourceId) {
+      activeKey = await getResourceKey(options.resourceId, options.resourceType, { createIfMissing: options.isCreation });
+    }
+
+    if (!activeKey) return obj;
+
     if (Array.isArray(obj)) {
-      return await Promise.all(obj.map(item => encryptObject(item, fields)));
+      return await Promise.all(obj.map(item => encryptObject(item, fields, {
+        ...options,
+        resourceId: item.id || options.resourceId
+      })));
     }
     
-    // Recursive function to handle nested paths with wildcards
     const process = async (current, pathParts) => {
       if (current === null || current === undefined) return current;
-      
-      // If no more path parts, we might be at a direct value (like an item in an array of strings)
       if (pathParts.length === 0) {
         if (typeof current === 'string' && current.trim() !== '') {
-          return await encryptData(current);
+          return await encrypt(current, activeKey);
         }
         return current;
       }
 
       const [head, ...tail] = pathParts;
-      
       if (head === '*') {
         if (Array.isArray(current)) {
           return await Promise.all(current.map(item => process(item, tail)));
@@ -90,16 +257,12 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
-      if (current[head] === undefined || current[head] === null) {
-        return current;
-      }
+      if (current[head] === undefined || current[head] === null) return current;
 
       if (tail.length === 0) {
-        // Terminal field
         if (typeof current[head] === 'string' && current[head].trim() !== '') {
-          return { ...current, [head]: await encryptData(current[head]) };
+          return { ...current, [head]: await encrypt(current[head], activeKey) };
         }
-        // Handle case where we have an array but the path was just 'field' instead of 'field.*'
         if (Array.isArray(current[head])) {
           const encryptedArray = await Promise.all(current[head].map(item => process(item, [])));
           return { ...current, [head]: encryptedArray };
@@ -107,48 +270,52 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
-      // Middle of the path
       const processedValue = await process(current[head], tail);
       return { ...current, [head]: processedValue };
     };
 
-    let result = obj;
+    let result = { ...obj };
     for (const fieldPath of fields) {
       result = await process(result, fieldPath.split('.'));
     }
     return result;
   };
 
-  const decryptObject = async (obj, fields) => {
-    if (!obj || !masterKey) return obj;
+  const decryptObject = async (obj, fields, options = {}) => {
+    if (!obj) return obj;
 
-    // Transparently handle arrays of objects
+    // Determine key to use
+    let activeKey = masterKey;
+    if (options.resourceId) {
+      activeKey = await getResourceKey(options.resourceId, options.resourceType);
+    }
+
+    if (!activeKey) return obj;
+
     if (Array.isArray(obj)) {
-      return await Promise.all(obj.map(item => decryptObject(item, fields)));
+      return await Promise.all(obj.map(item => decryptObject(item, fields, {
+        ...options,
+        resourceId: item.id || options.resourceId
+      })));
     }
     
     const process = async (current, pathParts) => {
       if (current === null || current === undefined) return current;
-      
-      // If no more path parts, we might be at a direct value, an array, or an object
       if (pathParts.length === 0) {
-        // Deep decrypt strings (handles potential double-encryption)
         if (typeof current === 'string' && isEncrypted(current.trim())) {
           let decryptedValue = current.trim();
           let iterations = 0;
           while (isEncrypted(decryptedValue) && iterations < 3) {
-            const next = await decryptData(decryptedValue);
+            const next = await decrypt(decryptedValue, activeKey);
             if (next === decryptedValue) break;
             decryptedValue = next;
             iterations++;
           }
           return decryptedValue;
         }
-        // If it's an array, recurse into items
         if (Array.isArray(current)) {
           return await Promise.all(current.map(item => process(item, [])));
         }
-        // If it's an object, try to decrypt all its keys recursively
         if (typeof current === 'object' && current !== null) {
           const decryptedObj = { ...current };
           for (const key in decryptedObj) {
@@ -160,7 +327,6 @@ export function EncryptionProvider({ children, user }) {
       }
 
       const [head, ...tail] = pathParts;
-      
       if (head === '*') {
         if (Array.isArray(current)) {
           return await Promise.all(current.map(item => process(item, tail)));
@@ -168,16 +334,12 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
-      if (current[head] === undefined || current[head] === null) {
-        return current;
-      }
+      if (current[head] === undefined || current[head] === null) return current;
 
       if (tail.length === 0) {
-        // Terminal field
         if (typeof current[head] === 'string' && isEncrypted(current[head].trim())) {
-          return { ...current, [head]: await decryptData(current[head].trim()) };
+          return { ...current, [head]: await decrypt(current[head].trim(), activeKey) };
         }
-        // Handle case where we have an array or object
         if (typeof current[head] === 'object' && current[head] !== null) {
           const decryptedValue = await process(current[head], []);
           return { ...current, [head]: decryptedValue };
@@ -185,20 +347,11 @@ export function EncryptionProvider({ children, user }) {
         return current;
       }
       
-      // Middle of the path
       const processedValue = await process(current[head], tail);
       return { ...current, [head]: processedValue };
     };
 
-    // Special case for array of strings or simple values
-    if (Array.isArray(obj) && fields.length === 1 && fields[0] === '*') {
-        return await Promise.all(obj.map(async item => {
-            if (typeof item === 'string' && isEncrypted(item)) return await decryptData(item);
-            return item;
-        }));
-    }
-
-    let result = obj;
+    let result = { ...obj };
     for (const fieldPath of fields) {
       result = await process(result, fieldPath.split('.'));
     }
@@ -225,6 +378,7 @@ export function EncryptionProvider({ children, user }) {
       decryptData,
       decryptObject,
       encryptObject,
+      shareResourceKey,
       showUnlockModal,
       setShowUnlockModal
     }}>
