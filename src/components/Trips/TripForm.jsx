@@ -50,7 +50,9 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     transports: prepareItems(trip?.transports),
     tickets: prepareItems(trip?.tickets),
     misc_docs: prepareItems(trip?.misc_docs),
-    daily_limits: trip?.daily_limits || {},
+    daily_limits: Object.fromEntries(
+      Object.entries(trip?.daily_limits || {}).map(([k, v]) => [k, (v || 0).toFixed(2).replace('.', ',')])
+    ),
     currencies: trip?.currencies || ['BRL'],
     start_date: trip?.start_date || '',
     end_date: trip?.end_date || '',
@@ -119,7 +121,9 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       transports: encryptedPayload.transports,
       tickets: encryptedPayload.tickets,
       misc_docs: encryptedPayload.misc_docs,
-      daily_limits: formData.daily_limits,
+      daily_limits: Object.fromEntries(
+        Object.entries(formData.daily_limits).map(([k, v]) => [k, parseFloat(String(v).replace(',', '.')) || 0])
+      ),
       currencies: formData.currencies,
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
@@ -326,15 +330,26 @@ export default function TripForm({ user, trip, onBack, onSave }) {
                 <div key={curr} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700' }}>{curr}</span>
                   <input 
-                    type="number" 
+                    type="text" 
                     className="glass-input" 
                     style={{ width: '100%', padding: '0.75rem', background: 'var(--input-bg)', border: 'none', color: 'var(--text-main)', borderRadius: '8px', fontSize: '1rem', fontWeight: '700' }} 
                     value={formData.daily_limits[curr] || ''} 
-                    onChange={e => setFormData({
-                      ...formData, 
-                      daily_limits: { ...formData.daily_limits, [curr]: parseFloat(e.target.value) || 0 }
-                    })} 
-                    placeholder="0.00" 
+                    placeholder="0,00"
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (!val) {
+                        setFormData({
+                          ...formData, 
+                          daily_limits: { ...formData.daily_limits, [curr]: '' }
+                        });
+                        return;
+                      }
+                      val = (parseInt(val) / 100).toFixed(2);
+                      setFormData({
+                        ...formData, 
+                        daily_limits: { ...formData.daily_limits, [curr]: val.replace('.', ',') }
+                      });
+                    }}
                   />
                 </div>
               ))}

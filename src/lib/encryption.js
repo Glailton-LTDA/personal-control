@@ -86,8 +86,7 @@ export async function decrypt(encryptedValue, key) {
     );
 
     return dec.decode(decrypted);
-  } catch (e) {
-    console.error('Decryption failed:', e);
+  } catch (e) { /* ignore */ // eslint-disable-line no-unused-vars
     return '[Decryption Error]';
   }
 }

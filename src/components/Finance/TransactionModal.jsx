@@ -25,6 +25,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
         const decrypted = await decryptObject(initialData, ['description', 'category', 'paid_by']);
         setFormData({
           ...decrypted,
+          amount: (decrypted.amount || 0).toFixed(2).replace('.', ','),
           payment_date: initialData.payment_date
         });
       } else {
@@ -63,7 +64,9 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
     e.preventDefault();
     setLoading(true);
 
-    const encryptedData = await encryptObject(formData, ['description', 'category', 'paid_by']);
+    const numericAmount = parseFloat(formData.amount.replace(',', '.'));
+    const dataToSave = { ...formData, amount: numericAmount };
+    const encryptedData = await encryptObject(dataToSave, ['description', 'category', 'paid_by']);
 
     if (initialData?.id) {
       // Edit
@@ -118,8 +121,19 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
             <div className="input-group">
               <label><DollarSign size={14} style={{ marginRight: '4px' }}/> Valor (R$)</label>
               <input 
-                type="number" step="0.01" required value={formData.amount}
-                onChange={e => setFormData({...formData, amount: e.target.value})}
+                type="text" 
+                required 
+                value={formData.amount}
+                placeholder="0,00"
+                onChange={e => {
+                  let val = e.target.value.replace(/\D/g, '');
+                  if (!val) {
+                    setFormData({...formData, amount: ''});
+                    return;
+                  }
+                  val = (parseInt(val) / 100).toFixed(2);
+                  setFormData({...formData, amount: val.replace('.', ',')});
+                }}
               />
             </div>
             <div className="input-group">

@@ -3,6 +3,7 @@ import { motion as Motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useEncryption } from '../contexts/EncryptionContext';
 
 export default function Settings({ user, menuOrder, setMenuOrder, menuItems, activeTab }) {
   const [settings, setSettings] = useState({
@@ -21,6 +22,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
   const [pwShow, setPwShow] = useState({ current: false, next: false, confirm: false });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState(null); // { type: 'success'|'error', text }
+  const { migrateToPlainText } = useEncryption();
 
   useEffect(() => {
     fetchSettings();
@@ -330,6 +332,32 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
               {pwSaving ? 'Alterando...' : <><Lock size={18} /> Alterar Senha</>}
             </button>
           </form>
+
+          {/* Maintenance Tools */}
+          <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '1rem', color: 'var(--danger)' }}>
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem' }}>Ferramentas de Manutenção</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Reparo e migração profunda de dados.</p>
+              </div>
+            </div>
+            
+            <div style={{ padding: '1.25rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+              <p style={{ fontSize: '0.875rem', marginBottom: '1.25rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                Se você ainda encontrar campos com o prefixo <code style={{ color: 'var(--danger)' }}>enc:v1:</code> em viagens (cidades, participantes), utilize o botão abaixo para realizar uma varredura completa e definitiva.
+              </p>
+              <button 
+                onClick={() => migrateToPlainText()}
+                className="btn-secondary" 
+                style={{ width: '100%', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+              >
+                <KeyRound size={18} /> Executar Resgate Profundo
+              </button>
+            </div>
+          </div>
         </Motion.div>
       )}
     </div>

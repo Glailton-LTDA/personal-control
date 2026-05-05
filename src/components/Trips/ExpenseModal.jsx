@@ -25,7 +25,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
   
   const [formData, setFormData] = useState({
     description: expense?.description || '',
-    amount: expense?.amount || '',
+    amount: expense?.amount ? (parseFloat(expense.amount).toFixed(2).replace('.', ',')) : '',
     date: expense?.date || new Date().toISOString().split('T')[0],
     paid_by: expense?.paid_by || 'Glailton Costa',
     category_id: expense?.category_id || '',
@@ -148,11 +148,17 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       resourceType: 'TRIP'
     });
     
+    const numericAmount = parseFloat(String(formData.amount).replace(',', '.'));
+    if (isNaN(numericAmount)) {
+      toast.error('Por favor, insira um valor válido');
+      return;
+    }
+
     const payload = {
       user_id: user.id,
       trip_id: trip.id,
       description: encrypted.description,
-      amount: parseFloat(formData.amount),
+      amount: numericAmount,
       currency: formData.currency,
       date: isoDate,
       paid_by: encrypted.paid_by,
@@ -234,9 +240,19 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                 <DollarSign size={14} /> Valor
               </label>
               <input 
-                required type="number" step="0.01" className="glass-input" 
+                required type="text" className="glass-input" 
                 style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
-                value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0.00" 
+                value={formData.amount} 
+                placeholder="0,00"
+                onChange={e => {
+                  let val = e.target.value.replace(/\D/g, '');
+                  if (!val) {
+                    setFormData({...formData, amount: ''});
+                    return;
+                  }
+                  val = (parseInt(val) / 100).toFixed(2);
+                  setFormData({...formData, amount: val.replace('.', ',')});
+                }}
               />
             </div>
             <div>
