@@ -152,13 +152,13 @@ select {
   color-scheme: dark;
 }
 
-select option {
-  background-color: #0f172a;
-  color: white;
+select option, select optgroup {
+  background-color: #1e293b;
+  color: #f8fafc;
 }
 
 select:focus option {
-  background-color: #1e293b;
+  background-color: #334155;
 }
   .modal-content {
     padding: 1.5rem;

@@ -276,10 +276,48 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               id="show-hidden-global"
               checked={showHidden}
               onChange={e => setShowHidden(e.target.checked)}
+              style={{ cursor: 'pointer', width: '18px', height: '18px' }}
             />
-            <label htmlFor="show-hidden-global" style={{ cursor: 'pointer' }}>Mostrar veículos arquivados na lista principal</label>
+            <label htmlFor="show-hidden-global" style={{ cursor: 'pointer', fontWeight: 500 }}>Mostrar veículos arquivados na lista principal</label>
           </div>
         </div>
+
+        <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <EyeOff size={18} /> Veículos Arquivados
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {cars.filter(c => c.is_hidden).length === 0 && sharedCars.filter(c => c.is_hidden).length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nenhum veículo arquivado.</p>
+            ) : (
+              <>
+                {cars.filter(c => c.is_hidden).map(car => (
+                  <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                    <div>
+                      <p style={{ fontWeight: 600, margin: 0 }}>{car.name}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate} • {car.make} {car.model}</p>
+                    </div>
+                    <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                      <Eye size={14} /> Restaurar
+                    </button>
+                  </div>
+                ))}
+                {sharedCars.filter(c => c.is_hidden).map(car => (
+                  <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                    <div>
+                      <p style={{ fontWeight: 600, margin: 0 }}>{car.name} <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>(Compartilhado)</span></p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate}</p>
+                    </div>
+                    <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                      <Eye size={14} /> Restaurar
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+
         <ServiceTemplatesManager user={user} />
         <CarSharesManager activeShares={activeShares} onRevoke={handleRevokeShare} />
       </div>
@@ -318,42 +356,49 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       )}
 
       {/* Car Selection Header */}
-      <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '280px' }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-            <Car size={24} />
+      <div className="glass-card" style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: '1 1 300px' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+            <Car size={26} />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Veículo Selecionado</label>
+            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Veículo Selecionado</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <select 
                 className="glass-input"
                 value={selectedCar?.id || ''} 
                 onChange={(e) => setSelectedCar([...cars, ...sharedCars].find(c => c.id === e.target.value))}
-                style={{ padding: '8px 12px', height: 'auto', fontWeight: 600, flex: 1 }}
+                style={{ 
+                  padding: '10px 14px', 
+                  height: '42px', 
+                  fontWeight: 600, 
+                  flex: 1,
+                  maxWidth: '400px',
+                  fontSize: '0.95rem'
+                }}
               >
-                <optgroup label="Meus Veículos">
-                  {visibleCars.map(car => (
-                    <option key={car.id} value={car.id}>{car.name} {car.is_hidden ? '(Arquivado)' : ''}</option>
+              <optgroup label="Meus Veículos">
+                {visibleCars.map(car => (
+                  <option key={car.id} value={car.id}>{car.name}{car.is_hidden ? ' (Arquivado)' : ''}</option>
+                ))}
+              </optgroup>
+              {visibleShared.length > 0 && (
+                <optgroup label="Compartilhados">
+                  {visibleShared.map(car => (
+                    <option key={car.id} value={car.id}>{car.name}{car.is_hidden ? ' (Arquivado)' : ''}</option>
                   ))}
                 </optgroup>
-                {visibleShared.length > 0 && (
-                  <optgroup label="Compartilhados">
-                    {visibleShared.map(car => (
-                      <option key={car.id} value={car.id}>{car.name} {car.is_hidden ? '(Arquivado)' : ''}</option>
-                    ))}
-                  </optgroup>
-                )}
+              )}
               </select>
             </div>
           </div>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button
             onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}
             className="btn-secondary"
-            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+            style={{ height: '42px', padding: '0 16px', fontSize: '0.85rem' }}
           >
             <Plus size={18} /> Novo Veículo
           </button>
@@ -363,6 +408,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               className="icon-btn"
               onClick={() => { setModalType('edit_car'); setIsModalOpen(true); }}
               title="Editar Veículo"
+              style={{ width: '42px', height: '42px', padding: 0 }}
             >
               <Edit2 size={18} />
             </button>
@@ -373,7 +419,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       {selectedCar ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--glass-border)', padding: '0 1rem' }}>
+          <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--glass-border)', padding: '0 1.25rem' }}>
             <button
               className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`}
               onClick={() => setActiveSubTab('summary')}
