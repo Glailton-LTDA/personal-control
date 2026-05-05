@@ -9,7 +9,7 @@ const ENCRYPTION_PREFIX = 'enc:v1:';
 /**
  * Derives a crypto key from a master password and salt.
  */
-async function deriveKey(password, salt) {
+export async function deriveKey(password, salt) {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
@@ -76,6 +76,8 @@ export async function decrypt(encryptedValue, key) {
     const iv = new Uint8Array(atob(parts[0]).split('').map(c => c.charCodeAt(0)));
     const ciphertext = new Uint8Array(atob(parts[1]).split('').map(c => c.charCodeAt(0)));
 
+    console.log('[Crypto-Deep] IV Length:', iv.length, 'Ciphertext Length:', ciphertext.length);
+
     const dec = new TextDecoder();
     const decrypted = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv },
@@ -90,13 +92,55 @@ export async function decrypt(encryptedValue, key) {
   }
 }
 
-/**
- * Utility to initialize a session key from a password and user email (as salt).
- */
 export async function initializeEncryptionKey(password, email) {
-  const salt = email.toLowerCase();
-  console.log(`[Encryption] Initializing Master Key for email: "${salt}"`);
-  return await deriveKey(password, salt);
+  // We'll try a few variations of the salt in case the original derivation was different
+  const variations = [
+    email.toLowerCase(),
+    email.replace(/\./g, '').toLowerCase(), // Gmail dots variant
+    email // Original casing variant
+  ];
+  
+  // Remove duplicates
+  const uniqueVariations = [...new Set(variations)];
+  
+  console.log(`[Encryption] Initializing Master Key. Trying ${uniqueVariations.length} salt variations...`);
+  
+  // For now, we return the primary one, but the logic in EncryptionContext 
+  // should ideally try all of them. Since we can only return one key here,
+  // we'll return an object or the caller will handle it.
+  // BUT: The easiest way is to let the caller try them.
+  // Actually, I'll return the first one but add a helper to try others.
+  return await deriveKey(password, uniqueVariations[0]);
+}
+
+/**
+ * Helper to try all possible master keys until one successfully decrypts a test value.
+ */
+export async function tryAllMasterKeys(password, email, testEncryptedValue, testExpectedStart = null) {
+  const variations = [
+    email.toLowerCase(),
+    email.replace(/\./g, '').toLowerCase(),
+    email
+  ];
+  const uniqueVariations = [...new Set(variations)];
+  
+  for (const salt of uniqueVariations) {
+    try {
+      console.log(`[Encryption-Recovery] Trying salt: "${salt}"`);
+      const key = await deriveKey(password, salt);
+      const decrypted = await decrypt(testEncryptedValue, key);
+      
+      if (!decrypted.startsWith('[Decryption Error]')) {
+        if (!testExpectedStart || decrypted.startsWith(testExpectedStart)) {
+          console.log(`[Encryption-Recovery] SUCCESS! Correct salt found: "${salt}"`);
+          return key;
+        }
+      }
+    } catch {
+      // Ignore and try next
+    }
+  }
+  throw new Error('Could not derive valid master key with any salt variation.');
 }
 
 /**
@@ -137,6 +181,29 @@ export async function generateResourceKey() {
     true,
     ['encrypt', 'decrypt']
   );
+}
+
+/**
+ * Wraps a CryptoKey into an encrypted string using a master key.
+ */
+export async function wrapKey(keyToWrap, masterKey) {
+  const exported = await exportKeyToBase64(keyToWrap);
+  return await encrypt(exported, masterKey);
+}
+
+/**
+ * Unwraps an encrypted string into a CryptoKey using a master key.
+ */
+export async function unwrapKey(wrappedKeyString, masterKey) {
+  const decrypted = await decrypt(wrappedKeyString, masterKey);
+  if (!decrypted || decrypted.startsWith('[Decryption Error]')) {
+    return null;
+  }
+  try {
+    return await importKeyFromBase64(decrypted);
+  } catch {
+    return null;
+  }
 }
 
 /**
