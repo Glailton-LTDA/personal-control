@@ -85,8 +85,8 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     });
 
     setData(Array.from(monthsMap.values()));
-    setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })));
-    setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })));
+    setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
+    setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
     setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
   }, [isGeneral]);
 
@@ -241,7 +241,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
             </div>
             
             <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
-              {[...revenueCategoryData].sort((a,b) => b.value - a.value).map((item, index) => (
+              {revenueCategoryData.map((item, index) => (
                 <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
@@ -282,7 +282,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
             </div>
             
             <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
-              {[...categoryData].sort((a,b) => b.value - a.value).map((item, index) => (
+              {categoryData.map((item, index) => (
                 <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
