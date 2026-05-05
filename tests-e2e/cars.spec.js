@@ -50,16 +50,16 @@ test.describe('MyCars Module', () => {
     await page.getByRole('button', { name: 'Carros' }).click();
     
     // Wait for car card
-    await expect(page.locator('text=Audi').first()).toBeVisible();
-    await expect(page.locator('text=A3').first()).toBeVisible();
+    // Wait for car info
+    await expect(page.locator('text=Audi A3').first()).toBeVisible();
     await expect(page.locator('text=ABC-1234').first()).toBeVisible();
   });
 
   test('should show maintenance info when selected', async ({ page }) => {
      await page.getByRole('button', { name: 'Carros' }).click();
      
-     // Select the car by clicking its name button in the selection row
-     await page.click('button:has-text("Audi A3")');
+     // Select the car via dropdown
+     await page.selectOption('select.glass-input', { label: /Audi A3/i });
      
      // Switch to Revision tab
      await page.click('button:has-text("Revisão")');

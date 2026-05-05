@@ -13,7 +13,10 @@ import {
   Users,
   Mail,
   Share2,
-  MessageSquare
+  MessageSquare,
+  Eye,
+  EyeOff,
+  Filter
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useEncryption } from '../../contexts/EncryptionContext';
@@ -37,6 +40,15 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   const [activeSubTab, setActiveSubTab] = useState(() => {
     return localStorage.getItem('personal-control-car-subtab') || 'summary';
   });
+  const [showHidden, setShowHidden] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [serviceTemplates, setServiceTemplates] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
   const [invitations, setInvitations] = useState([]);
@@ -110,10 +122,15 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     setInvitations(decryptedPends || []);
     setActiveShares(decryptedActive || []);
  
-    if (!selectedCar && decryptedOwn?.length > 0) {
-      setSelectedCar(decryptedOwn[0]);
-    } else if (!selectedCar && decryptedShared?.length > 0) {
-      setSelectedCar(decryptedShared[0].car_id);
+    if (!selectedCar) {
+      const firstVisible = decryptedOwn?.find(c => !c.is_hidden) || decryptedShared?.find(s => !s.car_id.is_hidden)?.car_id;
+      if (firstVisible) {
+        setSelectedCar(firstVisible);
+      } else if (decryptedOwn?.length > 0) {
+        setSelectedCar(decryptedOwn[0]);
+      } else if (decryptedShared?.length > 0) {
+        setSelectedCar(decryptedShared[0].car_id);
+      }
     }
  
     setLoading(false);
@@ -230,9 +247,39 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     }, { danger: true });
   }
 
+  async function handleToggleArchive(car) {
+    const { error } = await supabase
+      .from('cars')
+      .update({ is_hidden: !car.is_hidden })
+      .eq('id', car.id);
+    
+    if (!error) {
+      toast.success(car.is_hidden ? 'Veículo restaurado' : 'Veículo arquivado');
+      // If we archive the current car, we might want to select another one
+      if (!car.is_hidden) setSelectedCar(null);
+      fetchCars();
+    } else {
+      toast.error('Erro ao atualizar status do veículo.');
+    }
+  }
+
   if (mode === 'admin') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Filter size={18} /> Configurações de Visualização
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <input 
+              type="checkbox" 
+              id="show-hidden-global"
+              checked={showHidden}
+              onChange={e => setShowHidden(e.target.checked)}
+            />
+            <label htmlFor="show-hidden-global" style={{ cursor: 'pointer' }}>Mostrar veículos arquivados na lista principal</label>
+          </div>
+        </div>
         <ServiceTemplatesManager user={user} />
         <CarSharesManager activeShares={activeShares} onRevoke={handleRevokeShare} />
       </div>
@@ -240,6 +287,9 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   }
 
   if (loading) return <div className="skeleton-loader" style={{ height: '400px' }} />;
+
+  const visibleCars = cars.filter(c => showHidden || !c.is_hidden);
+  const visibleShared = sharedCars.filter(c => showHidden || !c.is_hidden);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -267,56 +317,57 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-        {[...cars, ...sharedCars].map(car => (
-          <button
-            key={car.id}
-            onClick={() => setSelectedCar(car)}
-            className={`glass-card ${selectedCar?.id === car.id ? 'active' : ''}`}
-            style={{
-              padding: '1rem 1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              cursor: 'pointer',
-              border: selectedCar?.id === car.id ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-              background: selectedCar?.id === car.id ? 'rgba(99,102,241,0.1)' : 'var(--glass-bg)',
-              minWidth: '200px',
-              transition: 'all 0.2s'
-            }}
-          >
-            <div style={{ 
-              width: 40, height: 40, borderRadius: 10, 
-              background: selectedCar?.id === car.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: selectedCar?.id === car.id ? 'white' : 'var(--text-muted)'
-            }}>
-              <Car size={22} />
+      {/* Car Selection Header */}
+      <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '280px' }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+            <Car size={24} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Veículo Selecionado</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <select 
+                className="glass-input"
+                value={selectedCar?.id || ''} 
+                onChange={(e) => setSelectedCar([...cars, ...sharedCars].find(c => c.id === e.target.value))}
+                style={{ padding: '8px 12px', height: 'auto', fontWeight: 600, flex: 1 }}
+              >
+                <optgroup label="Meus Veículos">
+                  {visibleCars.map(car => (
+                    <option key={car.id} value={car.id}>{car.name} {car.is_hidden ? '(Arquivado)' : ''}</option>
+                  ))}
+                </optgroup>
+                {visibleShared.length > 0 && (
+                  <optgroup label="Compartilhados">
+                    {visibleShared.map(car => (
+                      <option key={car.id} value={car.id}>{car.name} {car.is_hidden ? '(Arquivado)' : ''}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
             </div>
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: 0, color: 'var(--text-main)' }}>{car.name}</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate}</p>
-            </div>
-          </button>
-        ))}
+          </div>
+        </div>
         
-        <button
-          onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}
-          className="glass-card"
-          style={{
-            padding: '1rem 1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            cursor: 'pointer',
-            border: '1px dashed var(--glass-border)',
-            minWidth: '180px',
-            color: 'var(--text-muted)'
-          }}
-        >
-          <Plus size={20} />
-          <span style={{ fontSize: '0.9rem' }}>Adicionar Veículo</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}
+            className="btn-secondary"
+            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+          >
+            <Plus size={18} /> Novo Veículo
+          </button>
+          
+          {selectedCar && (
+            <button
+              className="icon-btn"
+              onClick={() => { setModalType('edit_car'); setIsModalOpen(true); }}
+              title="Editar Veículo"
+            >
+              <Edit2 size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {selectedCar ? (
@@ -349,9 +400,11 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               {activeSubTab === 'summary' ? (
                 <CarSummary 
                   car={selectedCar} 
-                  onEdit={() => { setModalType('edit_car'); setIsModalOpen(true); }} 
+                  maintenance={maintenance}
+                  onEdit={() => { setModalType('edit_car'); setIsModalOpen(true); }}
                   onDelete={() => handleDeleteCar(selectedCar.id)}
                   onShare={() => { setModalType('share_car'); setIsModalOpen(true); }}
+                  onArchive={() => handleToggleArchive(selectedCar)}
                   isOwner={selectedCar.user_id === user.id}
                 />
               ) : (
@@ -359,7 +412,11 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                   car={selectedCar} 
                   maintenance={maintenance} 
                   templates={serviceTemplates}
-                  onLogService={() => { setModalType('log_service'); setIsModalOpen(true); }}
+                  isMobile={isMobile}
+                  onLogService={(data) => { 
+                    setModalType(data ? { type: 'log_service', ...data } : 'log_service'); 
+                    setIsModalOpen(true); 
+                  }}
                   onToggleStatus={toggleServiceStatus}
                   onAddNote={(desc) => { 
                     setModalType({ type: 'service_notes_list', description: desc }); 
@@ -398,70 +455,80 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   );
 }
 
-function CarSummary({ car, onEdit, onDelete, onShare, isOwner }) {
-  const nextMilestone = milestones.find(m => m > car.current_km) || 100000;
+function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, isOwner }) {
+  const nextMilestone = milestones.find(m => m > car.current_km) || 120000;
   const kmRemaining = nextMilestone - car.current_km;
   const progress = Math.max(0, Math.min(100, ((car.current_km % 10000) / 10000) * 100));
-
+  const totalSpent = maintenance.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+  
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
       
-      <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{car.name}</h3>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', padding: '2px 8px', background: 'var(--primary)', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}>{car.plate}</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{car.current_km.toLocaleString()} KM</span>
-            </div>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Wrench size={18} style={{ color: car.is_hidden ? 'var(--text-muted)' : 'var(--primary)' }} /> 
+              {car.name}
+              {car.is_hidden && (
+                <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: 'var(--text-muted)' }}>ARQUIVADO</span>
+              )}
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Status Geral do Veículo • <b>{car.plate}</b> • {(car.current_km || 0).toLocaleString()} KM</p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {isOwner && (
               <>
-                <button className="icon-btn" onClick={onShare} title="Compartilhar"><Share2 size={18} /></button>
+                <button className="icon-btn" onClick={onArchive} title={car.is_hidden ? "Restaurar" : "Arquivar"}>
+                  {car.is_hidden ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
                 <button className="icon-btn" onClick={onEdit} title="Editar"><Edit2 size={18} /></button>
+                <button className="icon-btn" onClick={onShare} title="Compartilhar"><Share2 size={18} /></button>
                 <button className="icon-btn" onClick={onDelete} style={{ color: 'var(--danger)' }} title="Excluir"><Trash2 size={18} /></button>
               </>
             )}
           </div>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.8rem' }}>
             <span style={{ color: 'var(--text-muted)' }}>Próximo Checkpoint</span>
-            <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
+            <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
           </div>
-          <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.75rem' }}>
+          <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', marginBottom: '0.6rem' }}>
             <Motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              style={{ height: '100%', background: 'var(--primary)', boxShadow: '0 0 10px var(--primary)' }} 
+              style={{ height: '100%', background: 'var(--primary)', boxShadow: '0 0 10px rgba(99, 102, 241, 0.4)' }} 
             />
           </div>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-            Faltam <strong>{kmRemaining.toLocaleString()} KM</strong> para a próxima revisão sugerida.
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
+            Restam <b>{kmRemaining.toLocaleString()} KM</b>
           </p>
         </div>
       </div>
 
+      <div className="glass-card premium-gradient" style={{ padding: '1.5rem', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <p style={{ fontSize: '0.8rem', opacity: 0.9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Total Investido</p>
+        <h2 style={{ fontSize: '2rem', fontWeight: 900, margin: 0 }}>
+          <small style={{ fontSize: '1rem', opacity: 0.8, fontWeight: 600, marginRight: '4px' }}>R$</small>
+          {totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </h2>
+        <p style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.5rem' }}>Histórico total de manutenções registradas.</p>
+      </div>
+
       <div className="glass-card" style={{ padding: '1.5rem' }}>
-        <h4 style={{ fontSize: '1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Clock size={18} style={{ color: 'var(--primary)' }} /> Status da Revisão Atual
+        <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <AlertTriangle size={18} style={{ color: 'var(--warning)' }} /> Alertas de Manutenção
         </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ color: 'var(--success)' }}><CheckCircle2 size={20} /></div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: '0.85rem', margin: 0 }}>Itens em Dia</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Tudo certo com os componentes básicos.</p>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '8px' }}>
+            <div style={{ color: 'var(--success)' }}><CheckCircle2 size={18} /></div>
+            <p style={{ fontSize: '0.75rem', margin: 0 }}>Documentação e Seguro em dia.</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ color: 'var(--warning)' }}><AlertTriangle size={20} /></div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: '0.85rem', margin: 0 }}>Atenção Próxima</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Considere verificar as pastilhas de freio em breve.</p>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', background: 'rgba(234, 179, 8, 0.05)', borderRadius: '8px' }}>
+            <div style={{ color: 'var(--warning)' }}><AlertTriangle size={18} /></div>
+            <p style={{ fontSize: '0.75rem', margin: 0 }}>Verificar freios nos {nextMilestone.toLocaleString()} KM.</p>
           </div>
         </div>
       </div>
@@ -469,16 +536,20 @@ function CarSummary({ car, onEdit, onDelete, onShare, isOwner }) {
   );
 }
 
-function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit }) {
+function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit, isMobile }) {
   const miles = milestones;
   
   const templateNames = Array.from(new Set([
     ...templates.map(t => t.description),
-    ...maintenance.map(m => m.description)
+    ...maintenance.filter(m => m.description !== 'Custo Total da Revisão').map(m => m.description)
   ])).sort();
 
+  const getMaintenanceEntry = (desc, km) => {
+    return maintenance.find(m => m.description === desc && m.km_milestone === km);
+  };
+
   const getStatus = (desc, km) => {
-    const entry = maintenance.find(m => m.description === desc && m.km_milestone === km);
+    const entry = getMaintenanceEntry(desc, km);
     if (!entry) {
       const isRecommended = templates.find(t => t.description === desc && t.km_milestone === km);
       return isRecommended ? 'PENDING' : 'NONE';
@@ -498,34 +569,93 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
         </button>
       </div>
 
-      <div className="revision-table-container" style={{ overflowX: 'auto', width: '100%' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+      <div className="revision-table-container" style={{ 
+        overflowX: 'auto', 
+        width: '100%',
+        borderRadius: '12px',
+        border: '1px solid var(--glass-border)',
+        background: 'rgba(0,0,0,0.1)'
+      }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '900px' }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: '1rem', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontSize: '0.8rem', position: 'sticky', left: 0, background: 'var(--bg-card)', zIndex: 10, width: '220px' }}>SERVIÇO / ITEM</th>
+              <th style={{ 
+                textAlign: 'left', 
+                padding: '1.25rem 1.5rem', 
+                borderBottom: '1px solid var(--glass-border)', 
+                color: 'var(--text-muted)', 
+                fontSize: '0.7rem', 
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                position: 'sticky', 
+                left: 0, 
+                background: '#1e293b', // Match Slate theme
+                zIndex: 10, 
+                width: isMobile ? '140px' : '280px',
+                minWidth: isMobile ? '140px' : '280px'
+              }}>SERVIÇO / ITEM</th>
               {miles.map(km => (
-                <th key={km} style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.6rem', opacity: 0.5, marginBottom: '2px' }}>KM</div>
-                  <div style={{ fontSize: '0.85rem', color: car.current_km >= km ? 'var(--text-main)' : 'var(--text-muted)' }}>{(km/1000)}k</div>
+                <th key={km} style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center', background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.5, fontWeight: 700 }}>KM</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: car.current_km >= km ? 'var(--text-main)' : 'var(--text-muted)' }}>{(km/1000)}k</div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
+            {/* Milestone Total Cost Row */}
+            <tr style={{ background: 'rgba(99, 102, 241, 0.05)' }}>
+              <td style={{ 
+                padding: '1rem 1.5rem', 
+                borderBottom: '1px solid var(--glass-border)', 
+                position: 'sticky', 
+                left: 0, 
+                background: '#242b3d', // Slightly different to highlight
+                zIndex: 5,
+                fontWeight: 700,
+                color: 'var(--primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontSize: isMobile ? '0.7rem' : '0.85rem'
+              }}>
+                {isMobile ? 'CUSTO TOTAL' : 'CUSTO TOTAL DA REVISÃO'}
+              </td>
+              {miles.map(km => {
+                const entry = getMaintenanceEntry('Custo Total da Revisão', km);
+                return (
+                  <td key={km} style={{ padding: '0.75rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
+                    <button 
+                      onClick={() => onLogService({ description: 'Custo Total da Revisão', km_milestone: km, amount: entry?.amount || '' })}
+                      style={{ 
+                        background: 'none', border: '1px dashed var(--glass-border)', 
+                        color: entry?.amount > 0 ? 'var(--success)' : 'var(--text-muted)',
+                        padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {entry?.amount > 0 ? `R$ ${parseFloat(entry.amount).toLocaleString('pt-BR')}` : '+ Add'}
+                    </button>
+                  </td>
+                );
+              })}
+            </tr>
+
             {templateNames.map(desc => (
               <tr key={desc} className="revision-row">
                 <td style={{ 
-                  padding: '1rem', 
+                  padding: '1rem 1.5rem', 
                   borderBottom: '1px solid var(--glass-border)', 
-                  fontSize: '0.85rem', 
                   position: 'sticky', 
                   left: 0, 
-                  background: 'var(--bg-card)', 
+                  background: '#1e293b', 
                   zIndex: 5,
-                  fontWeight: 500,
+                  fontWeight: 600,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                  textOverflow: 'ellipsis',
+                  fontSize: isMobile ? '0.75rem' : '0.9rem'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{desc}</span>
@@ -533,45 +663,56 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                       onClick={(e) => { e.stopPropagation(); onAddNote({ desc, isList: true }); }}
                       className="icon-btn" 
                       style={{ 
-                        padding: '4px', 
+                        padding: isMobile ? '4px' : '6px', 
+                        borderRadius: '8px',
                         color: maintenance.some(m => m.description === desc && m.notes) ? 'var(--primary)' : 'var(--text-muted)',
-                        opacity: 0.6
+                        opacity: 0.8,
+                        flexShrink: 0
                       }}
                     >
-                      <MessageSquare size={14} />
+                      <MessageSquare size={isMobile ? 12 : 14} />
                     </button>
                   </div>
                 </td>
                 {miles.map(km => {
+                  const entry = getMaintenanceEntry(desc, km);
                   const status = getStatus(desc, km);
-                  const isPast = car.current_km >= km;
 
                   return (
-                    <td key={km} style={{ padding: '0.5rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
-                      <div 
-                        onClick={() => canEdit && onToggleStatus(desc, km, status)}
-                        className={`status-cell ${status} ${isPast ? 'is-past' : ''}`}
-                        style={{
-                          width: '32px', height: '32px', borderRadius: '8px', margin: '0 auto',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: canEdit ? 'pointer' : 'default',
-                          background: 
-                            status === 'DONE' ? 'rgba(34, 197, 94, 0.2)' :
-                            status === 'PENDING' ? 'rgba(234, 179, 8, 0.2)' :
-                            status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.15)' :
-                            status === 'RECOMMENDED' ? 'var(--input-bg)' : 'transparent',
-                          color:
-                            status === 'DONE' ? 'var(--success)' :
-                            status === 'PENDING' ? 'var(--warning)' :
-                            status === 'SKIPPED' ? 'var(--danger)' :
-                            status === 'RECOMMENDED' ? 'var(--text-muted)' : 'transparent',
-                          border: status === 'RECOMMENDED' ? '1px dashed var(--glass-border)' : 'none',
-                          opacity: (isPast && status === 'NONE') ? 0.3 : 1
-                        }}
-                      >
-                        {status === 'DONE' && <CheckCircle2 size={16} />}
-                        {status === 'PENDING' && <Clock size={16} />}
-                        {status === 'SKIPPED' && <XCircle size={16} />}
+                    <td key={km} style={{ padding: '0.75rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <div 
+                          onClick={() => canEdit && onToggleStatus(desc, km, status)}
+                          className={`status-cell ${status}`}
+                          style={{
+                            width: '32px', height: '32px', borderRadius: '50%', margin: '0 auto',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: canEdit ? 'pointer' : 'default',
+                            transition: 'all 0.2s',
+                            background: 
+                              status === 'DONE' ? 'rgba(16, 185, 129, 0.2)' :
+                              status === 'PENDING' ? 'rgba(234, 179, 8, 0.2)' :
+                              status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.15)' :
+                              'transparent',
+                            color:
+                              status === 'DONE' ? 'var(--success)' :
+                              status === 'PENDING' ? 'var(--warning)' :
+                              status === 'SKIPPED' ? 'var(--danger)' :
+                              'rgba(255,255,255,0.1)',
+                            border: status === 'NONE' || status === 'RECOMMENDED' ? '2px solid rgba(255,255,255,0.1)' : '2px solid transparent',
+                          }}
+                        >
+                          {status === 'DONE' && <CheckCircle2 size={16} />}
+                          {status === 'PENDING' && <Clock size={16} />}
+                          {status === 'SKIPPED' && <XCircle size={16} />}
+                          {(status === 'NONE' || status === 'RECOMMENDED') && <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />}
+                        </div>
+                        
+                        {entry?.amount > 0 && (
+                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--success)', opacity: 0.8 }}>
+                            R${parseFloat(entry.amount).toLocaleString('pt-BR')}
+                          </div>
+                        )}
                       </div>
                     </td>
                   );

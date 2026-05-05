@@ -8,23 +8,36 @@ import { useEncryption } from '../../contexts/EncryptionContext';
 export default function CarModal({ isOpen, onClose, type, car, maintenance, user, onSuccess }) {
   const { encryptObject } = useEncryption();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0 });
-  const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE' });
+  const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0, is_hidden: false });
+  const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
   const [noteData, setNoteData] = useState({ description: '', km_milestone: 10000, notes: '' });
 
   useEffect(() => {
     if (car && (type === 'edit_car' || type === 'log_service' || type === 'service_note')) {
-      setFormData({ name: car.name, plate: car.plate, current_km: car.current_km });
+      setFormData({ 
+        name: car.name, 
+        plate: car.plate, 
+        current_km: car.current_km,
+        is_hidden: car.is_hidden || false
+      });
     }
   }, [car, type]);
 
   useEffect(() => {
     if (typeof type === 'object') {
-      const { desc, km, notes, isList } = type;
+      const { desc, description, km, km_milestone, notes, isList, amount } = type;
+      const finalDesc = desc || description;
+      const finalKm = km || km_milestone;
+
       if (notes !== undefined) {
-        setNoteData({ description: desc, km_milestone: km, notes: notes });
+        setNoteData({ description: finalDesc, km_milestone: finalKm, notes: notes });
       } else if (!isList) {
-        setServiceData(prev => ({ ...prev, description: desc, km_milestone: km }));
+        setServiceData(prev => ({ 
+          ...prev, 
+          description: finalDesc || prev.description, 
+          km_milestone: finalKm || prev.km_milestone,
+          amount: amount !== undefined ? amount : prev.amount
+        }));
       }
     }
   }, [type]);
@@ -63,7 +76,8 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
       user_id: user.id, 
       name: formData.name, 
       plate: formData.plate, 
-      current_km: formData.current_km 
+      current_km: formData.current_km,
+      is_hidden: formData.is_hidden
     }, ['name', 'plate'], { 
       resourceId: carId, 
       resourceType: 'CAR', 
@@ -80,7 +94,8 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     const encrypted = await encryptObject({ 
       name: formData.name, 
       plate: formData.plate, 
-      current_km: formData.current_km 
+      current_km: formData.current_km,
+      is_hidden: formData.is_hidden
     }, ['name', 'plate'], { 
       resourceId: car.id, 
       resourceType: 'CAR' 
@@ -103,11 +118,12 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
       km_milestone: parseInt(serviceData.km_milestone.toString()),
       status: serviceData.status,
       completed: serviceData.status === 'DONE',
+      amount: serviceData.amount ? parseFloat(serviceData.amount) : 0,
       updated_at: new Date().toISOString()
     }, { onConflict: 'car_id,description,km_milestone' });
     
     if (!error) {
-      setServiceData({ description: '', km_milestone: 10000, status: 'DONE' });
+      setServiceData({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
       onSuccess();
       toast.success('Serviço registrado!');
     } else {
@@ -137,6 +153,16 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 <label>KM Atual</label>
                 <input type="number" value={formData.current_km} onChange={e => setFormData({...formData, current_km: parseInt(e.target.value)})} />
               </div>
+              <div className="input-group" style={{ gridColumn: 'span 2', flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input 
+                  type="checkbox" 
+                  id="is_hidden"
+                  checked={formData.is_hidden} 
+                  onChange={e => setFormData({...formData, is_hidden: e.target.checked})}
+                  style={{ width: 'auto' }}
+                />
+                <label htmlFor="is_hidden" style={{ cursor: 'pointer', marginBottom: 0 }}>Ocultar este veículo (Arquivar)</label>
+              </div>
             </div>
             <button className="btn-primary" onClick={type === 'add_car' ? handleAddCar : handleUpdateCar} disabled={loading} style={{ width: '100%', marginTop: '2rem', justifyContent: 'center' }}>
               {loading ? 'Salvando...' : 'Salvar Alterações'}
@@ -144,7 +170,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
           </>
         )}
 
-        {(type === 'log_service' || (typeof type === 'object' && !type.notes && !type.isList)) && (
+        {(type === 'log_service' || (typeof type === 'object' && type.type === 'log_service' && !type.notes && !type.isList)) && (
           <>
             <h3>Registrar Serviço</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
@@ -165,6 +191,16 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                     <option key={k} value={k}>{k.toLocaleString()} km</option>
                   ))}
                 </select>
+              </div>
+              <div className="input-group">
+                <label>Valor do Serviço (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={serviceData.amount}
+                  onChange={e => setServiceData({...serviceData, amount: e.target.value})}
+                  placeholder="0,00"
+                />
               </div>
               <div className="input-group">
                 <label>Status</label>
