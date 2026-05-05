@@ -5,13 +5,20 @@ import {
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
 import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown, Layers } from 'lucide-react';
+import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function InvestmentDashboard({ user, showValues = true }) {
+  const { decryptObject } = useEncryption();
   const [data, setData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(() => {
     const saved = localStorage.getItem('investment_dashboard_year');
     return saved ? Number(saved) : new Date().getFullYear();
   });
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const saved = localStorage.getItem('investment_dashboard_month');
+    return saved ? (saved === 'all' ? 0 : Number(saved)) : new Date().getMonth() + 1;
+  });
+
   const [summary, setSummary] = useState({ 
     totalYieldYear: 0, 
     totalYieldAllTime: 0, 
@@ -24,6 +31,22 @@ export default function InvestmentDashboard({ user, showValues = true }) {
   });
 
   const years = [2024, 2025, 2026];
+  const months = [
+    { value: 0, label: 'Todos os Meses' },
+    { value: 1, label: 'Janeiro' },
+    { value: 2, label: 'Fevereiro' },
+    { value: 3, label: 'Março' },
+    { value: 4, label: 'Abril' },
+    { value: 5, label: 'Maio' },
+    { value: 6, label: 'Junho' },
+    { value: 7, label: 'Julho' },
+    { value: 8, label: 'Agosto' },
+    { value: 9, label: 'Setembro' },
+    { value: 10, label: 'Outubro' },
+    { value: 11, label: 'Novembro' },
+    { value: 12, label: 'Dezembro' }
+  ];
+
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
 
   const processData = useCallback((records) => {
@@ -72,8 +95,12 @@ export default function InvestmentDashboard({ user, showValues = true }) {
         typeYieldMap[typeName] = (typeYieldMap[typeName] || 0) + Number(r.yield);
       }
 
-      // Track last balance per account (only up to the selected year)
-      if (rYear <= selectedYear) {
+      // Track last balance per account for "Patrimônio"
+      // If a specific month is selected, we only want balances FROM that month.
+      // If "All Months" is selected, we take the latest balance found in the year.
+      const isRelevantForBalance = selectedMonth === 0 ? (rYear <= selectedYear) : (rYear === selectedYear && rMonth === selectedMonth);
+
+      if (isRelevantForBalance) {
         if (!currentBalanceMap[r.account_id] || new Date(currentBalanceMap[r.account_id].date) <= date) {
           currentBalanceMap[r.account_id] = { 
             amount: Number(r.final_balance), 
@@ -119,7 +146,7 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       typeYield: typeYieldData,
       typeBalance: typeBalanceData
     });
-  }, [selectedYear]);
+  }, [selectedYear, selectedMonth]);
 
   const fetchData = useCallback(async () => {
     const { data: records, error } = await supabase
@@ -135,14 +162,18 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       .order('record_date', { ascending: true });
 
     if (!error && records) {
-      processData(records);
+      const decryptedRecords = await decryptObject(records, [
+        'investment_accounts.name'
+      ]);
+      processData(decryptedRecords);
     }
-  }, [processData]);
+  }, [processData, decryptObject]);
 
   useEffect(() => {
     localStorage.setItem('investment_dashboard_year', selectedYear);
+    localStorage.setItem('investment_dashboard_month', selectedMonth === 0 ? 'all' : selectedMonth);
     fetchData();
-  }, [user, selectedYear, fetchData]);
+  }, [user, selectedYear, selectedMonth, fetchData]);
 
   const formatCurrency = (val) => {
     if (!showValues) return 'R$ ••••••';
@@ -153,19 +184,31 @@ export default function InvestmentDashboard({ user, showValues = true }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       
       {/* Header with Year Selector */}
-      <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <TrendingUp size={20} color="var(--primary)" />
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Performance de Investimentos</h3>
         </div>
-        <select 
-          value={selectedYear} 
-          onChange={(e) => setSelectedYear(Number(e.target.value))}
-          className="select-filter"
-          style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
-        >
-          {years.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
+        
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <select 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="select-filter"
+            style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
+          >
+            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+
+          <select 
+            value={selectedYear} 
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="select-filter"
+            style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
+          >
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Stats Grid */}
