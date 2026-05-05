@@ -216,10 +216,27 @@ export default function InvestmentList({ user, showValues = true }) {
   }, {})).sort((a, b) => b.yield - a.yield);
 
   const totalYield = records.reduce((sum, r) => sum + Number(r.yield), 0);
-  const totalBalance = records.reduce((sum, r) => sum + Number(r.final_balance), 0);
+  
+  // Fix: Sum only the latest balance for each account in the filtered set
+  const latestBalancesByAccount = records.reduce((acc, r) => {
+    const existing = acc[r.account_id];
+    if (!existing || new Date(r.record_date) > new Date(existing.record_date)) {
+      acc[r.account_id] = r;
+    }
+    return acc;
+  }, {});
+  const totalBalance = Object.values(latestBalancesByAccount).reduce((sum, r) => sum + Number(r.final_balance), 0);
 
   // Group records by Institution for the table view
   const groupedRecords = useMemo(() => {
+    // First, find latest record per account to get correct balances
+    const latestByAccount = records.reduce((acc, r) => {
+      if (!acc[r.account_id] || new Date(r.record_date) > new Date(acc[r.account_id].record_date)) {
+        acc[r.account_id] = r;
+      }
+      return acc;
+    }, {});
+
     const groups = records.reduce((acc, record) => {
       const inst = record.investment_accounts?.institution?.name || 'Outros';
       if (!acc[inst]) {
@@ -231,11 +248,19 @@ export default function InvestmentList({ user, showValues = true }) {
           color: record.investment_accounts?.color || '#94a3b8' 
         };
       }
-      acc[inst].balance += Number(record.final_balance);
+      // Yield is cumulative for the period
       acc[inst].yield += Number(record.yield);
       acc[inst].items.push(record);
       return acc;
     }, {});
+
+    // Now set the correct balances using only the latest records
+    Object.values(latestByAccount).forEach(record => {
+      const inst = record.investment_accounts?.institution?.name || 'Outros';
+      if (groups[inst]) {
+        groups[inst].balance += Number(record.final_balance);
+      }
+    });
     
     return Object.values(groups).sort((a, b) => b.balance - a.balance);
   }, [records]);

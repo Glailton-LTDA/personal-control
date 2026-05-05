@@ -39,6 +39,9 @@ export default function InvestmentDashboard({ user, showValues = true }) {
     let currentBalanceMap = {};
     let instYieldMap = {};
     let typeYieldMap = {};
+    
+    // Auxiliary map to track the latest balance per account per month for the monthly chart
+    const latestMonthlyAccountBalance = {}; // key: "month-accountId"
 
     records.forEach(r => {
       const date = new Date(r.record_date);
@@ -55,7 +58,13 @@ export default function InvestmentDashboard({ user, showValues = true }) {
 
       if (rYear === selectedYear) {
         monthlyDataMap[rMonth].yield += Number(r.yield);
-        monthlyDataMap[rMonth].balance += Number(r.final_balance);
+        
+        // Track latest balance for this account in this specific month
+        const key = `${rMonth}-${r.account_id}`;
+        if (!latestMonthlyAccountBalance[key] || new Date(latestMonthlyAccountBalance[key].date) <= date) {
+          latestMonthlyAccountBalance[key] = { amount: Number(r.final_balance), date: r.record_date };
+        }
+
         yearYield += Number(r.yield);
         
         // Yield by Institution & Type
@@ -76,6 +85,12 @@ export default function InvestmentDashboard({ user, showValues = true }) {
           };
         }
       }
+    });
+
+    // Calculate correct monthly balances after finding all latest records
+    Object.keys(latestMonthlyAccountBalance).forEach(key => {
+      const month = Number(key.split('-')[0]);
+      monthlyDataMap[month].balance += latestMonthlyAccountBalance[key].amount;
     });
 
     const currentBalance = Object.values(currentBalanceMap).reduce((sum, item) => sum + item.amount, 0);
