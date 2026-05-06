@@ -58,4 +58,28 @@ describe('CustomLists Component', () => {
       expect(screen.getByPlaceholderText('Ex: Inventário de Remédios')).toBeDefined();
     }
   });
+
+  it('includes "Texto Longo" option in field type selector', async () => {
+    await act(async () => {
+      render(<CustomLists user={mockUser} />);
+    });
+
+    const addBtn = screen.getByTestId('btn-add-collection');
+    await act(async () => {
+      fireEvent.click(addBtn);
+    });
+
+    // The field type select should contain "Texto Longo" as an option
+    const selects = screen.getAllByRole('combobox');
+    const fieldTypeSelect = selects.find(s => {
+      const options = Array.from(s.querySelectorAll('option'));
+      return options.some(o => o.textContent === 'Texto');
+    });
+
+    expect(fieldTypeSelect).toBeDefined();
+    const options = Array.from(fieldTypeSelect.querySelectorAll('option'));
+    const textareaOption = options.find(o => o.textContent === 'Texto Longo');
+    expect(textareaOption).toBeDefined();
+    expect(textareaOption.value).toBe('textarea');
+  });
 });

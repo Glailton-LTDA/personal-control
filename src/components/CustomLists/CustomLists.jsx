@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   List, Plus, Search, Settings, Trash2, Edit2, 
   ChevronRight, Save, X, Loader2, Info, 
-  CheckCircle2, Circle, Calendar, Hash, Type, 
+  CheckCircle2, Circle, Calendar, Hash, Type, AlignLeft,
   MapPin, CheckSquare as CheckboxIcon, Box, ExternalLink,
-  Users, Share2, Mail, Lock
+  Users, Share2, Mail, Lock, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -14,12 +14,109 @@ import AddressInput from '../Trips/AddressInput';
 
 const FIELD_TYPES = [
   { id: 'text', label: 'Texto', icon: Type },
+  { id: 'textarea', label: 'Texto Longo', icon: AlignLeft },
   { id: 'number', label: 'Número', icon: Hash },
   { id: 'date', label: 'Data', icon: Calendar },
   { id: 'checkbox', label: 'Checklist', icon: CheckCircle2 },
   { id: 'address', label: 'Endereço', icon: MapPin },
   { id: 'link', label: 'Link', icon: ExternalLink },
 ];
+
+const TEXT_CLAMP_THRESHOLD = 80;
+const TEXT_CLAMP_LINES = 3;
+
+function ExpandableText({ text }) {
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const textRef = useRef(null);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (el) {
+      setClamped(el.scrollHeight > el.clientHeight + 1);
+    }
+  }, [text]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+      <div
+        ref={textRef}
+        style={{
+          fontSize: '0.9rem',
+          color: 'var(--text-main)',
+          fontWeight: 500,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          lineHeight: 1.5,
+          ...(expanded ? {} : {
+            display: '-webkit-box',
+            WebkitLineClamp: TEXT_CLAMP_LINES,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          })
+        }}
+      >
+        {text}
+      </div>
+      {(clamped || expanded) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--primary)',
+            cursor: 'pointer',
+            padding: '0.15rem 0',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            alignSelf: 'flex-start'
+          }}
+        >
+          {expanded ? <><ChevronUp size={12} /> Ver menos</> : <><ChevronDown size={12} /> Ver mais</>}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AutoResizeTextarea({ value, onChange, placeholder, className }) {
+  const textareaRef = useRef(null);
+
+  const adjustHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = Math.max(el.scrollHeight, 44) + 'px';
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(e) => {
+        onChange(e);
+        adjustHeight();
+      }}
+      placeholder={placeholder}
+      className={className}
+      rows={1}
+      style={{
+        resize: 'none',
+        overflow: 'hidden',
+        minHeight: '44px',
+        lineHeight: 1.5
+      }}
+    />
+  );
+}
 
 export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   const { encryptObject, decryptObject, shareResourceKey } = useEncryption();
@@ -324,7 +421,15 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
         </div>
       );
     }
-    return <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.data[field.id]}>{item.data[field.id] || '-'}</div>;
+    if (field.type === 'textarea') {
+      const textareaValue = item.data[field.id] || '-';
+      return <ExpandableText text={textareaValue} />;
+    }
+    const textValue = item.data[field.id] || '-';
+    if (textValue.length > TEXT_CLAMP_THRESHOLD || textValue.includes('\n')) {
+      return <ExpandableText text={textValue} />;
+    }
+    return <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={textValue}>{textValue}</div>;
   };
 
   if (mode === 'settings') {
@@ -546,7 +651,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                     </div>
                     
                     {/* Card Body - Fields */}
-                    <div style={{ display: 'grid', gridTemplateColumns: selectedList.fields?.length <= 2 ? '1fr' : 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: selectedList.fields?.some(f => f.type === 'text' || f.type === 'textarea') && selectedList.fields?.length <= 3 ? '1fr' : (selectedList.fields?.length <= 2 ? '1fr' : 'repeat(auto-fill, minmax(130px, 1fr))'), gap: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
                       {selectedList.fields?.map(field => (
                         <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{field.name}</span>
@@ -782,9 +887,18 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
                 className="glass-input" placeholder="https://exemplo.com"
               />
+            ) : field.type === 'textarea' ? (
+              <textarea 
+                value={formData[field.id] || ''} 
+                onChange={e => setFormData({...formData, [field.id]: e.target.value})}
+                className="glass-input" 
+                placeholder="Digite o texto..."
+                rows={5}
+                style={{ resize: 'vertical', minHeight: '120px', lineHeight: 1.6 }}
+              />
             ) : (
-              <input 
-                type="text" value={formData[field.id] || ''} 
+              <AutoResizeTextarea 
+                value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
                 className="glass-input" placeholder="..."
               />
