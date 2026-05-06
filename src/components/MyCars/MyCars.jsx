@@ -379,13 +379,13 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               >
               <optgroup label="Meus Veículos">
                 {visibleCars.map(car => (
-                  <option key={car.id} value={car.id}>{car.name}{car.is_hidden ? ' (Arquivado)' : ''}</option>
+                  <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
                 ))}
               </optgroup>
               {visibleShared.length > 0 && (
                 <optgroup label="Compartilhados">
                   {visibleShared.map(car => (
-                    <option key={car.id} value={car.id}>{car.name}{car.is_hidden ? ' (Arquivado)' : ''}</option>
+                    <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
                   ))}
                 </optgroup>
               )}

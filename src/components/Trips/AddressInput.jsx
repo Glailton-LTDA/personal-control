@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, MapPin, X, Loader2 } from 'lucide-react';
+import { Search, MapPin, X, Loader2, Hash } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 export default function AddressInput({ value, onChange, placeholder = "Digite o endereço..." }) {
@@ -8,12 +8,27 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [dropdownPos, setDropdownPos] = useState(null);
+  const [numberValue, setNumberValue] = useState('');
+  const [showNumberField, setShowNumberField] = useState(false);
+  const [selectedCoords, setSelectedCoords] = useState(null);
   const searchTimeoutRef = useRef(null);
   const inputContainerRef = useRef(null);
+  const numberInputRef = useRef(null);
 
   useEffect(() => {
     setInputValue(value || '');
   }, [value]);
+
+  // Extract existing number from value on mount
+  useEffect(() => {
+    if (value && value.includes(' nº ')) {
+      const parts = value.split(' nº ');
+      setNumberValue(parts[0]);
+      setInputValue(parts.slice(1).join(' nº '));
+      setShowNumberField(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (showSuggestions && suggestions.length > 0 && inputContainerRef.current) {
@@ -60,9 +75,20 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
     const coords = [parseFloat(suggestion.lon), parseFloat(suggestion.lat)];
     
     setInputValue(formattedName);
+    setSelectedCoords(coords);
     setSuggestions([]);
     setShowSuggestions(false);
+    setShowNumberField(true);
+    setNumberValue('');
     onChange(formattedName, coords);
+    // Focus number field after render
+    setTimeout(() => numberInputRef.current?.focus(), 100);
+  };
+
+  const handleNumberChange = (val) => {
+    setNumberValue(val);
+    const fullAddress = val ? `${val}, ${inputValue}` : inputValue;
+    onChange(fullAddress, selectedCoords);
   };
 
   const clearInput = () => {
@@ -132,7 +158,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => { setShowNumberField(false); handleSearch(e.target.value); }}
           onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
@@ -147,7 +173,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
           {inputValue && !isSearching && (
             <button 
               type="button" 
-              onClick={clearInput}
+              onClick={() => { clearInput(); setShowNumberField(false); setNumberValue(''); setSelectedCoords(null); }}
               style={{ 
                 background: 'none', 
                 border: 'none', 
@@ -162,6 +188,25 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
           )}
         </div>
       </div>
+
+      {showNumberField && inputValue && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <Hash size={16} style={{ color: 'var(--primary)', opacity: 0.7, flexShrink: 0 }} />
+          <input
+            ref={numberInputRef}
+            type="text"
+            value={numberValue}
+            onChange={(e) => handleNumberChange(e.target.value)}
+            placeholder="Nº / Complemento (Ex: 1234, Apt 5B)"
+            className="glass-input"
+            style={{ 
+              flex: 1,
+              padding: '0.6rem 0.75rem',
+              fontSize: '0.85rem'
+            }}
+          />
+        </div>
+      )}
 
       {suggestionsDropdown}
 

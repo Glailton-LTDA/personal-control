@@ -521,7 +521,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                       onClick={() => { setModalType('share'); setIsModalOpen(true); }} 
                       className="icon-btn" 
                       title="Compartilhar"
-                      data-testid="btn-share-collection-header"
+                      data-testid="btn-share-collection"
                     >
                       <Users size={20} />
                     </button>
@@ -732,7 +732,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh, shareRes
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Compartilhar Lista</h3>
+        <h3 style={{ margin: 0, color: 'var(--text-main)' }} data-testid="modal-title">Compartilhar Lista</h3>
         <button onClick={onClose} className="icon-btn"><X size={20} /></button>
       </div>
       <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

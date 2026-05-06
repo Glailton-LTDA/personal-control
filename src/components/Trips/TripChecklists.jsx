@@ -409,6 +409,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             onClick={() => setIsAddingList(true)}
             className="btn-primary" 
             style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            data-testid="btn-add-checklist"
           >
             <Plus size={20} /> <span className="btn-text">Nova Lista</span>
           </button>

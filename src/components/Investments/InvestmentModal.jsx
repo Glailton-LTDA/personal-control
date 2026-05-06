@@ -12,6 +12,19 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
     yield: ''
   });
 
+  // Currency mask helper: formats a raw numeric string into "1.234,56" pattern
+  const formatCurrency = (rawValue) => {
+    let val = String(rawValue).replace(/\D/g, '');
+    if (!val) return '';
+    val = (parseInt(val) / 100).toFixed(2);
+    return val.replace('.', ',');
+  };
+
+  const parseCurrencyToNumber = (maskedValue) => {
+    if (!maskedValue) return '';
+    return parseFloat(String(maskedValue).replace(',', '.')) || 0;
+  };
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -20,8 +33,8 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
       setFormData({
         account_id: initialData.account_id,
         record_date: initialData.record_date,
-        initial_balance: initialData.initial_balance,
-        final_balance: initialData.final_balance,
+        initial_balance: initialData.initial_balance != null ? formatCurrency(Math.round(initialData.initial_balance * 100).toString()) : '',
+        final_balance: initialData.final_balance != null ? formatCurrency(Math.round(initialData.final_balance * 100).toString()) : '',
         yield: initialData.yield
       });
     } else {
@@ -37,18 +50,25 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
 
   // Handle automatic yield calculation
   useEffect(() => {
+    const initial = parseCurrencyToNumber(formData.initial_balance);
+    const final_val = parseCurrencyToNumber(formData.final_balance);
     if (formData.initial_balance !== '' && formData.final_balance !== '') {
-      const yield_val = (Number(formData.final_balance) - Number(formData.initial_balance)).toFixed(2);
+      const yield_val = (final_val - initial).toFixed(2);
       setFormData(prev => ({ ...prev, yield: parseFloat(yield_val) }));
     }
   }, [formData.initial_balance, formData.final_balance]);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const submitPayload = {
+      ...formData,
+      initial_balance: parseCurrencyToNumber(formData.initial_balance),
+      final_balance: parseCurrencyToNumber(formData.final_balance),
+    };
     if (initialData) {
       const { error } = await supabase
         .from('investment_records')
-        .update(formData)
+        .update(submitPayload)
         .eq('id', initialData.id);
       if (!error) {
         onRefresh();
@@ -57,7 +77,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
     } else {
       const { error } = await supabase
         .from('investment_records')
-        .insert([{ ...formData, user_id: user.id }]);
+        .insert([{ ...submitPayload, user_id: user.id }]);
       if (!error) {
         onRefresh();
         onClose();
@@ -254,13 +274,15 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                <div className="input-group">
+              <div className="input-group">
                   <label>Saldo Inicial (R$)</label>
                   <input 
-                    type="number" 
-                    step="0.01"
+                    type="text" 
                     value={formData.initial_balance}
-                    onChange={e => setFormData({...formData, initial_balance: e.target.value})}
+                    onChange={e => {
+                      const masked = formatCurrency(e.target.value);
+                      setFormData({...formData, initial_balance: masked});
+                    }}
                     placeholder="0,00"
                     required
                   />
@@ -268,10 +290,12 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 <div className="input-group">
                   <label>Saldo Final (R$)</label>
                   <input 
-                    type="number" 
-                    step="0.01"
+                    type="text" 
                     value={formData.final_balance}
-                    onChange={e => setFormData({...formData, final_balance: e.target.value})}
+                    onChange={e => {
+                      const masked = formatCurrency(e.target.value);
+                      setFormData({...formData, final_balance: masked});
+                    }}
                     placeholder="0,00"
                     required
                   />

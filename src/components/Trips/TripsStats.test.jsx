@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TripsStats from './TripsStats';
 import React from 'react';
@@ -16,7 +16,9 @@ vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
-        in: vi.fn(() => Promise.resolve({ data: [], error: null }))
+        in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
       }))
     }))
   }
@@ -37,15 +39,17 @@ describe('TripsStats Component', () => {
     vi.clearAllMocks();
   });
 
-  it('renders correctly with trip data', () => {
-    render(<TripsStats trips={mockTrips} />);
+  it('renders correctly with trip data', async () => {
+    await act(async () => {
+      render(<TripsStats trips={mockTrips} />);
+    });
     
     expect(screen.getAllByText('Países Visitados')[0]).toBeDefined();
     expect(screen.getAllByText('Cidades Visitadas')[0]).toBeDefined();
     expect(screen.getByText('Km Percorridos')).toBeDefined();
   });
 
-  it('groups locations correctly and avoids duplicate countries as cities', () => {
+  it('groups locations correctly and avoids duplicate countries as cities', async () => {
     const tripsWithDuplicates = [
       {
         id: '1',
@@ -60,7 +64,9 @@ describe('TripsStats Component', () => {
         end_date: '2023-01-10'
       }
     ];
-    render(<TripsStats trips={tripsWithDuplicates} />);
+    await act(async () => {
+      render(<TripsStats trips={tripsWithDuplicates} />);
+    });
     
     // Total cities should be 2 (Lisboa and Porto)
     const citiesLabel = screen.getAllByText('Cidades Visitadas')[0];

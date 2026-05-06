@@ -11,9 +11,22 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     }
   }
 
-  test.beforeEach(async ({ page }) => {
+  async function loginAndGoToTrips(page) {
+    await page.goto('/');
+    await page.waitForSelector('input[type="email"]', { timeout: 15000 });
+    await page.locator('input[type="email"]').fill('test@example.com');
+    await page.locator('input[type="password"]').fill('password123');
+    await page.getByRole('button', { name: /entrar/i }).click();
+    
+    await expect(page.locator('aside')).toBeVisible({ timeout: 20000 });
+    await unlockApp(page);
 
-    // Mock Auth
+    await page.getByTestId('sidebar-group-trips').click();
+    await expect(page.getByTestId('sidebar-sub-item-trips-list')).toBeVisible({ timeout: 10000 });
+  }
+
+  test.beforeEach(async ({ page }) => {
+    // Intercept login
     await page.route('**/auth/v1/token*', async (route) => {
       await route.fulfill({
         status: 200,
@@ -28,7 +41,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
       });
     });
 
-    // Mock Other REST calls (catch-all for empty lists) - REGISTER FIRST so specific ones can override
+    // Mock Other REST calls
     await page.route('**/rest/v1/*', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
@@ -100,20 +113,13 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await page.addInitScript(() => {
       window.localStorage.setItem('pc_e2e_test', 'true');
     });
-    await page.goto('/');
-    await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-    await page.locator('input[type="email"]').fill('test@example.com');
-    await page.locator('input[type="password"]').fill('password123');
-    await page.getByRole('button', { name: /entrar/i }).click();
-
-    await expect(page.locator('aside')).toBeVisible({ timeout: 20000 });
-    await unlockApp(page);
-    await page.getByRole('button', { name: 'Minhas Viagens' }).click();
   });
 
   async function goToChecklists(page) {
-    await page.getByRole('button', { name: 'Listagem' }).click();
+    await loginAndGoToTrips(page);
+    await page.getByTestId('sidebar-sub-item-trips-list').click();
     await expect(page.getByTestId('trip-selector')).toBeVisible({ timeout: 10000 });
+    await page.getByTestId('trip-selector').click();
     await page.getByTestId('trip-select-trip-1').click();
     await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 10000 });
     await page.getByLabel('Menu da Viagem').click();
@@ -123,7 +129,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
   test('deve criar uma nova lista e adicionar itens', async ({ page }) => {
     await goToChecklists(page);
-    await page.getByRole('button', { name: /nova lista/i }).click();
+    await page.getByTestId('btn-add-checklist').click();
     await page.getByPlaceholder('Ex: Documentos, Mala de Mão...').fill('Nova Lista E2E');
     await page.getByRole('button', { name: /criar lista/i }).click();
     await expect(page.getByText('Nova Lista E2E')).toBeVisible();

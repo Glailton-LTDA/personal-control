@@ -118,7 +118,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
       km_milestone: parseInt(serviceData.km_milestone.toString()),
       status: serviceData.status,
       completed: serviceData.status === 'DONE',
-      amount: serviceData.amount ? parseFloat(serviceData.amount) : 0,
+      amount: serviceData.amount ? parseFloat(String(serviceData.amount).replace(',', '.')) : 0,
       updated_at: new Date().toISOString()
     }, { onConflict: 'car_id,description,km_milestone' });
     
@@ -195,10 +195,17 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               <div className="input-group">
                 <label>Valor do Serviço (R$)</label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
                   value={serviceData.amount}
-                  onChange={e => setServiceData({...serviceData, amount: e.target.value})}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (!val) {
+                      setServiceData({...serviceData, amount: ''});
+                      return;
+                    }
+                    val = (parseInt(val) / 100).toFixed(2);
+                    setServiceData({...serviceData, amount: val.replace('.', ',')});
+                  }}
                   placeholder="0,00"
                 />
               </div>
