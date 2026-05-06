@@ -24,6 +24,7 @@ import {
   PieChart,
   ShieldCheck,
   List,
+  Orbit,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -404,7 +405,7 @@ export default function Dashboard({ user }) {
         <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <LayoutDashboard color="white" size={24} />
+              <Orbit color="white" size={24} />
             </div>
             {isSidebarOpen && <span style={{ fontWeight: 'bold', fontSize: '1.2rem', whiteSpace: 'nowrap' }}>Personal</span>}
           </div>
@@ -449,7 +450,7 @@ export default function Dashboard({ user }) {
             <div style={{ padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--glass-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LayoutDashboard color="white" size={20} />
+                   <Orbit color="white" size={20} />
                 </div>
                 <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Personal</span>
               </div>

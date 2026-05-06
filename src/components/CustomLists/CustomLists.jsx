@@ -163,14 +163,6 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       if (uniqueData) {
         const decrypted = await decryptObject(uniqueData, ['name', 'description', 'fields.*.name'], { resourceType: 'LIST' });
         setLists(decrypted);
-        
-        if (selectedList) {
-          const updated = decrypted.find(l => l.id === selectedList.id);
-          if (updated) setSelectedList(updated);
-          else if (decrypted.length > 0) setSelectedList(decrypted[0]);
-        } else if (decrypted.length > 0 && mode === 'manager') {
-          setSelectedList(decrypted[0]);
-        }
       }
     } catch (err) {
       console.error('Error fetching lists:', err);
@@ -178,7 +170,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, decryptObject, selectedList, mode]);
+  }, [user, decryptObject]);
 
   const fetchShares = useCallback(async () => {
     if (!selectedList || selectedList.user_id !== user.id) {
@@ -222,6 +214,24 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   useEffect(() => {
     fetchLists();
   }, [fetchLists, refreshKey]);
+
+  // Handle selection sync separately to avoid loops
+  useEffect(() => {
+    if (lists.length > 0) {
+      if (!selectedList) {
+        if (mode === 'manager') setSelectedList(lists[0]);
+      } else {
+        const updated = lists.find(l => l.id === selectedList.id);
+        if (updated && updated !== selectedList) {
+          setSelectedList(updated);
+        } else if (!updated && mode === 'manager') {
+          setSelectedList(lists[0]);
+        }
+      }
+    } else {
+      setSelectedList(null);
+    }
+  }, [lists, mode]);
 
   useEffect(() => {
     fetchShares();

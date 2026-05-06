@@ -75,6 +75,7 @@ vi.mock('lucide-react', () => {
     MapPin: mockIcon('map-pin'),
     CheckSquare: mockIcon('check-square'),
     Box: mockIcon('box'),
+    Orbit: mockIcon('orbit'),
   };
 });
 
