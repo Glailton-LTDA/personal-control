@@ -206,7 +206,8 @@ export const EncryptionProvider = ({ children }) => {
     // Métodos legados que não fazem mais nada
     unlock: async () => true,
     lock: () => {},
-    getResourceKey: async () => null
+    getResourceKey: async () => null,
+    shareResourceKey: async () => true
   };
 
   return (

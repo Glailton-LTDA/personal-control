@@ -60,6 +60,20 @@ vi.mock('lucide-react', () => {
     Globe: mockIcon('globe'),
     PieChart: mockIcon('pie-chart'),
     ShieldCheck: mockIcon('shield-check'),
+    List: mockIcon('list'),
+    Search: mockIcon('search'),
+    Trash2: mockIcon('trash-2'),
+    Edit2: mockIcon('edit-2'),
+    Save: mockIcon('save'),
+    Loader2: mockIcon('loader-2'),
+    Info: mockIcon('info'),
+    CheckCircle2: mockIcon('check-circle-2'),
+    Circle: mockIcon('circle'),
+    Hash: mockIcon('hash'),
+    Type: mockIcon('type'),
+    MapPin: mockIcon('map-pin'),
+    CheckSquare: mockIcon('check-square'),
+    Box: mockIcon('box'),
   };
 });
 
@@ -72,6 +86,7 @@ vi.mock('./Settings', () => ({ default: () => <div data-testid="settings-view" /
 vi.mock('./MyCars/MyCars', () => ({ default: () => <div data-testid="my-cars" /> }));
 vi.mock('./Trips/Trips', () => ({ default: () => <div data-testid="trips" /> }));
 vi.mock('./Investments/Investments', () => ({ default: () => <div data-testid="investments" /> }));
+vi.mock('./CustomLists/CustomLists', () => ({ default: () => <div data-testid="custom-lists" /> }));
 
 describe('Dashboard Navigation', () => {
   const mockUser = { id: 'user-123', email: 'test@example.com' };

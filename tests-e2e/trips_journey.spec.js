@@ -115,6 +115,6 @@ test.describe('Minha Jornada (Stats)', () => {
     // Testa o botão voltar
     await page.getByTestId('back-to-trips-btn').click();
     await expect(page.getByRole('heading', { name: 'Minha Jornada' })).not.toBeVisible();
-    await expect(page.getByText('Viagem Europa').first()).toBeVisible();
+    await expect(page.getByText('Viagem Teste').first()).toBeVisible();
   });
 });

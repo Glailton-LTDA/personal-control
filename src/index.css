@@ -1272,3 +1272,45 @@ select.glass-input {
   }
 }
 
+/* Custom Lists Specific Styles */
+.custom-list-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.custom-list-table th {
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.custom-list-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+  transition: background 0.2s;
+}
+
+.custom-list-table tr:hover td {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.field-editor-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 40px;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  animation: listSlideIn 0.3s ease-out;
+}
+
+@keyframes listSlideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+

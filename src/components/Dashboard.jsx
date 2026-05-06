@@ -23,6 +23,7 @@ import {
   Globe,
   PieChart,
   ShieldCheck,
+  List,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -33,12 +34,14 @@ import SettingsView from './Settings';
 import MyCars from './MyCars/MyCars';
 import Investments from './Investments/Investments';
 import Trips from './Trips/Trips';
+import CustomLists from './CustomLists/CustomLists';
 
 const defaultMenuItems = [
   { id: 'finances', icon: LayoutDashboard, label: 'Finanças' },
   { id: 'cars', icon: Car, label: 'Carros' },
   { id: 'investments', icon: TrendingUp, label: 'Investimentos' },
   { id: 'trips', icon: Plane, label: 'Minhas Viagens' },
+  { id: 'lists', icon: List, label: 'Minhas Listas' },
   { id: 'settings', icon: Settings, label: 'Configurações' },
 ];
 
@@ -62,6 +65,10 @@ const moduleSubItems = {
     { tab: 'trips-itinerary', icon: Calendar, label: 'Roteiros' },
     { tab: 'trips-stats', icon: PieChart, label: 'Minha Jornada' },
     { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' }
+  ],
+  lists: [
+    { tab: 'lists-manager', icon: List, label: 'Gerenciar Listas' },
+    { tab: 'lists-settings', icon: Settings, label: 'Ajustes' }
   ],
   settings: [
     { tab: 'settings-general', icon: Settings, label: 'Geral' },
@@ -87,6 +94,7 @@ export default function Dashboard({ user }) {
       cars: false,
       investments: false,
       trips: false,
+      lists: false,
       settings: false,
     };
   });
@@ -96,7 +104,20 @@ export default function Dashboard({ user }) {
   });
   const [menuOrder, setMenuOrder] = useState(() => {
     const saved = localStorage.getItem('personal-control-menu-order');
-    return saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
+    const savedOrder = saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
+    
+    // Ensure new items in defaultMenuItems are added to the order
+    const currentIds = defaultMenuItems.map(i => i.id);
+    const mergedOrder = [...savedOrder];
+    
+    currentIds.forEach(id => {
+      if (!mergedOrder.includes(id)) {
+        mergedOrder.push(id);
+      }
+    });
+    
+    // Remove ids that are no longer in defaultMenuItems
+    return mergedOrder.filter(id => currentIds.includes(id));
   });
   const drawerRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1100);
@@ -147,10 +168,22 @@ export default function Dashboard({ user }) {
     const { data } = await supabase
       .from('notification_settings')
       .select('menu_order')
-      .single();
+      .maybeSingle();
     
     if (data?.menu_order) {
-      setMenuOrder(data.menu_order);
+      // Ensure new items in defaultMenuItems are added even to data from Supabase
+      const currentIds = defaultMenuItems.map(i => i.id);
+      const mergedOrder = [...data.menu_order];
+      
+      currentIds.forEach(id => {
+        if (!mergedOrder.includes(id)) {
+          mergedOrder.push(id);
+        }
+      });
+      
+      // Filter out invalid IDs
+      const finalOrder = mergedOrder.filter(id => currentIds.includes(id));
+      setMenuOrder(finalOrder);
     }
   }, []);
 
@@ -501,6 +534,9 @@ export default function Dashboard({ user }) {
             {activeTab.startsWith('trips') && (
               <Trips user={user} refreshKey={refreshKey} mode={activeTab.replace('trips-', '')} showValues={showValues} />
             )}
+            {activeTab.startsWith('lists') && (
+              <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
+            )}
             {activeTab !== 'finances-transactions' &&
               activeTab !== 'finances-dashboard' &&
               activeTab !== 'finances-settings' &&
@@ -508,6 +544,7 @@ export default function Dashboard({ user }) {
               activeTab !== 'app-menu' &&
               !activeTab.startsWith('cars') &&
               !activeTab.startsWith('trips') &&
+              !activeTab.startsWith('lists') &&
               !activeTab.startsWith('investments') && (
                 <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
                   <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>

@@ -85,7 +85,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
 
   useEffect(() => {
     async function fetchNotificationSettings() {
-      const { data } = await supabase.from('notification_settings').select('*').single();
+      const { data } = await supabase.from('notification_settings').select('*').maybeSingle();
       if (data) setNotificationSettings(data);
     }
     fetchNotificationSettings();

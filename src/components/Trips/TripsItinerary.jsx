@@ -7,6 +7,8 @@ import {
 import { AnimatePresence } from 'framer-motion';
 import ItineraryManager from './ItineraryManager';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import { useEncryption } from '../../contexts/EncryptionContext';
 
@@ -171,6 +173,81 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     }
   };
 
+  const handleExportPDF = () => {
+    if (!selectedTrip || !itinerary.length) {
+      toast.error('Selecione uma viagem com roteiro para exportar');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+
+      // Header
+      doc.setFontSize(22);
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.text(selectedTrip.title, 14, 22);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // Slate 500
+      const dates = `${formatDateSafely(selectedTrip.start_date)} - ${formatDateSafely(selectedTrip.end_date)}`;
+      doc.text(dates, 14, 30);
+
+      // Cities/Countries if available
+      if (selectedTrip.cities?.length) {
+        doc.text(`Destinos: ${selectedTrip.cities.join(', ')}`, 14, 35);
+      }
+
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.line(14, 40, pageWidth - 14, 40);
+
+      // Table
+      const tableColumn = ["Dia", "Hora", "Atividade", "Local"];
+      const tableRows = itinerary.map(item => [
+        formatDateSafely(item.day),
+        item.time || '-',
+        item.activity || '',
+        item.location || ''
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        theme: 'striped',
+        headStyles: { 
+          fillColor: [79, 70, 229], // Indigo 600
+          fontSize: 11,
+          fontStyle: 'bold'
+        },
+        bodyStyles: { 
+          fontSize: 10,
+          textColor: [51, 65, 85] // Slate 700
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252] // Slate 50
+        },
+        margin: { top: 45 },
+        didDrawPage: (data) => {
+          // Footer
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184); // Slate 400
+          doc.text(
+            `Gerado por PersonalControl - Página ${doc.internal.getNumberOfPages()}`,
+            data.settings.margin.left,
+            doc.internal.pageSize.height - 10
+          );
+        }
+      });
+
+      doc.save(`Roteiro_${selectedTrip.title.replace(/\s+/g, '_')}.pdf`);
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('PDF Error:', error);
+      toast.error('Erro ao gerar PDF');
+    }
+  };
+
   const filteredTrips = trips.filter(t => 
     t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (t.cities && t.cities.some(c => c.toLowerCase().includes(searchQuery.toLowerCase())))
@@ -196,10 +273,17 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   }
 
   return (
-    <div style={{ padding: isMobile ? '0.5rem' : '1rem', maxWidth: '1200px', margin: '0 auto', overflowX: 'hidden', width: '100%' }}>
+    <div style={{ padding: isMobile ? '0.5rem' : '1rem', maxWidth: '1200px', margin: '0 auto', overflowX: 'hidden', width: '100%', boxSizing: 'border-box' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? '1.5rem' : '2rem', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: isMobile ? '1.5rem' : '2rem', 
+        gap: '0.75rem',
+        flexWrap: isMobile ? 'wrap' : 'nowrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: isMobile ? '1 1 auto' : '0 0 auto' }}>
           {onBack && (
             <button 
               onClick={() => {
@@ -222,6 +306,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
           </div>
         </div>
         
+        <div style={{ display: 'flex', gap: '0.5rem', flex: isMobile ? '1 1 auto' : '0 0 auto', justifyContent: 'flex-end' }}>
         <button 
           onClick={handleSave} 
           disabled={isSaving || !selectedTrip}
@@ -231,6 +316,26 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
           {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {isMobile ? 'Salvar' : 'Salvar Alterações'}
         </button>
+
+        {selectedTrip && itinerary.length > 0 && (
+          <button 
+            onClick={handleExportPDF} 
+            className="btn-secondary"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.6rem', 
+              padding: isMobile ? '0.6rem 1rem' : '0.75rem 1.5rem', 
+              fontSize: isMobile ? '0.85rem' : '1rem',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid var(--glass-border)'
+            }}
+          >
+            <Plane size={18} style={{ transform: 'rotate(45deg)' }} />
+            {isMobile ? 'PDF' : 'Exportar PDF'}
+          </button>
+        )}
+        </div>
       </div>
 
       <div style={{ 

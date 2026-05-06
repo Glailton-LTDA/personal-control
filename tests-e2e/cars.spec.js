@@ -59,7 +59,7 @@ test.describe('MyCars Module', () => {
      await page.getByRole('button', { name: 'Carros' }).click();
      
      // Select the car via dropdown
-     await page.selectOption('select.glass-input', { label: /Audi A3/i });
+     await page.selectOption('select.glass-input', { label: 'Audi A3 - ABC-1234' });
      
      // Switch to Revision tab
      await page.click('button:has-text("Revisão")');
