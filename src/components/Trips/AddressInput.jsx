@@ -3,7 +3,9 @@ import { Search, MapPin, X, Loader2, Hash } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 export default function AddressInput({ value, onChange, placeholder = "Digite o endereço..." }) {
-  const [inputValue, setInputValue] = useState(value || '');
+  // baseAddress: the raw Nominatim address (never contains number/complement)
+  const [baseAddress, setBaseAddress] = useState('');
+  const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -14,18 +16,51 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
   const searchTimeoutRef = useRef(null);
   const inputContainerRef = useRef(null);
   const numberInputRef = useRef(null);
+  // Guard to prevent external value sync from overwriting internal state
+  // after we ourselves triggered the onChange
+  const internalChangeRef = useRef(false);
 
+  // Sync external value into local state, but only when it's truly external
   useEffect(() => {
-    setInputValue(value || '');
+    if (internalChangeRef.current) {
+      internalChangeRef.current = false;
+      return;
+    }
+    // External change (e.g., editing an existing item) — parse it
+    if (!value) {
+      setBaseAddress('');
+      setInputValue('');
+      setNumberValue('');
+      setShowNumberField(false);
+      return;
+    }
+    setInputValue(value);
   }, [value]);
 
-  // Extract existing number from value on mount
+  // Extract existing number/complement from value on mount
   useEffect(() => {
-    if (value && value.includes(' nº ')) {
-      const parts = value.split(' nº ');
-      setNumberValue(parts[0]);
-      setInputValue(parts.slice(1).join(' nº '));
-      setShowNumberField(true);
+    if (value && value.includes(', ')) {
+      // Try to detect a leading number/complement: pattern "NUMBER, rest_of_address"
+      // Nominatim addresses typically start with a street name (letter),
+      // so if the value starts with a non-letter token before the first comma,
+      // that's likely the user-prepended number/complement.
+      const firstCommaIdx = value.indexOf(', ');
+      const prefix = value.substring(0, firstCommaIdx).trim();
+      const rest = value.substring(firstCommaIdx + 2).trim();
+      // Heuristic: if the prefix looks like a number/complement (contains at least one digit
+      // and is short), treat it as the number field
+      if (prefix && /\d/.test(prefix) && prefix.length <= 20 && rest.length > 0) {
+        setNumberValue(prefix);
+        setBaseAddress(rest);
+        setInputValue(rest);
+        setShowNumberField(true);
+        return;
+      }
+    }
+    // No number detected — the whole value is the base address
+    if (value) {
+      setBaseAddress(value);
+      setInputValue(value);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -45,11 +80,15 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
 
   const handleSearch = (query) => {
     setInputValue(query);
+    setBaseAddress(query);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     
     if (!query || query.length < 2) {
       setSuggestions([]);
-      if (!query) onChange('', null);
+      if (!query) {
+        internalChangeRef.current = true;
+        onChange('', null);
+      }
       return;
     }
 
@@ -74,12 +113,14 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
     const formattedName = suggestion.display_name;
     const coords = [parseFloat(suggestion.lon), parseFloat(suggestion.lat)];
     
+    setBaseAddress(formattedName);
     setInputValue(formattedName);
     setSelectedCoords(coords);
     setSuggestions([]);
     setShowSuggestions(false);
     setShowNumberField(true);
     setNumberValue('');
+    internalChangeRef.current = true;
     onChange(formattedName, coords);
     // Focus number field after render
     setTimeout(() => numberInputRef.current?.focus(), 100);
@@ -87,14 +128,18 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
 
   const handleNumberChange = (val) => {
     setNumberValue(val);
-    const fullAddress = val ? `${val}, ${inputValue}` : inputValue;
+    // Always compose from the stable baseAddress, never from inputValue
+    const fullAddress = val ? `${val}, ${baseAddress}` : baseAddress;
+    internalChangeRef.current = true;
     onChange(fullAddress, selectedCoords);
   };
 
   const clearInput = () => {
+    setBaseAddress('');
     setInputValue('');
     setSuggestions([]);
     setShowSuggestions(false);
+    internalChangeRef.current = true;
     onChange('', null);
   };
 
