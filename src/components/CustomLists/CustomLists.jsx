@@ -530,85 +530,40 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                 </div>
               </div>
 
-              {isMobile ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {items.length > 0 ? items.map(item => (
-                    <div key={item.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', opacity: item.completed ? 0.8 : 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <button onClick={() => toggleItemCompletion(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: 0 }}>
-                          {item.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-                          <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1rem' }}>{item.completed ? 'Concluído' : 'Pendente'}</span>
-                        </button>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 36, height: 36 }}><Edit2 size={16} /></button>
-                          <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 36, height: 36, color: 'var(--danger)' }}><Trash2 size={16} /></button>
-                        </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (selectedList.fields?.length <= 3 ? 'repeat(auto-fill, minmax(340px, 1fr))' : 'repeat(auto-fill, minmax(400px, 1fr))'), gap: '1rem' }}>
+                {items.length > 0 ? items.map(item => (
+                  <div key={item.id} className="glass-card custom-list-card" style={{ padding: isMobile ? '1.25rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', opacity: item.completed ? 0.7 : 1, transition: 'all 0.2s ease' }}>
+                    {/* Card Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <button onClick={() => toggleItemCompletion(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.6rem', padding: 0 }}>
+                        {item.completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                        <span style={{ fontWeight: 700, color: item.completed ? 'var(--success)' : 'var(--text-main)', fontSize: '0.9rem' }}>{item.completed ? 'Concluído' : 'Pendente'}</span>
+                      </button>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 34, height: 34 }}><Edit2 size={15} /></button>
+                        <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 34, height: 34, color: 'var(--danger)' }}><Trash2 size={15} /></button>
                       </div>
-                      
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px' }}>
-                        {selectedList.fields?.map(field => (
-                          <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>{field.name}</span>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 500 }}>
-                              {renderFieldContent(field, item)}
-                            </div>
+                    </div>
+                    
+                    {/* Card Body - Fields */}
+                    <div style={{ display: 'grid', gridTemplateColumns: selectedList.fields?.length <= 2 ? '1fr' : 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                      {selectedList.fields?.map(field => (
+                        <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{field.name}</span>
+                          <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 500 }}>
+                            {renderFieldContent(field, item)}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  )) : (
-                    <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.3 }}>
-                      <Box size={48} style={{ margin: '0 auto 1rem' }} />
-                      <p>Nenhum item nesta lista</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="glass-card" style={{ overflowX: 'auto', padding: '0.5rem' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: Math.max(600, (selectedList.fields?.length || 0) * 150 + 100) }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
-                        <th style={{ padding: '1rem', width: '48px' }}></th>
-                        {selectedList.fields?.map(field => (
-                          <th key={field.id} style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                            {field.name}
-                          </th>
-                        ))}
-                        <th style={{ padding: '1rem', width: '100px' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.length > 0 ? items.map(item => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid var(--glass-border)', opacity: item.completed ? 0.6 : 1, transition: '0.2s' }}>
-                          <td style={{ padding: '1rem' }}>
-                            <button onClick={() => toggleItemCompletion(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.completed ? 'var(--success)' : 'var(--text-muted)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {item.completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-                            </button>
-                          </td>
-                          {selectedList.fields?.map(field => (
-                            <td key={field.id} style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-main)', maxWidth: '250px' }}>
-                              {renderFieldContent(field, item)}
-                            </td>
-                          ))}
-                          <td style={{ padding: '1rem', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                              <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 36, height: 36 }}><Edit2 size={16} /></button>
-                              <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 36, height: 36, color: 'var(--danger)' }}><Trash2 size={16} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={(selectedList.fields?.length || 0) + 2} style={{ padding: '4rem', textAlign: 'center', opacity: 0.3 }}>
-                            <Box size={48} style={{ marginBottom: '1rem', color: 'var(--text-main)', margin: '0 auto' }} />
-                            <p style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>Nenhum item nesta lista ainda</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                  </div>
+                )) : (
+                  <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.3, gridColumn: '1 / -1' }}>
+                    <Box size={48} style={{ margin: '0 auto 1rem' }} />
+                    <p style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>Nenhum item nesta lista ainda</p>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <div className="glass-card" style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
