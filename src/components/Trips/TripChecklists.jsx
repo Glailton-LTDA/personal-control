@@ -504,6 +504,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                       <h3 
+                        data-testid={`checklist-title-${checklist.id}`}
                         style={{ margin: 0, fontSize: '1.15rem', color: 'var(--primary)', cursor: 'pointer' }}
                         onClick={() => toggleCollapse(checklist.id)}
                       >

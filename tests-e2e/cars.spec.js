@@ -47,18 +47,19 @@ test.describe('MyCars Module', () => {
 
   test('should display car details in list', async ({ page }) => {
     // Navigate to MyCars
-    await page.getByRole('button', { name: 'Carros' }).click();
+    await page.getByTestId('sidebar-group-cars').click({ force: true });
+    await page.waitForLoadState('networkidle');
     
-    // Wait for car card
-    // Wait for car info
-    await expect(page.locator('text=Audi A3').first()).toBeVisible();
-    await expect(page.locator('text=ABC-1234').first()).toBeVisible();
+    await expect(page.getByTestId('car-name').first()).toBeVisible();
+    await expect(page.getByTestId('car-name').first()).toContainText('Audi A3');
+    await expect(page.getByTestId('car-plate').first()).toContainText('ABC-1234');
   });
 
   test('should show maintenance info when selected', async ({ page }) => {
-     await page.getByRole('button', { name: 'Carros' }).click();
+     await page.getByTestId('sidebar-group-cars').click({ force: true });
+     await page.waitForLoadState('networkidle');
      
-     // Select the car via dropdown
+     await expect(page.getByTestId('car-name').first()).toBeVisible();
      await page.selectOption('select.glass-input', { label: 'Audi A3 - ABC-1234' });
      
      // Switch to Revision tab

@@ -263,21 +263,10 @@ export default function TripsList({
   const remainingBudget = totalBudget - totalSpent;
   const budgetProgress = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
-    if (isDetailsOpen) {
-      return (
-        <TripDetails 
-          trip={selectedTrip} expenses={expenses} showValues={showValues}
-          onBack={() => setIsDetailsOpen(false)} 
-          onEdit={() => onEditTrip(selectedTrip)}
-          onViewChecklists={() => { setIsDetailsOpen(false); onViewChecklists(); }} 
-        />
-      );
-    }
-
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="fade-in">
       
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 100 }}>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 100, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: isMobile ? '100%' : '400px' }}>
           <div 
             className="glass-card" onClick={() => setIsTripMenuOpen(!isTripMenuOpen)}
@@ -314,40 +303,67 @@ export default function TripsList({
           </AnimatePresence>
         </div>
 
-        {selectedTrip && (
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)} className="icon-btn" aria-label="Menu da Viagem" style={{ width: '46px', height: '46px', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px' }}><MoreVertical size={22} /></button>
-            <AnimatePresence>
-              {isActionsMenuOpen && (
-                <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 105 }} onClick={() => setIsActionsMenuOpen(false)} />
-                  <div className="glass-card fade-in" style={{ position: 'absolute', top: '110%', right: 0, width: '220px', padding: '0.5rem', zIndex: 110, border: '1px solid var(--glass-border)' }}>
-                    {[
-                      { icon: <Edit2 size={16} />, label: 'Editar Viagem', onClick: () => { if (onEditTrip) onEditTrip(selectedTrip); } },
-                      { 
-                        icon: <FileText size={16} />, 
-                        label: 'Detalhes da Viagem', 
-                        testId: 'view-trip-details-btn', 
-                        onClick: () => {
-                          if (onTripSelect) onTripSelect(selectedTrip);
-                          setIsDetailsOpen(true);
-                          if (setExternalIsDetailsOpen) setExternalIsDetailsOpen(true);
-                        } 
-                      },
-                      { icon: <ListTodo size={16} />, label: 'Checklist', testId: 'view-checklists-btn', onClick: () => { if (onViewChecklists) onViewChecklists(); } },
-                      { icon: <Map size={16} />, label: 'Roteiro da Viagem', testId: 'view-itinerary-btn', onClick: () => { if (onViewItinerary) onViewItinerary(); setIsActionsMenuOpen(false); } }
-                    ].map((item, idx) => (
-                      <button key={idx} data-testid={item.testId} onClick={() => { item.onClick(); setIsActionsMenuOpen(false); }} style={{ width: '100%', padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', transition: '0.2s', fontWeight: '600', fontSize: '0.85rem' }}><span style={{ color: 'var(--primary)' }}>{item.icon}</span>{item.label}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {selectedTrip?.currencies?.length > 0 && (
+            <div className="glass-card" style={{ display: 'flex', padding: '0.25rem', borderRadius: '12px', background: 'var(--bg-card)' }}>
+              {selectedTrip.currencies.map(currCode => {
+                const currData = CURRENCIES.find(c => c.code === currCode);
+                return (
+                  <button 
+                    key={currCode} 
+                    onClick={() => setActiveCurrency(currCode)} 
+                    style={{ padding: '0.5rem 0.75rem', border: 'none', borderRadius: '10px', background: activeCurrency === currCode ? 'var(--primary)' : 'transparent', color: activeCurrency === currCode ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.3rem', transition: '0.2s' }}
+                    data-testid={`currency-select-${currCode}`}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center' }}>{renderFlag(currData?.flag, '1rem')}</div>{!isMobile && currCode}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedTrip && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)} className="icon-btn" aria-label="Menu da Viagem" style={{ width: '46px', height: '46px', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px' }}><MoreVertical size={22} /></button>
+              <AnimatePresence>
+                {isActionsMenuOpen && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 105 }} onClick={() => setIsActionsMenuOpen(false)} />
+                    <div className="glass-card fade-in" style={{ position: 'absolute', top: '110%', right: 0, width: '220px', padding: '0.5rem', zIndex: 110, border: '1px solid var(--glass-border)' }}>
+                      {[
+                        { icon: <Edit2 size={16} />, label: 'Editar Viagem', onClick: () => { if (onEditTrip) onEditTrip(selectedTrip); } },
+                        { 
+                          icon: <FileText size={16} />, 
+                          label: 'Detalhes da Viagem', 
+                          testId: 'view-trip-details-btn', 
+                          onClick: () => {
+                            if (onTripSelect) onTripSelect(selectedTrip);
+                            setIsDetailsOpen(true);
+                            if (setExternalIsDetailsOpen) setExternalIsDetailsOpen(true);
+                          } 
+                        },
+                        { icon: <ListTodo size={16} />, label: 'Checklist', testId: 'view-checklists-btn', onClick: () => { if (onViewChecklists) onViewChecklists(); } },
+                        { icon: <Map size={16} />, label: 'Roteiro da Viagem', testId: 'view-itinerary-btn', onClick: () => { if (onViewItinerary) onViewItinerary(); setIsActionsMenuOpen(false); } }
+                      ].map((item, idx) => (
+                        <button key={idx} data-testid={item.testId} onClick={() => { item.onClick(); setIsActionsMenuOpen(false); }} style={{ width: '100%', padding: '0.75rem 1rem', border: 'none', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', transition: '0.2s', fontWeight: '600', fontSize: '0.85rem' }}><span style={{ color: 'var(--primary)' }}>{item.icon}</span>{item.label}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </div>
 
-      {selectedTrip && (
+      {isDetailsOpen ? (
+        <TripDetails 
+          trip={selectedTrip} expenses={expenses} showValues={showValues}
+          onBack={() => setIsDetailsOpen(false)} 
+          onEdit={() => onEditTrip(selectedTrip)}
+          onViewChecklists={() => { setIsDetailsOpen(false); onViewChecklists(); }} 
+        />
+      ) : selectedTrip ? (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Trip Summary Card (Mobile Only) */}
           {isMobile && selectedTrip && (
@@ -386,24 +402,6 @@ export default function TripsList({
               </div>
             </div>
           )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div className="glass-card" style={{ display: 'flex', padding: '0.25rem', borderRadius: '12px' }}>
-              {selectedTrip?.currencies?.map(currCode => {
-                const currData = CURRENCIES.find(c => c.code === currCode);
-                return (
-                  <button 
-                    key={currCode} 
-                    onClick={() => setActiveCurrency(currCode)} 
-                    style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '10px', background: activeCurrency === currCode ? 'var(--primary)' : 'transparent', color: activeCurrency === currCode ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: '0.2s' }}
-                    data-testid={`currency-select-${currCode}`}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center' }}>{renderFlag(currData?.flag)}</div>{currCode}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           {!isMobile && selectedTrip && (
             <div style={{ marginBottom: '1rem' }}>
@@ -629,6 +627,12 @@ export default function TripsList({
               )}
             </div>
           </div>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
+          <Plane size={48} style={{ opacity: 0.2, marginBottom: '1.5rem' }} />
+          <h3 style={{ margin: 0 }}>Nenhuma viagem selecionada</h3>
+          <p style={{ marginTop: '0.5rem' }}>Selecione uma viagem no menu acima para ver os detalhes.</p>
         </div>
       )}
 

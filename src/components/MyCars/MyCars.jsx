@@ -515,12 +515,14 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
           <div>
             <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Wrench size={18} style={{ color: car.is_hidden ? 'var(--text-muted)' : 'var(--primary)' }} /> 
-              {car.name}
+              <span data-testid="car-name">{car.name}</span>
               {car.is_hidden && (
                 <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: 'var(--text-muted)' }}>ARQUIVADO</span>
               )}
             </h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Status Geral do Veículo • <b>{car.plate}</b> • {(car.current_km || 0).toLocaleString()} KM</p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Status Geral do Veículo • <b data-testid="car-plate">{car.plate}</b> • <span data-testid="car-km">{(car.current_km || 0).toLocaleString()}</span> KM
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {isOwner && (

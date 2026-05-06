@@ -114,6 +114,9 @@ test.describe('Módulo de Viagens', () => {
     // Seleciona EUR para ver os gastos mockados
     await page.getByTestId('currency-select-EUR').click();
     
+    // Close details to see expenses in the list
+    await page.getByTestId('trip-details-back-btn').click();
+    
     await page.waitForTimeout(500);
     await expect(page.getByText('Jantar de Luxo').first()).toBeVisible();
     await expect(page.getByText('Uber Aeroporto').first()).toBeVisible();

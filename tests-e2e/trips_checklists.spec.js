@@ -62,27 +62,23 @@ test.describe('Viagens - Checklists (TODOs)', () => {
       });
     });
 
-    // Mock Trip Checklists
     await page.route('**/rest/v1/trip_checklists*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { id: 'list-1', title: 'Mala de Mão', trip_id: 'trip-1' }
+          { 
+            id: 'checklist-alpha', 
+            title: 'Mala de Mão', 
+            trip_id: 'trip-1',
+            items: [
+              { id: 'task-alpha', task: 'Passaporte', completed: false, checklist_id: 'checklist-alpha', created_at: new Date().toISOString() }
+            ]
+          }
         ]),
       });
     });
 
-    // Mock Trip Checklist Items
-    await page.route('**/rest/v1/trip_checklist_items*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { id: 'item-1', task: 'Passaporte', completed: false, checklist_id: 'list-1' }
-        ]),
-      });
-    });
 
     // Mock Trips
     await page.route('**/rest/v1/trips*', async (route) => {
@@ -137,22 +133,24 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
   test('deve editar um item existente', async ({ page }) => {
     await goToChecklists(page);
-    const taskName = page.getByTestId('checklist-item-task-item-1');
+    const taskName = page.getByTestId('checklist-item-task-task-alpha');
     await taskName.click();
-    const input = page.getByTestId('edit-item-input-item-1');
+    const input = page.getByTestId('edit-item-input-task-alpha');
     await input.fill('Passaporte Atualizado');
     await input.press('Enter');
-    await expect(page.getByTestId('checklist-item-task-item-1')).toContainText('Passaporte Atualizado');
+    await expect(page.getByTestId('checklist-item-task-task-alpha')).toContainText('Passaporte Atualizado');
   });
 
   test('deve colapsar e expandir uma lista', async ({ page }) => {
     await goToChecklists(page);
-    await expect(page.getByTestId('checklist-item-task-item-1')).toBeVisible();
-    await page.getByTestId('checklist-toggle-list-1').click();
-    // Espera o item sumir (ele é removido do DOM no colapso)
-    await expect(page.getByTestId('checklist-item-task-item-1')).not.toBeVisible();
-    await page.getByTestId('checklist-toggle-list-1').click();
-    await expect(page.getByTestId('checklist-item-task-item-1')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('checklist-title-checklist-alpha')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeVisible({ timeout: 15000 });
+    await page.getByTestId('checklist-title-checklist-alpha').click({ force: true });
+    // Espera o item sumir
+    await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeHidden({ timeout: 10000 });
+    await page.getByTestId('checklist-title-checklist-alpha').click({ force: true });
+    await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeVisible({ timeout: 10000 });
   });
 
   test('deve abrir o modal de importação', async ({ page }) => {

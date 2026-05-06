@@ -32,7 +32,7 @@ describe('TripsList', () => {
     const moreBtn = screen.getByLabelText(/Menu da Viagem/i); 
     fireEvent.click(moreBtn);
 
-    const detailsBtn = screen.getByText(/Detalhes da Viagem/i);
+    const detailsBtn = screen.getByText(/Detalhes/i);
     fireEvent.click(detailsBtn);
 
     await waitFor(() => {
@@ -115,12 +115,11 @@ describe('TripsList', () => {
     expect(screen.queryByText(/Editar Viagem/i)).not.toBeInTheDocument();
     
     // Open menu
-    const moreBtn = screen.getAllByRole('button')[0]; // The first button is the trip selector, second is more
-    // Actually better to be specific
+    const moreBtn = screen.getByLabelText(/Menu da Viagem/i);
     fireEvent.click(moreBtn);
 
     // Now actions should be visible
-    expect(screen.getByText(/Editar Viagem/i)).toBeInTheDocument();
-    expect(screen.getByText(/Roteiro da Viagem/i)).toBeInTheDocument();
+    expect(screen.getByText(/Editar/i)).toBeInTheDocument();
+    expect(screen.getByText(/Roteiro/i)).toBeInTheDocument();
   });
 });

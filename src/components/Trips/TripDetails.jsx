@@ -58,7 +58,7 @@ export default function TripDetails({ trip, onBack, onEdit, onViewChecklists, ex
         gap: isMobile ? '1.5rem' : '0'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={onBack} className="icon-btn" style={{ padding: '0.5rem' }}>
+          <button onClick={onBack} className="icon-btn" style={{ padding: '0.5rem' }} data-testid="trip-details-back-btn">
             <ChevronLeft size={24} />
           </button>
           <div>
