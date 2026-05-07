@@ -82,14 +82,15 @@ function ExpandableText({ text }) {
   );
 }
 
-function AutoResizeTextarea({ value, onChange, placeholder, className }) {
+function AutoResizeTextarea({ value, onChange, placeholder, className, style }) {
   const textareaRef = useRef(null);
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current;
     if (el) {
-      el.style.height = 'auto';
-      el.style.height = Math.max(el.scrollHeight, 44) + 'px';
+      el.style.height = '44px';
+      const newHeight = Math.max(el.scrollHeight, 44);
+      el.style.height = newHeight + 'px';
     }
   }, []);
 
@@ -112,7 +113,10 @@ function AutoResizeTextarea({ value, onChange, placeholder, className }) {
         resize: 'none',
         overflow: 'hidden',
         minHeight: '44px',
-        lineHeight: 1.5
+        lineHeight: 1.5,
+        paddingTop: '0.75rem',
+        paddingBottom: '0.75rem',
+        ...style
       }}
     />
   );
@@ -161,8 +165,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       const uniqueData = Array.from(new Map(allData.map(item => [item.id, item])).values());
 
       if (uniqueData) {
-        const decrypted = await decryptObject(uniqueData, ['name', 'description', 'fields.*.name'], { resourceType: 'LIST' });
-        setLists(decrypted);
+        setLists(uniqueData);
       }
     } catch (err) {
       console.error('Error fetching lists:', err);
@@ -193,10 +196,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       if (error) throw error;
       
       if (data) {
-        const decrypted = await decryptObject(data, ['content'], { 
-          resourceId: listId, 
-          resourceType: 'LIST' 
-        });
+        const decrypted = data;
         
         const itemsWithData = decrypted.map(item => ({
           ...item,
@@ -250,16 +250,14 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     }
     setIsSaving(true);
     try {
-      const encrypted = await encryptObject(newList, ['name', 'description', 'fields.*.name'], { resourceType: 'LIST' });
-      
       if (editingListId) {
         const { error } = await supabase
           .from('custom_lists')
           .update({
-            name: encrypted.name,
+            name: newList.name,
             icon: newList.icon,
-            description: encrypted.description,
-            fields: encrypted.fields
+            description: newList.description,
+            fields: newList.fields
           })
           .eq('id', editingListId);
         if (error) throw error;
@@ -269,10 +267,10 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           .from('custom_lists')
           .insert([{
             user_id: user.id,
-            name: encrypted.name,
+            name: newList.name,
             icon: newList.icon,
-            description: encrypted.description,
-            fields: encrypted.fields
+            description: newList.description,
+            fields: newList.fields
           }]);
         if (error) throw error;
         toast.success('Lista criada!');
@@ -324,10 +322,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     if (!selectedList) return;
     setIsSaving(true);
     try {
-      const encryptedContent = await encryptObject(JSON.stringify(itemData), [], {
-        resourceId: selectedList.id,
-        resourceType: 'LIST'
-      });
+      const encryptedContent = JSON.stringify(itemData);
 
       if (editingItem) {
         const { error } = await supabase
@@ -765,11 +760,6 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh, shareRes
     setIsLoading(true);
 
     try {
-      const keyShared = await shareResourceKey(list.id, 'LIST', email.toLowerCase().trim());
-      if (!keyShared) {
-        setIsLoading(false);
-        return;
-      }
 
       const { error } = await supabase.from('custom_list_shares').insert([{
         list_id: list.id,

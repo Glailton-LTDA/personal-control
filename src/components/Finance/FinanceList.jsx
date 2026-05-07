@@ -196,38 +196,13 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     const item = overrideItem || selectedItemForEmail;
     if (!item) return;
 
-    const formattedAmount = `R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-    const formattedDate = new Date(item.payment_date).toLocaleDateString('pt-BR');
-    const statusLabel = item.status === 'PAGO' ? 'Pago ✅' : 'Pendente ⏳';
-
-    const emailHtml = `
-      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
-        <div style="background: #0f172a; padding: 20px; text-align: center; color: white;">
-          <h2 style="margin: 0; font-size: 1.2rem;">Confirmação de Transação</h2>
-        </div>
-        <div style="padding: 20px;">
-          <p>Olá! Seguem os detalhes da transação:</p>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Descrição:</strong> ${item.description}</p>
-            <p style="margin: 5px 0;"><strong>Valor:</strong> <span style="color: ${item.type === 'RECEITA' ? '#10b981' : '#ef4444'}">${formattedAmount}</span></p>
-            <p style="margin: 5px 0;"><strong>Data:</strong> ${formattedDate}</p>
-            <p style="margin: 5px 0;"><strong>Categoria:</strong> ${item.category}</p>
-            <p style="margin: 5px 0;"><strong>Status:</strong> ${statusLabel}</p>
-          </div>
-          <p style="text-align: center; font-style: italic; color: #64748b; margin-top: 30px;">
-            🐈 Ufa! Estamos livres dessa conta! Até que enfim! 💸
-          </p>
-        </div>
-      </div>
-    `;
-
     try {
       setEmailLoading(true);
       const { error: fnError } = await supabase.functions.invoke('send-finance-email', {
         body: { 
           to: recipientEmail,
           subject: `${item.type === 'RECEITA' ? 'Receita' : 'Despesa'} registrada: ${item.description}`,
-          html: emailHtml,
+          data: item,
           bcc: notificationSettings?.bcc_email
         }
       });
