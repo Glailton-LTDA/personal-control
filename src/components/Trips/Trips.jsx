@@ -7,21 +7,21 @@ import TripForm from './TripForm';
 import ExpenseModal from './ExpenseModal';
 import TripChecklists from './TripChecklists';
 import TripsStats from './TripsStats';
-import { Plus, TrendingUp } from 'lucide-react';
-import { useEncryption } from '../../contexts/EncryptionContext';
+import { Plus, TrendingUp, DollarSign } from 'lucide-react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 export default function Trips({ user, refreshKey, mode, showValues }) {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [trips, setTrips] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
-  const { decryptObject, isUnlocked } = useEncryption();
   
-  // New state for page-based navigation within Trips module
+  // Navigation state within Trips module
   const [currentView, setCurrentView] = useState(() => {
-    const savedView = localStorage.getItem('pc_trips_view_v1');
+    const savedView = localStorage.getItem('pc_trips_view_v2');
     if (mode === 'settings') return 'settings';
     if (mode === 'itinerary') return 'itinerary';
     if (mode === 'checklists') return 'checklists';
@@ -30,27 +30,30 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   });
   const [editingTrip, setEditingTrip] = useState(null);
 
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Persist currentView
   useEffect(() => {
     if (currentView !== 'form') {
-      localStorage.setItem('pc_trips_view_v1', currentView);
+      localStorage.setItem('pc_trips_view_v2', currentView);
     }
   }, [currentView]);
 
   useEffect(() => {
-    // If mode prop changes, update currentView only if it's an explicit navigation
     if (mode === 'settings') setCurrentView('settings');
     else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'checklists') setCurrentView('checklists');
     else if (mode === 'stats') setCurrentView('stats');
-    else if (mode === 'list') {
-      setCurrentView('main');
-    }
+    else if (mode === 'list') setCurrentView('main');
   }, [mode]);
 
-  const STORAGE_KEY = 'pc_selected_trip_v1';
+  const STORAGE_KEY = 'pc_selected_trip_v2';
 
-  // Persistent Selected Trip - SAVING
+  // Persistent Selected Trip
   useEffect(() => {
     if (selectedTrip && selectedTrip.id && !selectedTrip._isPlaceholder) {
       localStorage.setItem(STORAGE_KEY, selectedTrip.id);
@@ -59,79 +62,57 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
 
   const fetchTrips = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
+    const { data, error } = await supabase
+      .from('trips')
+      .select('*')
+      .order('start_date', { ascending: false });
     
+    if (error) {
+      console.error('Error fetching trips:', error);
+      return;
+    }
+
     if (data && data.length > 0) {
-      const decryptedTrips = await decryptObject(data, [
-        'title', 
-        'cities.*', 
-        'countries.*',
-        'participants.*',
-        'hotels.*.name',
-        'hotels.*.address',
-        'hotels.*.confirmation',
-        'hotels.*.notes',
-        'transports.*.name',
-        'transports.*.confirmation',
-        'transports.*.origin',
-        'transports.*.destination',
-        'transports.*.transport_id',
-        'transports.*.coach',
-        'transports.*.seats.*',
-        'transports.*.notes',
-        'tickets.*.name',
-        'tickets.*.address',
-        'tickets.*.confirmation',
-        'tickets.*.notes',
-        'misc_docs.*.name',
-        'misc_docs.*.notes'
-      ], { resourceType: 'TRIP' });
-      setTrips(decryptedTrips);
+      setTrips(data);
       
       const savedTripId = localStorage.getItem(STORAGE_KEY);
       
       setSelectedTrip(current => {
-        // Se já temos uma viagem selecionada, tentamos atualizar os dados dela a partir do novo fetch
         if (current?.id && !current._isPlaceholder) {
-          const updated = decryptedTrips.find(t => String(t.id) === String(current.id));
+          const updated = data.find(t => String(t.id) === String(current.id));
           return updated || current;
         }
         
-        // Se não temos nada, tentamos o localStorage
         if (savedTripId) {
-          const saved = decryptedTrips.find(t => String(t.id) === String(savedTripId));
+          const saved = data.find(t => String(t.id) === String(savedTripId));
           if (saved) return saved;
         }
 
-        // Fallback: Primeira viagem
-        return decryptedTrips[0];
+        return data[0];
       });
     }
-  }, [user, decryptObject]);
+  }, [user]);
 
   const fetchCategories = useCallback(async () => {
     const targetUserId = selectedTrip?.user_id || user?.id;
     if (!targetUserId) return;
-    const { data } = await supabase.from('trip_categories').select('*').eq('user_id', targetUserId).order('name', { ascending: true });
+    const { data } = await supabase
+      .from('trip_categories')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .order('name', { ascending: true });
     if (data) {
-      // Categories are currently master-key encrypted but scoped to owner
-      const decryptedCats = await decryptObject(data, ['name'], {
-        resourceId: selectedTrip?.id,
-        resourceType: 'TRIP'
-      });
-      setCategories(decryptedCats);
+      setCategories(data);
     }
-  }, [selectedTrip?.user_id, user?.id, decryptObject]);
+  }, [selectedTrip?.user_id, user?.id]);
 
-  // Initial fetch or explicit refresh
   useEffect(() => {
     fetchTrips();
-  }, [user, refreshKey, localRefreshKey, fetchTrips, isUnlocked]);
+  }, [user, refreshKey, localRefreshKey, fetchTrips]);
 
-  // Category fetch depends on selected trip
   useEffect(() => {
     fetchCategories();
-  }, [user, selectedTrip?.user_id, fetchCategories, isUnlocked]);
+  }, [user, selectedTrip?.user_id, fetchCategories]);
 
   const handleExpenseSaved = () => {
     setIsAddingExpense(false);
@@ -149,6 +130,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     setEditingTrip(null);
   };
 
+  // Rendering Views
   if (currentView === 'form') {
     return (
       <TripForm 
@@ -232,35 +214,44 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         onViewItinerary={() => setCurrentView('itinerary')}
       />
 
-      {/* FAB - Global Trip Expense Trigger */}
-      {selectedTrip && (
-        <button
-          onClick={() => setIsAddingExpense(true)}
-// ... rest of the file
-          style={{
-            position: 'fixed',
-            bottom: '2rem',
-            right: '2rem',
-            width: '60px',
-            height: '60px',
-            borderRadius: '18px',
-            background: 'var(--primary)',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 10px 25px rgba(99, 102, 241, 0.4)',
-            border: 'none',
-            cursor: 'pointer',
-            zIndex: 100,
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-          className="fab-hover"
-          title="Novo Gasto de Viagem"
-        >
-          <Plus size={32} />
-        </button>
-      )}
+      {/* Premium FAB - Global Trip Expense Trigger */}
+      <AnimatePresence>
+        {selectedTrip && currentView === 'main' && (
+          <Motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            whileHover={{ scale: 1.05, y: -5 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsAddingExpense(true)}
+            style={{
+              position: 'fixed',
+              bottom: '2.5rem',
+              right: '2.5rem',
+              height: '64px',
+              padding: '0 1.5rem',
+              borderRadius: '20px',
+              background: 'var(--primary)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.75rem',
+              boxShadow: '0 15px 35px -5px rgba(99, 102, 241, 0.5)',
+              border: 'none',
+              cursor: 'pointer',
+              zIndex: 100,
+              fontWeight: '900',
+              fontSize: '0.9rem',
+              letterSpacing: '0.02em'
+            }}
+            title="Novo Gasto de Viagem"
+          >
+            <Plus size={24} strokeWidth={3} />
+            {!isMobile && <span>NOVA DESPESA</span>}
+          </Motion.button>
+        )}
+      </AnimatePresence>
 
       {isAddingExpense && (
         <ExpenseModal 
@@ -271,17 +262,6 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
           onSave={handleExpenseSaved}
         />
       )}
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        .fab-hover:hover {
-          transform: scale(1.1) translateY(-5px);
-          box-shadow: 0 15px 30px rgba(99, 102, 241, 0.5);
-          filter: brightness(1.1);
-        }
-        .fab-hover:active {
-          transform: scale(0.95);
-        }
-      `}} />
     </div>
   );
 }

@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { motion as Motion } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, Ticket, Users, Calendar, ArrowLeft, Map, FileText } from 'lucide-react';
+import { 
+  Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, 
+  Ticket, Users, Calendar, ArrowLeft, Map, FileText, Info
+} from 'lucide-react';
 import CurrencySelector from './CurrencySelector';
 import BadgeInput from './BadgeInput';
 import CityBadgeInput from './CityBadgeInput';
 import AttachmentManager from './AttachmentManager';
-import ItineraryManager from './ItineraryManager';
 import toast from 'react-hot-toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TripForm({ user, trip, onBack, onSave }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-  const { encryptObject } = useEncryption();
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -60,8 +61,6 @@ export default function TripForm({ user, trip, onBack, onSave }) {
     itinerary: Array.isArray(trip?.itinerary) ? trip.itinerary : []
   });
 
-  const [isSaving, setIsSaving] = useState(false);
-
   useEffect(() => {
     const handleAddToTickets = (e) => {
       const ticket = e.detail;
@@ -77,57 +76,32 @@ export default function TripForm({ user, trip, onBack, onSave }) {
 
   async function handleSubmit(e) {
     if (e) e.preventDefault();
+    if (!formData.title) {
+      toast.error('O título da viagem é obrigatório');
+      return;
+    }
+
     setIsSaving(true);
     
-    // For new trips, we pre-generate the ID to use it as the resourceId for encryption
     const tripId = trip?.id || crypto.randomUUID();
 
-    const encryptedPayload = await encryptObject(formData, [
-      'title',
-      'cities.*',
-      'countries.*',
-      'participants.*',
-      'hotels.*.name',
-      'hotels.*.address',
-      'hotels.*.confirmation',
-      'hotels.*.notes',
-      'transports.*.name',
-      'transports.*.confirmation',
-      'transports.*.origin',
-      'transports.*.destination',
-      'transports.*.transport_id',
-      'transports.*.coach',
-      'transports.*.seats.*',
-      'transports.*.notes',
-      'tickets.*.name',
-      'tickets.*.address',
-      'tickets.*.confirmation',
-      'tickets.*.notes',
-      'misc_docs.*.name',
-      'misc_docs.*.notes'
-    ], { 
-      resourceId: tripId, 
-      resourceType: 'TRIP', 
-      isCreation: !trip 
-    });
-
     const payload = {
-      id: tripId, // Use the pre-generated or existing ID
+      id: tripId,
       user_id: user.id,
-      title: encryptedPayload.title,
-      cities: encryptedPayload.cities,
-      countries: encryptedPayload.countries,
-      hotels: encryptedPayload.hotels,
-      transports: encryptedPayload.transports,
-      tickets: encryptedPayload.tickets,
-      misc_docs: encryptedPayload.misc_docs,
+      title: formData.title,
+      cities: formData.cities,
+      countries: formData.countries,
+      hotels: formData.hotels,
+      transports: formData.transports,
+      tickets: formData.tickets,
+      misc_docs: formData.misc_docs,
       daily_limits: Object.fromEntries(
         Object.entries(formData.daily_limits).map(([k, v]) => [k, parseFloat(String(v).replace(',', '.')) || 0])
       ),
       currencies: formData.currencies,
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
-      participants: encryptedPayload.participants
+      participants: formData.participants
     };
 
     let result;
@@ -147,192 +121,222 @@ export default function TripForm({ user, trip, onBack, onSave }) {
 
   return (
     <Motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -15 }}
       className="fade-in"
-      style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '5rem' }}
+      style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '8rem' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
+      {/* Header with Back Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
         <button 
           onClick={onBack}
+          className="action-btn"
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '0.75rem', 
-            color: 'var(--text-main)', 
-            fontWeight: '700',
+            color: 'white', 
+            fontWeight: '800',
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid var(--glass-border)',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '14px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
+            padding: '0.75rem 1.25rem',
+            borderRadius: '16px',
+            fontSize: '0.9rem',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
-          className="back-btn-hover"
         >
-          <ArrowLeft size={20} /> 
-          <span style={{ fontSize: '0.95rem' }}>Voltar</span>
+          <ArrowLeft size={20} className="text-primary" /> 
+          <span>VOLTAR</span>
         </button>
         <div style={{ textAlign: 'right' }}>
-           <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-main)' }}>
-             {trip ? 'Editar Viagem' : 'Nova Viagem'}
+           <h2 style={{ margin: 0, fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: '900', color: 'white', letterSpacing: '-0.02em', lineHeight: 1 }}>
+             {trip ? 'EDITAR VIAGEM' : 'NOVA VIAGEM'}
            </h2>
-           <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-             {trip ? 'Atualize os detalhes da jornada' : 'Comece a planejar sua aventura'}
+           <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '700', letterSpacing: '0.05em' }}>
+             {trip ? 'ATUALIZE SUA JORNADA' : 'PLANEJE SUA PRÓXIMA AVENTURA'}
            </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         
-        {/* Basic Info Card */}
-        <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Plane size={20} className="text-primary" /> Informações Básicas
-          </h3>
+        {/* Basic Info Section */}
+        <section className="glass-card" style={{ padding: isMobile ? '1.5rem' : '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', borderRadius: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
+              <Plane size={24} className="text-primary" />
+            </div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>INFORMAÇÕES ESSENCIAIS</h3>
+          </div>
           
-          <div>
-            <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}>Título da Viagem</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>TÍTULO DA VIAGEM</label>
             <input 
               required className="glass-input" 
-              style={{ width: '100%', padding: '1rem 1.25rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '12px', fontSize: '1.1rem', fontWeight: '600' }} 
-              value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ex: Férias no Peru" 
+              style={{ 
+                width: '100%', 
+                padding: '1.25rem', 
+                background: 'rgba(255,255,255,0.03)', 
+                border: '1px solid var(--glass-border)', 
+                color: 'white', 
+                borderRadius: '16px', 
+                fontSize: '1.25rem', 
+                fontWeight: '900',
+                transition: '0.3s'
+              }} 
+              value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ex: Férias no Peru 2024" 
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', gridAutoFlow: 'row dense' }}>
-            <div className="mobile-full">
-              <CityBadgeInput 
-                label="Locais Visitados" 
-                icon={MapPin} 
-                values={formData.cities} 
-                placeholder="Ex: Londres, Reino Unido..."
-                onValuesChange={(newValues) => {
-                  // Update cities
-                  setFormData(prev => {
-                    const next = {...prev, cities: newValues};
-                    
-                    // Automatically derive countries from the "City, Country" strings
-                    const derivedCountries = new Set(prev.countries);
-                    newValues.forEach(val => {
-                      const parts = val.split(',').map(p => p.trim());
-                      if (parts.length > 1) {
-                        derivedCountries.add(parts[parts.length - 1]);
-                      }
-                    });
-                    
-                    next.countries = Array.from(derivedCountries);
-                    return next;
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '2rem' }}>
+            <CityBadgeInput 
+              label="LOCAIS VISITADOS" 
+              icon={MapPin} 
+              values={formData.cities} 
+              placeholder="Ex: Cusco, Peru..."
+              onValuesChange={(newValues) => {
+                setFormData(prev => {
+                  const next = {...prev, cities: newValues};
+                  const derivedCountries = new Set(prev.countries);
+                  newValues.forEach(val => {
+                    const parts = val.split(',').map(p => p.trim());
+                    if (parts.length > 1) {
+                      derivedCountries.add(parts[parts.length - 1]);
+                    }
                   });
-                }} 
-              />
-            </div>
-            <div className="mobile-full">
-              <BadgeInput 
-                label="Países Detectados" 
-                icon={Globe} 
-                values={formData.countries} 
-                placeholder="Identificados automaticamente..."
-                onValuesChange={(newValues) => setFormData({...formData, countries: newValues})} 
-                readOnly={true}
-              />
-            </div>
+                  next.countries = Array.from(derivedCountries);
+                  return next;
+                });
+              }} 
+            />
+            <BadgeInput 
+              label="PAÍSES DETECTADOS" 
+              icon={Globe} 
+              values={formData.countries} 
+              placeholder="Detectados automaticamente..."
+              onValuesChange={(newValues) => setFormData({...formData, countries: newValues})} 
+              readOnly={true}
+            />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
-            <div>
-              <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Calendar size={16} /> Início</label>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={16} className="text-primary" /> DATA DE INÍCIO
+              </label>
               <input 
                 type="date" className="glass-input" 
-                style={{ width: '100%', padding: '1rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '12px' }} 
+                style={{ width: '100%', padding: '1.15rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '16px', fontWeight: '800' }} 
                 value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} 
               />
             </div>
-            <div>
-              <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Calendar size={16} /> Fim</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={16} className="text-primary" /> DATA DE TÉRMINO
+              </label>
               <input 
                 type="date" className="glass-input" 
-                style={{ width: '100%', padding: '1rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '12px' }} 
+                style={{ width: '100%', padding: '1.15rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '16px', fontWeight: '800' }} 
                 value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} 
               />
             </div>
           </div>
-        </div>
+        </section>
 
-
-        {/* Attachments Card */}
-        <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Building size={20} className="text-primary" /> Hospedagens e Transportes
-          </h3>
+        {/* Assets & Logistics Section */}
+        <section className="glass-card" style={{ padding: isMobile ? '1.5rem' : '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', borderRadius: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
+              <Building size={24} className="text-primary" />
+            </div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>LOGÍSTICA E ANEXOS</h3>
+          </div>
           
-          <AttachmentManager 
-            label="Hospedagens (Hotéis/Airbnbs)" 
-            icon={Building} 
-            items={formData.hotels} 
-            tripId={trip?.id || 'new'}
-            onItemsChange={(newItems) => setFormData({...formData, hotels: newItems})} 
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <AttachmentManager 
+              label="HOSPEDAGENS" 
+              icon={Building} 
+              items={formData.hotels} 
+              tripId={trip?.id || 'new'}
+              onItemsChange={(newItems) => setFormData({...formData, hotels: newItems})} 
+            />
+            <AttachmentManager 
+              label="TRANSPORTES" 
+              icon={Car} 
+              items={formData.transports} 
+              tripId={trip?.id || 'new'}
+              onItemsChange={(newItems) => setFormData({...formData, transports: newItems})} 
+            />
+            <AttachmentManager 
+              label="INGRESSOS & TICKETS" 
+              icon={Ticket} 
+              items={formData.tickets} 
+              tripId={trip?.id || 'new'}
+              onItemsChange={(newItems) => setFormData({...formData, tickets: newItems})} 
+              defaultExpanded={false}
+            />
+            <AttachmentManager 
+              label="DOCUMENTOS" 
+              icon={FileText} 
+              items={formData.misc_docs} 
+              tripId={trip?.id || 'new'}
+              onItemsChange={(newItems) => setFormData({...formData, misc_docs: newItems})} 
+              defaultExpanded={false}
+            />
+          </div>
+        </section>
 
-          <AttachmentManager 
-            label="Transportes (Voos/Trens/Aluguéis)" 
-            icon={Car} 
-            items={formData.transports} 
-            tripId={trip?.id || 'new'}
-            onItemsChange={(newItems) => setFormData({...formData, transports: newItems})} 
-          />
-
-          <AttachmentManager 
-            label="Passeios, Ingressos e Tickets" 
-            icon={Ticket} 
-            items={formData.tickets} 
-            tripId={trip?.id || 'new'}
-            onItemsChange={(newItems) => setFormData({...formData, tickets: newItems})} 
-            defaultExpanded={false}
-          />
-
-          <AttachmentManager 
-            label="Documentos Diversos (Seguros/Recibos)" 
-            icon={FileText} 
-            items={formData.misc_docs} 
-            tripId={trip?.id || 'new'}
-            onItemsChange={(newItems) => setFormData({...formData, misc_docs: newItems})} 
-            defaultExpanded={false}
-          />
-        </div>
-
-        {/* Participants and Money Card */}
-        <div className="glass-card" style={{ padding: isMobile ? '1.25rem' : '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', border: '1px solid var(--glass-border)' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Users size={20} className="text-primary" /> Participantes e Fianças
-          </h3>
+        {/* Finance & Participants Section */}
+        <section className="glass-card" style={{ padding: isMobile ? '1.5rem' : '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', borderRadius: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
+              <Users size={24} className="text-primary" />
+            </div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>PARTICIPANTES E GESTÃO FINANCEIRA</h3>
+          </div>
 
           <BadgeInput 
-            label="Participantes" 
+            label="PARTICIPANTES" 
             icon={Users} 
             values={formData.participants} 
-            placeholder="Glailton, Deisianne..."
+            placeholder="Ex: Glailton, Deisianne..."
             onValuesChange={(newValues) => setFormData({...formData, participants: newValues})} 
           />
 
-          <div>
-            <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><DollarSign size={16} /> Moedas Disponíveis</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <DollarSign size={16} className="text-primary" /> MOEDAS ATIVAS
+            </label>
             <CurrencySelector 
               selectedCurrencies={formData.currencies} 
               onSelectionChange={(newSelection) => setFormData({...formData, currencies: newSelection})}
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><DollarSign size={16} /> Limites Diários por Moeda</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+               <Info size={16} className="text-primary" />
+               <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>LIMITES DIÁRIOS SUGERIDOS</label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.25rem' }}>
               {formData.currencies.map(curr => (
-                <div key={curr} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700' }}>{curr}</span>
+                <div key={curr} className="glass-card" style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '18px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.75rem', transition: '0.3s' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'white', fontWeight: '900' }}>{curr}</span>
                   <input 
                     type="text" 
                     className="glass-input" 
-                    style={{ width: '100%', padding: '0.75rem', background: 'var(--input-bg)', border: 'none', color: 'var(--text-main)', borderRadius: '8px', fontSize: '1rem', fontWeight: '700' }} 
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.85rem', 
+                      background: 'rgba(255,255,255,0.03)', 
+                      border: '1px solid rgba(255,255,255,0.1)', 
+                      color: 'var(--primary)', 
+                      borderRadius: '12px', 
+                      fontSize: '1.15rem', 
+                      fontWeight: '900',
+                      textAlign: 'right'
+                    }} 
                     value={formData.daily_limits[curr] || ''} 
                     placeholder="0,00"
                     onChange={e => {
@@ -355,46 +359,58 @@ export default function TripForm({ user, trip, onBack, onSave }) {
               ))}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Global Save Button */}
+        {/* Fixed Action Bar */}
         <div style={{ 
-          position: 'sticky', bottom: '1rem', zIndex: 10,
-          background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(12px)',
-          padding: '1rem', borderRadius: '20px', 
+          position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+          width: 'calc(100% - 3rem)', maxWidth: '800px',
+          background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(20px)',
+          padding: '1rem', borderRadius: '24px', 
           border: '1px solid var(--glass-border)',
-          display: 'flex', gap: '1rem'
+          display: 'flex', gap: '1rem',
+          zIndex: 100,
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
         }}>
            <button 
              type="button" 
              onClick={onBack}
-             className="btn-cancel" 
-             style={{ flex: 1, padding: '1.25rem' }}
+             className="btn" 
+             style={{ 
+               flex: 1, 
+               padding: '1.15rem', 
+               background: 'rgba(255,255,255,0.05)', 
+               borderRadius: '18px', 
+               fontWeight: '900', 
+               fontSize: '0.9rem',
+               color: 'white',
+               border: '1px solid var(--glass-border)'
+             }}
            >
-             Cancelar
+             CANCELAR
            </button>
            <button 
              type="submit" 
              disabled={isSaving}
-             className="btn" 
-             style={{ flex: 2, padding: '1.25rem', background: 'var(--primary)', color: 'white', fontWeight: '800', fontSize: '1.1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 10px 25px rgba(99,102,241,0.5)' }}
+             className="btn-primary" 
+             style={{ 
+               flex: 2, 
+               padding: '1.15rem', 
+               borderRadius: '18px', 
+               display: 'flex', 
+               alignItems: 'center', 
+               justifyContent: 'center', 
+               gap: '0.75rem', 
+               fontSize: '1rem', 
+               fontWeight: '900',
+               boxShadow: '0 12px 24px -6px rgba(99, 102, 241, 0.5)'
+             }}
            >
-             {isSaving ? 'Salvando...' : <><Save size={22} /> {trip ? 'Atualizar Viagem' : 'Criar Viagem'}</>}
+             {isSaving ? 'SALVANDO...' : <><Save size={22} /> {trip ? 'ATUALIZAR VIAGEM' : 'CRIAR VIAGEM'}</>}
            </button>
         </div>
       </form>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media (max-width: 768px) {
-          .mobile-full {
-             grid-column: span 2;
-          }
-        }
-        .back-btn-hover:hover {
-          background: rgba(255, 255, 255, 0.1) !important;
-          transform: translateX(-3px);
-        }
-      `}} />
     </Motion.div>
   );
 }
+

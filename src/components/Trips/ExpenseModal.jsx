@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { X, Save, DollarSign, Calendar, Tag, Users, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const [categories, setCategories] = useState(initialCategories || []);
-  const { encryptObject, decryptObject } = useEncryption();
   const formatDateToDisplay = (dateStr) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
@@ -72,18 +70,14 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     async function fetchCategories() {
       const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
       if (data) {
-        const decrypted = await decryptObject(data, ['name'], {
-          resourceId: trip?.id,
-          resourceType: 'TRIP'
-        });
-        setCategories(decrypted);
+        setCategories(data);
       }
     }
 
     if (!initialCategories || initialCategories.length === 0) {
       fetchCategories();
     }
-  }, [initialCategories, user.id, decryptObject]);
+  }, [initialCategories, user.id]);
 
   const handleDateChange = (e) => {
     const val = e.target.value.replace(/\D/g, '');
@@ -143,11 +137,6 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       return;
     }
 
-    const encrypted = await encryptObject(formData, ['description', 'paid_by'], {
-      resourceId: trip.id,
-      resourceType: 'TRIP'
-    });
-    
     const numericAmount = parseFloat(String(formData.amount).replace(',', '.'));
     if (isNaN(numericAmount)) {
       toast.error('Por favor, insira um valor válido');
@@ -157,11 +146,11 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     const payload = {
       user_id: user.id,
       trip_id: trip.id,
-      description: encrypted.description,
+      description: formData.description,
       amount: numericAmount,
       currency: formData.currency,
       date: isoDate,
-      paid_by: encrypted.paid_by,
+      paid_by: formData.paid_by,
       category_id: formData.category_id || null,
       receipt_url: formData.receipt_url
     };
@@ -441,14 +430,5 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
         </div>
       </div>
     </div>
-  );
-}
-
-function PlusIcon({ size, color }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19"></line>
-      <line x1="5" y1="12" x2="19" y2="12"></line>
-    </svg>
   );
 }

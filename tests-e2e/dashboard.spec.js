@@ -63,6 +63,10 @@ test.describe('Autenticação e Dashboard', () => {
     // Espera a navegação e carregamento inicial
     await page.waitForLoadState('networkidle');
 
+    // Navega para Finanças via Launchpad
+    await page.getByTestId('launchpad-item-finances').click();
+    await page.waitForLoadState('networkidle');
+
     // Verifica dados mockados nos cards específicos
     const incomeCard = page.locator('.glass-card', { hasText: /Receita (Anual|Mensal)/i });
     const balanceCard = page.locator('.glass-card', { hasText: /Saldo Final/i });
@@ -76,6 +80,11 @@ test.describe('Autenticação e Dashboard', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.click('button:has-text("Entrar")');
+    await page.waitForLoadState('networkidle');
+    await unlockApp(page);
+    
+    // Navega para Finanças via Launchpad
+    await page.getByTestId('launchpad-item-finances').click();
     await page.waitForLoadState('networkidle');
 
     // Valor deve estar visível inicialmente
@@ -95,25 +104,5 @@ test.describe('Autenticação e Dashboard', () => {
     await expect(incomeValue).toBeVisible();
   });
 
-  test('deve colapsar e expandir seções do menu lateral', async ({ page }) => {
-    await page.goto('/');
-    await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'password123');
-    await page.click('button:has-text("Entrar")');
-    await page.waitForLoadState('networkidle');
-
-    // A seção "FINANÇAS" deve estar expandida por padrão e mostrar "Transações"
-    const transactionsLink = page.getByRole('button', { name: 'Transações' });
-    await expect(transactionsLink).toBeVisible();
-
-    // Clica no header da seção (o label pequeno "Finanças")
-    await page.click('small:has-text("Finanças")');
-
-    // "Transações" deve estar oculto
-    await expect(transactionsLink).not.toBeVisible();
-
-    // Clica novamente para expandir
-    await page.click('small:has-text("Finanças")');
-    await expect(transactionsLink).toBeVisible();
-  });
+  // O teste de colapsar menu lateral foi removido pois a navegação agora é superior (Orbit Layout)
 });

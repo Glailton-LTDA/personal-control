@@ -8,10 +8,8 @@ import AttachmentManager from './AttachmentManager';
 import { CURRENCIES } from '../../constants/currencies';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip, onSelectTrip }) {
-  const { decryptObject } = useEncryption();
   const [activeTab, setActiveTab] = useState('trips'); // 'trips', 'categories', 'shares'
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -53,61 +51,25 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
     if (!user) return;
     const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
     if (data) {
-      const decrypted = await decryptObject(data, [
-        'title', 
-        'cities.*', 
-        'countries.*',
-        'participants.*',
-        'hotels.*.name',
-        'hotels.*.address',
-        'hotels.*.confirmation',
-        'hotels.*.notes',
-        'transports.*.name',
-        'transports.*.confirmation',
-        'transports.*.origin',
-        'transports.*.destination',
-        'transports.*.transport_id',
-        'transports.*.coach',
-        'transports.*.seats.*',
-        'transports.*.notes',
-        'tickets.*.name',
-        'tickets.*.address',
-        'tickets.*.confirmation',
-        'tickets.*.notes',
-        'misc_docs.*.name',
-        'misc_docs.*.notes'
-      ], { resourceType: 'TRIP' });
-      setTrips(decrypted);
+      setTrips(data);
     }
-  }, [user, decryptObject]);
+  }, [user]);
 
   const fetchCategories = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
     if (data) {
-      const decrypted = await decryptObject(data, ['name']);
-      setCategories(decrypted);
+      setCategories(data);
     }
-  }, [user, decryptObject]);
+  }, [user]);
 
   const fetchShares = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase.from('trip_shares').select('*, trips(title)').eq('shared_by', user.id);
     if (data) {
-      // Decrypt trip titles inside shares
-      const decrypted = await Promise.all(data.map(async (share) => {
-        if (share.trips) {
-          const decTrip = await decryptObject([share.trips], ['title'], { 
-            resourceId: share.trip_id, 
-            resourceType: 'TRIP' 
-          });
-          return { ...share, trips: decTrip[0] };
-        }
-        return share;
-      }));
-      setShares(decrypted);
+      setShares(data);
     }
-  }, [user, decryptObject]);
+  }, [user]);
 
   useEffect(() => {
     fetchTrips();
@@ -240,7 +202,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+            <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
               {trips.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>Nenhuma viagem cadastrada.</div>}
               {trips.map(trip => (
                 <div key={trip.id} className="glass-card item-card" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1px solid var(--glass-border)', transition: 'transform 0.2s', borderRadius: '20px' }}>
@@ -290,7 +252,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                     <div className="actions-row" style={{ justifyContent: 'center', width: '100%' }}>
                       {(trip.user_id === user.id || localStorage.getItem('pc_e2e_test') === 'true') ? (
                         <>
-                          <button className="action-btn" data-testid="edit-trip-button" onClick={() => onEditTrip(trip)} title="Editar">
+                          <button className="action-btn" data-testid="edit-trip-btn" onClick={() => onEditTrip(trip)} title="Editar">
                             <Edit size={18} />
                           </button>
                           <button 
@@ -376,7 +338,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
               {categories.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>Nenhuma categoria cadastrada.</div>}
               {categories.map(cat => (
                 <div key={cat.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
@@ -556,21 +518,13 @@ function ShareModal({ user, trips, onClose, onSave }) {
   const [tripId, setTripId] = useState('');
   const [email, setEmail] = useState('');
   const [isSharing, setIsSharing] = useState(false);
-  const { shareResourceKey } = useEncryption();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setIsSharing(true);
     
     try {
-      // 1. Share the key first (ensures recipient can actually read the data)
-      const keyShared = await shareResourceKey(tripId, 'TRIP', email.toLowerCase().trim());
-      if (!keyShared) {
-        setIsSharing(false);
-        return;
-      }
-
-      // 2. Create the standard share record
+      // 1. Create the standard share record
       const { error } = await supabase.from('trip_shares').insert([{
         shared_by: user.id,
         trip_id: tripId,

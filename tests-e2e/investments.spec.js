@@ -81,26 +81,20 @@ test.describe('Investments Module', () => {
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password');
-    await page.click('button:has-text("Entrar")');
+    await page.getByRole('button', { name: 'Entrar' }).click();
 
-    // Wait for Dashboard to mount
-    await expect(page.getByTestId('header-title')).toBeVisible({ timeout: 15000 });
+    // Wait for Dashboard to mount (Launchpad)
+    await page.waitForSelector('header', { timeout: 20000 });
+    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
   });
 
   test('should display investment dashboard with charts', async ({ page }) => {
-    // Navigate to Investments via Sidebar
-    const investmentsGroup = page.locator('.sidebar-group').filter({ hasText: 'Investimentos' });
-    const dashBtn = investmentsGroup.getByRole('button', { name: 'Dashboard' });
-    
-    if (!await dashBtn.isVisible()) {
-      await page.getByRole('button', { name: 'Investimentos', exact: true }).click();
-    }
-    
-    await expect(dashBtn).toBeVisible();
-    await dashBtn.click();
+    // Navega para Investimentos via Launchpad
+    await page.getByTestId('launchpad-item-investments').click();
+    await page.waitForLoadState('networkidle');
     
     // Wait for the view to change
-    await expect(page.getByRole('heading', { name: 'Dashboard de Investimentos' })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('h3:has-text("Performance de Investimentos")')).toBeVisible({ timeout: 15000 });
     
     // Wait for performance card
     await expect(page.locator('h3:has-text("Performance de Investimentos")')).toBeVisible({ timeout: 10000 });
@@ -110,21 +104,18 @@ test.describe('Investments Module', () => {
   });
 
   test('should navigate to investment list', async ({ page }) => {
-    // Expand the Investments sidebar group and navigate to dashboard first
-    const groupHeader = page.getByTestId('sidebar-group-investments');
-    await groupHeader.click();
+    // Navega para Investimentos via Launchpad
+    await page.getByTestId('launchpad-item-investments').click();
+    await page.waitForLoadState('networkidle');
 
     // Wait for the investments-dashboard to load
-    await expect(page.getByTestId('header-title')).toHaveText('Dashboard de Investimentos', { timeout: 10000 });
+    await expect(page.locator('h3:has-text("Performance de Investimentos")')).toBeVisible({ timeout: 10000 });
 
-    // Navigate to Planilha via direct DOM evaluation to bypass any animation-phase misclick
-    await page.evaluate(() => {
-      const buttons = document.querySelectorAll('button[title="Planilha de Investimentos"]');
-      if (buttons.length > 0) buttons[0].click();
-    });
+    // Clica em "Planilha" no sub-header
+    await page.getByTestId('sidebar-sub-item-investments-list').click();
 
     // Confirm navigation succeeded via header title change
-    await expect(page.getByTestId('header-title')).toHaveText('Planilha de Investimentos', { timeout: 10000 });
+    await expect(page.getByTestId('header-title').first()).toHaveText('Investimentos', { timeout: 10000 });
 
     // Now check the summary card
     await expect(page.getByTestId('summary-card-total-balance')).toBeVisible({ timeout: 15000 });

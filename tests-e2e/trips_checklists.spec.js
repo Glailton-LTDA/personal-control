@@ -18,10 +18,16 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await page.locator('input[type="password"]').fill('password123');
     await page.getByRole('button', { name: /entrar/i }).click();
     
-    await expect(page.locator('aside')).toBeVisible({ timeout: 20000 });
+    // Aguardar Dashboard via DOM (espera pelo header do novo layout)
+    await page.waitForSelector('header', { timeout: 20000 });
+    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
     await unlockApp(page);
 
-    await page.getByTestId('sidebar-group-trips').click();
+    // Navega para Viagens via Launchpad
+    await page.getByTestId('launchpad-item-trips').click();
+    await page.waitForLoadState('networkidle');
+    
+    // Agora verifica se a lista de viagens está visível (sub-item)
     await expect(page.getByTestId('sidebar-sub-item-trips-list')).toBeVisible({ timeout: 10000 });
   }
 
@@ -118,7 +124,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await page.getByTestId('trip-selector').click();
     await page.getByTestId('trip-select-trip-1').click();
     await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 10000 });
-    await page.getByLabel('Menu da Viagem').click();
+    await page.getByTestId('trip-actions-menu-btn').click();
     await page.getByTestId('view-checklists-btn').click();
     await expect(page.getByText('Checklists de Viagem')).toBeVisible();
   }

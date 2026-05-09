@@ -134,7 +134,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+      <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '450px' }}>
         <button className="icon-btn" onClick={onClose} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }}><XCircle /></button>
         
         {(type === 'add_car' || type === 'edit_car') && (

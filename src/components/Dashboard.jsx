@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard,
   TrendingUp,
   Plane,
   Wrench,
@@ -24,7 +23,10 @@ import {
   PieChart,
   ShieldCheck,
   List,
-  Orbit,
+  LayoutGrid,
+  ChevronRight,
+  Search,
+  Coins
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FinanceList from './Finance/FinanceList';
@@ -36,9 +38,10 @@ import MyCars from './MyCars/MyCars';
 import Investments from './Investments/Investments';
 import Trips from './Trips/Trips';
 import CustomLists from './CustomLists/CustomLists';
+import Launchpad from './Launchpad';
 
 const defaultMenuItems = [
-  { id: 'finances', icon: LayoutDashboard, label: 'Finanças' },
+  { id: 'finances', icon: Coins, label: 'Finanças' },
   { id: 'cars', icon: Car, label: 'Carros' },
   { id: 'investments', icon: TrendingUp, label: 'Investimentos' },
   { id: 'trips', icon: Plane, label: 'Minhas Viagens' },
@@ -79,16 +82,16 @@ const moduleSubItems = {
 
 export default function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('personal-control-active-tab') || 'finances-dashboard';
+    return localStorage.getItem('personal-control-active-tab') || 'launchpad';
   });
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [theme, setTheme] = useState('dark');
-  const [invitationCount, setInvitationCount] = useState(0);
-  const [expandedSections, setExpandedSections] = useState(() => {
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('personal-control-theme') || 'dark';
+  });
+  const [expandedSections] = useState(() => {
     const saved = localStorage.getItem('personal-control-expanded-sections');
     return saved ? JSON.parse(saved) : {
       finances: true,
@@ -106,17 +109,17 @@ export default function Dashboard({ user }) {
   const [menuOrder, setMenuOrder] = useState(() => {
     const saved = localStorage.getItem('personal-control-menu-order');
     const savedOrder = saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
-    
+
     // Ensure new items in defaultMenuItems are added to the order
     const currentIds = defaultMenuItems.map(i => i.id);
     const mergedOrder = [...savedOrder];
-    
+
     currentIds.forEach(id => {
       if (!mergedOrder.includes(id)) {
         mergedOrder.push(id);
       }
     });
-    
+
     // Remove ids that are no longer in defaultMenuItems
     return mergedOrder.filter(id => currentIds.includes(id));
   });
@@ -149,20 +152,9 @@ export default function Dashboard({ user }) {
 
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
 
-  const toggleSection = (section) => {
-    const isExpanding = !expandedSections[section];
-    setExpandedSections(prev => ({ ...prev, [section]: isExpanding }));
-    
-    if (isExpanding) {
-      const subItems = moduleSubItems[section] || [];
-      if (subItems.length > 0) {
-        setActiveTab(subItems[0].tab);
-      }
-    }
-  };
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('personal-control-theme', theme);
   }, [theme]);
 
   const fetchMenuOrder = useCallback(async () => {
@@ -170,18 +162,18 @@ export default function Dashboard({ user }) {
       .from('notification_settings')
       .select('menu_order')
       .maybeSingle();
-    
+
     if (data?.menu_order) {
       // Ensure new items in defaultMenuItems are added even to data from Supabase
       const currentIds = defaultMenuItems.map(i => i.id);
       const mergedOrder = [...data.menu_order];
-      
+
       currentIds.forEach(id => {
         if (!mergedOrder.includes(id)) {
           mergedOrder.push(id);
         }
       });
-      
+
       // Filter out invalid IDs
       const finalOrder = mergedOrder.filter(id => currentIds.includes(id));
       setMenuOrder(finalOrder);
@@ -190,12 +182,7 @@ export default function Dashboard({ user }) {
 
   const fetchInvitations = useCallback(async () => {
     if (!user) return;
-    const { count } = await supabase
-      .from('car_shares')
-      .select('*', { count: 'exact', head: true })
-      .eq('shared_with_email', user.email)
-      .eq('status', 'PENDING');
-    setInvitationCount(count || 0);
+    // invitationCount logic removed as it was only for legacy sidebar
   }, [user]);
 
   useEffect(() => {
@@ -226,14 +213,14 @@ export default function Dashboard({ user }) {
       triggerRefresh();
       navigate('trips-itinerary');
     };
-    
+
     const handleSetTab = (e) => {
       if (e.detail?.tab) navigate(e.detail.tab);
     };
 
     window.addEventListener('navigate-to-itinerary', handleNavigate);
     window.addEventListener('set-active-tab', handleSetTab);
-    
+
     return () => {
       window.removeEventListener('navigate-to-itinerary', handleNavigate);
       window.removeEventListener('set-active-tab', handleSetTab);
@@ -247,269 +234,186 @@ export default function Dashboard({ user }) {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  const navBtnStyle = (tabId) => ({
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-    padding: '0.75rem 1rem',
-    border: 'none',
-    background: activeTab === tabId ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-    color: activeTab === tabId ? 'var(--primary)' : 'var(--text-muted)',
-    borderRadius: '0.75rem',
-    cursor: 'pointer',
-    marginBottom: '0.5rem',
-    transition: 'all 0.2s',
-    textAlign: 'left',
-  });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg-dark)', width: '100%' }}>
 
-  const SidebarContent = ({ collapsed = false, onNavigate }) => (
-    <>
-      <nav style={{ flex: 1, padding: '0.5rem', overflowY: 'auto' }}>
-        {menuItems.map((module, idx) => {
-          const subItems = moduleSubItems[module.id] || [];
-          const isExpanded = expandedSections[module.id] || false;
-          
-          return (
-            <div key={module.id} className="sidebar-group" style={{ marginTop: idx === 0 ? 0 : '1rem' }}>
-              {!collapsed && (
-                <button
-                  type="button"
-                  data-testid={`sidebar-group-${module.id}`}
-                  aria-label={module.label}
-                  onClick={() => toggleSection(module.id)}
-                  className="sidebar-group-header"
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.5rem 1rem',
-                    marginBottom: '0.5rem',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                    borderRadius: '8px',
-                    transition: 'var(--transition)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <module.icon size={18} />
-                    <small style={{ fontSize: '0.85rem', fontWeight: 600 }}>{module.label}</small>
-                  </div>
-                  <Motion.div animate={{ rotate: isExpanded ? 0 : -90 }} transition={{ duration: 0.2 }}>
-                    <ChevronDown size={14} />
-                  </Motion.div>
-                </button>
-              )}
-              {(isExpanded || collapsed) && (
-                <div style={{ overflow: 'hidden' }}>
-                  {subItems.map((item) => (
-                    <button key={item.tab} onClick={() => onNavigate(item.tab)} title={item.label}
-                      data-testid={`sidebar-sub-item-${item.tab}`}
-                      style={{ ...navBtnStyle(item.tab), justifyContent: collapsed ? 'center' : 'flex-start' }}>
-                      <div style={{ position: 'relative' }}>
-                        <item.icon size={20} />
-                        {item.tab === 'cars-list' && invitationCount > 0 && (
-                          <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--danger)', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-sidebar)' }}>
-                            {invitationCount}
-                          </span>
-                        )}
-                      </div>
-                      {!collapsed && (
-                        <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          {item.label}
-                          {item.tab === 'cars-list' && invitationCount > 0 && <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '1px 6px', borderRadius: '4px' }}>Novo</span>}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
-
-      <div style={{ padding: '1rem', borderTop: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: collapsed ? '0' : '0.75rem', justifyContent: collapsed ? 'center' : 'flex-start' }}>
-          <div style={{ 
-            width: 32, height: 32, borderRadius: '50%', 
-            background: 'rgba(99,102,241,0.2)', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            color: 'var(--primary)', fontSize: '0.85rem', fontWeight: 700, 
-            flexShrink: 0 
-          }}>
-            {user?.email?.[0]?.toUpperCase() || 'U'}
+      {/* ── Main Header ── */}
+      <header className="main-header" style={{
+        height: isMobile ? '60px' : '70px',
+        background: 'var(--bg-card)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--glass-border)',
+        display: 'flex',
+        alignItems: 'center',
+        padding: isMobile ? '0 1rem' : '0 2rem',
+        gap: isMobile ? '1rem' : '3rem',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100
+      }}>
+        {/* Brand/Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => navigate('launchpad')}>
+          <div style={{ width: 38, height: 38, background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px var(--primary)' }}>
+            <LayoutGrid color="white" size={24} />
           </div>
-          {!collapsed && (
-            <div style={{ overflow: 'hidden', flex: 1 }}>
-              <p style={{ 
-                fontSize: '0.75rem', 
-                fontWeight: 600, 
-                color: 'var(--text-main)', 
-                margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {user?.email?.split('@')[0]}
-              </p>
-              <p style={{ 
-                fontSize: '0.65rem', 
-                color: 'var(--text-muted)', 
-                margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {user?.email}
-              </p>
-            </div>
+          {!isMobile && (
+            <span style={{ fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.03em', color: 'var(--text-main)' }}>
+              Personal Control
+            </span>
           )}
         </div>
-      </div>
 
-      <div style={{ padding: '0.5rem', borderTop: '1px solid var(--glass-border)' }}>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          title="Sair"
-          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: '1rem', padding: '0.75rem 1rem', border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', borderRadius: '0.75rem' }}
-        >
-          <LogOut size={22} />
-          {!collapsed && <span>Sair</span>}
-        </button>
-      </div>
-    </>
-  );
-
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)', width: '100%', overflowX: 'hidden', position: 'relative' }}>
-
-      {/* ── Desktop Sidebar ── */}
-      <aside
-        className="glass-card"
-        style={{ 
-          margin: '1rem', 
-          height: 'calc(100vh - 2rem)', 
-          position: 'sticky', 
-          top: '1rem', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          zIndex: 50,
-          width: isSidebarOpen ? 260 : 80,
-          transition: 'width 0.2s ease-in-out'
-        }}
-      >
-        <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Orbit color="white" size={24} />
-            </div>
-            {isSidebarOpen && <span style={{ fontWeight: 'bold', fontSize: '1.2rem', whiteSpace: 'nowrap' }}>Personal</span>}
-          </div>
-          <button className="icon-btn" onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ padding: '4px' }}>
-            {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-        <SidebarContent collapsed={!isSidebarOpen} onNavigate={navigate} />
-      </aside>
-
-      {/* ── Mobile Drawer Overlay ── */}
-      <AnimatePresence>
-        {isDrawerOpen && (
-          <Motion.div
-            key="overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, backdropFilter: 'blur(4px)' }}
-            onClick={() => setDrawerOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isDrawerOpen && (
-          <Motion.div
-            key="drawer"
-            ref={drawerRef}
-            initial={{ x: -300 }}
-            animate={{ x: 0 }}
-            exit={{ x: -300 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="glass-card"
-            style={{
-              position: 'fixed', top: 0, left: 0, bottom: 0,
-              width: 280, zIndex: 300, display: 'flex', flexDirection: 'column',
-              borderRadius: '0 1rem 1rem 0', padding: '0', overflow: 'hidden'
-            }}
-          >
-            {/* Drawer header */}
-            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--glass-border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                   <Orbit color="white" size={20} />
-                </div>
-                <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Personal</span>
-              </div>
-              <button className="icon-btn" onClick={() => setDrawerOpen(false)}>
-                <X size={20} />
+        {/* Primary Nav */}
+        <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
+          {[
+            { id: 'launchpad', label: 'Início', icon: LayoutGrid },
+            { id: 'finances', label: 'Finanças', icon: Coins },
+            { id: 'cars', label: 'Carros', icon: Car },
+            { id: 'investments', label: 'Investimentos', icon: TrendingUp },
+            { id: 'trips', label: 'Viagens', icon: Plane },
+            { id: 'lists', label: 'Listas', icon: List },
+            { id: 'settings', label: 'Ajustes', icon: Settings }
+          ].map(item => {
+            const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+            return (
+              <button
+                key={item.id}
+                data-testid={`sidebar-group-${item.id}`}
+                onClick={() => {
+                  if (item.id === 'launchpad') navigate('launchpad');
+                  else if (item.id === 'finances') navigate('finances-dashboard');
+                  else if (item.id === 'cars') navigate('cars-list');
+                  else if (item.id === 'investments') navigate('investments-dashboard');
+                  else if (item.id === 'trips') navigate('trips-list');
+                  else if (item.id === 'lists') navigate('lists-manager');
+                  else if (item.id === 'settings') navigate('settings-general');
+                }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: isActive ? 'var(--primary)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: isActive ? 'white' : 'var(--text-muted)',
+                  fontWeight: isActive ? 600 : 500,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <item.icon size={18} />
+                <span className="hide-mobile">{item.label}</span>
               </button>
-            </div>
+            );
+          })}
+        </nav>
 
-
-            <SidebarContent collapsed={false} onNavigate={(tab) => { navigate(tab); setDrawerOpen(false); }} />
-          </Motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Main Content ── */}
-      <main style={{ flex: 1, padding: isMobile ? '0.5rem' : '1rem', overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0 }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', padding: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {/* Hamburger — mobile only */}
-            <button
-              className="icon-btn mobile-only"
-              onClick={() => setDrawerOpen(true)}
-              style={{ display: 'none' }} // overridden by .mobile-only CSS
-            >
-              <Menu size={24} />
-            </button>
-            <div>
-              <h2 data-testid="header-title" style={{ fontSize: '1.5rem' }}>
-                {activeTab === 'cars-list' ? 'Meus Carros' :
-                 activeTab === 'cars-settings' ? 'Configurações da Frota' :
-                 activeTab === 'investments-dashboard' ? 'Dashboard de Investimentos' :
-                 activeTab === 'investments-list' ? 'Planilha de Investimentos' :
-                 activeTab === 'investments-settings' ? 'Ajustes de Investimentos' :
-                 activeTab === 'trips-list' ? 'Minhas Viagens' :
-                 activeTab === 'trips-itinerary' ? 'Roteiros' :
-                 activeTab === 'trips-stats' ? 'Minha Jornada' :
-                 activeTab === 'trips-settings' ? 'Ajustes de Viagens' :
-                 menuItems.find(i => i.id === activeTab)?.label ||
-                 menuItems.find(i => i.id === (String(activeTab || '').split('-')[0]))?.label || 'Dashboard'}
-              </h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gerencie seus dados aqui</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <button className="icon-btn hide-mobile" style={{ color: 'var(--text-muted)' }}><Search size={20} /></button>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? "Ocultar Valores" : "Mostrar Valores"}>
-              {showValues ? <Eye size={20} /> : <EyeOff size={20} />}
+              {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
             <button className="icon-btn" onClick={toggleTheme} title="Alternar Tema">
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
-        </header>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingLeft: '1rem', borderLeft: '1px solid var(--glass-border)' }}>
+            <div className="hide-mobile" style={{ textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{user?.email?.split('@')[0]}</p>
+            </div>
+            <div
+              onClick={() => supabase.auth.signOut()}
+              style={{ width: 35, height: 35, borderRadius: '10px', background: 'linear-gradient(135deg, var(--primary), #818cf8)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '0.9rem' }}>
+              {user?.email?.[0]?.toUpperCase()}
+            </div>
+          </div>
+        </div>
+      </header>
 
-        <AnimatePresence>
+      {/* ── Contextual Sub-Header ── */}
+      {activeTab !== 'launchpad' && (
+        <div data-testid="sub-header" className="sub-header-container" style={{
+          height: isMobile ? '50px' : '60px',
+          background: 'var(--bg-card)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid var(--glass-border)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: isMobile ? '0 1rem' : '0 2rem',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          gap: isMobile ? '1.5rem' : '2rem'
+        }}>
+          <div data-testid="header-title" style={{
+            fontSize: isMobile ? '0.75rem' : '0.85rem',
+            fontWeight: 800,
+            color: 'var(--text-main)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            paddingRight: isMobile ? '1rem' : '2rem',
+            borderRight: '1px solid var(--glass-border)',
+            display: 'flex',
+            alignItems: 'center',
+            height: '30px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
+          }}>
+            {activeTab.startsWith('finances') ? 'Finanças' :
+              activeTab.startsWith('cars') ? 'Carros' :
+                activeTab.startsWith('investments') ? 'Investimentos' :
+                  activeTab.startsWith('trips') ? 'Viagens' :
+                    activeTab.startsWith('lists') ? 'Listas' :
+                      activeTab.startsWith('settings') ? 'Ajustes' : ''}
+          </div>
+          {(() => {
+            const currentModule = activeTab.split('-')[0];
+            const subItems = moduleSubItems[currentModule] || [];
+            return (
+              <div style={{ display: 'flex', gap: '2rem' }}>
+                {subItems.map(item => (
+                  <button
+                    key={item.tab}
+                    data-testid={`sidebar-sub-item-${item.tab}`}
+                    onClick={() => setActiveTab(item.tab)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '0.5rem 0',
+                      color: activeTab === item.tab ? 'var(--primary)' : 'var(--text-muted)',
+                      fontSize: '0.85rem',
+                      fontWeight: activeTab === item.tab ? 700 : 500,
+                      cursor: 'pointer',
+                      borderBottom: activeTab === item.tab ? '2px solid var(--primary)' : '2px solid transparent',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <item.icon size={16} strokeWidth={activeTab === item.tab ? 2.5 : 2} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── Main Content Area ── */}
+      <main style={{ flex: 1, padding: activeTab === 'launchpad' ? 0 : isMobile ? '1rem' : '2rem', overflowY: 'auto', position: 'relative' }}>
+        <AnimatePresence mode="wait">
           <Motion.div
             key={activeTab + refreshKey}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
           >
             {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
             {activeTab === 'finances-transactions' && (
@@ -522,8 +426,13 @@ export default function Dashboard({ user }) {
               />
             )}
             {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
-            {activeTab === 'app-menu' && (
-              <AppMenuGrid onNavigate={(tab) => setActiveTab(tab)} menuItems={menuItems} onLogout={() => supabase.auth.signOut()} />
+            {activeTab === 'launchpad' && (
+              <Launchpad
+                user={user}
+                onNavigate={navigate}
+                menuItems={menuItems}
+                onLogout={() => supabase.auth.signOut()}
+              />
             )}
             {activeTab.startsWith('settings') && <SettingsView user={user} menuOrder={menuOrder} setMenuOrder={setMenuOrder} menuItems={defaultMenuItems} activeTab={activeTab} />}
             {activeTab.startsWith('cars') && (
@@ -538,11 +447,13 @@ export default function Dashboard({ user }) {
             {activeTab.startsWith('lists') && (
               <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
             )}
+
+            {/* Fallback for development */}
             {activeTab !== 'finances-transactions' &&
               activeTab !== 'finances-dashboard' &&
               activeTab !== 'finances-settings' &&
               !activeTab.startsWith('settings') &&
-              activeTab !== 'app-menu' &&
+              activeTab !== 'launchpad' &&
               !activeTab.startsWith('cars') &&
               !activeTab.startsWith('trips') &&
               !activeTab.startsWith('lists') &&
@@ -568,7 +479,6 @@ export default function Dashboard({ user }) {
                 setEditingTransaction(null);
                 setModalOpen(true);
               } else if (activeTab === 'cars-list') {
-                // We'll use a custom event to communicate with MyCars component
                 window.dispatchEvent(new CustomEvent('open-add-car-modal'));
               }
             }}
@@ -586,41 +496,6 @@ export default function Dashboard({ user }) {
         user={user}
         initialData={editingTransaction}
       />
-
-    </div>
-  );
-}
-
-function AppMenuGrid({ onNavigate, menuItems, onLogout }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', padding: '1rem' }}>
-      {menuItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => {
-            if (item.id === 'finances') onNavigate('finances-dashboard');
-            else if (item.id === 'cars') onNavigate('cars-list');
-            else onNavigate(item.id);
-          }}
-          className="glass-card"
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem 1rem', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
-        >
-          <div style={{ width: 50, height: 50, borderRadius: 15, background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-            <item.icon size={28} />
-          </div>
-          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'white' }}>{item.label}</span>
-        </button>
-      ))}
-      <button
-        onClick={onLogout}
-        className="glass-card"
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem 1rem', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
-      >
-        <div style={{ width: 50, height: 50, borderRadius: 15, background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <LogOut size={28} />
-        </div>
-        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Sair</span>
-      </button>
     </div>
   );
 }

@@ -69,7 +69,7 @@ test.describe('Autenticação - Senha', () => {
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page.getByText('Personal')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Personal Control').first()).toBeVisible({ timeout: 15000 });
 
     // Navega para Configurações expandindo o grupo e clicando em "Geral"
     const configGroup = page.getByTestId('sidebar-group-settings');

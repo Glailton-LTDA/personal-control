@@ -42,12 +42,15 @@ test.describe('MyCars Module', () => {
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password');
-    await page.click('button:has-text("Entrar")');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+
+    // Aguardar Dashboard via DOM (espera pelo header do novo layout)
+    await page.waitForSelector('header', { timeout: 20000 });
   });
 
   test('should display car details in list', async ({ page }) => {
-    // Navigate to MyCars
-    await page.getByTestId('sidebar-group-cars').click({ force: true });
+    // Navega para Carros via Launchpad
+    await page.getByTestId('launchpad-item-cars').click();
     await page.waitForLoadState('networkidle');
     
     await expect(page.getByTestId('car-name').first()).toBeVisible();
@@ -56,7 +59,8 @@ test.describe('MyCars Module', () => {
   });
 
   test('should show maintenance info when selected', async ({ page }) => {
-     await page.getByTestId('sidebar-group-cars').click({ force: true });
+     // Navega para Carros via Launchpad
+     await page.getByTestId('launchpad-item-cars').click();
      await page.waitForLoadState('networkidle');
      
      await expect(page.getByTestId('car-name').first()).toBeVisible();

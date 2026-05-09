@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, MapPin, X, Loader2, Hash } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-export default function AddressInput({ value, onChange, placeholder = "Digite o endereço..." }) {
+export default function AddressInput({ value, onChange, placeholder = "Digite o endereço...", disabled = false }) {
   // baseAddress: the raw Nominatim address (never contains number/complement)
   const [baseAddress, setBaseAddress] = useState('');
   const [inputValue, setInputValue] = useState('');
@@ -79,6 +79,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
   }, [showSuggestions, suggestions]);
 
   const handleSearch = (query) => {
+    if (disabled) return;
     setInputValue(query);
     setBaseAddress(query);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -110,6 +111,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
   };
 
   const handleSelect = (suggestion) => {
+    if (disabled) return;
     const formattedName = suggestion.display_name;
     const coords = [parseFloat(suggestion.lon), parseFloat(suggestion.lat)];
     
@@ -127,6 +129,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
   };
 
   const handleNumberChange = (val) => {
+    if (disabled) return;
     setNumberValue(val);
     // Always compose from the stable baseAddress, never from inputValue
     const fullAddress = val ? `${val}, ${baseAddress}` : baseAddress;
@@ -135,6 +138,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
   };
 
   const clearInput = () => {
+    if (disabled) return;
     setBaseAddress('');
     setInputValue('');
     setSuggestions([]);
@@ -203,19 +207,21 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
         <input
           type="text"
           value={inputValue}
+          disabled={disabled}
           onChange={(e) => { setShowNumberField(false); handleSearch(e.target.value); }}
-          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onFocus={() => !disabled && suggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           className="glass-input"
           style={{ 
             paddingLeft: '3rem', 
-            paddingRight: inputValue ? '3rem' : '1rem' 
+            paddingRight: (inputValue && !disabled) ? '3rem' : '1rem',
+            cursor: disabled ? 'default' : 'text'
           }}
         />
         <div style={{ position: 'absolute', right: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {isSearching && <Loader2 size={18} className="spin-loader" />}
-          {inputValue && !isSearching && (
+          {inputValue && !isSearching && !disabled && (
             <button 
               type="button" 
               onClick={() => { clearInput(); setShowNumberField(false); setNumberValue(''); setSelectedCoords(null); }}
@@ -241,13 +247,15 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
             ref={numberInputRef}
             type="text"
             value={numberValue}
+            disabled={disabled}
             onChange={(e) => handleNumberChange(e.target.value)}
             placeholder="Nº / Complemento (Ex: 1234, Apt 5B)"
             className="glass-input"
             style={{ 
               flex: 1,
               padding: '0.6rem 0.75rem',
-              fontSize: '0.85rem'
+              fontSize: '0.85rem',
+              cursor: disabled ? 'default' : 'text'
             }}
           />
         </div>

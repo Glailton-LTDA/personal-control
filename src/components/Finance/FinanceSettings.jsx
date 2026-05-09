@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trash2, Mail, User, Tag, Star } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  User, 
+  Tag, 
+  Star, 
+  ShieldCheck
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function FinanceSettings() {
   const [categories, setCategories] = useState([]);
@@ -11,12 +18,12 @@ export default function FinanceSettings() {
   const [newCat, setNewCat] = useState({ name: '', type: 'DESPESA' });
   const [newResp, setNewResp] = useState({ name: '', email: '' });
   const [loading, setLoading] = useState(false);
-  const [emailTemplate, setEmailTemplate] = useState('');
-  const { encryptObject, decryptObject } = useEncryption();
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  const fetchConfig = useCallback(async () => {
-    const { data } = await supabase.from('finance_config').select('value').eq('key', 'email_template').single();
-    if (data) setEmailTemplate(data.value);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -24,25 +31,21 @@ export default function FinanceSettings() {
     const { data: respData } = await supabase.from('finance_responsibles').select('*').order('name');
     
     if (catData) {
-      const decryptedCats = await decryptObject(catData, ['name']);
-      setCategories(decryptedCats);
+      setCategories(catData);
     }
     if (respData) {
-      const decryptedResps = await decryptObject(respData, ['name', 'email']);
-      setResponsibles(decryptedResps);
+      setResponsibles(respData);
     }
-  }, [decryptObject]);
+  }, []);
 
   useEffect(() => {
     fetchData();
-    fetchConfig();
-  }, [fetchData, fetchConfig]);
+  }, [fetchData]);
 
   async function addCategory() {
     if (!newCat.name) return;
     const { data: { user } } = await supabase.auth.getUser();
-    const encryptedCat = await encryptObject(newCat, ['name']);
-    await supabase.from('finance_categories').insert([{ ...encryptedCat, user_id: user.id }]);
+    await supabase.from('finance_categories').insert([{ ...newCat, user_id: user.id }]);
     setNewCat({ name: '', type: 'DESPESA' });
     fetchData();
   }
@@ -50,8 +53,7 @@ export default function FinanceSettings() {
   async function addResponsible() {
     if (!newResp.name) return;
     const { data: { user } } = await supabase.auth.getUser();
-    const encryptedResp = await encryptObject(newResp, ['name', 'email']);
-    await supabase.from('finance_responsibles').insert([{ ...encryptedResp, user_id: user.id }]);
+    await supabase.from('finance_responsibles').insert([{ ...newResp, user_id: user.id }]);
     setNewResp({ name: '', email: '' });
     fetchData();
   }
@@ -77,146 +79,265 @@ export default function FinanceSettings() {
     }, { danger: true });
   }
 
-
-
-  async function saveConfig() {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('finance_config').upsert({
-      key: 'email_template',
-      value: emailTemplate,
-      user_id: user.id
-    }, { onConflict: 'key' });
-    if (!error) toast.success('Template salvo!');
-    setLoading(false);
-  }
-
   return (
-    <div className="settings-page">
-      <div className="settings-group-grid">
+    <Motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}
+    >
+      <div className="responsive-grid" style={{ 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '2rem' 
+      }}>
 
         {/* Categorias */}
-        <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Tag size={20} color="var(--primary)"/> Categorias Customizadas
-          </h3>
-          <div className="settings-input-row">
+        <Motion.div 
+          initial={{ opacity: 0, x: -20 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          className="glass-card" 
+          style={{ padding: isMobile ? '1.5rem' : '2rem', display: 'flex', flexDirection: 'column' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '16px', color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                <Tag size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Categorias</h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Classificação de lançamentos</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: '0.75rem', 
+            marginBottom: '2rem' 
+          }}>
             <input
-              placeholder="Nova Categoria..."
-              className="settings-text-input"
+              placeholder="Nome da categoria..."
+              className="glass-input"
+              style={{ flex: 1, height: '48px', fontWeight: '600' }}
               value={newCat.name}
               onChange={e => setNewCat({...newCat, name: e.target.value})}
               onKeyDown={e => e.key === 'Enter' && addCategory()}
             />
-            <select
-              className="settings-type-select"
-              value={newCat.type}
-              onChange={e => setNewCat({...newCat, type: e.target.value})}
-            >
-              <option value="DESPESA">Gasto</option>
-              <option value="RECEITA">Entrada</option>
-            </select>
-            <button className="btn-primary settings-add-btn" onClick={addCategory}>
-              <Plus size={20}/>
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {categories.map(c => (
-              <div key={c.id} className="badge" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
-                <span style={{ color: c.type === 'RECEITA' ? 'var(--success)' : 'inherit' }}>{c.name}</span>
-                <Trash2 size={12} style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => deleteItem('finance_categories', c.id)}/>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Responsáveis — card list only, works on all screen sizes */}
-        <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <User size={20} color="var(--primary)"/> Responsáveis e E-mails
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            <input
-              placeholder="Nome do Responsável..."
-              className="settings-text-input"
-              value={newResp.name}
-              onChange={e => setNewResp({...newResp, name: e.target.value})}
-            />
-            <div className="settings-input-row" style={{ marginBottom: 0 }}>
-              <input
-                placeholder="E-mail para notificações..."
-                className="settings-text-input"
-                value={newResp.email}
-                onChange={e => setNewResp({...newResp, email: e.target.value})}
-                onKeyDown={e => e.key === 'Enter' && addResponsible()}
-              />
-              <button className="btn-primary settings-add-btn" onClick={addResponsible}>
-                <Plus size={20}/>
+            <div style={{ display: 'flex', gap: '0.75rem', width: isMobile ? '100%' : 'auto' }}>
+              <select
+                className="glass-input"
+                style={{ flex: isMobile ? 1 : '0 0 130px', height: '48px', padding: '0 1rem', fontWeight: '700' }}
+                value={newCat.type}
+                onChange={e => setNewCat({...newCat, type: e.target.value})}
+              >
+                <option value="DESPESA">Gasto</option>
+                <option value="RECEITA">Entrada</option>
+              </select>
+              <button 
+                className="btn-primary" 
+                onClick={addCategory}
+                style={{ height: '48px', width: '48px', padding: 0, borderRadius: '14px', flexShrink: 0 }}
+              >
+                <Plus size={24}/>
               </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {responsibles.map(r => (
-              <div
-                key={r.id}
-                className="settings-resp-card"
-                style={{ borderColor: r.is_main ? 'var(--primary)' : 'var(--glass-border)' }}
-              >
-                <div className="settings-resp-card-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                    <button
-                      onClick={() => setMainResponsible(r.id)}
-                      disabled={loading}
-                      title={r.is_main ? 'Principal atual' : 'Definir como principal'}
-                      style={{
-                        background: 'none', border: 'none', cursor: loading ? 'default' : 'pointer',
-                        color: r.is_main ? 'var(--primary)' : 'var(--text-muted)',
-                        flexShrink: 0, padding: 4
-                      }}
-                    >
-                      <Star size={18} fill={r.is_main ? 'currentColor' : 'none'}/>
-                    </button>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="settings-resp-name">
-                        {r.name}
-                        {r.is_main && <span className="resp-badge-principal">PRINCIPAL</span>}
-                      </div>
-                      <div className="settings-resp-email">{r.email || 'Sem e-mail'}</div>
-                    </div>
-                  </div>
-                  <Trash2
-                    size={18}
-                    style={{ cursor: 'pointer', color: 'var(--danger)', flexShrink: 0 }}
-                    onClick={() => deleteItem('finance_responsibles', r.id)}
-                  />
-                </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <AnimatePresence>
+              {categories.map(c => (
+                <Motion.div 
+                  key={c.id} 
+                  initial={{ opacity: 0, scale: 0.9 }} 
+                  animate={{ opacity: 1, scale: 1 }} 
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  whileHover={{ translateY: -2 }}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.75rem', 
+                    padding: '0.75rem 1.25rem',
+                    background: 'var(--card-action-bg)',
+                    borderRadius: '14px',
+                    border: '1px solid var(--glass-border)',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    transition: '0.2s'
+                  }}
+                >
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: c.type === 'RECEITA' ? 'var(--success)' : 'var(--text-muted)', boxShadow: c.type === 'RECEITA' ? '0 0 8px var(--success)' : 'none' }} />
+                  <span style={{ color: 'var(--text-main)' }}>{c.name}</span>
+                  <button 
+                    onClick={() => deleteItem('finance_categories', c.id)}
+                    className="action-btn danger"
+                    style={{ width: '24px', height: '24px', border: 'none', background: 'none' }}
+                  >
+                    <Trash2 size={16} style={{ opacity: 0.6 }}/>
+                  </button>
+                </Motion.div>
+              ))}
+            </AnimatePresence>
+            {categories.length === 0 && (
+              <div style={{ width: '100%', textAlign: 'center', padding: '2rem', opacity: 0.3 }}>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>Nenhuma categoria personalizada</p>
               </div>
-            ))}
+            )}
           </div>
-        </div>
+        </Motion.div>
+
+        {/* Responsáveis */}
+        <Motion.div 
+          initial={{ opacity: 0, x: 20 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          className="glass-card" 
+          style={{ padding: '2rem' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '16px', color: 'var(--success)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                <User size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Responsáveis</h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Contatos para notificações e divisão de despesas</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2.5rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: '0.75rem' 
+            }}>
+              <input
+                placeholder="Nome..."
+                className="glass-input"
+                style={{ flex: 1, height: '48px', fontWeight: '600' }}
+                value={newResp.name}
+                onChange={e => setNewResp({...newResp, name: e.target.value})}
+              />
+              <div style={{ display: 'flex', gap: '0.75rem', width: isMobile ? '100%' : 'auto' }}>
+                <input
+                  placeholder="E-mail..."
+                  className="glass-input"
+                  style={{ flex: 1, height: '48px', fontWeight: '600' }}
+                  value={newResp.email}
+                  onChange={e => setNewResp({...newResp, email: e.target.value})}
+                  onKeyDown={e => e.key === 'Enter' && addResponsible()}
+                />
+                <button 
+                  className="btn-primary" 
+                  onClick={addResponsible}
+                  style={{ height: '48px', width: '48px', padding: 0, background: 'var(--success)', borderRadius: '14px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)', flexShrink: 0 }}
+                >
+                  <Plus size={24}/>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <AnimatePresence>
+              {responsibles.map(r => (
+                <Motion.div
+                  key={r.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  whileHover={{ scale: 1.01, background: 'var(--bg-card)' }}
+                  style={{ 
+                    padding: '1.25rem',
+                    background: r.is_main ? 'rgba(99, 102, 241, 0.08)' : 'var(--card-action-bg)',
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: r.is_main ? 'rgba(99, 102, 241, 0.3)' : 'var(--glass-border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1.25rem',
+                    transition: '0.2s'
+                  }}
+                >
+                  <button
+                    onClick={() => setMainResponsible(r.id)}
+                    disabled={loading}
+                    style={{
+                      background: 'none', 
+                      border: 'none', 
+                      cursor: loading ? 'default' : 'pointer',
+                      color: r.is_main ? 'var(--primary)' : 'var(--text-muted)',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: '0.2s'
+                    }}
+                  >
+                    <Star size={24} fill={r.is_main ? 'currentColor' : 'none'} style={{ filter: r.is_main ? 'drop-shadow(0 0 4px var(--primary))' : 'none' }}/>
+                  </button>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                      {r.name}
+                      {r.is_main && <span style={{ fontSize: '10px', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.05em' }}>PRINCIPAL</span>}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.email || 'Sem e-mail configurado'}</div>
+                  </div>
+
+                  <button 
+                    onClick={() => deleteItem('finance_responsibles', r.id)}
+                    className="action-btn danger"
+                    style={{ width: '40px', height: '40px' }}
+                  >
+                    <Trash2 size={20}/>
+                  </button>
+                </Motion.div>
+              ))}
+            </AnimatePresence>
+            {responsibles.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.3 }}>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>Nenhum responsável cadastrado</p>
+              </div>
+            )}
+          </div>
+        </Motion.div>
       </div>
 
-      {/* Config de Email */}
-      <div className="glass-card" style={{ padding: '1.5rem' }}>
-        <div className="settings-email-header">
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Mail size={20} color="var(--primary)"/> Template de Notificação
-          </h3>
-          <button className="btn-primary" onClick={saveConfig} disabled={loading}>
-            {loading ? 'Salvando...' : 'Salvar Template'}
-          </button>
+      {/* Dica de Segurança / Audit */}
+      <Motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        className="glass-card" 
+        style={{ 
+          padding: '1.5rem', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '1.25rem', 
+          borderLeft: '5px solid var(--primary)',
+          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.05), transparent)'
+        }}
+      >
+        <div style={{ 
+          width: '48px', 
+          height: '48px', 
+          borderRadius: '14px', 
+          background: 'rgba(99, 102, 241, 0.1)', 
+          color: 'var(--primary)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <ShieldCheck size={28} />
         </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Este e-mail será enviado ao responsável quando você clicar em "Enviar E-mail" na transação.{' '}
-          Use as variáveis: <code>{`\${descricao}, \${formattedAmount}, \${formattedDate}, \${pagoPor}, \${status}`}</code>
-        </p>
-        <textarea
-          className="settings-textarea"
-          value={emailTemplate}
-          onChange={e => setEmailTemplate(e.target.value)}
-        />
-      </div>
-    </div>
+        <div>
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>Segurança de Dados Ativa</p>
+          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, lineHeight: '1.4' }}>
+            Seus dados financeiros estão protegidos por políticas de Row Level Security (RLS) no Supabase. 
+            Somente você tem acesso aos seus registros e configurações personalizadas.
+          </p>
+        </div>
+      </Motion.div>
+
+    </Motion.div>
   );
 }

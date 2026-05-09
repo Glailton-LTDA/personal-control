@@ -127,7 +127,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
   if (loading) return <div style={{ padding: '2rem' }}>Carregando configurações...</div>;
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%', overflowX: 'hidden' }}>
       
       {/* Menu Reordering Section */}
       {activeTab === 'settings-general' && (

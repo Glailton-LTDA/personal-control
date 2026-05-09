@@ -54,6 +54,7 @@ vi.mock('lucide-react', () => ({
   Package: () => <div />,
   DollarSign: () => <div />,
   Repeat: () => <div />,
+  ArrowUpDown: () => <div />,
 }));
 
 // Mock Supabase

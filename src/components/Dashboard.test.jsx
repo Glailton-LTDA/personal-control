@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import Dashboard from './Dashboard';
+import { Coins } from 'lucide-react';
 
 // Mock supabase
 vi.mock('../lib/supabase', () => ({
@@ -39,7 +40,7 @@ vi.mock('framer-motion', () => ({
 vi.mock('lucide-react', () => {
   const mockIcon = (name) => ({ ...props }) => <div data-testid={`icon-${name}`} {...props} />;
   return {
-    LayoutDashboard: mockIcon('layout-dashboard'),
+    Coins: mockIcon('coins'),
     TrendingUp: mockIcon('trending-up'),
     Plane: mockIcon('plane'),
     Wrench: mockIcon('wrench'),
@@ -76,6 +77,8 @@ vi.mock('lucide-react', () => {
     CheckSquare: mockIcon('check-square'),
     Box: mockIcon('box'),
     Orbit: mockIcon('orbit'),
+    LayoutGrid: mockIcon('layout-grid'),
+    ChevronRight: mockIcon('chevron-right')
   };
 });
 
@@ -102,11 +105,11 @@ describe('Dashboard Navigation', () => {
     await act(async () => {
       render(<Dashboard user={mockUser} />);
     });
-    
+
     await act(async () => {
       window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-itinerary' } }));
     });
-    
+
     expect(localStorage.getItem('personal-control-active-tab')).toBe('trips-itinerary');
   });
 
@@ -114,11 +117,11 @@ describe('Dashboard Navigation', () => {
     await act(async () => {
       render(<Dashboard user={mockUser} />);
     });
-    
+
     await act(async () => {
       window.dispatchEvent(new CustomEvent('navigate-to-itinerary', { detail: { tripId: 'trip-abc' } }));
     });
-    
+
     expect(localStorage.getItem('pc_selected_trip_v1')).toBe('trip-abc');
     expect(localStorage.getItem('personal-control-active-tab')).toBe('trips-itinerary');
   });

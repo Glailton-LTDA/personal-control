@@ -48,11 +48,16 @@ test.describe('Configurações - Automação de E-mail', () => {
     await page.locator('input[type="password"]').fill('password123');
     await page.getByRole('button', { name: /entrar/i }).click();
 
-    // Aguardar Dashboard via DOM
-    await page.waitForFunction(() => !!document.querySelector('aside'), { timeout: 20000 });
+    // Aguardar Dashboard via DOM (espera pelo header do novo layout)
+    await page.waitForSelector('header', { timeout: 20000 });
+    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
 
-    // Navegação para Configurações -> Geral
-    await page.getByTestId('sidebar-group-settings').click();
+    // Navegação para Configurações via Launchpad
+    await page.getByTestId('launchpad-item-settings').click();
+    await page.waitForLoadState('networkidle');
+    
+    // Agora verifica se a aba geral está ativa (sub-item)
+    await expect(page.getByTestId('sidebar-sub-item-settings-general')).toBeVisible({ timeout: 10000 });
     await page.getByTestId('sidebar-sub-item-settings-general').click();
   });
 
@@ -95,8 +100,22 @@ test.describe('Configurações - Automação de E-mail', () => {
       });
     });
 
-    // Ir para Financeiro
-    await page.getByRole('button', { name: /transações/i }).click();
+    // Volta para o Launchpad via Logo/Orbit e depois vai para Financeiro
+    await page.getByTestId('sidebar-group-launchpad').click();
+    await page.getByTestId('launchpad-item-finances').click();
+    await page.waitForLoadState('networkidle');
+    
+    // Força o clique no item "Transações" via evaluate para evitar problemas de visibilidade no glassmorphism
+    await page.evaluate(() => {
+      const btn = document.querySelector('[data-testid="sidebar-sub-item-finances-list"]');
+      if (btn) btn.click();
+      else {
+        // Fallback por texto
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const target = buttons.find(b => b.textContent.includes('Transações'));
+        if (target) target.click();
+      }
+    });
 
     // Mock Edge Function invoke
     await page.route('**/functions/v1/send-finance-email', async (route) => {

@@ -349,12 +349,12 @@ export default function InvestmentList({ user, showValues = true }) {
               <TrendingUp size={18} /> Rendimentos por Instituição
             </h4>
             
-            <div style={{ 
+            <div className="responsive-grid" style={{ 
               display: 'grid', 
-              gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1.2fr 1fr', 
+              gridTemplateColumns: '1.2fr 1fr', 
               gap: '2rem', 
               alignItems: 'center' 
-            }} className="responsive-grid">
+            }}>
               
               <div style={{ height: '280px', position: 'relative' }}>
                 <ResponsiveContainer width="100%" height="100%">

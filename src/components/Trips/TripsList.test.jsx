@@ -1,19 +1,22 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TripsList from './TripsList';
 import { supabase } from '../../lib/supabase';
 
 vi.mock('framer-motion', () => ({
-  motion: { div: ({ children, ...props }) => <div {...props}>{children}</div> },
+  motion: { 
+    div: ({ children, ...props }) => <div {...props}>{children}</div>,
+    button: ({ children, ...props }) => <button {...props}>{children}</button>
+  },
   AnimatePresence: ({ children }) => children,
 }));
 
 vi.mock('./ExpenseModal', () => ({ default: () => <div data-testid="expense-modal" /> }));
 vi.mock('./TripDetails', () => ({
-  default: ({ onClose }) => (
+  default: ({ onBack }) => (
     <div data-testid="trip-details">
-      <button onClick={onClose}>Close</button>
+      <button onClick={onBack}>Back</button>
     </div>
   )
 }));
@@ -24,6 +27,18 @@ describe('TripsList', () => {
     { id: '1', title: 'Viagem 1', start_date: '2026-04-01', end_date: '2026-04-10', currencies: ['BRL'], daily_limits: { BRL: 100 } }
   ];
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    // Default supabase mock for each test
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: [], error: null })
+    });
+    supabase.from = mockFrom;
+  });
+
   it('renders correctly and opens Trip Details', async () => {
     render(<TripsList user={mockUser} trips={mockTrips} externalSelectedTrip={mockTrips[0]} onEditTrip={() => {}} />);
     expect(screen.getAllByText(/Viagem 1/i).length).toBeGreaterThan(0);
@@ -32,7 +47,7 @@ describe('TripsList', () => {
     const moreBtn = screen.getByLabelText(/Menu da Viagem/i); 
     fireEvent.click(moreBtn);
 
-    const detailsBtn = screen.getByText(/Detalhes/i);
+    const detailsBtn = screen.getByText(/Resumo da Viagem/i);
     fireEvent.click(detailsBtn);
 
     await waitFor(() => {
@@ -40,25 +55,17 @@ describe('TripsList', () => {
     });
   });
 
-  it('renders expense cards with text buttons on mobile', async () => {
-    // Mock mobile width
-    window.innerWidth = 400;
-    window.dispatchEvent(new Event('resize'));
-
+  it('renders expense cards on mobile and desktop', async () => {
     const mockExpenses = [
-      { id: 'exp-1', description: 'Almoço', amount: 50, date: '2026-04-01', paid_by: 'João', currency: 'BRL' }
+      { id: 'exp-1', description: 'Almoço', amount: 50, date: '2026-04-01', paid_by: 'João', currency: 'BRL', trip_categories: { name: 'Alimentação' } }
     ];
 
-    // More flexible Supabase mock
     const mockFrom = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockImplementation((col) => {
-        if (col === 'date') return Promise.resolve({ data: mockExpenses, error: null });
-        return Promise.resolve({ data: [], error: null });
-      })
+      order: vi.fn().mockResolvedValue({ data: mockExpenses, error: null })
     });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    supabase.from = mockFrom;
 
     render(
       <TripsList 
@@ -69,33 +76,29 @@ describe('TripsList', () => {
       />
     );
 
+    // Should find the expense text in both mobile list and desktop table
     await waitFor(() => {
-      expect(screen.getByText(/Almoço/i)).toBeInTheDocument();
+      const items = screen.getAllByText(/Almoço/i);
+      expect(items.length).toBeGreaterThan(0);
     });
 
-    // On mobile, the expense item has icon buttons with titles (FinanceList pattern)
-    expect(screen.getByTitle('Editar')).toBeInTheDocument();
-    expect(screen.getByTitle('Excluir')).toBeInTheDocument();
+    // Check for mobile-specific icon buttons
+    expect(screen.getAllByTitle('Editar').length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle('Excluir').length).toBeGreaterThan(0);
   });
 
-  it('renders correctly and handles actions in menu', async () => {
-    // Mock desktop width
-    window.innerWidth = 1024;
-    window.dispatchEvent(new Event('resize'));
-
+  it('handles sorting and filters', async () => {
     const mockExpenses = [
-      { id: 'exp-1', description: 'Almoço', amount: 50, date: '2026-04-01', paid_by: 'João', currency: 'BRL' }
+      { id: 'exp-1', description: 'Almoço', amount: 50, date: '2026-04-01', paid_by: 'João', currency: 'BRL' },
+      { id: 'exp-2', description: 'Jantar', amount: 80, date: '2026-04-02', paid_by: 'Maria', currency: 'BRL' }
     ];
 
     const mockFrom = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockImplementation((col) => {
-        if (col === 'date') return Promise.resolve({ data: mockExpenses, error: null });
-        return Promise.resolve({ data: [], error: null });
-      })
+      order: vi.fn().mockResolvedValue({ data: mockExpenses, error: null })
     });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    supabase.from = mockFrom;
 
     render(
       <TripsList 
@@ -107,19 +110,14 @@ describe('TripsList', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Almoço/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Almoço/i).length).toBeGreaterThan(0);
     });
 
-    // In desktop, the action buttons are inside a menu
-    // Initially they shouldn't be visible
-    expect(screen.queryByText(/Editar Viagem/i)).not.toBeInTheDocument();
-    
-    // Open menu
-    const moreBtn = screen.getByLabelText(/Menu da Viagem/i);
-    fireEvent.click(moreBtn);
+    // Test Search
+    const searchInput = screen.getByPlaceholderText(/Buscar despesa.../i);
+    fireEvent.change(searchInput, { target: { value: 'Jantar' } });
 
-    // Now actions should be visible
-    expect(screen.getByText(/Editar/i)).toBeInTheDocument();
-    expect(screen.getByText(/Roteiro/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Almoço/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Jantar/i).length).toBeGreaterThan(0);
   });
 });

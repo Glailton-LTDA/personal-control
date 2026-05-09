@@ -79,21 +79,22 @@ test.describe('Minha Jornada (Stats)', () => {
     await page.fill('input[type="password"]', 'password123');
     await page.getByRole('button', { name: 'Entrar' }).click();
     
-    // Aguarda o Dashboard carregar e navega para Viagens
-    await expect(page.getByText('Personal')).toBeVisible({ timeout: 15000 });
+    // Aguarda o Dashboard carregar (Launchpad)
+    await page.waitForSelector('header', { timeout: 20000 });
+    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
     
     await unlockApp(page);
     
-    const tripsGroup = page.getByTestId('sidebar-group-trips');
-    await tripsGroup.click({ force: true });
-    const listBtn = page.getByTestId('sidebar-sub-item-trips-list');
-    if (!(await listBtn.isVisible())) {
-       await tripsGroup.click({ force: true });
-    }
-    await listBtn.click({ force: true });
+    // Navega para Viagens via Launchpad
+    await page.getByTestId('launchpad-item-trips').click();
+    await page.waitForLoadState('networkidle');
     
-    // Verifica se carregou
-    await expect(page.getByTestId('header-title')).toContainText('Minhas Viagens');
+    // Verifica se o sub-header de viagens apareceu e clica em Listagem
+    await expect(page.getByTestId('sub-header')).toBeVisible({ timeout: 10000 });
+    await page.getByTestId('sidebar-sub-item-trips-list').click();
+    
+    // Verifica se carregou o título do módulo
+    await expect(page.getByTestId('header-title').first()).toContainText('Viagens');
   });
 
   test('deve navegar para Minha Jornada via sidebar e exibir estatísticas', async ({ page }) => {

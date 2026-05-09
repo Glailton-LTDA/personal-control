@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar, Clock, MapPin, CheckCircle2, Circle, 
   Plus, Trash2, ChevronDown, ChevronUp, Map, 
-  ExternalLink, Ticket, Check, Bell, GripVertical
+  ExternalLink, Ticket, Check, Bell, GripVertical,
+  Navigation, Info
 } from 'lucide-react';
 import AddressInput from './AddressInput';
-import { AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { motion as Motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 
@@ -20,39 +21,45 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
       dragControls={controls}
       className="glass-card"
       style={{ 
-        padding: isMobile ? '0.75rem' : '1.25rem',
-        borderLeft: `4px solid ${entry.completed ? 'var(--success)' : 'var(--glass-border)'}`,
-        opacity: entry.completed ? 0.6 : 1,
+        padding: isMobile ? '1.25rem' : '1.75rem',
+        borderLeft: `5px solid ${entry.completed ? 'var(--success)' : 'var(--glass-border)'}`,
+        background: entry.completed ? 'color-mix(in srgb, var(--success) 5%, var(--bg-card))' : 'var(--bg-card)',
+        opacity: entry.completed ? 0.7 : 1,
         display: 'flex',
         flexDirection: 'column',
-        gap: isMobile ? '0.75rem' : '1rem',
+        gap: isMobile ? '1rem' : '1.25rem',
         position: 'relative',
         zIndex: focusedId === entry.id ? 1000 : totalItems - idx,
         overflow: 'visible',
         width: '100%',
         minWidth: 0,
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        transition: 'border-color 0.3s, background 0.3s',
+        boxShadow: focusedId === entry.id ? '0 12px 24px -8px rgba(0,0,0,0.5)' : 'none'
       }}
-      whileDrag={{ scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 1000 }}
+      whileDrag={{ scale: 1.02, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)', zIndex: 1000, background: 'rgba(30, 41, 59, 0.8)' }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.5rem' : '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? '0.75rem' : '1.25rem' }}>
         <div 
           onPointerDown={(e) => controls.start(e)}
           style={{ 
             cursor: 'grab', 
             opacity: 0.3, 
             flexShrink: 0, 
-            marginTop: '0.75rem',
+            marginTop: '0.6rem',
             touchAction: 'none',
             padding: '0.5rem',
-            margin: '-0.5rem'
+            margin: '-0.5rem',
+            transition: '0.2s'
           }} 
+          onMouseEnter={(e) => e.currentTarget.style.opacity = 0.8}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = 0.3}
           title="Arraste para reordenar"
         >
-          <GripVertical size={isMobile ? 18 : 20} />
+          <GripVertical size={isMobile ? 20 : 22} />
         </div>
         
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'visible' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.85rem', overflow: 'visible' }}>
           <textarea 
             value={entry.activity || ''}
             placeholder="O que vamos fazer?"
@@ -61,7 +68,6 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
             rows={1}
             onChange={(e) => {
               updateEntry(entry.id, 'activity', e.target.value);
-              // Auto-expand logic
               e.target.style.height = 'auto';
               e.target.style.height = e.target.scrollHeight + 'px';
             }}
@@ -74,17 +80,18 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
             style={{
               background: 'none',
               border: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
-              color: 'white',
-              fontSize: '1rem',
-              fontWeight: '700',
+              borderBottom: '1px solid var(--glass-border)',
+              color: 'var(--text-main)',
+              fontSize: '1.15rem',
+              fontWeight: '900',
               width: '100%',
               padding: '0.2rem 0',
               outline: 'none',
               resize: 'none',
-              fontFamily: 'inherit',
+              fontFamily: 'Inter, sans-serif',
               overflow: 'hidden',
-              minHeight: '1.5rem'
+              minHeight: '1.5rem',
+              transition: '0.3s'
             }}
           />
 
@@ -92,21 +99,26 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'space-between',
-            gap: '0.5rem',
+            gap: '1rem',
             flexWrap: 'wrap',
             overflow: 'visible'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button 
                 type="button"
                 onClick={() => updateEntry(entry.id, 'completed', !entry.completed)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: entry.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+                style={{ 
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0, 
+                  color: entry.completed ? 'var(--success)' : 'var(--text-muted)', 
+                  display: 'flex', alignItems: 'center', transition: '0.2s',
+                  transform: entry.completed ? 'scale(1.1)' : 'scale(1)'
+                }}
               >
-                {entry.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                {entry.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
               </button>
               
-              <div style={{ position: 'relative', width: isMobile ? '100px' : '125px' }}>
-                <Clock size={14} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+              <div style={{ position: 'relative', width: isMobile ? '120px' : '140px' }}>
+                <Clock size={16} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
                 <input 
                   type="time"
                   value={entry.time || ''}
@@ -114,7 +126,12 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                   onBlur={() => setFocusedId(null)}
                   onChange={(e) => updateEntry(entry.id, 'time', e.target.value)}
                   className="glass-input"
-                  style={{ width: '100%', padding: '0.4rem 1.8rem 0.4rem 0.5rem', fontSize: '0.8rem', fontWeight: '800', borderRadius: '8px' }}
+                  style={{ 
+                    width: '100%', padding: '0.6rem 0.8rem 0.6rem 2.5rem', 
+                    fontSize: '0.9rem', fontWeight: '800', borderRadius: '12px',
+                    background: 'var(--tabs-bg)', border: '1px solid var(--glass-border)',
+                    color: 'var(--text-main)'
+                  }}
                 />
               </div>
             </div>
@@ -132,29 +149,33 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                     });
                   }}
                   placeholder="Local ou endereço..."
-                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.9rem' }}
+                  style={{ 
+                    padding: '0.6rem 1rem', fontSize: '0.95rem', borderRadius: '12px',
+                    background: 'var(--tabs-bg)', border: '1px solid var(--glass-border)',
+                    color: 'var(--text-main)'
+                  }}
                 />
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               {entry.location && (
                 <button 
                   type="button"
                   onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.location)}`, '_blank')}
                   title="Ver no Mapa"
-                  className="icon-btn"
-                  style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
+                  className="action-btn"
+                  style={{ width: '40px', height: '40px' }}
                 >
-                  <ExternalLink size={18} />
+                  <Navigation size={18} />
                 </button>
               )}
               <button 
                 type="button"
                 onClick={() => addToTickets(entry)}
-                title="Tickets"
-                className="icon-btn"
-                style={{ opacity: 0.6, background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem' }}
+                title="Ingressos"
+                className="action-btn"
+                style={{ width: '40px', height: '40px' }}
               >
                 <Ticket size={18} />
               </button>
@@ -162,15 +183,16 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                 type="button"
                 onClick={() => removeEntry(entry.id)}
                 title="Remover"
-                style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', padding: '0.4rem', cursor: 'pointer', marginLeft: '0.25rem' }}
+                className="action-btn danger"
+                style={{ width: '40px', height: '40px' }}
               >
-                <Trash2 size={16} />
+                <Trash2 size={18} />
               </button>
             </div>
           </div>
 
           {isMobile && (
-            <div style={{ width: '100%', marginTop: '-0.25rem' }}>
+            <div style={{ width: '100%', marginTop: '0.25rem' }}>
               <AddressInput 
                 value={entry.location}
                 onFocus={() => setFocusedId(entry.id)}
@@ -182,7 +204,11 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                   });
                 }}
                 placeholder="Local ou endereço..."
-                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                style={{ 
+                  padding: '0.75rem 1rem', fontSize: '0.9rem', borderRadius: '12px',
+                  background: 'var(--tabs-bg)', border: '1px solid var(--glass-border)',
+                  color: 'var(--text-main)'
+                }}
               />
             </div>
           )}
@@ -192,51 +218,58 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
       <div style={{ 
         display: 'flex', 
         flexWrap: 'wrap', 
-        gap: isMobile ? '0.75rem' : '1.5rem', 
-        paddingLeft: isMobile ? '0.5rem' : '3rem', 
-        borderTop: '1px solid rgba(255,255,255,0.05)', 
-        paddingTop: '0.75rem' 
+        gap: isMobile ? '1rem' : '2rem', 
+        paddingLeft: isMobile ? '0' : '3.5rem', 
+        borderTop: '1px solid var(--glass-border)', 
+        paddingTop: '1.25rem' 
       }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-main)' }}>
-          <input 
-            type="checkbox" 
-            checked={entry.needs_booking}
-            onChange={(e) => {
-              const val = e.target.checked;
-              updateEntry(entry.id, { 
-                needs_booking: val,
-                ...(!val ? { is_booked: false } : {})
-              });
-            }}
-          />
-          Reservar?
-        </label>
+        <div style={{ display: 'flex', gap: '1.5rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)', fontWeight: '700' }}>
+            <input 
+              type="checkbox" 
+              checked={entry.needs_booking}
+              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              onChange={(e) => {
+                const val = e.target.checked;
+                updateEntry(entry.id, { 
+                  needs_booking: val,
+                  ...(!val ? { is_booked: false } : {})
+                });
+              }}
+            />
+            Precisa Reserva?
+          </label>
 
-        <label style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '0.4rem', 
-          fontSize: '0.75rem', 
-          cursor: entry.needs_booking ? 'pointer' : 'default',
-          opacity: entry.needs_booking ? 1 : 0.3,
-          color: 'var(--text-main)'
-        }}>
-          <input 
-            type="checkbox" 
-            disabled={!entry.needs_booking}
-            checked={entry.is_booked}
-            onChange={(e) => updateEntry(entry.id, 'is_booked', e.target.checked)}
-          />
-          OK?
-          {entry.needs_booking && !entry.is_booked && (
-            <Bell size={12} style={{ color: 'var(--warning)' }} />
-          )}
-          {entry.is_booked && (
-            <Check size={12} style={{ color: 'var(--success)' }} />
-          )}
-        </label>
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.6rem', 
+            fontSize: '0.85rem', 
+            cursor: entry.needs_booking ? 'pointer' : 'default',
+            opacity: entry.needs_booking ? 1 : 0.3,
+            color: entry.is_booked ? 'var(--success)' : 'var(--text-main)',
+            fontWeight: '700',
+            transition: '0.3s'
+          }}>
+            <input 
+              type="checkbox" 
+              disabled={!entry.needs_booking}
+              checked={entry.is_booked}
+              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              onChange={(e) => updateEntry(entry.id, 'is_booked', e.target.checked)}
+            />
+            {entry.is_booked ? 'Confirmado' : 'Pendente'}
+            {entry.needs_booking && !entry.is_booked && (
+              <Bell size={14} style={{ color: 'var(--warning)', animation: 'pulse 2s infinite' }} />
+            )}
+            {entry.is_booked && (
+              <Check size={14} style={{ color: 'var(--success)' }} />
+            )}
+          </label>
+        </div>
 
-        <div style={{ flex: 1, minWidth: isMobile ? '140px' : '200px' }}>
+        <div style={{ flex: 1, minWidth: isMobile ? '100%' : '240px', position: 'relative' }}>
+          <Info size={14} style={{ position: 'absolute', left: '0.8rem', top: '0.7rem', opacity: 0.3 }} />
           <textarea 
             value={entry.notes || ''}
             onFocus={() => setFocusedId(entry.id)}
@@ -254,20 +287,20 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
               }
             }}
             className="glass-input"
-            placeholder="Nota rápida..."
+            placeholder="Observações, códigos de reserva, dicas..."
             style={{ 
               width: '100%', 
-              padding: '0.4rem', 
-              fontSize: '0.8rem', 
-              background: 'transparent', 
-              border: 'none', 
-              borderBottom: '1px solid var(--glass-border)', 
-              borderRadius: 0, 
+              padding: '0.6rem 0.8rem 0.6rem 2.5rem', 
+              fontSize: '0.85rem', 
+              background: 'var(--tabs-bg)', 
+              border: '1px solid var(--glass-border)', 
+              borderRadius: '12px', 
               color: 'var(--text-main)',
               resize: 'none',
               fontFamily: 'inherit',
               overflow: 'hidden',
-              minHeight: '1.2rem'
+              minHeight: '42px',
+              transition: '0.3s'
             }}
           />
         </div>
@@ -388,10 +421,9 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
     if (onAddToTickets) {
       onAddToTickets(entry);
     } else {
-      // Fallback tip
-      toast(`Dica: Você pode adicionar "${entry.activity || entry.location}" na aba de Ingressos em Ajustes da Viagem.`, {
+      toast(`Dica: Adicione "${entry.activity || entry.location}" em Ajustes > Ingressos.`, {
         icon: '🎫',
-        duration: 5000
+        duration: 4000
       });
     }
   };
@@ -423,12 +455,12 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="custom-scrollbar" style={{ 
         display: 'flex', 
-        gap: '0.75rem', 
+        gap: '0.85rem', 
         overflowX: 'auto', 
-        paddingBottom: '0.5rem',
+        padding: '0.5rem 0.2rem 1.25rem',
         width: '100%',
         boxSizing: 'border-box'
       }}>
@@ -437,102 +469,163 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
             key={day}
             onClick={() => setActiveDay(day)}
             style={{
-              padding: '0.75rem 1rem',
-              borderRadius: '16px',
+              padding: '1rem 1.25rem',
+              borderRadius: '20px',
               border: '1px solid',
               borderColor: activeDay === day ? 'var(--primary)' : 'var(--glass-border)',
-              background: activeDay === day ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
+              background: activeDay === day ? 'color-mix(in srgb, var(--primary) 15%, transparent)' : 'var(--bg-card)',
               color: activeDay === day ? 'var(--primary)' : 'var(--text-muted)',
               cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              minWidth: '70px',
-              transition: '0.2s',
-              fontWeight: activeDay === day ? '800' : '600'
+              minWidth: '85px',
+              transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              fontWeight: activeDay === day ? '900' : '700',
+              boxShadow: activeDay === day ? '0 10px 20px -5px rgba(99, 102, 241, 0.3)' : 'none',
+              transform: activeDay === day ? 'translateY(-2px)' : 'translateY(0)'
             }}
           >
-            <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', opacity: 0.6, color: 'var(--text-muted)' }}>{getDayName(day)}</span>
-            <span style={{ fontSize: '1.1rem', color: activeDay === day ? 'var(--primary)' : 'var(--text-main)' }}>{formatDate(day)}</span>
+            <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{getDayName(day)}</span>
+            <span style={{ fontSize: '1.25rem', color: activeDay === day ? 'var(--primary)' : 'var(--text-main)' }}>{formatDate(day)}</span>
           </button>
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         <div style={{ 
           display: 'flex', 
           flexDirection: isMobile ? 'column' : 'row', 
           justifyContent: 'space-between', 
           alignItems: isMobile ? 'flex-start' : 'center',
-          gap: isMobile ? '0.75rem' : '1rem'
+          gap: isMobile ? '1rem' : '1.5rem',
+          background: 'var(--tabs-bg)',
+          padding: '1rem 1.5rem',
+          borderRadius: '20px',
+          border: '1px solid var(--glass-border)'
         }}>
-          <h3 style={{ margin: 0, fontSize: isMobile ? '1rem' : '1.1rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--text-main)' }}>
-            <Calendar size={18} style={{ color: 'var(--primary)' }} />
-            Roteiro do Dia {activeDay && formatDate(activeDay)}
+          <h3 style={{ margin: 0, fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-main)' }}>
+            <Calendar size={22} className="text-primary" />
+            Agenda <span style={{ opacity: 0.3, fontWeight: '400' }}>•</span> {activeDay && formatDate(activeDay)}
           </h3>
           
           <div style={{ 
             display: 'flex', 
-            gap: '0.5rem', 
+            gap: '0.75rem', 
             width: isMobile ? '100%' : 'auto', 
-            justifyContent: isMobile ? 'flex-start' : 'flex-end',
+            justifyContent: isMobile ? 'space-between' : 'flex-end',
             flexWrap: 'wrap'
           }}>
-            {entriesForDay.length > 1 && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {entriesForDay.length > 1 && (
+                <button 
+                  onClick={sortDayByTime}
+                  className="btn"
+                  style={{ 
+                    background: 'var(--tabs-bg)', 
+                    color: 'var(--text-main)', 
+                    padding: '0.6rem 1rem', 
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    border: '1px solid var(--glass-border)'
+                  }}
+                >
+                  <Clock size={16} /> <span className="btn-text">ORDENAR</span>
+                </button>
+              )}
               <button 
-                onClick={sortDayByTime}
-                style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                type="button"
+                onClick={openInGoogleMaps}
+                disabled={entriesForDay.length === 0}
+                className="btn"
+                style={{ 
+                  background: 'var(--tabs-bg)', 
+                  color: 'var(--text-main)', 
+                  padding: '0.6rem 1rem', 
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.8rem',
+                  fontWeight: '800',
+                  border: '1px solid var(--glass-border)',
+                  opacity: entriesForDay.length === 0 ? 0.3 : 1
+                }}
               >
-                <Clock size={14} />
-                ORDENAR
+                <Map size={16} /> <span className="btn-text">VER ROTA</span>
               </button>
-            )}
-            <button 
-              type="button"
-              onClick={openInGoogleMaps}
-              disabled={entriesForDay.length === 0}
-              className="btn-secondary"
-              style={{ fontSize: '0.7rem', padding: '0.4rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem', opacity: entriesForDay.length === 0 ? 0.3 : 1 }}
-            >
-              <Map size={14} /> Ver Rota
-            </button>
+            </div>
             <button 
               type="button"
               onClick={() => addEntry(activeDay)}
-              className="btn-primary"
-              style={{ fontSize: '0.7rem', padding: '0.4rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              className="btn"
+              style={{ 
+                background: 'var(--primary)', 
+                color: 'white', 
+                padding: '0.6rem 1.25rem', 
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.85rem',
+                fontWeight: '900',
+                border: 'none',
+                boxShadow: '0 4px 12px -2px rgba(99, 102, 241, 0.4)'
+              }}
             >
-              <Plus size={14} /> Adicionar
+              <Plus size={18} /> LANÇAR ATIVIDADE
             </button>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {entriesForDay.length === 0 ? (
-            <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.4, border: '1px dashed var(--glass-border)', color: 'var(--text-main)' }}>
-              Nenhuma atividade planejada para este dia.
+            <div className="glass-card" style={{ padding: '5rem 2rem', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--tabs-bg)', borderRadius: '32px', border: '1px dashed var(--glass-border)' }}>
+              <div style={{ opacity: 0.2, marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                <Calendar size={64} />
+              </div>
+              <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>O que vamos fazer hoje?</h4>
+              <p style={{ marginTop: '0.75rem', maxWidth: '320px', margin: '0.75rem auto 0', lineHeight: '1.6', fontSize: '0.95rem' }}>
+                Seu roteiro para este dia está vazio. Comece a planejar suas atividades agora!
+              </p>
+              <button 
+                onClick={() => addEntry(activeDay)} 
+                className="btn" 
+                style={{ 
+                  marginTop: '1.5rem', background: 'var(--primary)', color: 'white', 
+                  padding: '0.75rem 1.5rem', borderRadius: '14px', fontWeight: '800' 
+                }}
+              >
+                <Plus size={18} /> Primeira Atividade
+              </button>
             </div>
           ) : (
             <Reorder.Group 
               axis="y" 
               values={entriesForDay} 
               onReorder={handleReorder}
-              style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', listStyle: 'none', padding: 0 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem', listStyle: 'none', padding: 0 }}
             >
-              {entriesForDay.map((entry, idx) => (
-                <ItineraryItem 
-                  key={entry.id}
-                  entry={entry}
-                  idx={idx}
-                  totalItems={entriesForDay.length}
-                  isMobile={isMobile}
-                  focusedId={focusedId}
-                  setFocusedId={setFocusedId}
-                  updateEntry={updateEntry}
-                  removeEntry={removeEntry}
-                  addToTickets={addToTickets}
-                />
-              ))}
+              <AnimatePresence>
+                {entriesForDay.map((entry, idx) => (
+                  <ItineraryItem 
+                    key={entry.id}
+                    entry={entry}
+                    idx={idx}
+                    totalItems={entriesForDay.length}
+                    isMobile={isMobile}
+                    focusedId={focusedId}
+                    setFocusedId={setFocusedId}
+                    updateEntry={updateEntry}
+                    removeEntry={removeEntry}
+                    addToTickets={addToTickets}
+                  />
+                ))}
+              </AnimatePresence>
             </Reorder.Group>
           )}
         </div>

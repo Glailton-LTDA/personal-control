@@ -123,7 +123,7 @@ function AutoResizeTextarea({ value, onChange, placeholder, className, style }) 
 }
 
 export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
-  const { encryptObject, decryptObject, shareResourceKey } = useEncryption();
+  const { decryptObject } = useEncryption();
   const [lists, setLists] = useState([]);
   const [selectedList, setSelectedList] = useState(null);
   const [items, setItems] = useState([]);
@@ -465,7 +465,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                 <p>Nenhuma lista criada ainda</p>
               </div>
             ) : lists.map(list => (
-              <div key={list.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
+              <div key={list.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', flexWrap: 'wrap', gap: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <List size={22} />
@@ -640,7 +640,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (selectedList.fields?.length <= 3 ? 'repeat(auto-fill, minmax(340px, 1fr))' : 'repeat(auto-fill, minmax(400px, 1fr))'), gap: '1rem' }}>
+              <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
                 {items.length > 0 ? items.map(item => (
                   <div key={item.id} className="glass-card custom-list-card" style={{ padding: isMobile ? '1.25rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', opacity: item.completed ? 0.7 : 1, transition: 'all 0.2s ease' }}>
                     {/* Card Header */}
@@ -729,7 +729,6 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                   activeShares={activeShares}
                   onClose={() => setIsModalOpen(false)}
                   onRefresh={fetchShares}
-                  shareResourceKey={shareResourceKey}
                 />
               ) : (
                 <ItemForm 
@@ -749,7 +748,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   );
 }
 
-function ShareListModal({ user, list, activeShares, onClose, onRefresh, shareResourceKey }) {
+function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState('WRITE');
   const [isLoading, setIsLoading] = useState(false);

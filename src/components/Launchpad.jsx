@@ -1,0 +1,223 @@
+import React from 'react';
+import { motion as Motion } from 'framer-motion';
+import { 
+  LayoutDashboard, 
+  Car, 
+  TrendingUp, 
+  Plane, 
+  List, 
+  Settings,
+  LogOut,
+  ChevronRight,
+  Coins
+} from 'lucide-react';
+
+const moduleData = {
+  finances: { 
+    description: 'Controle suas receitas, despesas e fluxo de caixa mensal.',
+    color: '#6366f1',
+    icon: Coins 
+  },
+  cars: { 
+    description: 'Gerencie manutenções, abastecimentos e custos da sua frota.',
+    color: '#3b82f6',
+    icon: Car 
+  },
+  investments: { 
+    description: 'Acompanhe a evolução do seu patrimônio e rentabilidade.',
+    color: '#10b981',
+    icon: TrendingUp 
+  },
+  trips: { 
+    description: 'Planeje roteiros, controle gastos e registre sua jornada.',
+    color: '#a855f7',
+    icon: Plane 
+  },
+  lists: { 
+    description: 'Crie listas personalizadas para qualquer tipo de controle.',
+    color: '#f59e0b',
+    icon: List 
+  },
+  settings: { 
+    description: 'Ajustes de segurança, interface e preferências do sistema.',
+    color: '#94a3b8',
+    icon: Settings 
+  },
+};
+
+export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const item = {
+    hidden: { y: 20, opacity: 0 },
+    show: { y: 0, opacity: 1 }
+  };
+
+  return (
+    <Motion.div 
+      variants={container}
+      initial="hidden"
+      animate="show"
+      style={{ 
+        maxWidth: '1200px', 
+        margin: '0 auto', 
+        padding: '2rem 1rem',
+        minHeight: 'calc(100vh - 100px)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center'
+      }}
+    >
+      <header style={{ marginBottom: '3rem', textAlign: 'center' }}>
+        <Motion.h1 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.5rem' }}
+        >
+          Olá, <span style={{ color: 'var(--primary)' }}>{user?.email?.split('@')[0]}</span>
+        </Motion.h1>
+        <Motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}
+        >
+          O que vamos gerenciar hoje? Selecione um módulo para começar.
+        </Motion.p>
+      </header>
+
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '1.5rem' 
+      }}>
+        {menuItems.map((menuItem) => {
+          const details = moduleData[menuItem.id] || { description: '', color: 'var(--primary)', icon: menuItem.icon };
+          const Icon = details.icon;
+
+          return (
+            <Motion.button
+              key={menuItem.id}
+              data-testid={`launchpad-item-${menuItem.id}`}
+              variants={item}
+              whileHover={{ 
+                scale: 1.02, 
+                backgroundColor: 'var(--card-action-bg)',
+                borderColor: details.color 
+              }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                if (menuItem.id === 'finances') onNavigate('finances-dashboard');
+                else if (menuItem.id === 'cars') onNavigate('cars-list');
+                else if (menuItem.id === 'investments') onNavigate('investments-dashboard');
+                else if (menuItem.id === 'trips') onNavigate('trips-list');
+                else if (menuItem.id === 'lists') onNavigate('lists-manager');
+                else if (menuItem.id === 'settings') onNavigate('settings-general');
+                else onNavigate(menuItem.id);
+              }}
+              className="glass-card"
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'flex-start', 
+                textAlign: 'left',
+                padding: '2rem', 
+                border: '1px solid var(--glass-border)', 
+                cursor: 'pointer',
+                position: 'relative',
+                overflow: 'hidden',
+                textDecoration: 'none',
+                color: 'inherit'
+              }}
+            >
+              {/* Decorative background glow */}
+              <div style={{ 
+                position: 'absolute', 
+                top: '-20%', 
+                right: '-10%', 
+                width: '150px', 
+                height: '150px', 
+                background: details.color, 
+                filter: 'blur(80px)', 
+                opacity: 0.1,
+                zIndex: 0
+              }} />
+
+              <div style={{ 
+                width: '56px', 
+                height: '56px', 
+                borderRadius: '16px', 
+                background: `color-mix(in srgb, ${details.color} 15%, transparent)`, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                color: details.color,
+                marginBottom: '1.5rem',
+                position: 'relative',
+                zIndex: 1,
+                border: `1px solid color-mix(in srgb, ${details.color} 30%, transparent)`
+              }}>
+                <Icon size={28} />
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  {menuItem.label}
+                  <ChevronRight size={18} style={{ opacity: 0.3 }} />
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
+                  {details.description}
+                </p>
+              </div>
+            </Motion.button>
+          );
+        })}
+
+        {/* Logout Card */}
+        <Motion.button
+          variants={item}
+          whileHover={{ scale: 1.02, backgroundColor: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onLogout}
+          className="glass-card"
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            gap: '1.5rem',
+            padding: '1.5rem 2rem', 
+            border: '1px solid var(--glass-border)', 
+            cursor: 'pointer',
+            color: 'var(--danger)',
+            gridColumn: '1 / -1',
+            marginTop: '1rem'
+          }}
+        >
+          <div style={{ 
+            width: '44px', 
+            height: '44px', 
+            borderRadius: '12px', 
+            background: 'rgba(239, 68, 68, 0.1)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center' 
+          }}>
+            <LogOut size={22} />
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem', display: 'block' }}>Sair do Sistema</span>
+            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Encerrar sua sessão atual com segurança.</span>
+          </div>
+        </Motion.button>
+      </div>
+    </Motion.div>
+  );
+}

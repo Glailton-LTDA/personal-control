@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
 import {
-  Globe, Compass, Loader2, ChevronLeft
+  Globe, Compass, Loader2, ChevronLeft, MapPin, Navigation, Calendar, Map, Plane, Award
 } from 'lucide-react';
 import {
   ComposableMap,
@@ -203,11 +203,13 @@ export default function TripsStats({ trips, onBack }) {
       // Itinerary data (KM and Map Points)
       if (tripItinerary.length > 0) {
         totalKm += estimateItineraryDistance(tripItinerary);
+        
+        // Collect map points from itinerary
         tripItinerary.forEach(item => {
           if (item.coordinates && Array.isArray(item.coordinates) && item.coordinates.length === 2) {
             mapPoints.push({
-              coordinates: [item.coordinates[0], item.coordinates[1]],
-              name: item.location || item.activity
+              coordinates: [Number(item.coordinates[0]), Number(item.coordinates[1])],
+              name: item.location || item.activity || 'Destino'
             });
           }
         });
@@ -262,12 +264,12 @@ export default function TripsStats({ trips, onBack }) {
   );
 
   const summaryCards = [
-    { label: 'Países Visitados', value: stats.countriesCount.toString().padStart(2, '0'), color: '#a78bfa' },
-    { label: 'Cidades Visitadas', value: stats.citiesCount.toString().padStart(2, '0'), color: '#4edea3' },
-    { label: 'Km Percorridos', value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#d2bbff' },
-    { label: 'Dias Fora', value: stats.totalDays.toString().padStart(2, '0'), color: '#adc6ff' },
-    { label: 'Continentes', value: stats.continentsCount.toString().padStart(2, '0'), color: '#7c3aed' },
-    { label: 'Total de Viagens', value: stats.tripsCount.toString().padStart(2, '0'), color: '#ec4899' },
+    { label: 'Países Visitados', value: stats.countriesCount.toString().padStart(2, '0'), color: '#8b5cf6', icon: <Globe size={24}/>, trend: 'Novos horizontes' },
+    { label: 'Cidades Visitadas', value: stats.citiesCount.toString().padStart(2, '0'), color: '#10b981', icon: <MapPin size={24}/>, trend: 'Locais explorados' },
+    { label: 'Km Percorridos', value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#3b82f6', icon: <Navigation size={24}/>, trend: 'Distância total' },
+    { label: 'Dias Fora', value: stats.totalDays.toString().padStart(2, '0'), color: '#f59e0b', icon: <Calendar size={24}/>, trend: 'Tempo de viagem' },
+    { label: 'Continentes', value: stats.continentsCount.toString().padStart(2, '0'), color: '#ec4899', icon: <Globe size={24}/>, trend: 'Pelo mundo' },
+    { label: 'Total de Viagens', value: stats.tripsCount.toString().padStart(2, '0'), color: '#06b6d4', icon: <Plane size={24}/>, trend: 'Aventuras' },
   ];
 
   return (
@@ -298,13 +300,73 @@ export default function TripsStats({ trips, onBack }) {
             {summaryCards.map((card, i) => (
               <Motion.div
                 key={i}
-                className="summary-card"
+                className="glass-card summary-card"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
+                style={{ 
+                  padding: '1.5rem', 
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--glass-border)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  minHeight: '140px',
+                  boxShadow: 'var(--shadow)',
+                  cursor: 'default'
+                }}
               >
-                <span className="summary-value" style={{ color: card.color }}>{card.value}</span>
-                <span className="summary-label">{card.label}</span>
+                {/* Background Icon Glow */}
+                <div style={{ 
+                  position: 'absolute', 
+                  right: '-10px', 
+                  top: '-10px', 
+                  opacity: 0.05, 
+                  transform: 'rotate(-15deg)',
+                  pointerEvents: 'none'
+                }}>
+                  {React.cloneElement(card.icon, { size: 100, color: card.color })}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div style={{ 
+                    color: card.color, 
+                    background: `color-mix(in srgb, ${card.color} 15%, transparent)`, 
+                    padding: '0.6rem', 
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: `1px solid color-mix(in srgb, ${card.color} 25%, transparent)`
+                  }}>
+                    {card.icon}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {card.label}
+                  </span>
+                </div>
+
+                <div>
+                  <div style={{ 
+                    fontSize: '1.75rem', 
+                    fontWeight: 900, 
+                    color: 'var(--text-main)',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1
+                  }}>
+                    {card.value}
+                  </div>
+                  <div style={{ 
+                    marginTop: '0.25rem', 
+                    height: '4px', 
+                    width: '40px', 
+                    background: card.color, 
+                    borderRadius: '2px',
+                    opacity: 0.6
+                  }} />
+                </div>
               </Motion.div>
             ))}
           </div>
@@ -332,12 +394,12 @@ export default function TripsStats({ trips, onBack }) {
                             <Geography
                               key={geo.rsmKey}
                               geography={geo}
-                              fill="#1e293b"
-                              stroke="#334155"
+                              fill="rgba(255, 255, 255, 0.03)"
+                              stroke="rgba(255, 255, 255, 0.1)"
                               strokeWidth={0.5}
                               style={{
                                 default: { outline: "none" },
-                                hover: { fill: "#334155", outline: "none" },
+                                hover: { fill: "rgba(99, 102, 241, 0.2)", outline: "none" },
                                 pressed: { outline: "none" },
                               }}
                             />
@@ -347,8 +409,10 @@ export default function TripsStats({ trips, onBack }) {
 
                       {stats.mapPoints.map((point, index) => (
                         <Marker key={index} coordinates={point.coordinates}>
-                          <circle r={4} fill="#7c3aed" stroke="#fff" strokeWidth={1} className="map-pulse" />
-                          <title>{point.name}</title>
+                          <g transform="translate(-6, -6)">
+                            <circle cx="6" cy="6" r="4" fill="var(--primary)" stroke="#fff" strokeWidth={1} />
+                            <circle cx="6" cy="6" r="6" fill="var(--primary)" className="map-pulse" style={{ opacity: 0.4 }} />
+                          </g>
                         </Marker>
                       ))}
                     </ZoomableGroup>
@@ -565,10 +629,11 @@ export default function TripsStats({ trips, onBack }) {
                   {/* Markers only for this country */}
                   {stats.mapPoints
                     .filter(p => {
-                      // Note: This is a simplification. Ideally we'd map cities to countries more robustly.
-                      // For now we check if the city count matches what we calculated.
-                      // Actually, the best way is to only show points that are within this country's trips.
-                      return trips.some(t => t.countries.includes(selectedCountry.name) && itineraries[t.id]?.some(i => i.location === p.name || i.activity === p.name));
+                      // Show points that belong to trips covering this country
+                      return trips.some(t => 
+                        t.countries.includes(selectedCountry.name) && 
+                        itineraries[t.id]?.some(i => (i.location === p.name || i.activity === p.name) && i.coordinates)
+                      );
                     })
                     .map((point, index) => (
                       <Marker key={index} coordinates={point.coordinates}>
@@ -657,7 +722,7 @@ export default function TripsStats({ trips, onBack }) {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(2, 6, 23, 0.85);
+          background: rgba(0, 0, 0, 0.7);
           backdrop-filter: blur(8px);
           display: flex;
           align-items: center;
@@ -666,8 +731,8 @@ export default function TripsStats({ trips, onBack }) {
           padding: 2rem;
         }
         .country-modal-content {
-          background: #0f172a;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: var(--bg-canvas);
+          border: 1px solid var(--glass-border);
           border-radius: 2rem;
           width: 100%;
           max-width: 800px;
@@ -688,11 +753,11 @@ export default function TripsStats({ trips, onBack }) {
           font-size: 1.5rem;
           font-weight: 800;
           margin: 0;
-          color: #f8fafc;
+          color: var(--text-main);
         }
         .modal-title-group p {
           font-size: 0.875rem;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin: 0.25rem 0 0 0;
         }
         .close-modal-btn {
@@ -715,7 +780,7 @@ export default function TripsStats({ trips, onBack }) {
         }
         .modal-map-container {
           flex: 1;
-          background: #020617;
+          background: var(--map-bg);
           min-height: 300px;
           position: relative;
           overflow: hidden;
@@ -767,11 +832,11 @@ export default function TripsStats({ trips, onBack }) {
           position: absolute;
           bottom: 1rem;
           left: 1rem;
-          background: rgba(15, 23, 42, 0.8);
+          background: var(--bg-card);
           backdrop-filter: blur(8px);
           padding: 0.5rem 0.75rem;
           border-radius: 0.75rem;
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--glass-border);
         }
         .legend-item {
           display: flex;

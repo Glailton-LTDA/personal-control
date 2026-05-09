@@ -73,7 +73,7 @@ export default function ServiceTemplatesManager({ user }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.5rem', maxHeight: 400, overflowY: 'auto' }}>
           {existingNames.map(desc => (
             <div key={desc} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid var(--glass-border)' }}>
-              <span style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: 200, paddingTop: 4 }}>{desc}</span>
+              <span style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '120px', flex: '1 1 auto', paddingTop: 4 }}>{desc}</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', flex: 1 }}>
                 {grouped[desc].map(t => (
                   <span key={t.id} style={{

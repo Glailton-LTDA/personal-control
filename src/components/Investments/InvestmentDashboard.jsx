@@ -220,7 +220,7 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       </div>
 
       {/* Main Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.5rem' }} className="responsive-grid">
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.5rem' }}>
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <TrendingUp size={18} /> Evolução de Rendimentos em {selectedYear}
@@ -291,7 +291,7 @@ export default function InvestmentDashboard({ user, showValues = true }) {
       </div>
 
       {/* Grouped Charts Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }} className="responsive-grid">
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
         
         {/* Rendimento por Tipo de Conta */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>

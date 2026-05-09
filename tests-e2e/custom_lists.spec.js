@@ -7,7 +7,14 @@ test.describe('Custom Lists', () => {
     await page.fill('input[type="password"]', 'password');
     await page.click('button:has-text("Entrar")');
     
-    // Wait for dashboard to load
+    // Wait for dashboard to load (Launchpad)
+    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+
+    // Navega para Finanças via Launchpad para garantir o estado inicial esperado
+    await page.getByTestId('launchpad-item-finances').click();
+    await page.waitForLoadState('networkidle');
+    
+    // Agora verifica o título no sub-header
     await expect(page.getByTestId('header-title').first()).toContainText('Finanças', { timeout: 15000 });
 
     // Expand "Minhas Listas" using test ID

@@ -10,7 +10,6 @@ import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const [trips, setTrips] = useState([]);
@@ -20,7 +19,6 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
-  const { decryptObject, encryptObject, isUnlocked } = useEncryption();
 
   const initialTripProcessed = useRef(false);
 
@@ -29,24 +27,14 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     try {
       const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
       if (data) {
-        const decrypted = await decryptObject(data, [
-          'title', 
-          'cities.*', 
-          'countries.*',
-          'participants.*',
-          'hotels.*',
-          'transports.*',
-          'tickets.*',
-          'misc_docs.*'
-        ]);
-        setTrips(decrypted);
+        setTrips(data);
       }
     } catch (error) {
       console.error('Error fetching trips:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [decryptObject]);
+  }, []);
 
   const fetchItinerary = useCallback(async (tripId) => {
     if (!tripId) return;
@@ -61,21 +49,13 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
       if (error) throw error;
       
       if (data) {
-        const decrypted = await decryptObject(data, [
-          'activity',
-          'location',
-          'notes'
-        ], { 
-          resourceId: tripId, 
-          resourceType: 'TRIP' 
-        });
-        setItinerary(decrypted);
+        setItinerary(data);
       }
     } catch (err) {
       console.error('Error fetching itinerary:', err);
       toast.error('Erro ao carregar roteiro');
     }
-  }, [decryptObject]);
+  }, []);
 
   const handleSelectTrip = useCallback((trip) => {
     setSelectedTrip(trip);
@@ -91,7 +71,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
 
   useEffect(() => {
     fetchTrips();
-  }, [fetchTrips, isUnlocked]);
+  }, [fetchTrips]);
 
   useEffect(() => {
     if (trips.length > 0) {
@@ -124,7 +104,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     if (!selectedTrip) return;
     setIsSaving(true);
     try {
-      // 1. Prepare data (assign order_index based on position)
+      // 2. Prepare data (assign order_index based on position)
       const sanitizedItinerary = itinerary.map((item, index) => ({
         trip_id: selectedTrip.id,
         user_id: user.id,
@@ -140,13 +120,6 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         order_index: index // Save the order!
       }));
 
-      // 2. Encrypt itinerary before saving
-      const encryptedItinerary = await encryptObject(sanitizedItinerary, [
-        'activity',
-        'location',
-        'notes'
-      ]);
-
       // 3. Clear existing itinerary for this trip and insert new one
       // We use a transaction-like approach (delete then insert)
       const { error: deleteError } = await supabase
@@ -156,10 +129,10 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
       
       if (deleteError) throw deleteError;
 
-      if (encryptedItinerary.length > 0) {
+      if (sanitizedItinerary.length > 0) {
         const { error: insertError } = await supabase
           .from('trip_itinerary')
-          .insert(encryptedItinerary);
+          .insert(sanitizedItinerary);
         
         if (insertError) throw insertError;
       }
@@ -372,7 +345,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                     textAlign: 'left',
                     border: '1px solid',
                     borderColor: selectedTrip?.id === trip.id ? 'var(--primary)' : 'var(--glass-border)',
-                    background: selectedTrip?.id === trip.id ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
+                    background: selectedTrip?.id === trip.id ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'var(--tabs-bg)',
                     cursor: 'pointer',
                     transition: '0.2s',
                     display: 'flex',

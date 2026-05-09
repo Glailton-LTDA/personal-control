@@ -91,11 +91,11 @@ describe('FinanceSettings', () => {
     const user = userEvent.setup();
     render(<FinanceSettings />);
     
-    const input = screen.getByPlaceholderText(/Nova Categoria/i);
+    const input = screen.getByPlaceholderText(/Nome da categoria/i);
     await user.type(input, 'Comida');
     
     // Find the add button near this input
-    const addButton = input.nextSibling;
+    const addButton = screen.getAllByRole('button').find(b => b.querySelector('div[size="20"]'));
     await user.click(addButton);
 
     await waitFor(() => {
@@ -108,15 +108,15 @@ describe('FinanceSettings', () => {
     render(<FinanceSettings />);
     
     // FILL NAME
-    const nameInput = screen.getByPlaceholderText(/Nome do Responsável/i);
+    const nameInput = screen.getByPlaceholderText(/Nome\.\.\./i);
     await user.type(nameInput, 'Carlos');
 
     // FILL EMAIL
-    const emailInput = screen.getByPlaceholderText(/E-mail para notificações/i);
+    const emailInput = screen.getByPlaceholderText(/E-mail\.\.\./i);
     await user.type(emailInput, 'carlos@example.com');
     
     // CLICK ADD
-    const addButton = emailInput.nextSibling;
+    const addButton = screen.getAllByRole('button').filter(b => b.querySelector('div[size="20"]'))[1];
     await user.click(addButton);
 
     // WAIT FOR CALL

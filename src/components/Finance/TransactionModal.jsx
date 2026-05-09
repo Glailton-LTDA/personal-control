@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Calendar, Tag, DollarSign, User, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function TransactionModal({ isOpen, onClose, onRefresh, user, initialData = null }) {
   const [formData, setFormData] = useState({
@@ -17,15 +16,13 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
   const [categories, setCategories] = useState([]);
   const [responsibles, setResponsibles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const { encryptObject, decryptObject } = useEncryption();
 
   useEffect(() => {
     async function setup() {
       if (initialData) {
-        const decrypted = await decryptObject(initialData, ['description', 'category', 'paid_by']);
         setFormData({
-          ...decrypted,
-          amount: (decrypted.amount || 0).toFixed(2).replace('.', ','),
+          ...initialData,
+          amount: (initialData.amount || 0).toFixed(2).replace('.', ','),
           payment_date: initialData.payment_date
         });
       } else {
@@ -44,19 +41,17 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
         const { data: respData } = await supabase.from('finance_responsibles').select('name');
         
         if (catData) {
-          const decryptedCats = await decryptObject(catData, ['name']);
-          setCategories(decryptedCats);
+          setCategories(catData);
         }
         if (respData) {
-          const decryptedResps = await decryptObject(respData, ['name']);
-          setResponsibles(decryptedResps);
+          setResponsibles(respData);
         }
       }
       
-      fetchOptions();
+    fetchOptions();
     }
     setup();
-  }, [initialData, isOpen, decryptObject]);
+  }, [initialData, isOpen]);
 
 
 
@@ -66,12 +61,10 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
 
     const numericAmount = parseFloat(formData.amount.replace(',', '.'));
     const dataToSave = { ...formData, amount: numericAmount };
-    const encryptedData = await encryptObject(dataToSave, ['description', 'category', 'paid_by']);
-
     if (initialData?.id) {
       // Edit
       const { error } = await supabase.from('finances')
-        .update({ ...encryptedData })
+        .update({ ...dataToSave })
         .eq('id', initialData.id);
       if (!error) {
         onRefresh();
@@ -80,7 +73,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
     } else {
       // Create
       const { error } = await supabase.from('finances').insert([
-        { ...encryptedData, user_id: user.id }
+        { ...dataToSave, user_id: user.id }
       ]);
       if (!error) {
         onRefresh();

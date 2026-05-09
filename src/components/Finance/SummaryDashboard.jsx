@@ -6,9 +6,17 @@ import {
 import { supabase } from '../../lib/supabase';
 import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock, Eye, EyeOff } from 'lucide-react';
 
-import { useEncryption } from '../../contexts/EncryptionContext';
+
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+const GRADIENTS = {
+  income: 'var(--stat-income)',
+  expense: 'var(--stat-expense)',
+  pending: 'var(--stat-pending)',
+  balance: 'var(--stat-balance)',
+};
+
 
 export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey, showValues = true, onToggleValues }) {
   const [data, setData] = useState([]);
@@ -19,7 +27,6 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   const [selectedYear, setSelectedYear] = useState(initialYear || 2026);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth < 1024);
-  const { decryptObject } = useEncryption();
 
   useEffect(() => {
     const handleResize = () => {
@@ -109,11 +116,10 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
 
     const { data: finances } = await query;
     if (finances) {
-      const decrypted = await decryptObject(finances, ['description', 'category']);
-      processCharts(decrypted);
+      processCharts(finances);
     }
     setLoading(false);
-  }, [isGeneral, month, selectedYear, user?.id, processCharts, decryptObject]);
+  }, [isGeneral, month, selectedYear, user?.id, processCharts]);
 
   useEffect(() => {
     fetchData();
@@ -139,7 +145,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
             <button 
               className="icon-btn" 
               onClick={onToggleValues}
-              style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}
+              style={{ padding: '0.5rem', background: 'var(--tabs-bg)', borderRadius: '0.5rem' }}
               title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
             >
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
@@ -151,8 +157,9 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
               value={selectedYear} 
               onChange={(e) => setSelectedYear(Number(e.target.value))}
               style={{ 
-                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
-                color: 'white', padding: '0.5rem 1rem', borderRadius: '0.5rem', outline: 'none'
+                background: 'var(--card-action-bg)', border: '1px solid var(--glass-border)',
+                color: 'var(--text-main)', padding: '0.5rem 1rem', borderRadius: '0.5rem', outline: 'none',
+                fontWeight: '600'
               }}
             >
               {years.map(y => <option key={y} value={y}>{y}</option>)}
@@ -162,12 +169,48 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-        <StatCard title={isGeneral ? "Receita Anual" : "Receita Mensal"} value={stats.income} icon={<TrendingUp size={20}/>} color="var(--success)" loading={loading && data.length === 0} showValues={showValues} />
-        <StatCard title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} value={stats.expense} icon={<TrendingDown size={20}/>} color="var(--danger)" loading={loading && data.length === 0} showValues={showValues} />
-        <StatCard title="Total a Pagar" value={stats.pending} icon={<Clock size={20}/>} color="var(--pending)" loading={loading && data.length === 0} showValues={showValues} />
-        <StatCard title="Saldo Final" value={stats.balance} icon={<Wallet size={20}/>} color="var(--primary)" loading={loading && data.length === 0} showValues={showValues} />
-      </div>
+      <Motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
+      >
+        <StatCard 
+          title={isGeneral ? "Receita Anual" : "Receita Mensal"} 
+          value={stats.income} 
+          icon={<TrendingUp size={22}/>} 
+          color="#10b981" 
+          gradient={GRADIENTS.income}
+          loading={loading} 
+          showValues={showValues} 
+        />
+        <StatCard 
+          title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} 
+          value={stats.expense} 
+          icon={<TrendingDown size={22}/>} 
+          color="#ef4444" 
+          gradient={GRADIENTS.expense}
+          loading={loading} 
+          showValues={showValues} 
+        />
+        <StatCard 
+          title="Total a Pagar" 
+          value={stats.pending} 
+          icon={<Clock size={22}/>} 
+          color="#f59e0b" 
+          gradient={GRADIENTS.pending}
+          loading={loading} 
+          showValues={showValues} 
+        />
+        <StatCard 
+          title="Saldo Final" 
+          value={stats.balance} 
+          icon={<Wallet size={22}/>} 
+          color="#6366f1" 
+          gradient={GRADIENTS.balance}
+          loading={loading} 
+          showValues={showValues} 
+        />
+      </Motion.div>
 
       {/* Main Bar Chart */}
       <div className="glass-card" style={{ padding: '1.5rem', minHeight: '400px' }}>
@@ -180,7 +223,17 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
               <div className="skeleton" style={{ width: '100%', height: '100%' }} />
             ) : (
               <BarChart data={data} style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.3s' }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <defs>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} strokeOpacity={0.5} />
                 <XAxis 
                   dataKey="name" 
                   stroke="var(--text-muted)" 
@@ -189,21 +242,35 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                   angle={isMobile ? -45 : 0}
                   textAnchor={isMobile ? "end" : "middle"}
                   height={isMobile ? 50 : 30}
+                  axisLine={false}
+                  tickLine={false}
                 />
-                <YAxis stroke="var(--text-muted)" fontSize={10} tickFormatter={(v) => isMobile ? `${v/1000}k` : formatValue(v)} width={isMobile ? 40 : 80} />
+                <YAxis 
+                  stroke="var(--text-muted)" 
+                  fontSize={10} 
+                  tickFormatter={(v) => isMobile ? `${v/1000}k` : formatValue(v)} 
+                  width={isMobile ? 40 : 80}
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip 
+                  cursor={{ fill: 'var(--map-hover)' }}
                   formatter={(val) => formatValue(val)}
                   contentStyle={{ 
-                    background: 'rgba(30, 41, 59, 0.9)', 
+                    background: 'var(--bg-card)', 
+                    backdropFilter: 'blur(12px)',
                     border: '1px solid var(--glass-border)', 
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 15px rgba(0,0,0,0.2)'
+                    borderRadius: '16px',
+                    boxShadow: 'var(--shadow)',
+                    padding: '12px',
+                    color: 'var(--text-main)'
                   }} 
+                  itemStyle={{ color: 'var(--text-main)' }}
                 />
-                <Legend verticalAlign="top" height={isMobile ? 60 : 36} wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }}/>
-                <Bar dataKey="income" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.9} />
-                <Bar dataKey="expense" name="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.9} />
-                <Bar dataKey="difference" name="Resultado" fill="var(--primary)" radius={[4, 4, 0, 0]} opacity={0.9} />
+                <Legend verticalAlign="top" height={isMobile ? 60 : 36} wrapperStyle={{ fontSize: isMobile ? '10px' : '12px', paddingBottom: '1rem' }}/>
+                <Bar dataKey="income" name="Receita" fill="url(#colorIncome)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="expense" name="Despesa" fill="url(#colorExpense)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="difference" name="Resultado" fill="#6366f1" radius={[6, 6, 0, 0]} />
               </BarChart>
             )}
           </ResponsiveContainer>
@@ -220,34 +287,57 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
           </h4>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Ganhos por categoria</p>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ height: '180px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 0.8fr', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ height: '220px', position: 'relative' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={revenueCategoryData}
-                    innerRadius={50}
-                    outerRadius={75}
+                    innerRadius={65}
+                    outerRadius={85}
                     paddingAngle={5}
                     dataKey="value"
+                    stroke="none"
                   >
                     {revenueCategoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(val) => formatValue(val)} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'var(--bg-card)', 
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid var(--glass-border)', 
+                      borderRadius: '12px',
+                      color: 'var(--text-main)',
+                      boxShadow: 'var(--shadow)'
+                    }} 
+                    itemStyle={{ color: 'var(--text-main)' }}
+                    formatter={(val) => formatValue(val)}
+                  />
                 </PieChart>
               </ResponsiveContainer>
+              <div style={{ 
+                position: 'absolute', 
+                top: '50%', 
+                left: '50%', 
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+                pointerEvents: 'none'
+              }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>Total</span>
+                <span style={{ fontSize: '1rem', fontWeight: 800 }}>{showValues ? `R$ ${(stats.income/1000).toFixed(1)}k` : '••••'}</span>
+              </div>
             </div>
             
-            <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
+            <div style={{ maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' }}>
               {revenueCategoryData.map((item, index) => (
-                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{item.name}</span>
+                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.75rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '3px', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px', fontWeight: 500 }}>{item.name}</span>
                   </span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{stats.income > 0 ? Math.round((item.value / stats.income) * 100) : 0}%</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>{stats.income > 0 ? Math.round((item.value / stats.income) * 100) : 0}%</span>
                 </div>
               ))}
             </div>
@@ -261,34 +351,57 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
           </h4>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Despesas por categoria</p>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ height: '180px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 0.8fr', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ height: '220px', position: 'relative' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={categoryData}
-                    innerRadius={50}
-                    outerRadius={75}
+                    innerRadius={65}
+                    outerRadius={85}
                     paddingAngle={5}
                     dataKey="value"
+                    stroke="none"
                   >
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(val) => formatValue(val)} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'var(--bg-card)', 
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid var(--glass-border)', 
+                      borderRadius: '12px',
+                      color: 'var(--text-main)',
+                      boxShadow: 'var(--shadow)'
+                    }} 
+                    itemStyle={{ color: 'var(--text-main)' }}
+                    formatter={(val) => formatValue(val)}
+                  />
                 </PieChart>
               </ResponsiveContainer>
+              <div style={{ 
+                position: 'absolute', 
+                top: '50%', 
+                left: '50%', 
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+                pointerEvents: 'none'
+              }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>Total</span>
+                <span style={{ fontSize: '1rem', fontWeight: 800 }}>{showValues ? `R$ ${(stats.expense/1000).toFixed(1)}k` : '••••'}</span>
+              </div>
             </div>
             
-            <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '5px' }}>
+            <div style={{ maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' }}>
               {categoryData.map((item, index) => (
-                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-main)', opacity: 0.9 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{item.name}</span>
+                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.75rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '3px', background: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px', fontWeight: 500 }}>{item.name}</span>
                   </span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{stats.expense > 0 ? Math.round((item.value / stats.expense) * 100) : 0}%</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>{stats.expense > 0 ? Math.round((item.value / stats.expense) * 100) : 0}%</span>
                 </div>
               ))}
             </div>
@@ -300,18 +413,85 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   );
 }
 
-function StatCard({ title, value, icon, color, loading, showValues }) {
+function StatCard({ title, value, icon, color, gradient, loading, showValues }) {
   return (
-    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: `6px solid ${color}`, transition: 'transform 0.2s', opacity: loading ? 0.7 : 1 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</span>
-        <div style={{ color: color, background: `${color}15`, padding: '0.4rem', borderRadius: '0.5rem' }}>{icon}</div>
+    <div 
+      className="glass-card" 
+      style={{ 
+        padding: '1.5rem', 
+        background: 'var(--bg-card)',
+        border: '1px solid var(--glass-border)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '140px',
+        boxShadow: 'var(--shadow)'
+      }}
+    >
+      {/* Background Gradient Overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: `linear-gradient(135deg, transparent 60%, ${gradient} 100%)`,
+        opacity: 0.6,
+        pointerEvents: 'none'
+      }} />
+      {/* Background Icon Glow */}
+      <div style={{ 
+        position: 'absolute', 
+        right: '-10px', 
+        top: '-10px', 
+        opacity: 0.05, 
+        transform: 'rotate(-15deg)' 
+      }}>
+        {React.cloneElement(icon, { size: 100, color: color })}
       </div>
-      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: (value || 0) < 0 ? 'var(--danger)' : 'var(--text-main)' }}>
-        {loading ? (
-          <div className="skeleton" style={{ height: '1.8rem', width: '80%', marginTop: '4px' }} />
-        ) : (
-          <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ 
+          color: color, 
+          background: `color-mix(in srgb, ${color} 15%, transparent)`, 
+          padding: '0.6rem', 
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`
+        }}>
+          {icon}
+        </div>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {title}
+        </span>
+      </div>
+
+      <div>
+        <div style={{ 
+          fontSize: '1.75rem', 
+          fontWeight: 900, 
+          color: (value || 0) < 0 && title.includes('Saldo') ? 'var(--danger)' : 'var(--text-main)',
+          letterSpacing: '-0.02em'
+        }}>
+          {loading ? (
+            <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
+          ) : (
+            <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+          )}
+        </div>
+        {!loading && (
+          <div style={{ 
+            marginTop: '0.25rem', 
+            height: '4px', 
+            width: '40px', 
+            background: color, 
+            borderRadius: '2px',
+            opacity: 0.6
+          }} />
         )}
       </div>
     </div>
