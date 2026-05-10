@@ -213,13 +213,13 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                 style={{ 
                   padding: isMobile ? '1.5rem' : '2rem', 
                   borderRadius: '24px', 
-                  background: 'rgba(15, 23, 42, 0.3)',
+                  background: 'var(--bg-card)',
                   border: '1px solid var(--glass-border)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '1.5rem',
                   position: 'relative',
-                  boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)'
+                  boxShadow: 'var(--shadow)'
                 }}
               >
                 {(() => {
@@ -269,12 +269,12 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             onChange={(e) => updateItemField(item.id, 'name', e.target.value)}
                             style={{ 
                               width: '100%', 
-                              background: 'rgba(255,255,255,0.03)', 
+                              background: 'var(--card-action-bg)', 
                               border: '1px solid var(--glass-border)', 
                               padding: '1rem', 
                               fontWeight: '900', 
                               fontSize: '1.25rem', 
-                              color: 'white', 
+                              color: 'var(--text-main)', 
                               borderRadius: '14px',
                               letterSpacing: '-0.02em'
                             }}
@@ -341,7 +341,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         gap: '1.5rem' 
                       }}>
                         <div style={{ position: 'relative' }}>
-                          <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>
+                  <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
                             <Hash size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> CONFIRMAÇÃO
                           </label>
                           <input 
@@ -351,11 +351,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             disabled={readOnly}
                             style={{ 
                               width: '100%', 
-                              background: 'rgba(255,255,255,0.02)', 
+                              background: 'var(--card-action-bg)', 
                               border: '1px solid var(--glass-border)', 
                               padding: '0.85rem', 
                               fontSize: '1rem', 
-                              color: 'white', 
+                              color: 'var(--text-main)', 
                               borderRadius: '12px',
                               fontWeight: '700'
                             }}
@@ -366,7 +366,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         {isTransport && (
                           <>
                             <div style={{ position: 'relative' }}>
-                              <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>
+                      <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
                                 <Navigation size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> {labels.origin.toUpperCase()}
                               </label>
                               <input 
@@ -377,11 +377,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 disabled={readOnly}
                                 style={{ 
                                   width: '100%', 
-                                  background: 'rgba(255,255,255,0.02)', 
+                                  background: 'var(--card-action-bg)', 
                                   border: '1px solid var(--glass-border)', 
                                   padding: '0.85rem', 
                                   fontSize: '1rem', 
-                                  color: 'white', 
+                                  color: 'var(--text-main)', 
                                   borderRadius: '12px',
                                   fontWeight: '700'
                                 }}
@@ -397,7 +397,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             </div>
 
                             <div style={{ position: 'relative' }}>
-                              <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>
+                      <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
                                 <Navigation size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> {labels.destination.toUpperCase()}
                               </label>
                               <input 
@@ -408,11 +408,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 disabled={readOnly}
                                 style={{ 
                                   width: '100%', 
-                                  background: 'rgba(255,255,255,0.02)', 
+                                  background: 'var(--card-action-bg)', 
                                   border: '1px solid var(--glass-border)', 
                                   padding: '0.85rem', 
                                   fontSize: '1rem', 
-                                  color: 'white', 
+                                  color: 'var(--text-main)', 
                                   borderRadius: '12px',
                                   fontWeight: '700'
                                 }}
@@ -428,7 +428,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             </div>
 
                             <div style={{ position: 'relative' }}>
-                              <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>
+                      <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
                                 <FileCheck size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> {labels.id.toUpperCase()}
                               </label>
                               <input 
@@ -436,14 +436,14 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 value={item.transport_id || ''}
                                 onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
                                 disabled={readOnly}
-                                style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', padding: '0.85rem', fontSize: '1rem', color: 'white', borderRadius: '12px', fontWeight: '700' }}
+                                style={{ width: '100%', background: 'var(--card-action-bg)', border: '1px solid var(--glass-border)', padding: '0.85rem', fontSize: '1rem', color: 'var(--text-main)', borderRadius: '12px', fontWeight: '700' }}
                                 placeholder="Nº do Voo, Trem ou Placa..."
                               />
                             </div>
 
                             {labels.showCoach && (
                               <div style={{ position: 'relative' }}>
-                                <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>
+                        <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
                                   <LayoutGrid size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> {labels.coachLabel.toUpperCase()}
                                 </label>
                                 <input 
@@ -453,11 +453,11 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                   disabled={readOnly}
                                   style={{ 
                                     width: '100%', 
-                                    background: 'rgba(255,255,255,0.02)', 
+                                    background: 'var(--card-action-bg)', 
                                     border: '1px solid var(--glass-border)', 
                                     padding: '0.85rem', 
                                     fontSize: '1rem', 
-                                    color: 'white', 
+                                    color: 'var(--text-main)', 
                                     borderRadius: '12px',
                                     fontWeight: '700'
                                   }}
@@ -483,7 +483,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
 
                         {(isTour || isLodging) && (
                           <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
-                            <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>
+                    <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
                               <MapPin size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> ENDEREÇO / LOCAL
                             </label>
                             <div style={{ display: 'flex', gap: '0.75rem', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -497,11 +497,12 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                   disabled={readOnly}
                                   placeholder="Digite o endereço completo..."
                                   style={{ 
-                                    background: 'rgba(255,255,255,0.02)', 
+                                    background: 'var(--card-action-bg)', 
                                     border: '1px solid var(--glass-border)', 
                                     padding: '0.85rem', 
                                     fontSize: '1rem', 
-                                    borderRadius: '12px' 
+                                    borderRadius: '12px',
+                                    color: 'var(--text-main)'
                                   }}
                                 />
                               </div>
@@ -557,7 +558,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             updateItemField(item.id, 'start_date', iso);
                           } else if (masked === '') updateItemField(item.id, 'start_date', '');
                         }}
-                        style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700' }}
+                        style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-main)' }}
                       />
                       <input 
                         type="time"
@@ -565,13 +566,13 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         value={item.start_time || ''}
                         onChange={(e) => updateItemField(item.id, 'start_time', e.target.value)}
                         disabled={readOnly}
-                        style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700' }}
+                        style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-main)' }}
                       />
                     </div>
                   </div>
 
                   {getEndLabel() && (
-                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.25rem', borderRadius: '18px', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ background: 'var(--card-action-bg)', padding: '1.25rem', borderRadius: '18px', border: '1px solid var(--glass-border)' }}>
                       <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900' }}>
                         <Calendar size={12} /> {getEndLabel()}
                       </label>
@@ -590,7 +591,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               updateItemField(item.id, 'end_date', iso);
                             } else if (masked === '') updateItemField(item.id, 'end_date', '');
                           }}
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700' }}
+                          style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-main)' }}
                         />
                         <input 
                           type="time"
@@ -598,7 +599,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           value={item.end_time || ''}
                           onChange={(e) => updateItemField(item.id, 'end_time', e.target.value)}
                           disabled={readOnly}
-                          style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700' }}
+                          style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', padding: '0.75rem', fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-main)' }}
                         />
                       </div>
                     </div>
@@ -622,7 +623,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                     disabled={readOnly}
                     style={{ 
                       width: '100%', 
-                      background: 'rgba(255,255,255,0.01)', 
+                      background: 'var(--card-action-bg)', 
                       border: '1px solid var(--glass-border)', 
                       padding: '1rem', 
                       fontSize: '0.95rem', 
@@ -680,7 +681,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           htmlFor={`file-${item.id}`}
                           style={{ 
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', 
-                            width: '100%', height: '52px', background: 'rgba(255,255,255,0.02)', 
+                            width: '100%', height: '52px', background: 'var(--card-action-bg)', 
                             borderRadius: '14px', fontSize: '0.9rem', color: 'var(--text-muted)', 
                             cursor: 'pointer', border: '2px dashed var(--glass-border)', fontWeight: '800',
                             transition: '0.3s'
@@ -704,7 +705,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                 onClick={addItem}
                 style={{
                   width: '100%', padding: '1.5rem', borderRadius: '24px', 
-                  background: 'rgba(255,255,255,0.01)', border: '2px dashed var(--glass-border)',
+                  background: 'var(--card-action-bg)', border: '2px dashed var(--glass-border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', 
                   gap: '1rem', color: 'var(--text-muted)', fontSize: '1rem', 
                   fontWeight: '900', cursor: 'pointer', transition: '0.3s'
