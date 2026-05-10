@@ -203,7 +203,13 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           data: JSON.parse(item.content)
         }));
         
-        setItems(itemsWithData);
+        // Smart Sort: Pending first, then by date desc
+        const sortedItems = [...itemsWithData].sort((a, b) => {
+          if (a.completed === b.completed) return 0;
+          return a.completed ? 1 : -1;
+        });
+        
+        setItems(sortedItems);
       }
     } catch (err) {
       console.error('Error fetching items:', err);
@@ -373,7 +379,16 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
         .update({ completed: !item.completed })
         .eq('id', item.id);
       if (error) throw error;
-      setItems(items.map(i => i.id === item.id ? { ...i, completed: !item.completed } : i));
+      
+      const newItems = items.map(i => i.id === item.id ? { ...i, completed: !item.completed } : i);
+      
+      // Re-sort after toggle
+      const sortedItems = [...newItems].sort((a, b) => {
+        if (a.completed === b.completed) return 0;
+        return a.completed ? 1 : -1;
+      });
+      
+      setItems(sortedItems);
     } catch (err) {
       console.error('Toggle error:', err);
     }
@@ -388,23 +403,54 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   const renderFieldContent = (field, item) => {
     if (field.type === 'checkbox') {
       return (
-        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          {item.data[field.id] ? <CheckCircle2 size={18} className="text-primary" /> : <Circle size={18} style={{ opacity: 0.2 }} />}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '0.5rem' }}>
+          {item.data[field.id] ? 
+            <div style={{ background: 'var(--success)', borderRadius: '50%', padding: '2px', display: 'flex' }}><CheckCircle2 size={16} color="white" /></div> : 
+            <Circle size={18} style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
+          }
+          <span style={{ fontSize: '0.85rem', color: item.data[field.id] ? 'var(--success)' : 'var(--text-muted)' }}>
+            {item.data[field.id] ? 'Sim' : 'Não'}
+          </span>
         </div>
       );
     }
     if (field.type === 'date') {
-      return <span style={{ whiteSpace: 'nowrap' }}>{item.data[field.id] ? new Date(item.data[field.id] + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</span>;
+      return (
+        <div style={{ 
+          display: 'inline-flex', 
+          alignItems: 'center', 
+          gap: '0.4rem', 
+          background: 'var(--card-action-bg)', 
+          padding: '0.3rem 0.75rem', 
+          borderRadius: '8px',
+          color: 'var(--primary)',
+          fontSize: '0.8rem',
+          fontWeight: 800,
+          border: '1px solid var(--glass-border)'
+        }}>
+          <Calendar size={12} strokeWidth={3} />
+          {item.data[field.id] ? new Date(item.data[field.id] + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+        </div>
+      );
     }
     if (field.type === 'address' && item.data[field.id]) {
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={item.data[field.id]}>{item.data[field.id]}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }} title={item.data[field.id]}>{item.data[field.id]}</span>
           <button 
             onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.data[field.id])}`, '_blank')}
-            className="icon-btn" style={{ width: 32, height: 32, color: 'var(--primary)', flexShrink: 0 }}
+            className="icon-btn" 
+            style={{ 
+              width: 32, 
+              height: 32, 
+              color: 'var(--primary)', 
+              background: 'var(--card-action-bg)', 
+              border: '1px solid var(--glass-border)', 
+              borderRadius: '10px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+            }}
           >
-            <MapPin size={14} />
+            <MapPin size={14} strokeWidth={2.5} />
           </button>
         </div>
       );
@@ -412,17 +458,26 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     if (field.type === 'link' && item.data[field.id]) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: 'var(--primary)', textDecoration: 'underline' }} title={item.data[field.id]}>{item.data[field.id]}</span>
-          <button 
-            onClick={() => {
-              let url = item.data[field.id];
-              if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-              window.open(url, '_blank', 'noopener,noreferrer');
-            }}
-            className="icon-btn" style={{ width: 32, height: 32, color: 'var(--primary)', flexShrink: 0 }}
+          <a 
+            href={item.data[field.id].startsWith('http') ? item.data[field.id] : `https://${item.data[field.id]}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ 
+              overflow: 'hidden', 
+              textOverflow: 'ellipsis', 
+              whiteSpace: 'nowrap', 
+              flex: 1, 
+              color: 'var(--primary)', 
+              textDecoration: 'none',
+              fontWeight: 800,
+              borderBottom: '2px solid rgba(99, 102, 241, 0.2)',
+              paddingBottom: '1px'
+            }} 
+            title={item.data[field.id]}
           >
-            <ExternalLink size={14} />
-          </button>
+            {item.data[field.id]}
+          </a>
+          <ExternalLink size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
         </div>
       );
     }
@@ -434,48 +489,79 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     if (textValue.length > TEXT_CLAMP_THRESHOLD || textValue.includes('\n')) {
       return <ExpandableText text={textValue} />;
     }
-    return <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={textValue}>{textValue}</div>;
+    return <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: 'var(--text-main)' }} title={textValue}>{textValue}</div>;
   };
 
   if (mode === 'settings') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-        <div className="glass-card" style={{ padding: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '900px', margin: '0 auto', width: '100%' }}>
+        <div className="glass-card" style={{ padding: '2.5rem', background: 'var(--bg-card)', position: 'relative', overflow: 'hidden' }}>
+          {/* Accent Glow */}
+          <div style={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, background: 'var(--primary)', opacity: 0.1, filter: 'blur(80px)', pointerEvents: 'none' }} />
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', position: 'relative', zIndex: 1 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-main)' }}>Ajustes de Coleções</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gerencie a estrutura das suas listas personalizadas</p>
+              <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.03em' }}>Ajustes de Coleções</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 500 }}>Gerencie a arquitetura das suas listas dinâmicas</p>
             </div>
             <button 
               onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
               className="btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.8rem 1.5rem', borderRadius: '12px', boxShadow: '0 8px 20px rgba(99, 102, 241, 0.3)' }}
               data-testid="btn-add-collection-settings"
             >
-              <Plus size={18} /> Nova Lista
+              <Plus size={20} strokeWidth={3} /> <span style={{ fontWeight: 800 }}>NOVA LISTA</span>
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {isLoading && lists.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem' }}><Loader2 className="animate-spin" size={32} style={{ opacity: 0.5 }} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5rem' }}><Loader2 className="animate-spin" size={40} style={{ color: 'var(--primary)' }} /></div>
             ) : lists.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
-                <Box size={48} style={{ margin: '0 auto 1rem' }} />
-                <p>Nenhuma lista criada ainda</p>
+              <div style={{ padding: '5rem', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
+                <Box size={60} style={{ margin: '0 auto 1.5rem', opacity: 0.2 }} />
+                <p style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Comece criando sua primeira coleção personalizada</p>
               </div>
             ) : lists.map(list => (
-              <div key={list.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <List size={22} />
+              <Motion.div 
+                whileHover={{ x: 5 }}
+                key={list.id} 
+                className="glass-card" 
+                style={{ 
+                  padding: '1.5rem', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid var(--glass-border)', 
+                  borderRadius: '20px',
+                  flexWrap: 'wrap', 
+                  gap: '1.5rem' 
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                  <div style={{ 
+                    width: 52, 
+                    height: 52, 
+                    borderRadius: '16px', 
+                    background: 'linear-gradient(135deg, var(--primary), #818cf8)', 
+                    color: 'white', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    boxShadow: '0 8px 15px rgba(99, 102, 241, 0.2)'
+                  }}>
+                    <List size={26} strokeWidth={2.5} />
                   </div>
                   <div>
-                    <h4 style={{ margin: 0, color: 'var(--text-main)' }}>{list.name}</h4>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{list.fields?.length || 0} campos • {list.user_id === user.id ? 'Proprietário' : 'Compartilhada'}</p>
+                    <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>{list.name}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--primary)', background: 'rgba(99, 102, 241, 0.1)', padding: '0.1rem 0.6rem', borderRadius: '6px' }}>{list.fields?.length || 0} CAMPOS</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{list.user_id === user.id ? 'Proprietário' : 'Compartilhada'}</span>
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
                   {list.user_id === user.id && (
                     <button 
                       onClick={() => { 
@@ -485,16 +571,17 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                         setIsModalOpen(true); 
                       }} 
                       className="icon-btn" 
+                      style={{ background: 'rgba(255,255,255,0.05)', width: 44, height: 44 }}
                       title="Editar Estrutura"
                     >
                       <Edit2 size={18} />
                     </button>
                   )}
-                  <button onClick={() => handleDeleteList(list.id)} className="icon-btn" style={{ color: 'var(--danger)' }} title="Excluir Coleção">
+                  <button onClick={() => handleDeleteList(list.id)} className="icon-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', width: 44, height: 44 }} title="Excluir Coleção">
                     <Trash2 size={18} />
                   </button>
                 </div>
-              </div>
+              </Motion.div>
             ))}
           </div>
         </div>
@@ -548,47 +635,73 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: '1.5rem', alignItems: 'start' }}>
         
         {!isMobile && (
-          <aside className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: 'fit-content', position: 'sticky', top: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>Coleções</h3>
+          <aside className="glass-card" style={{ 
+            padding: '1.5rem', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '1.25rem', 
+            height: 'fit-content', 
+            position: 'sticky', 
+            top: '1.5rem',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--glass-border)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Coleções</h3>
               <button 
                 onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
                 className="icon-btn" 
-                style={{ width: 40, height: 40 }}
+                style={{ width: 36, height: 36, background: 'var(--primary)', color: 'white', border: 'none' }}
                 data-testid="btn-add-collection"
               >
-                <Plus size={20} />
+                <Plus size={18} strokeWidth={3} />
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '4px' }}>
               {isLoading && lists.length === 0 ? (
-                <div style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className="animate-spin" size={24} style={{ opacity: 0.3, margin: '0 auto' }} /></div>
-              ) : lists.map(list => (
-                <div key={list.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <button 
-                    onClick={() => setSelectedList(list)} 
-                    style={{ 
-                      display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem', 
-                      borderRadius: '14px', background: selectedList?.id === list.id ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.02)', 
-                      border: '1px solid', borderColor: selectedList?.id === list.id ? 'var(--primary)' : 'var(--glass-border)', 
-                      cursor: 'pointer', textAlign: 'left', transition: '0.2s', flex: 1, overflow: 'hidden'
-                    }}
-                  >
-                    <div style={{ width: 36, height: 36, borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><List size={18} /></div>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{list.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{list.fields?.length || 0} campos</div>
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => { setSelectedList(list); setModalType('share'); setIsModalOpen(true); }}
-                    className="icon-btn" style={{ width: 32, height: 32 }} title="Compartilhar"
-                    data-testid="btn-share-collection"
-                  >
-                    <Users size={16} />
-                  </button>
-                </div>
-              ))}
+                <div style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className="animate-spin" size={24} style={{ color: 'var(--primary)', margin: '0 auto' }} /></div>
+              ) : lists.map(list => {
+                const isActive = selectedList?.id === list.id;
+                return (
+                  <div key={list.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <Motion.button 
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSelectedList(list)} 
+                      style={{ 
+                        display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem', 
+                        borderRadius: '16px', 
+                        background: isActive ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05))' : 'rgba(255,255,255,0.02)', 
+                        border: '1px solid', 
+                        borderColor: isActive ? 'var(--primary)' : 'var(--glass-border)', 
+                        boxShadow: isActive ? '0 8px 20px rgba(99, 102, 241, 0.15)' : 'none',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', flex: 1, overflow: 'hidden'
+                      }}
+                    >
+                      <div style={{ 
+                        width: 40, height: 40, borderRadius: '12px', 
+                        background: isActive ? 'var(--primary)' : 'rgba(99, 102, 241, 0.1)', 
+                        color: isActive ? 'white' : 'var(--primary)', 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        transition: 'all 0.2s'
+                      }}>
+                        <List size={20} strokeWidth={2.5} />
+                      </div>
+                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: isActive ? 'var(--text-main)' : 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{list.name}</div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.6, color: isActive ? 'var(--primary)' : 'var(--text-muted)' }}>{list.fields?.length || 0} CAMPOS</div>
+                      </div>
+                    </Motion.button>
+                    <button 
+                      onClick={() => { setSelectedList(list); setModalType('share'); setIsModalOpen(true); }}
+                      className="icon-btn" style={{ width: 32, height: 32, opacity: isActive ? 1 : 0.4 }} title="Compartilhar"
+                      data-testid="btn-share-collection"
+                    >
+                      <Users size={16} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </aside>
         )}
@@ -640,33 +753,126 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                 </div>
               </div>
 
-              <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+              <div className="responsive-grid" style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+                gap: '1.25rem' 
+              }}>
                 {items.length > 0 ? items.map(item => (
-                  <div key={item.id} className="glass-card custom-list-card" style={{ padding: isMobile ? '1.25rem' : '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', opacity: item.completed ? 0.7 : 1, transition: 'all 0.2s ease' }}>
+                  <Motion.div 
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={item.id} 
+                    className="glass-card" 
+                    style={{ 
+                      padding: '1.5rem', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '1.25rem', 
+                      border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', 
+                      background: item.completed ? 'rgba(34, 197, 94, 0.05)' : 'var(--bg-card)',
+                      opacity: item.completed ? 0.8 : 1, 
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Status Glow for Pending */}
+                    {!item.completed && (
+                      <div style={{ 
+                        position: 'absolute', 
+                        top: 0, 
+                        left: 0, 
+                        width: '4px', 
+                        height: '100%', 
+                        background: 'var(--primary)',
+                        boxShadow: '0 0 15px var(--primary)'
+                      }} />
+                    )}
+
                     {/* Card Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <button onClick={() => toggleItemCompletion(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.completed ? 'var(--success)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.6rem', padding: 0 }}>
-                        {item.completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-                        <span style={{ fontWeight: 700, color: item.completed ? 'var(--success)' : 'var(--text-main)', fontSize: '0.9rem' }}>{item.completed ? 'Concluído' : 'Pendente'}</span>
+                      <button 
+                        onClick={() => toggleItemCompletion(item)} 
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          color: item.completed ? 'var(--success)' : 'var(--text-muted)', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.75rem', 
+                          padding: 0 
+                        }}
+                      >
+                        <div style={{ 
+                          width: 24, 
+                          height: 24, 
+                          borderRadius: '50%', 
+                          border: `2px solid ${item.completed ? 'var(--success)' : 'var(--text-muted)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: item.completed ? 'var(--success)' : 'transparent',
+                          transition: 'all 0.2s'
+                        }}>
+                          {item.completed && <CheckCircle2 size={16} color="white" />}
+                        </div>
+                        <span style={{ 
+                          fontWeight: 900, 
+                          color: item.completed ? 'var(--success)' : 'var(--text-main)', 
+                          fontSize: '0.85rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>
+                          {item.completed ? 'Concluído' : 'Pendente'}
+                        </span>
                       </button>
-                      <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 34, height: 34 }}><Edit2 size={15} /></button>
-                        <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 34, height: 34, color: 'var(--danger)' }}><Trash2 size={15} /></button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 32, height: 32 }}><Edit2 size={14} /></button>
+                        <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 32, height: 32, color: 'var(--danger)' }}><Trash2 size={14} /></button>
                       </div>
                     </div>
                     
                     {/* Card Body - Fields */}
-                    <div style={{ display: 'grid', gridTemplateColumns: selectedList.fields?.some(f => f.type === 'text' || f.type === 'textarea') && selectedList.fields?.length <= 3 ? '1fr' : (selectedList.fields?.length <= 2 ? '1fr' : 'repeat(auto-fill, minmax(130px, 1fr))'), gap: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                      {selectedList.fields?.map(field => (
-                        <div key={field.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{field.name}</span>
-                          <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 500 }}>
-                            {renderFieldContent(field, item)}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '1rem',
+                      padding: '1.25rem',
+                      background: 'rgba(255,255,255,0.03)',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(255,255,255,0.05)'
+                    }}>
+                      {selectedList.fields?.map((field, idx) => {
+                        const isTitle = idx === 0;
+                        return (
+                          <div key={field.id} style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '0.4rem', 
+                            minWidth: 0,
+                            borderBottom: idx < selectedList.fields.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                            paddingBottom: idx < selectedList.fields.length - 1 ? '0.75rem' : 0
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                               {FIELD_TYPES.find(t => t.id === field.type)?.icon && React.createElement(FIELD_TYPES.find(t => t.id === field.type).icon, { size: 12, style: { opacity: 0.4 } })}
+                               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.06em' }}>{field.name}</span>
+                            </div>
+                            <div style={{ 
+                              fontSize: isTitle ? '1.1rem' : '0.95rem', 
+                              color: 'var(--text-main)', 
+                              fontWeight: isTitle ? 900 : 600,
+                              lineHeight: 1.4
+                            }}>
+                              {renderFieldContent(field, item)}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                  </div>
+                  </Motion.div>
                 )) : (
                   <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.3, gridColumn: '1 / -1' }}>
                     <Box size={48} style={{ margin: '0 auto 1rem' }} />
