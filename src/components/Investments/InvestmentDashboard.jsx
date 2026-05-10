@@ -4,10 +4,19 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
-import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown, Layers } from 'lucide-react';
+import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown, Layers, Eye, EyeOff, BarChart2, PieChart as PieChartIcon, Building2 } from 'lucide-react';
 import { useEncryption } from '../../contexts/EncryptionContext';
+import { motion as Motion } from 'framer-motion';
 
-export default function InvestmentDashboard({ user, showValues = true }) {
+const GRADIENTS = {
+  income: 'var(--stat-income)',
+  expense: 'var(--stat-expense)',
+  pending: 'var(--stat-pending)',
+  balance: 'var(--stat-balance)',
+  purple: 'rgba(139, 92, 246, 0.1)',
+};
+
+export default function InvestmentDashboard({ user, showValues = true, onToggleValues }) {
   const { decryptObject } = useEncryption();
   const [data, setData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(() => {
@@ -183,47 +192,102 @@ export default function InvestmentDashboard({ user, showValues = true }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '2rem' }}>
       
-      {/* Header with Year Selector */}
-      <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <TrendingUp size={20} color="var(--primary)" />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Performance de Investimentos</h3>
+      {/* Header with Period Selectors */}
+      <div className="glass-card" style={{ 
+        padding: '1rem 1.5rem', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 auto' }}>
+          <BarChart2 size={18} color="var(--primary)" />
+          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Performance de Investimentos</span>
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <select 
-            value={selectedMonth} 
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="select-filter"
-            style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
-          >
-            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'nowrap' }}>
+          {onToggleValues && (
+            <button 
+              className="action-btn" 
+              onClick={onToggleValues}
+              style={{ width: '42px', height: '42px', borderRadius: '14px', background: 'var(--card-action-bg)', flexShrink: 0 }}
+              title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
+            >
+              {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+          )}
 
-          <select 
-            value={selectedYear} 
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="select-filter"
-            style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
-          >
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-action-bg)', padding: '4px', borderRadius: '14px', border: '1px solid var(--glass-border)', flexShrink: 0 }}>
+            <select 
+              value={selectedMonth} 
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="select-filter"
+              style={{ border: 'none', background: 'transparent', height: '34px', minWidth: '100px', fontSize: '0.85rem' }}
+            >
+              {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-action-bg)', padding: '4px', borderRadius: '14px', border: '1px solid var(--glass-border)', flexShrink: 0 }}>
+            <select 
+              value={selectedYear} 
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="select-filter"
+              style={{ border: 'none', background: 'transparent', height: '34px', fontSize: '0.85rem' }}
+            >
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-        <StatCard title="Patrimônio Total" value={summary.currentBalance} icon={<Wallet size={20}/>} color="var(--primary)" showValues={showValues} />
-        <StatCard title={`Rendimento ${selectedYear}`} value={summary.totalYieldYear} icon={<ArrowUpRight size={20}/>} color="var(--success)" showValues={showValues} />
-        <StatCard title="Rendimento Total" value={summary.totalYieldAllTime} icon={<TrendingUp size={20}/>} color="#8b5cf6" showValues={showValues} />
-        <StatCard title="Média Mensal" value={summary.totalYieldYear / 12} icon={<Calendar size={20}/>} color="var(--pending)" showValues={showValues} />
-      </div>
+      <Motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
+      >
+        <StatCard 
+          title="Patrimônio Total" 
+          value={summary.currentBalance} 
+          icon={<Wallet size={22}/>} 
+          color="#6366f1" 
+          gradient={GRADIENTS.balance}
+          showValues={showValues} 
+          testId="summary-card-total-balance"
+        />
+        <StatCard 
+          title={`Rendimento ${selectedYear}`} 
+          value={summary.totalYieldYear} 
+          icon={<TrendingUp size={22}/>} 
+          color="#10b981" 
+          gradient={GRADIENTS.income}
+          showValues={showValues} 
+        />
+        <StatCard 
+          title="Rendimento Total" 
+          value={summary.totalYieldAllTime} 
+          icon={<TrendingUp size={22}/>} 
+          color="#8b5cf6" 
+          gradient={GRADIENTS.purple}
+          showValues={showValues} 
+        />
+        <StatCard 
+          title="Média Mensal" 
+          value={summary.totalYieldYear / 12} 
+          icon={<TrendingUp size={22}/>} 
+          color="#f59e0b" 
+          gradient={GRADIENTS.pending}
+          showValues={showValues} 
+        />
+      </Motion.div>
 
       {/* Main Charts */}
       <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.5rem' }}>
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <TrendingUp size={18} /> Evolução de Rendimentos em {selectedYear}
+            <Calendar size={18} /> Evolução de Rendimentos em {selectedYear}
           </h4>
           <div style={{ height: '320px' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -234,16 +298,31 @@ export default function InvestmentDashboard({ user, showValues = true }) {
                     <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tick={{ fill: 'var(--text-muted)' }} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={(v) => `R$ ${v}`} tick={{ fill: 'var(--text-muted)' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} strokeOpacity={0.5} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="var(--text-muted)" 
+                  fontSize={11} 
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis 
+                  stroke="var(--text-muted)" 
+                  fontSize={11} 
+                  tickFormatter={(v) => `R$ ${v}`} 
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip 
                   formatter={(val) => formatCurrency(val)}
                   contentStyle={{ 
-                    background: 'var(--bg-canvas)', 
+                    background: 'var(--bg-card)', 
+                    backdropFilter: 'blur(12px)',
                     border: '1px solid var(--glass-border)', 
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow)'
+                    borderRadius: '16px',
+                    boxShadow: 'var(--shadow)',
+                    padding: '12px',
+                    color: 'var(--text-main)'
                   }}
                   itemStyle={{ color: 'var(--text-main)' }}
                   labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
@@ -256,7 +335,7 @@ export default function InvestmentDashboard({ user, showValues = true }) {
 
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Wallet size={18} /> Alocação por Conta
+            <BarChart2 size={18} /> Alocação por Conta
           </h4>
           <div style={{ height: '380px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -265,16 +344,19 @@ export default function InvestmentDashboard({ user, showValues = true }) {
                 layout="vertical" 
                 margin={{ left: -10, right: 40, top: 0, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--glass-border)" strokeOpacity={0.5} />
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} tick={{ fill: 'var(--text-muted)' }} />
+                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} axisLine={false} tickLine={false} />
                 <Tooltip 
                   formatter={(val) => formatCurrency(val)}
                   contentStyle={{ 
-                    background: 'var(--bg-canvas)', 
+                    background: 'var(--bg-card)', 
+                    backdropFilter: 'blur(12px)',
                     border: '1px solid var(--glass-border)', 
-                    borderRadius: '8px',
-                    boxShadow: 'var(--shadow)'
+                    borderRadius: '16px',
+                    boxShadow: 'var(--shadow)',
+                    padding: '12px',
+                    color: 'var(--text-main)'
                   }}
                   itemStyle={{ color: 'var(--text-main)' }}
                   labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
@@ -296,7 +378,7 @@ export default function InvestmentDashboard({ user, showValues = true }) {
         {/* Rendimento por Tipo de Conta */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Layers size={18} /> Rendimento por Tipo ({selectedYear})
+            <PieChartIcon size={18} /> Rendimento por Tipo ({selectedYear})
           </h4>
           <div style={{ height: '300px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -306,9 +388,10 @@ export default function InvestmentDashboard({ user, showValues = true }) {
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
-                  outerRadius={80}
+                  outerRadius={85}
                   paddingAngle={5}
                   dataKey="value"
+                  stroke="none"
                 >
                   {summary.typeYield?.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -316,9 +399,18 @@ export default function InvestmentDashboard({ user, showValues = true }) {
                 </Pie>
                 <Tooltip 
                   formatter={(val) => formatCurrency(val)} 
-                  contentStyle={{ background: 'var(--bg-canvas)', border: '1px solid var(--glass-border)', borderRadius: '12px' }} 
+                  contentStyle={{ 
+                    background: 'var(--bg-card)', 
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid var(--glass-border)', 
+                    borderRadius: '16px',
+                    boxShadow: 'var(--shadow)',
+                    padding: '12px',
+                    color: 'var(--text-main)'
+                  }} 
+                  itemStyle={{ color: 'var(--text-main)' }}
                 />
-                <Legend iconType="circle" />
+                <Legend iconType="circle" verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -327,16 +419,28 @@ export default function InvestmentDashboard({ user, showValues = true }) {
         {/* Patrimônio por Instituição */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Building2 size={18} style={{ color: 'var(--primary)' }} /> Patrimônio por Instituição
+            <BarChart2 size={18} /> Patrimônio por Instituição
           </h4>
           <div style={{ height: '300px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={summary.instBalance || []} layout="vertical" margin={{ left: -10, right: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--glass-border)" strokeOpacity={0.5} />
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} />
-                <Tooltip formatter={(val) => formatCurrency(val)} contentStyle={{ background: 'var(--bg-canvas)', border: '1px solid var(--glass-border)', borderRadius: '8px' }} />
-                <Bar dataKey="value" name="Saldo" radius={[0, 4, 4, 0]} barSize={25}>
+                <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={11} width={110} axisLine={false} tickLine={false} />
+                <Tooltip 
+                  formatter={(val) => formatCurrency(val)} 
+                  contentStyle={{ 
+                    background: 'var(--bg-card)', 
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid var(--glass-border)', 
+                    borderRadius: '16px',
+                    boxShadow: 'var(--shadow)',
+                    padding: '12px',
+                    color: 'var(--text-main)'
+                  }}
+                  itemStyle={{ color: 'var(--text-main)' }}
+                />
+                <Bar dataKey="value" name="Saldo" radius={[0, 6, 6, 0]} barSize={25}>
                   {summary.instBalance?.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -351,26 +455,89 @@ export default function InvestmentDashboard({ user, showValues = true }) {
   );
 }
 
-function StatCard({ title, value, icon, color, showValues }) {
+function StatCard({ title, value, icon, color, gradient, loading, showValues, testId }) {
   return (
-    <div className="glass-card" style={{ padding: '1.25rem', borderLeft: `6px solid ${color}`, transition: 'transform 0.2s' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</span>
-        <div style={{ color: color, background: `${color}15`, padding: '0.4rem', borderRadius: '0.5rem' }}>{icon}</div>
+    <div 
+      className="glass-card" 
+      data-testid={testId}
+      style={{ 
+        padding: '1.5rem', 
+        background: 'var(--bg-card)',
+        border: '1px solid var(--glass-border)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '140px',
+        boxShadow: 'var(--shadow)'
+      }}
+    >
+      {/* Background Gradient Overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: `linear-gradient(135deg, transparent 60%, ${gradient} 100%)`,
+        opacity: 0.6,
+        pointerEvents: 'none'
+      }} />
+      {/* Background Icon Glow */}
+      <div style={{ 
+        position: 'absolute', 
+        right: '-10px', 
+        top: '-10px', 
+        opacity: 0.05, 
+        transform: 'rotate(-15deg)' 
+      }}>
+        {React.cloneElement(icon, { size: 100, color: color })}
       </div>
-      <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>
-        {showValues ? (
-          <>R$ {Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
-        ) : (
-          <>R$ ••••••</>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ 
+          color: color, 
+          background: `color-mix(in srgb, ${color} 15%, transparent)`, 
+          padding: '0.6rem', 
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`
+        }}>
+          {icon}
+        </div>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {title}
+        </span>
+      </div>
+
+      <div>
+        <div style={{ 
+          fontSize: '1.75rem', 
+          fontWeight: 900, 
+          color: (value || 0) < 0 && title.includes('Saldo') ? 'var(--danger)' : 'var(--text-main)',
+          letterSpacing: '-0.02em'
+        }}>
+          {loading ? (
+            <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
+          ) : (
+            <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+          )}
+        </div>
+        {!loading && (
+          <div style={{ 
+            marginTop: '0.25rem', 
+            height: '4px', 
+            width: '40px', 
+            background: color, 
+            borderRadius: '2px',
+            opacity: 0.6
+          }} />
         )}
       </div>
     </div>
   );
 }
 
-const Building2 = ({ size, style }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-    <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/>
-  </svg>
-);

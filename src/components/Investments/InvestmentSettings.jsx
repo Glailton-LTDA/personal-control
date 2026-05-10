@@ -46,7 +46,7 @@ export default function InvestmentSettings({ user }) {
       // Fetch Accounts with joins
       const { data: accs } = await supabase
         .from('investment_accounts')
-        .select('*, institution:investment_institutions(name), type:investment_account_types(name)')
+        .select('*, institution:investment_institutions(name, color), type:investment_account_types(name)')
         .order('name');
       
       if (accs) {
@@ -149,14 +149,30 @@ export default function InvestmentSettings({ user }) {
       else { toast.error('Erro ao excluir item. Verifique se existem dependências.'); }
     }, { danger: true });
   };
+  
+  const groupedAccounts = React.useMemo(() => {
+    const groups = {};
+    accounts.forEach(acc => {
+      const instName = acc.institution?.name || 'Sem Instituição';
+      if (!groups[instName]) {
+        groups[instName] = { 
+          name: instName, 
+          color: acc.institution?.color || '#6366f1', 
+          items: [] 
+        };
+      }
+      groups[instName].items.push(acc);
+    });
+    return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+  }, [accounts]);
 
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '5rem' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Palette size={24} color="var(--primary)" /> Configurações de Investimentos
+      <div style={{ marginBottom: '2.5rem' }}>
+        <h3 style={{ fontSize: '1.75rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.75rem', letterSpacing: '-0.02em' }}>
+          <Palette size={28} color="var(--primary)" /> Configurações de Investimentos
         </h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>Personalize suas contas, instituições e categorias.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.5rem', fontWeight: 500 }}>Personalize suas contas, instituições e tipos de ativos para uma gestão impecável.</p>
       </div>
 
       <div className="tabs-container" style={{ marginBottom: '2rem' }}>
@@ -266,49 +282,103 @@ export default function InvestmentSettings({ user }) {
         ) : (
           <>
             {activeTab === 'accounts' && (
-              accounts.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center' }}>Nenhuma conta cadastrada.</p> :
-              accounts.map(acc => (
-                <div key={acc.id} className="glass-card" style={{ padding: '1.5rem', borderLeft: `6px solid ${acc.color}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
-                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-                        {acc.institution?.name || 'Sem Instituição'} • {acc.type?.name || 'Sem Tipo'}
-                      </p>
-                      <h4 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{acc.name}</h4>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="icon-btn" onClick={() => { setEditingId(acc.id); setFormData({ name: acc.name, institution_id: acc.institution_id || '', account_type_id: acc.account_type_id || '', color: acc.color }); setIsAdding(true); }}><Edit2 size={16} /></button>
-                      <button className="icon-btn danger" onClick={() => deleteItem('investment_accounts', acc.id, 'Conta')}><Trash2 size={16} /></button>
-                    </div>
+              accounts.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Nenhuma conta cadastrada.</p> :
+              groupedAccounts.map(group => (
+                <div key={group.name} style={{ gridColumn: '1/-1', marginBottom: '2rem' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    marginBottom: '1.25rem',
+                    padding: '0.5rem 1rem',
+                    background: 'var(--card-action-bg)',
+                    borderRadius: '12px',
+                    width: 'fit-content',
+                    border: '1px solid var(--glass-border)'
+                  }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: group.color }}></div>
+                    <h5 style={{ fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-main)' }}>
+                      {group.name}
+                    </h5>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginLeft: '0.5rem' }}>
+                      {group.items.length} {group.items.length === 1 ? 'conta' : 'contas'}
+                    </span>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                    {group.items.map(acc => (
+                      <div key={acc.id} className="glass-card" style={{ 
+                        padding: '1.5rem', 
+                        position: 'relative',
+                        background: `linear-gradient(135deg, var(--bg-card), color-mix(in srgb, ${acc.color} 5%, transparent))`,
+                        borderTop: `4px solid ${acc.color}`
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
+                              {acc.type?.name || 'Sem Tipo'}
+                            </p>
+                            <h4 style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{acc.name}</h4>
+                            
+                            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: acc.color }}></div>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Identificador Visual</span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="action-btn" onClick={() => { setEditingId(acc.id); setFormData({ name: acc.name, institution_id: acc.institution_id || '', account_type_id: acc.account_type_id || '', color: acc.color }); setIsAdding(true); }}><Edit2 size={18} /></button>
+                            <button className="action-btn danger" onClick={() => deleteItem('investment_accounts', acc.id, 'Conta')}><Trash2 size={18} /></button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))
             )}
 
             {activeTab === 'institutions' && (
-              institutions.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center' }}>Nenhuma instituição cadastrada.</p> :
+              institutions.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Nenhuma instituição cadastrada.</p> :
               institutions.map(i => (
-                <div key={i.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div key={i.id} className="glass-card" style={{ 
+                  padding: '1.5rem', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  background: `linear-gradient(135deg, var(--bg-card), color-mix(in srgb, ${i.color} 5%, transparent))`
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: i.color }}></div>
-                    <span style={{ fontWeight: 600 }}>{i.name}</span>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: `color-mix(in srgb, ${i.color} 15%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid color-mix(in srgb, ${i.color} 25%, transparent)` }}>
+                      <Building2 size={20} color={i.color} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>{i.name}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="icon-btn" onClick={() => { setEditingId(i.id); setInstData({ name: i.name, color: i.color }); setIsAdding(true); }}><Edit2 size={16} /></button>
-                    <button className="icon-btn danger" onClick={() => deleteItem('investment_institutions', i.id, 'Instituição')}><Trash2 size={16} /></button>
+                    <button className="action-btn" onClick={() => { setEditingId(i.id); setInstData({ name: i.name, color: i.color }); setIsAdding(true); }}><Edit2 size={18} /></button>
+                    <button className="action-btn danger" onClick={() => deleteItem('investment_institutions', i.id, 'Instituição')}><Trash2 size={18} /></button>
                   </div>
                 </div>
               ))
             )}
 
             {activeTab === 'types' && (
-              accountTypes.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center' }}>Nenhum tipo cadastrado.</p> :
+              accountTypes.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Nenhum tipo cadastrado.</p> :
               accountTypes.map(t => (
-                <div key={t.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 600 }}>{t.name}</span>
+                <div key={t.id} className="glass-card" style={{ 
+                  padding: '1.5rem', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: 'var(--card-action-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+                      <Layers size={20} color="var(--primary)" />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>{t.name}</span>
+                  </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="icon-btn" onClick={() => { setEditingId(t.id); setTypeData({ name: t.name }); setIsAdding(true); }}><Edit2 size={16} /></button>
-                    <button className="icon-btn danger" onClick={() => deleteItem('investment_account_types', t.id, 'Tipo')}><Trash2 size={16} /></button>
+                    <button className="action-btn" onClick={() => { setEditingId(t.id); setTypeData({ name: t.name }); setIsAdding(true); }}><Edit2 size={18} /></button>
+                    <button className="action-btn danger" onClick={() => deleteItem('investment_account_types', t.id, 'Tipo')}><Trash2 size={18} /></button>
                   </div>
                 </div>
               ))

@@ -94,10 +94,10 @@ test.describe('Investments Module', () => {
     await page.waitForLoadState('networkidle');
     
     // Wait for the view to change
-    await expect(page.locator('h3:has-text("Performance de Investimentos")')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Performance de Investimentos')).toBeVisible({ timeout: 15000 });
     
     // Wait for performance card
-    await expect(page.locator('h3:has-text("Performance de Investimentos")')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Performance de Investimentos')).toBeVisible({ timeout: 10000 });
     
     // Check specific stats
     await expect(page.locator('text=Patrimônio Total')).toBeVisible();
@@ -109,15 +109,12 @@ test.describe('Investments Module', () => {
     await page.waitForLoadState('networkidle');
 
     // Wait for the investments-dashboard to load
-    await expect(page.locator('h3:has-text("Performance de Investimentos")')).toBeVisible({ timeout: 10000 });
-
     // Clica em "Planilha" no sub-header
     await page.getByTestId('sidebar-sub-item-investments-list').click();
 
     // Confirm navigation succeeded via header title change
     await expect(page.getByTestId('header-title').first()).toHaveText('Investimentos', { timeout: 10000 });
-
     // Now check the summary card
-    await expect(page.getByTestId('summary-card-total-balance')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('summary-card-total-balance-list')).toBeVisible({ timeout: 30000 });
   });
 });

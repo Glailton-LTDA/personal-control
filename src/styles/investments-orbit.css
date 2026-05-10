@@ -1,0 +1,267 @@
+
+/* ==========================================================================
+   ORBIT DESIGN SYSTEM - INVESTMENTS MODULE
+   ========================================================================== */
+
+:root {
+  --orbit-card-bg: rgba(255, 255, 255, 0.03);
+  --orbit-glass-border: rgba(255, 255, 255, 0.08);
+  --orbit-card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  --orbit-font-header: 'Outfit', 'Inter', sans-serif;
+}
+
+/* Header & Title Section */
+.investment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2.5rem;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.investment-title-group h2 {
+  font-family: var(--orbit-font-header);
+  font-size: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.investment-title-group p {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.investment-filters {
+  display: flex;
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.5rem;
+  border-radius: 16px;
+  border: 1px solid var(--orbit-glass-border);
+}
+
+/* Stats Grid & Cards */
+.investment-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-card-orbit {
+  background: var(--orbit-card-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--orbit-glass-border);
+  border-radius: 24px;
+  padding: 1.75rem;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--orbit-card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stat-card-orbit:hover {
+  transform: translateY(-5px);
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-card-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stat-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--primary);
+}
+
+.stat-card-value {
+  font-family: var(--orbit-font-header);
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+.stat-card-accent {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 100px;
+  height: 100px;
+  background: var(--primary);
+  filter: blur(60px);
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+/* Charts & Containers */
+.chart-container-orbit {
+  background: var(--orbit-card-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--orbit-glass-border);
+  border-radius: 32px;
+  padding: 2.25rem;
+  box-shadow: var(--orbit-card-shadow);
+}
+
+.chart-header-orbit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.chart-header-orbit h4 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+/* Investment List Table */
+.investment-table-container {
+  background: var(--orbit-card-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--orbit-glass-border);
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: var(--orbit-card-shadow);
+}
+
+.investment-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.investment-table th {
+  text-align: left;
+  padding: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--orbit-glass-border);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.investment-table td {
+  padding: 1.25rem 1.5rem;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.investment-row-group {
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.investment-row-group:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.investment-row-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+  background: transparent;
+}
+
+/* Settings Bento Cards */
+.settings-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.settings-card-orbit {
+  background: var(--orbit-card-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--orbit-glass-border);
+  border-radius: 28px;
+  padding: 2rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.settings-card-orbit:hover {
+  border-color: var(--primary-low);
+  transform: translateY(-4px);
+}
+
+.settings-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.settings-card-tags {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tag-orbit {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.3rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-card-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--text-main);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .investment-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+  
+  .investment-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .chart-container-orbit {
+    padding: 1.5rem;
+  }
+}

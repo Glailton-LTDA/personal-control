@@ -6,12 +6,107 @@ import {
 import { supabase } from '../../lib/supabase';
 import { 
   Plus, Search, Filter, TrendingUp, ArrowUpDown, ChevronDown, ChevronRight,
-  Trash2, Edit2, Calendar, Copy
+  Trash2, Edit2, Calendar, Copy, Wallet
 } from 'lucide-react';
 import InvestmentModal from './InvestmentModal';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { useEncryption } from '../../contexts/EncryptionContext';
+import { motion as Motion } from 'framer-motion';
+
+const GRADIENTS = {
+  income: 'var(--stat-income)',
+  expense: 'var(--stat-expense)',
+  pending: 'var(--stat-pending)',
+  balance: 'var(--stat-balance)',
+  purple: 'rgba(139, 92, 246, 0.1)',
+};
+
+function StatCard({ title, value, icon, color, gradient, loading, showValues, testId }) {
+  return (
+    <div 
+      className="glass-card" 
+      data-testid={testId}
+      style={{ 
+        padding: '1.5rem', 
+        background: 'var(--bg-card)',
+        border: '1px solid var(--glass-border)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        minHeight: '140px',
+        boxShadow: 'var(--shadow)'
+      }}
+    >
+      {/* Background Gradient Overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: `linear-gradient(135deg, transparent 60%, ${gradient} 100%)`,
+        opacity: 0.6,
+        pointerEvents: 'none'
+      }} />
+      {/* Background Icon Glow */}
+      <div style={{ 
+        position: 'absolute', 
+        right: '-10px', 
+        top: '-10px', 
+        opacity: 0.05, 
+        transform: 'rotate(-15deg)' 
+      }}>
+        {React.cloneElement(icon, { size: 100, color: color })}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ 
+          color: color, 
+          background: `color-mix(in srgb, ${color} 15%, transparent)`, 
+          padding: '0.6rem', 
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`
+        }}>
+          {icon}
+        </div>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {title}
+        </span>
+      </div>
+
+      <div>
+        <div style={{ 
+          fontSize: '1.75rem', 
+          fontWeight: 900, 
+          color: (value || 0) < 0 && title.includes('Saldo') ? 'var(--danger)' : 'var(--text-main)',
+          letterSpacing: '-0.02em'
+        }}>
+          {loading ? (
+            <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
+          ) : (
+            <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+          )}
+        </div>
+        {!loading && (
+          <div style={{ 
+            marginTop: '0.25rem', 
+            height: '4px', 
+            width: '40px', 
+            background: color, 
+            borderRadius: '2px',
+            opacity: 0.6
+          }} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function InvestmentList({ user, showValues = true }) {
   const [records, setRecords] = useState([]);
@@ -269,27 +364,31 @@ export default function InvestmentList({ user, showValues = true }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '100px' }}>
       
       {/* Filters and Summary Header */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="glass-card" style={{ padding: '0.4rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'var(--transition)' }}>
-            <Calendar size={18} color="var(--primary)" />
+      <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <TrendingUp size={18} color="var(--primary)" />
+          <span style={{ fontWeight: 600 }}>Planilha de Investimentos</span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-action-bg)', padding: '4px', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+            <Calendar size={16} style={{ marginLeft: '8px', color: 'var(--text-muted)' }} />
             <select 
               value={filterYear}
               onChange={e => setFilterYear(Number(e.target.value))}
               className="select-filter"
-              style={{ background: 'transparent', border: 'none', color: 'white', fontWeight: 700, outline: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontWeight: 700, outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
             >
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           
-          <div className="glass-card" style={{ padding: '0.4rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'var(--transition)' }}>
-            <Filter size={18} color="var(--primary)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-action-bg)', padding: '4px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
             <select 
               value={filterMonth}
               onChange={e => setFilterMonth(Number(e.target.value))}
               className="select-filter"
-              style={{ background: 'transparent', border: 'none', color: 'white', fontWeight: 700, outline: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontWeight: 700, outline: 'none', cursor: 'pointer', fontSize: '0.85rem', paddingLeft: '8px' }}
             >
               {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
@@ -298,22 +397,18 @@ export default function InvestmentList({ user, showValues = true }) {
           {filterMonth !== 0 && (
             <button 
               onClick={handleCopyFromPreviousMonth}
-              className="glass-card"
+              className="icon-btn"
+              title="Copiar do Mês Anterior"
               style={{ 
-                padding: '0.4rem 1rem', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
-                cursor: 'pointer',
+                height: '40px', 
+                width: '40px', 
                 background: 'rgba(99, 102, 241, 0.1)',
                 border: '1px solid rgba(99, 102, 241, 0.2)',
                 color: 'var(--primary)',
-                fontWeight: 600,
-                fontSize: '0.85rem'
+                borderRadius: '12px'
               }}
             >
-              <Copy size={16} />
-              Copiar do Mês Anterior
+              <Copy size={18} />
             </button>
           )}
         </div>
@@ -328,16 +423,29 @@ export default function InvestmentList({ user, showValues = true }) {
         <Plus size={32} />
       </button>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
-        <div className="glass-card" style={{ padding: '1.5rem', borderLeft: '6px solid var(--primary)' }}>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Rendimento no Período</p>
-          <h3 style={{ fontSize: '1.75rem', fontWeight: 800, color: totalYield >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatCurrency(totalYield)}</h3>
-        </div>
-        <div className="glass-card" data-testid="summary-card-total-balance" style={{ padding: '1.5rem', borderLeft: '6px solid var(--success)' }}>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Saldo Final Total</p>
-          <h3 style={{ fontSize: '1.75rem', fontWeight: 800 }}>{formatCurrency(totalBalance)}</h3>
-        </div>
-      </div>
+      <Motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
+      >
+        <StatCard 
+          title="Rendimento no Período" 
+          value={totalYield} 
+          icon={<TrendingUp size={22}/>} 
+          color="#10b981" 
+          gradient={GRADIENTS.income}
+          showValues={showValues} 
+        />
+        <StatCard 
+          title="Saldo Final Total" 
+          value={totalBalance} 
+          icon={<Wallet size={22}/>} 
+          color="#6366f1" 
+          gradient={GRADIENTS.balance}
+          showValues={showValues} 
+          testId="summary-card-total-balance-list"
+        />
+      </Motion.div>
 
       {/* Layout: Chart on top, Table below */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -375,11 +483,15 @@ export default function InvestmentList({ user, showValues = true }) {
                     <Tooltip 
                       formatter={(val) => formatCurrency(val)}
                       contentStyle={{ 
-                        background: 'var(--bg-canvas)', 
+                        background: 'var(--bg-card)', 
+                        backdropFilter: 'blur(12px)',
                         border: '1px solid var(--glass-border)', 
-                        borderRadius: '12px',
-                        boxShadow: 'var(--shadow)'
+                        borderRadius: '16px',
+                        boxShadow: 'var(--shadow)',
+                        padding: '12px',
+                        color: 'var(--text-main)'
                       }}
+                      itemStyle={{ color: 'var(--text-main)' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -438,12 +550,12 @@ export default function InvestmentList({ user, showValues = true }) {
         <div className="glass-card desktop-only" style={{ overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
-                <th style={{ padding: '1rem', fontSize: '0.85rem' }}>Data</th>
-                <th style={{ padding: '1rem', fontSize: '0.85rem' }}>Conta</th>
-                <th style={{ padding: '1rem', fontSize: '0.85rem' }}>Saldo Final</th>
-                <th style={{ padding: '1rem', fontSize: '0.85rem' }}>Rendimento</th>
-                <th style={{ padding: '1rem', textAlign: 'right' }}></th>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)' }}>
+                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Data</th>
+                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Conta</th>
+                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Saldo Final</th>
+                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Rendimento</th>
+                <th style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -457,47 +569,47 @@ export default function InvestmentList({ user, showValues = true }) {
                   <React.Fragment key={group.name}>
                     <tr 
                       style={{ 
-                        background: 'rgba(255,255,255,0.03)', 
+                        background: 'color-mix(in srgb, var(--primary) 8%, transparent)', 
                         borderBottom: '1px solid var(--glass-border)',
                         cursor: 'pointer'
                       }} 
                       onClick={() => toggleGroup(group.name)}
                       className="table-row-hover"
                     >
-                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      <td style={{ padding: '1.25rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 800 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           SUMÁRIO
                         </div>
                       </td>
-                      <td style={{ padding: '0.75rem 1rem' }}>
+                      <td style={{ padding: '1.25rem 1rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
-                          <span style={{ fontWeight: 800, color: 'var(--text-main)', letterSpacing: '0.5px' }}>{group.name.toUpperCase()}</span>
+                          <span style={{ fontWeight: 900, color: 'var(--text-main)', letterSpacing: '0.5px' }}>{group.name.toUpperCase()}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '0.75rem 1rem', fontWeight: 800 }}>{formatCurrency(group.balance)}</td>
-                      <td style={{ padding: '0.75rem 1rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 800 }}>
+                      <td style={{ padding: '1.25rem 1rem', fontWeight: 900, fontSize: '1.05rem', color: 'var(--text-main)' }}>{formatCurrency(group.balance)}</td>
+                      <td style={{ padding: '1.25rem 1rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 900, fontSize: '1.05rem' }}>
                         {formatCurrency(group.yield)}
                       </td>
-                      <td style={{ padding: '0.75rem 1rem' }}></td>
+                      <td style={{ padding: '1.25rem 1rem' }}></td>
                     </tr>
                     {isExpanded && group.items.map(record => (
                       <tr key={record.id} style={{ borderBottom: '1px solid var(--glass-border)', fontSize: '0.9rem' }} className="table-row-hover">
-                        <td style={{ padding: '1rem', color: 'var(--text-muted)', paddingLeft: '1.5rem' }}>
+                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-muted)', paddingLeft: '1.5rem' }}>
                           {new Date(record.record_date).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
                         </td>
-                        <td style={{ padding: '1rem', paddingLeft: '2.5rem' }}>
-                          <div style={{ fontWeight: 500 }}>{record.investment_accounts?.name}</div>
+                        <td style={{ padding: '1.25rem 1rem', paddingLeft: '2.5rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{record.investment_accounts?.name}</div>
                         </td>
-                        <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{formatCurrency(record.final_balance)}</td>
-                        <td style={{ padding: '1rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', opacity: 0.8, fontSize: '0.85rem' }}>
+                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-main)', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</td>
+                        <td style={{ padding: '1.25rem 1rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', opacity: 0.9, fontWeight: 600 }}>
                           {formatCurrency(record.yield)}
                         </td>
-                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                        <td style={{ padding: '1.25rem 1rem', textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                            <button className="icon-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={13} /></button>
-                            <button className="icon-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={13} /></button>
+                            <button className="action-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={18} /></button>
+                            <button className="action-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={18} /></button>
                           </div>
                         </td>
                       </tr>
@@ -543,8 +655,8 @@ export default function InvestmentList({ user, showValues = true }) {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="icon-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={14} /></button>
-                          <button className="icon-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={14} /></button>
+                          <button className="action-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={16} /></button>
+                          <button className="action-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={16} /></button>
                         </div>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -575,3 +687,4 @@ export default function InvestmentList({ user, showValues = true }) {
     </div>
   );
 }
+

@@ -120,7 +120,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 Informe os saldos para cálculo de rendimento.
               </p>
             </div>
-            <button className="icon-btn" onClick={onClose} style={{ background: 'rgba(255,255,255,0.05) !important' }}>
+            <button className="action-btn" onClick={onClose}>
               <X size={24} />
             </button>
           </div>

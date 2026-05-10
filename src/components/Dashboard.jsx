@@ -61,7 +61,7 @@ const moduleSubItems = {
   ],
   investments: [
     { tab: 'investments-dashboard', icon: BarChart2, label: 'Dashboard' },
-    { tab: 'investments-list', icon: TrendingUp, label: 'Planilha de Investimentos' },
+    { tab: 'investments-list', icon: DollarSign, label: 'Planilha de Investimentos' },
     { tab: 'investments-settings', icon: Settings, label: 'Ajustes' }
   ],
   trips: [
