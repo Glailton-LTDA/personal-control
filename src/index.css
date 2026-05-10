@@ -621,14 +621,22 @@ select:focus option {
 /* Bento Grid Utility */
 .bento-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
 }
 
-@media (max-width: 768px) {
+.bento-span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 1024px) {
   .bento-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
+  }
+  
+  .bento-span-2 {
+    grid-column: span 1;
   }
 }
 
@@ -641,10 +649,52 @@ select:focus option {
   background: var(--card-action-bg);
 }
 
+.orbit-table-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.orbit-table-container::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 10px;
+}
+
 .orbit-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.9rem;
+}
+
+.orbit-table th.sticky-col,
+.orbit-table td.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: #0f172a !important; /* Solid background to prevent transparency on scroll */
+  width: 220px;
+  min-width: 220px;
+  border-right: 1px solid var(--glass-border);
+}
+
+.orbit-table th.sticky-col {
+  z-index: 20;
+}
+
+@media (max-width: 768px) {
+  .orbit-table th.sticky-col,
+  .orbit-table td.sticky-col {
+    width: 120px;
+    min-width: 120px;
+    font-size: 0.75rem;
+    padding: 0.75rem 0.5rem;
+  }
+  
+  .orbit-table th:not(.sticky-col),
+  .orbit-table td:not(.sticky-col) {
+    min-width: 100px !important;
+    font-size: 0.7rem;
+    padding: 0.5rem;
+  }
 }
 
 .orbit-table th {

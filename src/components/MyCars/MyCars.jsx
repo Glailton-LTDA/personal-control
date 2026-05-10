@@ -16,7 +16,8 @@ import {
   MessageSquare,
   Eye,
   EyeOff,
-  Filter
+  Filter,
+  FileText
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useEncryption } from '../../contexts/EncryptionContext';
@@ -41,13 +42,6 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     return localStorage.getItem('personal-control-car-subtab') || 'summary';
   });
   const [showHidden, setShowHidden] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const [serviceTemplates, setServiceTemplates] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
@@ -266,50 +260,84 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   if (mode === 'admin') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Filter size={18} /> Configurações de Visualização
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="glass-card" style={{ padding: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="cat-icon-wrap" style={{ "--cat-color": "var(--primary)", width: 44, height: 44, borderRadius: 12 }}>
+              <Filter size={22} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Preferências de Visualização</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Configure como seus dados de frota são exibidos.</p>
+            </div>
+          </div>
+          
+          <div 
+            onClick={() => setShowHidden(!showHidden)}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '1rem', 
+              padding: '1.25rem', 
+              background: 'var(--card-action-bg)', 
+              borderRadius: '16px', 
+              cursor: 'pointer',
+              border: '1px solid var(--glass-border)',
+              transition: 'all 0.2s'
+            }}
+          >
             <input 
               type="checkbox" 
-              id="show-hidden-global"
               checked={showHidden}
-              onChange={e => setShowHidden(e.target.checked)}
-              style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+              onChange={() => {}}
+              style={{ width: '20px', height: '20px', cursor: 'pointer' }}
             />
-            <label htmlFor="show-hidden-global" style={{ cursor: 'pointer', fontWeight: 500 }}>Mostrar veículos arquivados na lista principal</label>
+            <div>
+              <p style={{ fontWeight: 800, fontSize: '0.95rem', margin: 0 }}>Mostrar veículos arquivados</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Exibir carros ocultos na lista de seleção principal.</p>
+            </div>
           </div>
         </div>
 
-        <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <EyeOff size={18} /> Veículos Arquivados
-          </h3>
+        <div className="glass-card" style={{ padding: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="cat-icon-wrap" style={{ "--cat-color": "var(--pending)", width: 44, height: 44, borderRadius: 12 }}>
+              <EyeOff size={22} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Veículos Arquivados</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Gerencie seus veículos fora de circulação.</p>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {cars.filter(c => c.is_hidden).length === 0 && sharedCars.filter(c => c.is_hidden).length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nenhum veículo arquivado.</p>
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', background: 'var(--card-action-bg)', borderRadius: '16px' }}>
+                <Car size={48} style={{ opacity: 0.1, marginBottom: '1rem' }} />
+                <p style={{ margin: 0 }}>Nenhum veículo arquivado.</p>
+              </div>
             ) : (
               <>
                 {cars.filter(c => c.is_hidden).map(car => (
-                  <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                  <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', background: 'var(--card-action-bg)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
                     <div>
-                      <p style={{ fontWeight: 600, margin: 0 }}>{car.name}</p>
+                      <p style={{ fontWeight: 800, fontSize: '1rem', margin: 0, color: 'var(--text-main)' }}>{car.name}</p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate} • {car.make} {car.model}</p>
                     </div>
-                    <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                      <Eye size={14} /> Restaurar
+                    <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                      <Eye size={16} /> Restaurar
                     </button>
                   </div>
                 ))}
                 {sharedCars.filter(c => c.is_hidden).map(car => (
-                  <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                  <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', background: 'var(--card-action-bg)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
                     <div>
-                      <p style={{ fontWeight: 600, margin: 0 }}>{car.name} <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>(Compartilhado)</span></p>
+                      <p style={{ fontWeight: 800, fontSize: '1rem', margin: 0, color: 'var(--text-main)' }}>
+                        {car.name} <span style={{ fontSize: '0.65rem', color: 'var(--primary)', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px', marginLeft: '0.5rem' }}>Compartilhado</span>
+                      </p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate}</p>
                     </div>
-                    <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                      <Eye size={14} /> Restaurar
+                    <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                      <Eye size={16} /> Restaurar
                     </button>
                   </div>
                 ))}
@@ -333,115 +361,123 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {invitations.length > 0 && (
-        <div className="glass-card" style={{ border: '1px solid var(--primary)', background: 'rgba(99, 102, 241, 0.05)', padding: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ color: 'var(--primary)' }}><Mail size={24} /></div>
+        <Motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card" 
+          style={{ border: '1px solid var(--primary)', background: 'rgba(99, 102, 241, 0.05)', padding: '1.5rem' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div className="cat-icon-wrap" style={{ "--cat-color": "var(--primary)", width: 42, height: 42, borderRadius: 12 }}>
+              <Mail size={24} />
+            </div>
             <div>
-              <h3 style={{ fontSize: '1.1rem' }}>Novos Convites de Veículos</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Você foi convidado para acessar os veículos abaixo.</p>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Novos Convites</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Você recebeu acesso a novos veículos.</p>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {invitations.map(invite => (
-              <div key={invite.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-                <span style={{ fontWeight: 600 }}>{invite.car_id.name} ({invite.car_id.plate})</span>
+              <div key={invite.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'var(--card-action-bg)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Car size={18} className="text-primary" />
+                  <span style={{ fontWeight: 700 }}>{invite.car_id.name} <small style={{ opacity: 0.6, fontWeight: 500 }}>({invite.car_id.plate})</small></span>
+                </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn-primary" onClick={() => handleAcceptInvitation(invite.id)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Aceitar</button>
-                  <button className="icon-btn" onClick={() => handleRejectInvitation(invite.id)} style={{ color: 'var(--danger)' }}><XCircle size={20} /></button>
+                  <button className="btn-primary" onClick={() => handleAcceptInvitation(invite.id)} style={{ padding: '8px 16px', fontSize: '0.8rem', height: '36px' }}>Aceitar</button>
+                  <button className="action-btn danger" onClick={() => handleRejectInvitation(invite.id)}><XCircle size={18} /></button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Motion.div>
       )}
 
-      {/* Car Selection Header */}
-      <div className="glass-card" style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: '1 1 300px' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
-            <Car size={26} />
+      {/* Car Selection Header - Orbit Style */}
+      <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: '1 1 300px' }}>
+          <div className="premium-gradient" style={{ width: 52, height: 52, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
+            <Car size={28} />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Veículo Selecionado</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>Garagem</label>
+            <div style={{ position: 'relative', maxWidth: '400px' }}>
               <select 
                 className="glass-input"
                 value={selectedCar?.id || ''} 
                 onChange={(e) => setSelectedCar([...cars, ...sharedCars].find(c => c.id === e.target.value))}
                 style={{ 
-                  padding: '10px 14px', 
-                  height: '42px', 
-                  fontWeight: 600, 
-                  flex: 1,
-                  maxWidth: '400px',
-                  fontSize: '0.95rem'
+                  padding: '10px 16px', 
+                  height: '46px', 
+                  fontWeight: 700, 
+                  fontSize: '1rem',
+                  cursor: 'pointer'
                 }}
               >
-              <optgroup label="Meus Veículos">
-                {visibleCars.map(car => (
-                  <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
-                ))}
-              </optgroup>
-              {visibleShared.length > 0 && (
-                <optgroup label="Compartilhados">
-                  {visibleShared.map(car => (
+                <optgroup label="Meus Veículos">
+                  {visibleCars.map(car => (
                     <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
                   ))}
                 </optgroup>
-              )}
+                {visibleShared.length > 0 && (
+                  <optgroup label="Compartilhados">
+                    {visibleShared.map(car => (
+                      <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
           </div>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button
             onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}
-            className="btn-secondary"
-            style={{ height: '42px', padding: '0 16px', fontSize: '0.85rem' }}
+            className="btn-primary"
+            style={{ height: '46px', padding: '0 20px', fontSize: '0.9rem' }}
           >
-            <Plus size={18} /> Novo Veículo
+            <Plus size={20} /> Novo Veículo
           </button>
           
           {selectedCar && (
             <button
-              className="icon-btn"
+              className="action-btn"
               onClick={() => { setModalType('edit_car'); setIsModalOpen(true); }}
-              title="Editar Veículo"
-              style={{ width: '42px', height: '42px', padding: 0 }}
+              title="Configurações"
+              style={{ width: '46px', height: '46px' }}
             >
-              <Edit2 size={18} />
+              <Edit2 size={20} />
             </button>
           )}
         </div>
       </div>
 
       {selectedCar ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
-          <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--glass-border)', padding: '0 1.25rem' }}>
+          <div className="tabs-container" style={{ alignSelf: 'flex-start' }}>
             <button
               className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`}
               onClick={() => setActiveSubTab('summary')}
-              style={{ paddingBottom: '1rem', fontSize: '0.9rem', fontWeight: 600, borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: activeSubTab === 'summary' ? '2px solid var(--primary)' : 'none', color: activeSubTab === 'summary' ? 'var(--primary)' : 'var(--text-muted)', background: 'none', cursor: 'pointer' }}
             >
               Resumo
             </button>
             <button
               className={`tab-btn ${activeSubTab === 'revision' ? 'active' : ''}`}
               onClick={() => setActiveSubTab('revision')}
-              style={{ paddingBottom: '1rem', fontSize: '0.9rem', fontWeight: 600, borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: activeSubTab === 'revision' ? '2px solid var(--primary)' : 'none', color: activeSubTab === 'revision' ? 'var(--primary)' : 'var(--text-muted)', background: 'none', cursor: 'pointer' }}
             >
-              Revisão
+              Plano de Revisão
             </button>
           </div>
 
           <AnimatePresence mode="wait">
             <Motion.div
               key={activeSubTab}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
             >
               {activeSubTab === 'summary' ? (
                 <CarSummary 
@@ -458,14 +494,13 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                   car={selectedCar} 
                   maintenance={maintenance} 
                   templates={serviceTemplates}
-                  isMobile={isMobile}
                   onLogService={(data) => { 
                     setModalType(data ? { type: 'log_service', ...data } : 'log_service'); 
                     setIsModalOpen(true); 
                   }}
                   onToggleStatus={toggleServiceStatus}
-                  onAddNote={(desc) => { 
-                    setModalType({ type: 'service_notes_list', description: desc }); 
+                  onAddNote={(data) => { 
+                    setModalType(data); 
                     setIsModalOpen(true); 
                   }}
                   canEdit={true}
@@ -475,10 +510,15 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
           </AnimatePresence>
         </div>
       ) : (
-        <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
-          <Car size={48} style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', opacity: 0.3 }} />
-          <h3 style={{ color: 'var(--text-muted)' }}>Nenhum veículo cadastrado</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Adicione seu primeiro carro para começar o controle de manutenção.</p>
+        <div className="glass-card" style={{ padding: '6rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="premium-gradient" style={{ width: 80, height: 80, borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '2rem', opacity: 0.8 }}>
+            <Car size={40} />
+          </div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>Sua garagem está vazia</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: '400px', margin: '0 auto 2.5rem' }}>Cadastre seus veículos para acompanhar o histórico de manutenções e custos detalhados.</p>
+          <button className="btn-primary" onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}>
+            <Plus size={20} /> Cadastrar Primeiro Veículo
+          </button>
         </div>
       )}
 
@@ -508,75 +548,106 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
   const totalSpent = maintenance.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
   
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+    <div className="bento-grid">
       
-      <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Wrench size={18} style={{ color: car.is_hidden ? 'var(--text-muted)' : 'var(--primary)' }} /> 
-              <span data-testid="car-name">{car.name}</span>
-              {car.is_hidden && (
-                <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: 'var(--text-muted)' }}>ARQUIVADO</span>
+      {/* Car Profile Card - Bento Large */}
+      <div className="glass-card bento-span-2" style={{ padding: '1.75rem', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.02em' }} data-testid="car-name">{car.name}</h2>
+                {car.is_hidden && (
+                  <span className="cat-chip" style={{ "--cat-color": "var(--text-muted)" }}>ARQUIVADO</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <span style={{ padding: '2px 8px', background: 'var(--card-action-bg)', borderRadius: '6px', border: '1px solid var(--glass-border)' }} data-testid="car-plate">{car.plate}</span>
+                </div>
+                <div style={{ width: 1, height: 12, background: 'var(--glass-border)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <Wrench size={16} /> 
+                  <span data-testid="car-km">{(car.current_km || 0).toLocaleString()}</span> KM
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              {isOwner && (
+                <>
+                  <button className="action-btn" onClick={onEdit} title="Editar"><Edit2 size={18} /></button>
+                  <button className="action-btn" onClick={onShare} title="Compartilhar"><Share2 size={18} /></button>
+                  <button className="action-btn" onClick={onArchive} title={car.is_hidden ? "Restaurar" : "Arquivar"}>
+                    {car.is_hidden ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                  <button className="action-btn danger" onClick={onDelete} title="Excluir"><Trash2 size={18} /></button>
+                </>
               )}
-            </h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Status Geral do Veículo • <b data-testid="car-plate">{car.plate}</b> • <span data-testid="car-km">{(car.current_km || 0).toLocaleString()}</span> KM
-            </p>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {isOwner && (
-              <>
-                <button className="icon-btn" onClick={onArchive} title={car.is_hidden ? "Restaurar" : "Arquivar"}>
-                  {car.is_hidden ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
-                <button className="icon-btn" onClick={onEdit} title="Editar"><Edit2 size={18} /></button>
-                <button className="icon-btn" onClick={onShare} title="Compartilhar"><Share2 size={18} /></button>
-                <button className="icon-btn" onClick={onDelete} style={{ color: 'var(--danger)' }} title="Excluir"><Trash2 size={18} /></button>
-              </>
-            )}
+
+          <div style={{ background: 'var(--card-action-bg)', padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Próximo Checkpoint</span>
+              <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
+            </div>
+            <div style={{ height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '5px', overflow: 'hidden', marginBottom: '0.75rem' }}>
+              <Motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                style={{ height: '100%', background: 'linear-gradient(90deg, var(--primary), #8b5cf6)', boxShadow: '0 0 15px rgba(99, 102, 241, 0.5)' }} 
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
+                Restam <b style={{ color: 'var(--text-main)' }}>{kmRemaining.toLocaleString()} KM</b> para a próxima revisão sugerida.
+              </p>
+              <div className="status-badge paid" style={{ fontSize: '10px', padding: '2px 8px' }}>{(progress).toFixed(0)}%</div>
+            </div>
           </div>
         </div>
-
-        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.8rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Próximo Checkpoint</span>
-            <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
-          </div>
-          <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', marginBottom: '0.6rem' }}>
-            <Motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              style={{ height: '100%', background: 'var(--primary)', boxShadow: '0 0 10px rgba(99, 102, 241, 0.4)' }} 
-            />
-          </div>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
-            Restam <b>{kmRemaining.toLocaleString()} KM</b>
-          </p>
+        
+        {/* Decorative element */}
+        <div style={{ position: 'absolute', top: '-10%', right: '-5%', opacity: 0.03, transform: 'rotate(15deg)' }}>
+          <Car size={300} strokeWidth={1} />
         </div>
       </div>
 
-      <div className="glass-card premium-gradient" style={{ padding: '1.5rem', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <p style={{ fontSize: '0.8rem', opacity: 0.9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Total Investido</p>
-        <h2 style={{ fontSize: '2rem', fontWeight: 900, margin: 0 }}>
-          <small style={{ fontSize: '1rem', opacity: 0.8, fontWeight: 600, marginRight: '4px' }}>R$</small>
-          {totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+      {/* Financial Premium Card - Bento Normal */}
+      <div className="glass-card premium-gradient" style={{ padding: '1.75rem', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '220px' }}>
+        <p style={{ fontSize: '0.85rem', opacity: 0.8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>Investimento Total</p>
+        <h2 style={{ fontSize: 'clamp(1.75rem, 5vw, 2.5rem)', fontWeight: 900, margin: 0, letterSpacing: '-0.04em', whiteSpace: 'nowrap' }}>
+          <small style={{ fontSize: '0.5em', opacity: 0.7, fontWeight: 600, marginRight: '4px' }}>R$</small>
+          {totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </h2>
-        <p style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '0.5rem' }}>Histórico total de manutenções registradas.</p>
+        <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <CheckCircle2 size={16} style={{ opacity: 0.8 }} />
+          <p style={{ fontSize: '0.8rem', opacity: 0.9, margin: 0, fontWeight: 500 }}>Histórico de manutenções consolidado.</p>
+        </div>
       </div>
 
-      <div className="glass-card" style={{ padding: '1.5rem' }}>
-        <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertTriangle size={18} style={{ color: 'var(--warning)' }} /> Alertas de Manutenção
+      {/* Maintenance Alerts - Bento Normal */}
+      <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <AlertTriangle size={20} style={{ color: '#f59e0b' }} /> Insights & Alertas
         </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '8px' }}>
-            <div style={{ color: 'var(--success)' }}><CheckCircle2 size={18} /></div>
-            <p style={{ fontSize: '0.75rem', margin: 0 }}>Documentação e Seguro em dia.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+            <div style={{ color: 'var(--success)' }}><CheckCircle2 size={20} /></div>
+            <div>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Status: OK</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>Documentos e seguros vigentes.</p>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', background: 'rgba(234, 179, 8, 0.05)', borderRadius: '8px' }}>
-            <div style={{ color: 'var(--warning)' }}><AlertTriangle size={18} /></div>
-            <p style={{ fontSize: '0.75rem', margin: 0 }}>Verificar freios nos {nextMilestone.toLocaleString()} KM.</p>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
+            <div style={{ color: '#f59e0b' }}><Clock size={20} /></div>
+            <div>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Próxima Revisão</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>Faltam {kmRemaining.toLocaleString()} KM para o check-up.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -584,7 +655,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
   );
 }
 
-function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit, isMobile }) {
+function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit }) {
   const miles = milestones;
   
   const templateNames = Array.from(new Set([
@@ -606,81 +677,49 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
   };
 
   return (
-    <div className="glass-card" style={{ padding: '1.5rem', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+    <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem' }}>
         <div>
-          <h3 style={{ fontSize: '1.1rem' }}>Plano de Manutenção</h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Acompanhamento por quilometragem.</p>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Plano de Manutenção</h3>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Checkpoints sugeridos por quilometragem.</p>
         </div>
-        <button className="btn-primary" onClick={() => onLogService()} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-          <Plus size={16} /> Registrar Serviço
+        <button className="btn-primary" onClick={() => onLogService()} style={{ padding: '10px 20px' }}>
+          <Plus size={18} /> Registrar Serviço
         </button>
       </div>
 
-      <div className="revision-table-container" style={{ 
-        overflowX: 'auto', 
-        width: '100%',
-        borderRadius: '12px',
-        border: '1px solid var(--glass-border)',
-        background: 'rgba(0,0,0,0.1)'
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '900px' }}>
+      <div className="orbit-table-container" style={{ borderTop: '1px solid var(--glass-border)', borderRadius: 0 }}>
+        <table className="orbit-table">
           <thead>
             <tr>
-              <th style={{ 
-                textAlign: 'left', 
-                padding: '1.25rem 1.5rem', 
-                borderBottom: '1px solid var(--glass-border)', 
-                color: 'var(--text-muted)', 
-                fontSize: '0.7rem', 
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                position: 'sticky', 
-                left: 0, 
-                background: '#1e293b', // Match Slate theme
-                zIndex: 10, 
-                width: isMobile ? '140px' : '280px',
-                minWidth: isMobile ? '140px' : '280px'
-              }}>SERVIÇO / ITEM</th>
+              <th className="sticky-col">Serviço / Item</th>
               {miles.map(km => (
-                <th key={km} style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center', background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.5, fontWeight: 700 }}>KM</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: car.current_km >= km ? 'var(--text-main)' : 'var(--text-muted)' }}>{(km/1000)}k</div>
+                <th key={km} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                  <div style={{ fontSize: '0.6rem', opacity: 0.6, fontWeight: 800, color: 'var(--primary)' }}>CHECKPOINT</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: car.current_km >= km ? 'var(--text-main)' : 'var(--text-muted)' }}>{(km/1000)}k</div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {/* Milestone Total Cost Row */}
-            <tr style={{ background: 'rgba(99, 102, 241, 0.05)' }}>
-              <td style={{ 
-                padding: '1rem 1.5rem', 
-                borderBottom: '1px solid var(--glass-border)', 
-                position: 'sticky', 
-                left: 0, 
-                background: '#242b3d', // Slightly different to highlight
-                zIndex: 5,
-                fontWeight: 700,
-                color: 'var(--primary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontSize: isMobile ? '0.7rem' : '0.85rem'
-              }}>
-                {isMobile ? 'CUSTO TOTAL' : 'CUSTO TOTAL DA REVISÃO'}
+            <tr style={{ background: 'rgba(99, 102, 241, 0.03)' }}>
+              <td className="sticky-col" style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                CUSTO TOTAL DA REVISÃO
               </td>
               {miles.map(km => {
                 const entry = getMaintenanceEntry('Custo Total da Revisão', km);
                 return (
-                  <td key={km} style={{ padding: '0.75rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
+                  <td key={km} style={{ textAlign: 'center' }}>
                     <button 
                       onClick={() => onLogService({ description: 'Custo Total da Revisão', km_milestone: km, amount: entry?.amount || '' })}
+                      className="status-badge paid"
                       style={{ 
-                        background: 'none', border: '1px dashed var(--glass-border)', 
-                        color: entry?.amount > 0 ? 'var(--success)' : 'var(--text-muted)',
-                        padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
-                        cursor: 'pointer'
+                        background: entry?.amount > 0 ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                        border: '1px dashed var(--glass-border)',
+                        cursor: 'pointer',
+                        minWidth: '80px',
+                        justifyContent: 'center',
+                        fontSize: '0.75rem'
                       }}
                     >
                       {entry?.amount > 0 ? `R$ ${parseFloat(entry.amount).toLocaleString('pt-BR')}` : '+ Add'}
@@ -691,34 +730,21 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
             </tr>
 
             {templateNames.map(desc => (
-              <tr key={desc} className="revision-row">
-                <td style={{ 
-                  padding: '1rem 1.5rem', 
-                  borderBottom: '1px solid var(--glass-border)', 
-                  position: 'sticky', 
-                  left: 0, 
-                  background: '#1e293b', 
-                  zIndex: 5,
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  fontSize: isMobile ? '0.75rem' : '0.9rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <tr key={desc} className="row-hover">
+                <td className="sticky-col">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{desc}</span>
                     <button 
-                      onClick={(e) => { e.stopPropagation(); onAddNote({ desc, isList: true }); }}
-                      className="icon-btn" 
+                      onClick={(e) => { e.stopPropagation(); onAddNote({ description: desc, isList: true }); }}
+                      className="action-btn" 
+                      title="Ver Histórico de Notas"
                       style={{ 
-                        padding: isMobile ? '4px' : '6px', 
-                        borderRadius: '8px',
+                        width: '28px', height: '28px',
                         color: maintenance.some(m => m.description === desc && m.notes) ? 'var(--primary)' : 'var(--text-muted)',
-                        opacity: 0.8,
-                        flexShrink: 0
+                        padding: 0
                       }}
                     >
-                      <MessageSquare size={isMobile ? 12 : 14} />
+                      <FileText size={14} />
                     </button>
                   </div>
                 </td>
@@ -727,38 +753,73 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                   const status = getStatus(desc, km);
 
                   return (
-                    <td key={km} style={{ padding: '0.75rem', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        <div 
-                          onClick={() => canEdit && onToggleStatus(desc, km, status)}
-                          className={`status-cell ${status}`}
-                          style={{
-                            width: '32px', height: '32px', borderRadius: '50%', margin: '0 auto',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: canEdit ? 'pointer' : 'default',
-                            transition: 'all 0.2s',
-                            background: 
-                              status === 'DONE' ? 'rgba(16, 185, 129, 0.2)' :
-                              status === 'PENDING' ? 'rgba(234, 179, 8, 0.2)' :
-                              status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.15)' :
-                              'transparent',
-                            color:
-                              status === 'DONE' ? 'var(--success)' :
-                              status === 'PENDING' ? 'var(--warning)' :
-                              status === 'SKIPPED' ? 'var(--danger)' :
-                              'rgba(255,255,255,0.1)',
-                            border: status === 'NONE' || status === 'RECOMMENDED' ? '2px solid rgba(255,255,255,0.1)' : '2px solid transparent',
-                          }}
-                        >
-                          {status === 'DONE' && <CheckCircle2 size={16} />}
-                          {status === 'PENDING' && <Clock size={16} />}
-                          {status === 'SKIPPED' && <XCircle size={16} />}
-                          {(status === 'NONE' || status === 'RECOMMENDED') && <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />}
+                    <td key={km} style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ position: 'relative' }}>
+                          <div 
+                            onClick={() => canEdit && onToggleStatus(desc, km, status)}
+                            style={{
+                              width: '36px', height: '36px', borderRadius: '10px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: canEdit ? 'pointer' : 'default',
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                              background: 
+                                status === 'DONE' ? 'rgba(16, 185, 129, 0.15)' :
+                                status === 'PENDING' ? 'rgba(245, 158, 11, 0.15)' :
+                                status === 'SKIPPED' ? 'rgba(239, 68, 68, 0.12)' :
+                                'rgba(255,255,255,0.02)',
+                              color:
+                                status === 'DONE' ? 'var(--success)' :
+                                status === 'PENDING' ? 'var(--pending)' :
+                                status === 'SKIPPED' ? 'var(--danger)' :
+                                'rgba(255,255,255,0.1)',
+                              border: '1px solid var(--glass-border)',
+                              boxShadow: status !== 'NONE' ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (canEdit) e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                          >
+                            {status === 'DONE' && <CheckCircle2 size={18} />}
+                            {status === 'PENDING' && <Clock size={18} />}
+                            {status === 'SKIPPED' && <XCircle size={18} />}
+                            {(status === 'NONE' || status === 'RECOMMENDED') && <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />}
+                          </div>
+                          
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); onAddNote({ desc, km, notes: entry?.notes || '', isNote: true }); }}
+                            style={{ 
+                              position: 'absolute',
+                              top: -10,
+                              right: -10,
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '8px',
+                              background: entry?.notes ? 'var(--primary)' : 'var(--bg-card)',
+                              border: '1px solid var(--glass-border)',
+                              color: entry?.notes ? 'white' : 'var(--text-muted)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                              zIndex: 5,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            title="Ver/Adicionar Observação"
+                          >
+                            <MessageSquare size={12} />
+                          </button>
                         </div>
                         
                         {entry?.amount > 0 && (
-                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--success)', opacity: 0.8 }}>
-                            R${parseFloat(entry.amount).toLocaleString('pt-BR')}
+                          <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--success)' }}>
+                            R$ {parseFloat(entry.amount).toLocaleString('pt-BR')}
                           </div>
                         )}
                       </div>
@@ -771,15 +832,15 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
         </table>
       </div>
 
-      <div style={{ display: 'flex', gap: '1.5rem', marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', padding: '1.5rem', background: 'var(--card-action-bg)', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: 12, height: 12, borderRadius: '3px', background: 'rgba(34, 197, 94, 0.2)', border: '1px solid var(--success)' }} /> Concluído
+          <div className="status-badge paid" style={{ padding: '4px' }}><CheckCircle2 size={12} /></div> Concluído
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: 12, height: 12, borderRadius: '3px', background: 'rgba(234, 179, 8, 0.2)', border: '1px solid var(--warning)' }} /> Pendente
+          <div className="status-badge pending" style={{ padding: '4px' }}><Clock size={12} /></div> Pendente / Recomendado
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: 12, height: 12, borderRadius: '3px', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid var(--danger)' }} /> Não será feito
+          <div className="status-badge danger" style={{ padding: '4px' }}><XCircle size={12} /></div> Ignorado
         </div>
       </div>
     </div>

@@ -1,32 +1,61 @@
 import React from 'react';
-import { Users, Mail, Trash2 } from 'lucide-react';
+import { Users, Mail, Trash2, ShieldCheck } from 'lucide-react';
 
 export default function CarSharesManager({ activeShares, onRevoke }) {
   if (activeShares.length === 0) return null;
 
   return (
-    <div className="glass-card" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-          <Users size={18} />
+    <div className="glass-card" style={{ padding: '2rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="cat-icon-wrap" style={{ "--cat-color": "var(--primary)", width: 44, height: 44, borderRadius: 12 }}>
+          <Users size={22} />
         </div>
         <div>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Compartilhamentos Ativos</h3>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Gerencie quem tem acesso aos seus veículos.</p>
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Compartilhamentos Ativos</h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Usuários com permissão de visualização/edição.</p>
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {activeShares.map(share => (
-          <div key={share.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-            <div>
-              <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{share.car_id?.name}</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Mail size={12} /> {share.shared_with_email} 
-                <span style={{ fontSize: '0.65rem', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '10px' }}>{share.permission}</span>
-              </p>
+          <div key={share.id} style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            background: 'var(--card-action-bg)', 
+            padding: '1.25rem', 
+            borderRadius: '16px', 
+            border: '1px solid var(--glass-border)',
+            transition: 'transform 0.2s'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ 
+                width: 42, height: 42, borderRadius: '50%', 
+                background: 'rgba(255,255,255,0.05)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid var(--glass-border)'
+              }}>
+                <Mail size={18} style={{ opacity: 0.5 }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 800, fontSize: '0.95rem', margin: 0, color: 'var(--text-main)' }}>{share.shared_with_email}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <span className="cat-chip" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
+                    {share.car_id?.name || 'Veículo compartilhado'}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--success)', fontSize: '0.7rem', fontWeight: 700 }}>
+                    <ShieldCheck size={12} />
+                    Acesso Ativo
+                  </div>
+                </div>
+              </div>
             </div>
-            <button className="icon-btn" onClick={() => onRevoke(share.id)} style={{ color: 'var(--danger)' }} title="Revogar acesso">
+            <button 
+              className="action-btn danger" 
+              onClick={() => onRevoke(share.id)} 
+              title="Revogar acesso"
+              style={{ width: 42, height: 42 }}
+            >
               <Trash2 size={18} />
             </button>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { XCircle } from 'lucide-react';
+import { XCircle, Car, Wrench, FileText, Share2, DollarSign, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { useEncryption } from '../../contexts/EncryptionContext';
@@ -132,60 +132,109 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     setLoading(false);
   }
 
+  const isCarForm = type === 'add_car' || type === 'edit_car';
+  const isServiceForm = type === 'log_service' || (typeof type === 'object' && type.type === 'log_service' && !type.notes && !type.isList);
+  const isNoteForm = type === 'service_note' || (typeof type === 'object' && (type.isNote || type.isList));
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '450px' }}>
-        <button className="icon-btn" onClick={onClose} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }}><XCircle /></button>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+      <Motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+        animate={{ scale: 1, opacity: 1, y: 0 }} 
+        className="modal-content glass-card" 
+        onClick={e => e.stopPropagation()} 
+        style={{ 
+          width: '100%', 
+          maxWidth: '480px', 
+          padding: '2rem',
+          border: '1px solid var(--glass-border)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="cat-icon-wrap" style={{ 
+              "--cat-color": isCarForm ? "var(--primary)" : isServiceForm ? "var(--success)" : "var(--pending)",
+              width: 48, height: 48, borderRadius: 14 
+            }}>
+              {isCarForm ? <Car size={24} /> : isServiceForm ? <Wrench size={24} /> : <FileText size={24} />}
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                {isCarForm ? (type === 'add_car' ? 'Novo Veículo' : 'Editar Veículo') :
+                 isServiceForm ? 'Registrar Serviço' :
+                 (typeof type === 'object' && type.isList ? 'Histórico de Notas' : 'Observações')}
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                {isCarForm ? 'Informações básicas do veículo.' :
+                 isServiceForm ? 'Atualize o histórico de manutenção.' :
+                 'Detalhes adicionais do checkpoint.'}
+              </p>
+            </div>
+          </div>
+          <button className="action-btn" onClick={onClose} style={{ marginTop: '-0.5rem', marginRight: '-0.5rem' }}>
+            <XCircle size={20} />
+          </button>
+        </div>
         
-        {(type === 'add_car' || type === 'edit_car') && (
-          <>
-            <h3>{type === 'add_car' ? 'Novo Veículo' : 'Editar Veículo'}</h3>
-            <div className="form-grid" style={{ marginTop: '1.5rem' }}>
-              <div className="input-group" style={{ gridColumn: 'span 2' }}>
-                <label>Nome do Veículo</label>
-                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Ônix Premier" />
-              </div>
+        {isCarForm && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="input-group">
+              <label>Identificação do Veículo</label>
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Ônix Premier" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
               <div className="input-group">
                 <label>Placa</label>
-                <input type="text" value={formData.plate} onChange={e => setFormData({...formData, plate: e.target.value})} maxLength={8} />
+                <input type="text" value={formData.plate} onChange={e => setFormData({...formData, plate: e.target.value})} maxLength={8} style={{ textTransform: 'uppercase' }} />
               </div>
               <div className="input-group">
                 <label>KM Atual</label>
                 <input type="number" value={formData.current_km} onChange={e => setFormData({...formData, current_km: parseInt(e.target.value)})} />
               </div>
-              <div className="input-group" style={{ gridColumn: 'span 2', flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <input 
-                  type="checkbox" 
-                  id="is_hidden"
-                  checked={formData.is_hidden} 
-                  onChange={e => setFormData({...formData, is_hidden: e.target.checked})}
-                  style={{ width: 'auto' }}
-                />
-                <label htmlFor="is_hidden" style={{ cursor: 'pointer', marginBottom: 0 }}>Ocultar este veículo (Arquivar)</label>
-              </div>
             </div>
-            <button className="btn-primary" onClick={type === 'add_car' ? handleAddCar : handleUpdateCar} disabled={loading} style={{ width: '100%', marginTop: '2rem', justifyContent: 'center' }}>
-              {loading ? 'Salvando...' : 'Salvar Alterações'}
+            <div 
+              onClick={() => setFormData({...formData, is_hidden: !formData.is_hidden})}
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.75rem', 
+                padding: '1rem', 
+                background: 'var(--card-action-bg)', 
+                borderRadius: '12px',
+                cursor: 'pointer',
+                border: '1px solid var(--glass-border)'
+              }}
+            >
+              <input 
+                type="checkbox" 
+                checked={formData.is_hidden} 
+                onChange={() => {}}
+                style={{ width: '18px', height: '18px', margin: 0 }}
+              />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Arquivar este veículo</span>
+            </div>
+            <button className="btn-primary" onClick={type === 'add_car' ? handleAddCar : handleUpdateCar} disabled={loading} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
+              {loading ? 'Salvando...' : 'Confirmar Alterações'}
             </button>
-          </>
+          </div>
         )}
 
-        {(type === 'log_service' || (typeof type === 'object' && type.type === 'log_service' && !type.notes && !type.isList)) && (
-          <>
-            <h3>Registrar Serviço</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+        {isServiceForm && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="input-group">
+              <label>Serviço Executado</label>
+              <input
+                type="text"
+                value={serviceData.description}
+                onChange={e => setServiceData({...serviceData, description: e.target.value})}
+                placeholder="Ex: Troca de Pneus..."
+                autoFocus
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
               <div className="input-group">
-                <label>Serviço</label>
-                <input
-                  type="text"
-                  value={serviceData.description}
-                  onChange={e => setServiceData({...serviceData, description: e.target.value})}
-                  placeholder="Ex: Troca de Pneus..."
-                  autoFocus
-                />
-              </div>
-              <div className="input-group">
-                <label>Quilometragem (KM)</label>
+                <label>Checkpoint (KM)</label>
                 <select value={serviceData.km_milestone} onChange={e => setServiceData({...serviceData, km_milestone: parseInt(e.target.value)})}>
                   {[10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000].map(k => (
                     <option key={k} value={k}>{k.toLocaleString()} km</option>
@@ -193,79 +242,113 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 </select>
               </div>
               <div className="input-group">
-                <label>Valor do Serviço (R$)</label>
-                <input
-                  type="text"
-                  value={serviceData.amount}
-                  onChange={e => {
-                    let val = e.target.value.replace(/\D/g, '');
-                    if (!val) {
-                      setServiceData({...serviceData, amount: ''});
-                      return;
-                    }
-                    val = (parseInt(val) / 100).toFixed(2);
-                    setServiceData({...serviceData, amount: val.replace('.', ',')});
-                  }}
-                  placeholder="0,00"
-                />
-              </div>
-              <div className="input-group">
-                <label>Status</label>
-                <select value={serviceData.status} onChange={e => setServiceData({...serviceData, status: e.target.value})}>
-                  <option value="DONE">Concluído ✔</option>
-                  <option value="PENDING">Pendente ⌛</option>
-                  <option value="SKIPPED">Pular ❌</option>
-                </select>
+                <label>Custo do Serviço</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.9rem', fontWeight: 700 }}>R$</span>
+                  <input
+                    type="text"
+                    value={serviceData.amount}
+                    style={{ paddingLeft: '2.5rem' }}
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (!val) {
+                        setServiceData({...serviceData, amount: ''});
+                        return;
+                      }
+                      val = (parseInt(val) / 100).toFixed(2);
+                      setServiceData({...serviceData, amount: val.replace('.', ',')});
+                    }}
+                    placeholder="0,00"
+                  />
+                </div>
               </div>
             </div>
-            <button className="btn-primary" onClick={handleLogService} disabled={loading || !serviceData.description.trim()} style={{ width: '100%', marginTop: '2rem', justifyContent: 'center' }}>
-              {loading ? 'Registrando...' : 'Salvar Serviço'}
+            <div className="input-group">
+              <label>Status da Manutenção</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                {[
+                  { id: 'DONE', label: 'Concluído', icon: <CheckCircle2 size={16} />, color: 'var(--success)' },
+                  { id: 'PENDING', label: 'Pendente', icon: <Clock size={16} />, color: 'var(--pending)' },
+                  { id: 'SKIPPED', label: 'Ignorar', icon: <XCircle size={16} />, color: 'var(--danger)' }
+                ].map(s => (
+                  <div 
+                    key={s.id}
+                    onClick={() => setServiceData({...serviceData, status: s.id})}
+                    style={{ 
+                      padding: '0.75rem 0.5rem', 
+                      borderRadius: '10px', 
+                      border: `1px solid ${serviceData.status === s.id ? s.color : 'var(--glass-border)'}`,
+                      background: serviceData.status === s.id ? `${s.color}15` : 'var(--card-action-bg)',
+                      color: serviceData.status === s.id ? s.color : 'var(--text-muted)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {s.icon}
+                    {s.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button className="btn-primary" onClick={handleLogService} disabled={loading || !serviceData.description.trim()} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
+              {loading ? 'Registrando...' : 'Salvar Manutenção'}
             </button>
-          </>
+          </div>
         )}
 
-        {(type === 'service_note' || (typeof type === 'object' && (type.isNote || type.isList))) && (
-          <>
-            <h3>{type.isList ? `Notas: ${type.description}` : 'Observações do Serviço'}</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-              {type.isList ? 'Histórico de observações para este serviço.' : `${noteData.description} - ${noteData.km_milestone.toLocaleString()} KM`}
-            </p>
-            
-            {type.isList ? (
-              <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+        {isNoteForm && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {typeof type === 'object' && type.isList ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
                 {maintenance.filter(m => m.description === type.description && m.notes).length > 0 ? (
-                  maintenance.filter(m => m.description === type.description && m.notes).map(m => (
-                    <div key={m.km_milestone} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--primary)' }}>{m.km_milestone.toLocaleString()} KM</span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{new Date(m.updated_at).toLocaleDateString()}</span>
+                  maintenance.filter(m => m.description === type.description && m.notes).sort((a, b) => b.km_milestone - a.km_milestone).map(m => (
+                    <div key={m.km_milestone} style={{ padding: '1.25rem', background: 'var(--card-action-bg)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Calendar size={14} className="text-primary" />
+                          <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-main)' }}>{m.km_milestone.toLocaleString()} KM</span>
+                        </div>
+                        <span className="cat-chip" style={{ fontSize: '0.7rem' }}>{new Date(m.updated_at).toLocaleDateString()}</span>
                       </div>
-                      <p style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{m.notes}</p>
+                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{m.notes}</p>
                     </div>
                   ))
                 ) : (
-                  <p style={{ textAlign: 'center', color: 'var(--text-muted)', py: 4 }}>Nenhuma observação encontrada para este serviço.</p>
+                  <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                    <FileText size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>Nenhuma observação encontrada para este serviço.</p>
+                  </div>
                 )}
               </div>
             ) : (
-              <div style={{ marginTop: '1.5rem' }}>
-                <textarea
-                  value={noteData.notes}
-                  onChange={e => setNoteData({...noteData, notes: e.target.value})}
-                  placeholder="Ex: Utilizado óleo 5W30 sintético..."
-                  className="settings-textarea"
-                  style={{ minHeight: '150px' }}
-                  autoFocus
-                />
-              </div>
+              <>
+                <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)', marginBottom: '0.5rem' }}>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--primary)' }}>{noteData.description}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Checkpoint: {noteData.km_milestone.toLocaleString()} KM</p>
+                </div>
+                <div className="input-group">
+                  <label>Relatório do Serviço</label>
+                  <textarea
+                    value={noteData.notes}
+                    onChange={e => setNoteData({...noteData, notes: e.target.value})}
+                    placeholder="Ex: Utilizado óleo 5W30 sintético. Verificado pastilhas de freio..."
+                    className="settings-textarea"
+                    style={{ minHeight: '160px', padding: '1.25rem', fontSize: '0.95rem' }}
+                    autoFocus
+                  />
+                </div>
+                <button className="btn-primary" onClick={handleSaveNote} disabled={loading} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
+                  {loading ? 'Salvando...' : 'Salvar Observação'}
+                </button>
+              </>
             )}
-            
-            {!type.isList && (
-              <button className="btn-primary" onClick={handleSaveNote} disabled={loading} style={{ width: '100%', marginTop: '2rem', justifyContent: 'center' }}>
-                {loading ? 'Salvando...' : 'Salvar Nota'}
-              </button>
-            )}
-          </>
+          </div>
         )}
 
         {type === 'share_car' && (
@@ -287,11 +370,9 @@ function ShareCarSection({ car, user, onClose }) {
     
     setLoading(true);
     try {
-      // 1. Share the cryptographic key first
       const shared = await shareResourceKey(car.id, 'CAR', email.toLowerCase().trim());
-      if (!shared) return; // Error already toasted
+      if (!shared) return;
 
-      // 2. Create the sharing record in the DB
       const { error } = await supabase.from('car_shares').insert({
         car_id: car.id,
         shared_by: user.id,
@@ -314,13 +395,14 @@ function ShareCarSection({ car, user, onClose }) {
   }
 
   return (
-    <>
-      <h3>Compartilhar Veículo</h3>
-      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-        Convide outra pessoa para visualizar e gerenciar a manutenção do <strong>{car.name}</strong>.
-      </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+          Convide outra pessoa para gerenciar a manutenção do <strong>{car.name}</strong>.
+        </p>
+      </div>
       
-      <form onSubmit={handleShare} style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div className="input-group">
           <label>E-mail do convidado</label>
           <div style={{ position: 'relative' }}>
@@ -330,18 +412,18 @@ function ShareCarSection({ car, user, onClose }) {
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               placeholder="exemplo@email.com"
-              style={{ paddingLeft: '2.5rem' }}
+              style={{ paddingLeft: '2.75rem' }}
             />
-            <div style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
-               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+               <Share2 size={18} />
             </div>
           </div>
         </div>
         
-        <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', marginTop: '1rem', justifyContent: 'center' }}>
+        <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
           {loading ? 'Enviando convite...' : 'Enviar Convite'}
         </button>
       </form>
-    </>
+    </div>
   );
 }
