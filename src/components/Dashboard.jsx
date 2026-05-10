@@ -25,7 +25,6 @@ import {
   List,
   LayoutGrid,
   ChevronRight,
-  Search,
   Coins
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -312,7 +311,6 @@ export default function Dashboard({ user }) {
         </nav>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <button className="icon-btn hide-mobile" style={{ color: 'var(--text-muted)' }}><Search size={20} /></button>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? "Ocultar Valores" : "Mostrar Valores"}>
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
