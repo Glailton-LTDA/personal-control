@@ -62,14 +62,14 @@ test.describe('Configurações - Automação de E-mail', () => {
   });
 
   test('deve permitir configurar e-mail e opções de automação', async ({ page }) => {
-    const recipientInput = page.locator('input[type="email"]').first();
+    const recipientInput = page.getByTestId('recipient-email-input');
     await recipientInput.fill('new@example.com');
 
-    const skipModalCheckbox = page.locator('input[type="checkbox"]').first();
+    const skipModalCheckbox = page.getByTestId('skip-email-modal-check');
     await skipModalCheckbox.check();
 
-    await page.getByRole('button', { name: /salvar configurações/i }).click();
-    await expect(page.getByText('Configurações salvas com sucesso!')).toBeVisible();
+    await page.getByTestId('save-settings-button').click();
+    await expect(page.getByText(/Configurações salvas com sucesso!|Settings saved successfully!/)).toBeVisible();
   });
 
   test('deve respeitar a opção de pular modal no Financeiro', async ({ page }) => {

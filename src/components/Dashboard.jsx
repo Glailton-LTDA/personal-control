@@ -432,7 +432,17 @@ export default function Dashboard({ user }) {
                 onLogout={() => supabase.auth.signOut()}
               />
             )}
-            {activeTab.startsWith('settings') && <SettingsView user={user} menuOrder={menuOrder} setMenuOrder={setMenuOrder} menuItems={defaultMenuItems} activeTab={activeTab} />}
+            {activeTab.startsWith('settings') && (
+              <SettingsView 
+                user={user} 
+                menuOrder={menuOrder} 
+                setMenuOrder={setMenuOrder} 
+                menuItems={defaultMenuItems} 
+                activeTab={activeTab} 
+                theme={theme}
+                setTheme={setTheme}
+              />
+            )}
             {activeTab.startsWith('cars') && (
               <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
             )}

@@ -76,11 +76,12 @@ test.describe('Autenticação - Senha', () => {
     await configGroup.click();
     await page.getByTestId('sidebar-sub-item-settings-security').click();
 
-    // Verifica seção de alterar senha
-    await expect(page.getByRole('heading', { name: 'Alterar Senha' })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Senha atual', { exact: true })).toBeVisible();
-    await expect(page.getByText('Nova senha', { exact: true })).toBeVisible();
-    await expect(page.getByText('Confirmar nova senha', { exact: true })).toBeVisible();
+    // Verifica seção de alterar senha utilizando data-testid para maior robustez
+    const securitySection = page.getByTestId('section-security');
+    await expect(securitySection).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('password-input-current')).toBeVisible();
+    await expect(page.getByTestId('password-input-next')).toBeVisible();
+    await expect(page.getByTestId('password-input-confirm')).toBeVisible();
   });
 
   test('deve exibir formulário de nova senha ao acessar pelo link de recuperação', async ({ page }) => {

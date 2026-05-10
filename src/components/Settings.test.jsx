@@ -3,6 +3,17 @@ import { render, screen, act } from '@testing-library/react';
 import Settings from './Settings';
 import { supabase } from '../lib/supabase';
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
 // Mock supabase
 vi.mock('../lib/supabase', () => ({
   supabase: {
