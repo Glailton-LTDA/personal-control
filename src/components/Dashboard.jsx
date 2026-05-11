@@ -444,7 +444,7 @@ export default function Dashboard({ user }) {
                 user={user} 
                 menuOrder={menuOrder} 
                 setMenuOrder={setMenuOrder} 
-                menuItems={defaultMenuItems} 
+                menuItems={defaultMenuItems.map(i => ({ ...i, label: t(`nav.${i.key}`) }))} 
                 activeTab={activeTab} 
                 theme={theme}
                 setTheme={setTheme}

@@ -924,9 +924,10 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
         {isModalOpen && (
           <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
             <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)' }} />
-            <Motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-card" style={{ position: 'relative', width: '100%', maxWidth: '550px', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? '1.5rem' : '2.5rem' }}>
+            <Motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-card" style={{ position: 'relative', width: '100%', maxWidth: '550px', maxHeight: isMobile ? '85vh' : '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
               {modalType === 'list' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '1.5rem' : '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingListId ? t('lists.edit_list') : t('lists.new_list')}</h3>
                     <button onClick={() => setIsModalOpen(false)} className="icon-btn"><X size={20} /></button>
@@ -954,18 +955,23 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                       </div>
                     ))}
                   </div>
-                  <button onClick={handleSaveList} disabled={isSaving} className="btn-primary" style={{ padding: '1rem', marginTop: '1rem' }}>
-                    {isSaving ? <Loader2 className="spin" size={18} /> : (editingListId ? t('lists.save_changes') : t('lists.create_list'))}
-                  </button>
+                  </div>
+                  <div style={{ padding: isMobile ? '1.25rem 1.5rem' : '1.5rem 2.5rem', background: 'var(--bg-card)', borderTop: '1px solid var(--glass-border)' }}>
+                    <button onClick={handleSaveList} disabled={isSaving} className="btn-primary" style={{ width: '100%', padding: '1rem' }}>
+                      {isSaving ? <Loader2 className="spin" size={18} /> : (editingListId ? t('lists.save_changes') : t('lists.create_list'))}
+                    </button>
+                  </div>
                 </div>
               ) : modalType === 'share' ? (
-                <ShareListModal 
-                  user={user}
-                  list={selectedList}
-                  activeShares={activeShares}
-                  onClose={() => setIsModalOpen(false)}
-                  onRefresh={fetchShares}
-                />
+                <div style={{ padding: isMobile ? '1.5rem' : '2.5rem', overflowY: 'auto' }}>
+                  <ShareListModal 
+                    user={user}
+                    list={selectedList}
+                    activeShares={activeShares}
+                    onClose={() => setIsModalOpen(false)}
+                    onRefresh={fetchShares}
+                  />
+                </div>
               ) : (
                 <ItemForm 
                   selectedList={selectedList} 
@@ -1077,7 +1083,8 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '1.5rem' : '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingItem ? 'Editar Item' : 'Novo Item'}</h3>
         <button onClick={onCancel} className="icon-btn"><X size={20} /></button>
@@ -1128,8 +1135,8 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
                 className="glass-input" 
                 placeholder="Digite o texto..."
-                rows={5}
-                style={{ resize: 'vertical', minHeight: '120px', lineHeight: 1.6 }}
+                rows={3}
+                style={{ resize: 'vertical', minHeight: '80px', lineHeight: 1.6 }}
               />
             ) : (
               <AutoResizeTextarea 
@@ -1141,7 +1148,17 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+      </div>
+      <div style={{ 
+        display: 'flex', 
+        gap: '1rem', 
+        padding: isMobile ? '1.25rem 1.5rem' : '1.5rem 2.5rem',
+        background: 'var(--bg-card)',
+        backdropFilter: 'blur(10px)',
+        borderTop: '1px solid var(--glass-border)',
+        marginTop: 'auto',
+        flexShrink: 0
+      }}>
         {!isMobile && <button onClick={onCancel} className="btn-secondary" style={{ flex: 1 }}>Cancelar</button>}
         <button onClick={() => onSave(formData)} disabled={isSaving} className="btn-primary" style={{ flex: 1, padding: '1rem' }}>
           {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Item'}

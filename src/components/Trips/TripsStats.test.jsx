@@ -85,8 +85,7 @@ describe('TripsStats Component', () => {
     expect(summaryCard.textContent).toContain('02');
     
     // Country chip should show "2 cidades"
-    // Since we used {country.cityCount} {country.cityCount === 1 ? t('finances.entry') : t('finances.entries')}
-    // In our mock t(key) returns key, so it will be "2 finances.entries"
-    expect(screen.getByText(/2 finances.entries/i)).toBeDefined();
+    // In our mock t(key) returns key, so it will be "2 trips.city_plural"
+    expect(screen.getByText(/2 trips.city_plural/i)).toBeDefined();
   });
 });
