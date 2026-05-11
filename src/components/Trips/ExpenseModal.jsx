@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { X, Save, DollarSign, Calendar, Tag, Users, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
+
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState(initialCategories || []);
   const formatDateToDisplay = (dateStr) => {
     if (!dateStr) return '';
@@ -50,7 +53,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
 
       setFormData(prev => ({ ...prev, receipt_url: filePath }));
     } catch (error) {
-      toast.error('Erro ao fazer upload: ' + error.message);
+      toast.error(t('trips.upload_error') + error.message);
     } finally {
       setIsUploading(false);
     }
@@ -122,24 +125,24 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     if (tripDates.length > 0 && !tripDates.find(d => d.display === displayDate)) {
       setIsCustomDate(true);
     }
-  }, [tripDates, displayDate]);
+  }, [tripDates, displayDate, t]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!trip) {
-      toast.error('Selecione uma viagem primeiro.');
+      toast.error(t('trips.select_trip_first'));
       return;
     }
 
     const isoDate = parseDisplayDateToISO(displayDate);
     if (!isoDate || isNaN(new Date(isoDate).getTime())) {
-      toast.error('Por favor, insira uma data válida (DD/MM/AAAA)');
+      toast.error(t('trips.invalid_date'));
       return;
     }
 
     const numericAmount = parseFloat(String(formData.amount).replace(',', '.'));
     if (isNaN(numericAmount)) {
-      toast.error('Por favor, insira um valor válido');
+      toast.error(t('trips.invalid_amount'));
       return;
     }
 
@@ -165,10 +168,10 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     const { error } = result;
 
     if (!error) {
-      toast.success(expense?.id ? 'Lançamento atualizado!' : 'Lançamento salvo com sucesso!');
+      toast.success(expense?.id ? t('trips.expense_updated') : t('trips.expense_saved'));
       onSave();
     }
-    else toast.error('Erro ao salvar: ' + error.message);
+    else toast.error(t('trips.save_error') + error.message);
   }
 
   return (
@@ -197,10 +200,10 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
             color: 'var(--text-main)', 
             letterSpacing: '-0.02em' 
           }}>
-            {expense ? 'Editar Lançamento' : 'Novo Lançamento'}
+            {expense ? t('trips.edit_expense') : t('trips.new_expense')}
           </h2>
           <p style={{ margin: '0.4rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            {expense ? 'Atualize os detalhes deste gasto' : 'Adicione um novo gasto à sua viagem'}
+            {expense ? t('trips.edit_expense_desc') : t('trips.new_expense_desc')}
           </p>
           <button className="icon-btn" onClick={onClose} style={{ position: 'absolute', top: window.innerWidth < 600 ? '1rem' : '1.5rem', right: window.innerWidth < 600 ? '1rem' : '1.5rem', padding: '0.5rem', color: 'var(--text-muted)' }}><X size={20} /></button>
         </div>
@@ -214,7 +217,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-              <Tag size={14} /> Descrição
+              <Tag size={14} /> {t('trips.description_label')}
             </label>
             <input 
               required autoFocus className="glass-input" 
@@ -226,8 +229,8 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
           <div className="form-grid" style={{ gap: '1rem' }}>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-                <DollarSign size={14} /> Valor
-              </label>
+              <DollarSign size={14} /> {t('trips.amount_label')}
+            </label>
               <input 
                 required type="text" className="glass-input" 
                 style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
@@ -246,7 +249,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
             </div>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-                Moeda
+                {t('trips.currency_label')}
               </label>
               <select 
                 required className="glass-input" 
@@ -261,7 +264,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
           <div className="form-grid" style={{ gap: '1rem' }}>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-                <Calendar size={14} /> Data
+                <Calendar size={14} /> {t('trips.date_label')}
               </label>
               
               {!isCustomDate && tripDates.length > 0 ? (
@@ -282,7 +285,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   {tripDates.map(d => (
                     <option key={d.iso} value={d.display}>{d.display}</option>
                   ))}
-                  <option value="CUSTOM">Outra data (digitar...)</option>
+                  <option value="CUSTOM">{t('trips.custom_date')}</option>
                 </select>
               ) : (
                 <div style={{ position: 'relative' }}>
@@ -302,7 +305,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                       onClick={() => setIsCustomDate(false)}
                       style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
                     >
-                      Sugestões
+                      {t('trips.suggestions')}
                     </button>
                   )}
                 </div>
@@ -310,14 +313,14 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
             </div>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-                <Tag size={14} /> Categoria
+                <Tag size={14} /> {t('trips.category_label')}
               </label>
               <select 
                 className="glass-input" 
                 style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                 value={formData.category_id} onChange={e => setFormData({...formData, category_id: e.target.value})}
               >
-                <option value="">Sem categoria</option>
+                <option value="">{t('trips.no_category')}</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
@@ -325,7 +328,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
 
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-              <Users size={14} /> Responsável
+              <Users size={14} /> {t('trips.responsible_label')}
             </label>
               {!isCustomPaidBy ? (
                 <select 
@@ -342,7 +345,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   }}
                 >
                   {participants.map(p => <option key={p} value={p}>{p}</option>)}
-                  <option value="CUSTOM">Outro (digitar...)</option>
+                  <option value="CUSTOM">{t('trips.custom_responsible')}</option>
                 </select>
               ) : (
                 <div style={{ position: 'relative' }}>
@@ -359,7 +362,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                     onClick={() => setIsCustomPaidBy(false)}
                     style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}
                   >
-                    Voltar
+                    {t('trips.back')}
                   </button>
                 </div>
               )}
@@ -367,7 +370,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
 
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: '600', opacity: 0.7 }}>
-              <FileText size={14} /> Comprovante / Anexo
+              <FileText size={14} /> {t('trips.receipt_label')}
             </label>
             {formData.receipt_url ? (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -377,7 +380,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   className="glass-input"
                   style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(99,102,241,0.1)', border: '1px solid var(--primary)', color: 'var(--primary)', cursor: 'pointer', fontWeight: '700' }}
                 >
-                  <FileText size={16} /> Ver Comprovante
+                  <FileText size={16} /> {t('trips.view_receipt_btn')}
                 </button>
                 <button 
                   type="button"
@@ -415,7 +418,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                   }}
                 >
                   {isUploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
-                  {isUploading ? 'Enviando...' : 'Anexar Comprovante'}
+                  {isUploading ? t('trips.uploading') : t('trips.attach_receipt')}
                 </label>
               </div>
             )}
@@ -423,7 +426,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
 
           <div style={{ marginTop: '0.5rem' }}>
             <button type="submit" className="btn" style={{ width: '100%', padding: '1rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '0.95rem', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 8px 16px -4px rgba(99,102,241,0.4)' }}>
-              <Save size={18} /> Salvar Lançamento
+              <Save size={18} /> {t('trips.save_expense_btn')}
             </button>
           </div>
         </form>

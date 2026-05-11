@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Calendar, Clock, MapPin, CheckCircle2, Circle, 
   Plus, Trash2, ChevronDown, ChevronUp, Map, 
@@ -11,6 +12,7 @@ import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 
 const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, removeEntry, addToTickets, idx, totalItems }) => {
+  const { t } = useTranslation();
   const controls = useDragControls();
   
   return (
@@ -54,7 +56,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
           }} 
           onMouseEnter={(e) => e.currentTarget.style.opacity = 0.8}
           onMouseLeave={(e) => e.currentTarget.style.opacity = 0.3}
-          title="Arraste para reordenar"
+          title={t('trips.drag_to_reorder')}
         >
           <GripVertical size={isMobile ? 20 : 22} />
         </div>
@@ -62,7 +64,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.85rem', overflow: 'visible' }}>
           <textarea 
             value={entry.activity || ''}
-            placeholder="O que vamos fazer?"
+            placeholder={t('trips.what_to_do_placeholder')}
             onFocus={() => setFocusedId(entry.id)}
             onBlur={() => setFocusedId(null)}
             rows={1}
@@ -148,7 +150,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                       ...(coords ? { coordinates: coords } : {}) 
                     });
                   }}
-                  placeholder="Local ou endereço..."
+                  placeholder={t('trips.location_placeholder')}
                   style={{ 
                     padding: '0.6rem 1rem', fontSize: '0.95rem', borderRadius: '12px',
                     background: 'var(--tabs-bg)', border: '1px solid var(--glass-border)',
@@ -163,7 +165,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                 <button 
                   type="button"
                   onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.location)}`, '_blank')}
-                  title="Ver no Mapa"
+                  title={t('trips.view_on_map')}
                   className="action-btn"
                   style={{ width: '40px', height: '40px' }}
                 >
@@ -173,7 +175,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
               <button 
                 type="button"
                 onClick={() => addToTickets(entry)}
-                title="Ingressos"
+                title={t('trips.tickets')}
                 className="action-btn"
                 style={{ width: '40px', height: '40px' }}
               >
@@ -182,7 +184,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
               <button 
                 type="button"
                 onClick={() => removeEntry(entry.id)}
-                title="Remover"
+                title={t('common.delete')}
                 className="action-btn danger"
                 style={{ width: '40px', height: '40px' }}
               >
@@ -203,7 +205,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                     ...(coords ? { coordinates: coords } : {}) 
                   });
                 }}
-                placeholder="Local ou endereço..."
+                placeholder={t('trips.location_placeholder')}
                 style={{ 
                   padding: '0.75rem 1rem', fontSize: '0.9rem', borderRadius: '12px',
                   background: 'var(--tabs-bg)', border: '1px solid var(--glass-border)',
@@ -237,7 +239,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                 });
               }}
             />
-            Precisa Reserva?
+            {t('trips.booking_required')}
           </label>
 
           <label style={{ 
@@ -258,7 +260,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
               style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               onChange={(e) => updateEntry(entry.id, 'is_booked', e.target.checked)}
             />
-            {entry.is_booked ? 'Confirmado' : 'Pendente'}
+            {entry.is_booked ? t('trips.booked') : t('common.pending')}
             {entry.needs_booking && !entry.is_booked && (
               <Bell size={14} style={{ color: 'var(--warning)', animation: 'pulse 2s infinite' }} />
             )}
@@ -287,7 +289,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
               }
             }}
             className="glass-input"
-            placeholder="Observações, códigos de reserva, dicas..."
+            placeholder={t('trips.notes_placeholder')}
             style={{ 
               width: '100%', 
               padding: '0.6rem 0.8rem 0.6rem 2.5rem', 
@@ -310,6 +312,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
 };
 
 export default function ItineraryManager({ trip, items, onItemsChange, onAddToTickets }) {
+  const { t, i18n } = useTranslation();
   const generateDays = useCallback(() => {
     if (!trip.start_date || !trip.end_date) return [];
     
@@ -412,7 +415,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
   };
 
   const removeEntry = (id) => {
-    confirmToast('Remover esta atividade?', () => {
+    confirmToast(t('trips.confirm_delete_itinerary'), () => {
       onItemsChange(prev => prev.filter(item => item.id !== id));
     }, { danger: true });
   };
@@ -421,7 +424,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
     if (onAddToTickets) {
       onAddToTickets(entry);
     } else {
-      toast(`Dica: Adicione "${entry.activity || entry.location}" em Ajustes > Ingressos.`, {
+      toast(`${t('common.tip')}: ${t('trips.add_tip_desc', { activity: entry.activity || entry.location })}`, {
         icon: '🎫',
         duration: 4000
       });
@@ -429,13 +432,13 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
   };
 
   const formatDate = (dateStr) => {
-    const [, month, day] = dateStr.split('-');
-    return `${day}/${month}`;
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit' });
   };
 
   const getDayName = (dateStr) => {
     const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('pt-BR', { weekday: 'short' });
+    return date.toLocaleDateString(i18n.language, { weekday: 'short' });
   };
 
   const entriesForDay = React.useMemo(() => {
@@ -506,7 +509,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
         }}>
           <h3 style={{ margin: 0, fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-main)' }}>
             <Calendar size={22} className="text-primary" />
-            Agenda <span style={{ opacity: 0.3, fontWeight: '400' }}>•</span> {activeDay && formatDate(activeDay)}
+            {t('trips.agenda')} <span style={{ opacity: 0.3, fontWeight: '400' }}>•</span> {activeDay && formatDate(activeDay)}
           </h3>
           
           <div style={{ 
@@ -534,7 +537,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
                     border: '1px solid var(--glass-border)'
                   }}
                 >
-                  <Clock size={16} /> <span className="btn-text">ORDENAR</span>
+                  <Clock size={16} /> <span className="btn-text">{t('common.sort')}</span>
                 </button>
               )}
               <button 
@@ -556,7 +559,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
                   opacity: entriesForDay.length === 0 ? 0.3 : 1
                 }}
               >
-                <Map size={16} /> <span className="btn-text">VER ROTA</span>
+                <Map size={16} /> <span className="btn-text">{t('trips.view_route')}</span>
               </button>
             </div>
             <button 
@@ -577,7 +580,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
                 boxShadow: '0 4px 12px -2px rgba(99, 102, 241, 0.4)'
               }}
             >
-              <Plus size={18} /> LANÇAR ATIVIDADE
+              <Plus size={18} /> {t('trips.launch_activity')}
             </button>
           </div>
         </div>
@@ -588,9 +591,9 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
               <div style={{ opacity: 0.2, marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                 <Calendar size={64} />
               </div>
-              <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>O que vamos fazer hoje?</h4>
+              <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>{t('trips.empty_day_title')}</h4>
               <p style={{ marginTop: '0.75rem', maxWidth: '320px', margin: '0.75rem auto 0', lineHeight: '1.6', fontSize: '0.95rem' }}>
-                Seu roteiro para este dia está vazio. Comece a planejar suas atividades agora!
+                {t('trips.empty_day_desc')}
               </p>
               <button 
                 onClick={() => addEntry(activeDay)} 
@@ -600,7 +603,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
                   padding: '0.75rem 1.5rem', borderRadius: '14px', fontWeight: '800' 
                 }}
               >
-                <Plus size={18} /> Primeira Atividade
+                <Plus size={18} /> {t('trips.first_activity')}
               </button>
             </div>
           ) : (

@@ -9,8 +9,10 @@ import {
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useTranslation } from 'react-i18next';
 
 export default function TripChecklists({ user, trip, onBack }) {
+  const { t } = useTranslation();
   const [checklists, setChecklists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -327,7 +329,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             <ChevronLeft size={24} />
           </button>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>Checklists de Viagem</h2>
+            <h2 data-testid="checklists-title" style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>{t('trips.checklists_title', 'Checklists de Viagem')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '700', fontSize: '0.85rem' }}>
               <ClipboardList size={14} />
               {trip.title}
@@ -359,9 +361,10 @@ export default function TripChecklists({ user, trip, onBack }) {
             }}
           >
             {collapsedIds.size === checklists.length ? <ChevronDown size={18} /> : <Layers size={18} />}
-            <span className="btn-text">{collapsedIds.size === checklists.length ? 'EXPANDIR' : 'RECOLHER'}</span>
+            <span className="btn-text">{collapsedIds.size === checklists.length ? t('common.expand', 'EXPANDIR') : t('common.collapse', 'RECOLHER')}</span>
           </button>
           <button 
+            data-testid="import-checklist-btn"
             onClick={openImportModal}
             className="btn" 
             style={{ 
@@ -378,7 +381,7 @@ export default function TripChecklists({ user, trip, onBack }) {
               transition: '0.3s'
             }}
           >
-            <Copy size={18} /> <span className="btn-text">IMPORTAR</span>
+            <Copy size={18} /> <span className="btn-text">{t('common.import', 'IMPORTAR')}</span>
           </button>
           <button 
             onClick={() => setIsAddingList(true)}
@@ -398,7 +401,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             }}
             data-testid="btn-add-checklist"
           >
-            <Plus size={20} /> <span className="btn-text">NOVA LISTA</span>
+            <Plus size={20} /> <span className="btn-text">{t('trips.new_list', 'NOVA LISTA')}</span>
           </button>
         </div>
       </div>
@@ -436,11 +439,11 @@ export default function TripChecklists({ user, trip, onBack }) {
               style={{ fontSize: '1.1rem', padding: '1rem' }}
             />
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={handleAddChecklist} className="btn-primary" style={{ flex: 1, padding: '1rem', borderRadius: '14px', fontWeight: '900' }}>
-                CRIAR LISTA
+              <button data-testid="create-list-btn" onClick={handleAddChecklist} className="btn-primary" style={{ flex: 1, padding: '1rem', borderRadius: '14px', fontWeight: '900' }}>
+                {t('common.create_list', 'CRIAR LISTA')}
               </button>
-              <button onClick={() => setIsAddingList(false)} className="btn-cancel" style={{ padding: '1rem 1.5rem', borderRadius: '14px' }}>
-                CANCELAR
+              <button data-testid="cancel-create-list-btn" onClick={() => setIsAddingList(false)} className="btn-cancel" style={{ padding: '1rem 1.5rem', borderRadius: '14px' }}>
+                {t('common.cancel', 'CANCELAR')}
               </button>
             </div>
           </Motion.div>
@@ -481,7 +484,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             </p>
           </div>
           <button onClick={() => setIsAddingList(true)} className="btn-primary" style={{ padding: '1rem 2rem', borderRadius: '16px', fontWeight: '900', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)' }}>
-            <Plus size={20} /> COMEÇAR CHECKLIST
+            <Plus size={20} /> {t('trips.start_checklist', 'COMEÇAR CHECKLIST')}
           </button>
         </Motion.div>
       ) : (
@@ -678,8 +681,8 @@ export default function TripChecklists({ user, trip, onBack }) {
                             style={{ fontSize: '1rem', padding: '0.85rem' }}
                           />
                           <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <button onClick={() => handleAddItem(checklist.id)} className="btn-primary" style={{ flex: 1, padding: '0.75rem', fontWeight: '900', borderRadius: '10px' }}>ADICIONAR</button>
-                            <button onClick={() => setAddingItemToId(null)} className="btn-cancel" style={{ padding: '0.75rem 1rem', borderRadius: '10px' }}>CANCELAR</button>
+                            <button onClick={() => handleAddItem(checklist.id)} className="btn-primary" style={{ flex: 1, padding: '0.75rem', fontWeight: '900', borderRadius: '10px' }}>{t('common.add', 'ADICIONAR')}</button>
+                            <button onClick={() => setAddingItemToId(null)} className="btn-cancel" style={{ padding: '0.75rem 1rem', borderRadius: '10px' }}>{t('common.cancel', 'CANCELAR')}</button>
                           </div>
                         </Motion.div>
                       ) : (
@@ -729,7 +732,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             >
               <div style={{ padding: '2rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>Importar de outras viagens</h3>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>{t('trips.import_from_other_trips', 'Importar de outras viagens')}</h3>
                   <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Escolha uma lista de suas aventuras anteriores</p>
                 </div>
                 <button onClick={() => setIsImportModalOpen(false)} className="action-btn"><X size={24} /></button>

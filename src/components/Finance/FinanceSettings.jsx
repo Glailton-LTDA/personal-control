@@ -10,9 +10,11 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { confirmToast } from '../../lib/toast';
 
 export default function FinanceSettings() {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
   const [responsibles, setResponsibles] = useState([]);
   const [newCat, setNewCat] = useState({ name: '', type: 'DESPESA' });
@@ -103,8 +105,8 @@ export default function FinanceSettings() {
                 <Tag size={24} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Categorias</h3>
-                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Classificação de lançamentos</p>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>{t('finances.settings.categories_title')}</h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>{t('finances.settings.categories_desc')}</p>
               </div>
             </div>
           </div>
@@ -116,7 +118,7 @@ export default function FinanceSettings() {
             marginBottom: '2rem' 
           }}>
             <input
-              placeholder="Nome da categoria..."
+              placeholder={t('finances.settings.category_name_placeholder')}
               className="glass-input"
               style={{ flex: 1, height: '48px', fontWeight: '600' }}
               value={newCat.name}
@@ -198,8 +200,8 @@ export default function FinanceSettings() {
                 <User size={24} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Responsáveis</h3>
-                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Contatos para notificações e divisão de despesas</p>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>{t('finances.settings.responsibles_title')}</h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>{t('finances.settings.responsibles_desc')}</p>
               </div>
             </div>
           </div>
@@ -211,7 +213,7 @@ export default function FinanceSettings() {
               gap: '0.75rem' 
             }}>
               <input
-                placeholder="Nome..."
+                placeholder={t('finances.settings.name_placeholder')}
                 className="glass-input"
                 style={{ flex: 1, height: '48px', fontWeight: '600' }}
                 value={newResp.name}
@@ -219,7 +221,7 @@ export default function FinanceSettings() {
               />
               <div style={{ display: 'flex', gap: '0.75rem', width: isMobile ? '100%' : 'auto' }}>
                 <input
-                  placeholder="E-mail..."
+                  placeholder={t('finances.settings.email_placeholder')}
                   className="glass-input"
                   style={{ flex: 1, height: '48px', fontWeight: '600' }}
                   value={newResp.email}
@@ -279,7 +281,7 @@ export default function FinanceSettings() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
                       {r.name}
-                      {r.is_main && <span style={{ fontSize: '10px', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.05em' }}>PRINCIPAL</span>}
+                      {r.is_main && <span style={{ fontSize: '10px', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.05em' }}>{t('finances.settings.main_label')}</span>}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.email || 'Sem e-mail configurado'}</div>
                   </div>

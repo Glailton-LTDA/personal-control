@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import CustomLists from './CustomLists';
 import * as EncryptionContextModule from '../../contexts/EncryptionContext';
 
@@ -16,6 +16,17 @@ vi.mock('../../lib/supabase', () => ({
       then: vi.fn((cb) => cb({ data: [], error: null })),
     })),
   }
+}));
+
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
 }));
 
 // Mock useEncryption hook
@@ -35,50 +46,37 @@ describe('CustomLists Component', () => {
   });
 
   it('renders correctly and shows empty state', async () => {
-    await act(async () => {
-      render(<CustomLists user={mockUser} />);
-    });
-
-    expect(screen.getByText('Coleções')).toBeDefined();
-    expect(screen.getByText('Selecione uma coleção')).toBeDefined();
+    render(<CustomLists user={mockUser} />);
+    
+    expect(screen.getByText('lists.collections')).toBeDefined();
+    expect(screen.getByText('lists.select_collection')).toBeDefined();
   });
 
   it('opens new list modal when clicking add button', async () => {
-    await act(async () => {
-      render(<CustomLists user={mockUser} />);
-    });
+    render(<CustomLists user={mockUser} />);
 
-    // Find the add button (the one with the Plus icon)
-    const buttons = screen.getAllByRole('button');
-    const addBtn = buttons.find(btn => btn.querySelector('svg'));
+    const addBtn = screen.getByTestId('btn-add-collection');
+    fireEvent.click(addBtn);
     
-    if (addBtn) {
-      fireEvent.click(addBtn);
-      expect(screen.getByText('Nova Coleção')).toBeDefined();
-      expect(screen.getByPlaceholderText('Ex: Inventário de Remédios')).toBeDefined();
-    }
+    expect(screen.getByText('lists.new_list')).toBeDefined();
   });
 
   it('includes "Texto Longo" option in field type selector', async () => {
-    await act(async () => {
-      render(<CustomLists user={mockUser} />);
-    });
+    render(<CustomLists user={mockUser} />);
 
     const addBtn = screen.getByTestId('btn-add-collection');
-    await act(async () => {
-      fireEvent.click(addBtn);
-    });
+    fireEvent.click(addBtn);
 
-    // The field type select should contain "Texto Longo" as an option
+    // The field type select should contain "lists.field_types.text" as an option text
     const selects = screen.getAllByRole('combobox');
     const fieldTypeSelect = selects.find(s => {
       const options = Array.from(s.querySelectorAll('option'));
-      return options.some(o => o.textContent === 'Texto');
+      return options.some(o => o.textContent === 'lists.field_types.text');
     });
 
     expect(fieldTypeSelect).toBeDefined();
     const options = Array.from(fieldTypeSelect.querySelectorAll('option'));
-    const textareaOption = options.find(o => o.textContent === 'Texto Longo');
+    const textareaOption = options.find(o => o.textContent === 'lists.field_types.textarea');
     expect(textareaOption).toBeDefined();
     expect(textareaOption.value).toBe('textarea');
   });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { 
   Calendar, MapPin, ChevronLeft, Save, Loader2, 
@@ -12,6 +13,7 @@ import autoTable from 'jspdf-autotable';
 
 
 export default function TripsItinerary({ user, initialTripId = null, onBack }) {
+  const { t, i18n } = useTranslation();
   const [trips, setTrips] = useState([]);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [itinerary, setItinerary] = useState([]);
@@ -53,9 +55,9 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
       }
     } catch (err) {
       console.error('Error fetching itinerary:', err);
-      toast.error('Erro ao carregar roteiro');
+      toast.error(t('trips.error_loading_itinerary'));
     }
-  }, []);
+  }, [t]);
 
   const handleSelectTrip = useCallback((trip) => {
     setSelectedTrip(trip);
@@ -137,10 +139,10 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         if (insertError) throw insertError;
       }
       
-      toast.success('Roteiro salvo com sucesso!');
+      toast.success(t('trips.itinerary_saved_success'));
     } catch (error) {
       console.error('Save error:', error);
-      toast.error('Erro ao salvar roteiro');
+      toast.error(t('trips.error_saving_itinerary'));
     } finally {
       setIsSaving(false);
     }
@@ -148,7 +150,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
 
   const handleExportPDF = () => {
     if (!selectedTrip || !itinerary.length) {
-      toast.error('Selecione uma viagem com roteiro para exportar');
+      toast.error(t('trips.select_trip_to_export'));
       return;
     }
 
@@ -168,14 +170,14 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
 
       // Cities/Countries if available
       if (selectedTrip.cities?.length) {
-        doc.text(`Destinos: ${selectedTrip.cities.join(', ')}`, 14, 35);
+        doc.text(`${t('trips.destinations')}: ${selectedTrip.cities.join(', ')}`, 14, 35);
       }
 
       doc.setDrawColor(226, 232, 240); // Slate 200
       doc.line(14, 40, pageWidth - 14, 40);
 
       // Table
-      const tableColumn = ["Dia", "Hora", "Atividade", "Local"];
+      const tableColumn = [t('trips.day_col'), t('trips.time_col'), t('trips.activity_col'), t('trips.location_col')];
       const tableRows = itinerary.map(item => [
         formatDateSafely(item.day),
         item.time || '-',
@@ -206,18 +208,18 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
           doc.setFontSize(8);
           doc.setTextColor(148, 163, 184); // Slate 400
           doc.text(
-            `Gerado por PersonalControl - Página ${doc.internal.getNumberOfPages()}`,
+            `${t('trips.generated_by')} PersonalControl - ${t('trips.page')} ${doc.internal.getNumberOfPages()}`,
             data.settings.margin.left,
             doc.internal.pageSize.height - 10
           );
         }
       });
 
-      doc.save(`Roteiro_${selectedTrip.title.replace(/\s+/g, '_')}.pdf`);
-      toast.success('PDF gerado com sucesso!');
+      doc.save(`${t('trips.itinerary')}_${selectedTrip.title.replace(/\s+/g, '_')}.pdf`);
+      toast.success(t('trips.pdf_generated_success'));
     } catch (error) {
       console.error('PDF Error:', error);
-      toast.error('Erro ao gerar PDF');
+      toast.error(t('trips.error_generating_pdf'));
     }
   };
 
@@ -227,13 +229,13 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   );
 
   const formatDateSafely = (dateStr) => {
-    if (!dateStr) return 'Sem data';
+    if (!dateStr) return t('common.no_date');
     try {
       const date = new Date(dateStr + 'T00:00:00');
-      if (isNaN(date.getTime())) return 'Data inválida';
-      return date.toLocaleDateString('pt-BR');
+      if (isNaN(date.getTime())) return t('common.invalid_date');
+      return date.toLocaleDateString(i18n.language);
     } catch {
-      return 'Data inválida';
+      return t('common.invalid_date');
     }
   };
 
@@ -267,15 +269,15 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                 }
               }} 
               className="icon-btn"
-              title={isMobile && selectedTrip ? "Voltar para lista" : "Voltar para Viagens"}
+              title={isMobile && selectedTrip ? t('trips.back_to_list') : t('trips.back_to_trips')}
               data-testid="back-button"
             >
               <ChevronLeft size={24} />
             </button>
           )}
           <div>
-            <h2 style={{ margin: 0, fontSize: isMobile ? '1.2rem' : '1.5rem', fontWeight: '900', color: 'var(--text-main)' }}>Roteiros</h2>
-            {!isMobile && <p style={{ margin: 0, opacity: 0.5, fontSize: '0.9rem', color: 'var(--text-main)' }}>Planeje cada passo da sua jornada</p>}
+            <h2 style={{ margin: 0, fontSize: isMobile ? '1.2rem' : '1.5rem', fontWeight: '900', color: 'var(--text-main)' }}>{t('trips.itineraries')}</h2>
+            {!isMobile && <p style={{ margin: 0, opacity: 0.5, fontSize: '0.9rem', color: 'var(--text-main)' }}>{t('trips.plan_every_step')}</p>}
           </div>
         </div>
         
@@ -287,7 +289,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
           style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: isMobile ? '0.6rem 1rem' : '0.75rem 1.5rem', fontSize: isMobile ? '0.85rem' : '1rem' }}
         >
           {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-          {isMobile ? 'Salvar' : 'Salvar Alterações'}
+          {isMobile ? t('common.save') : t('common.save_changes')}
         </button>
 
         {selectedTrip && itinerary.length > 0 && (
@@ -305,7 +307,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
             }}
           >
             <Plane size={18} style={{ transform: 'rotate(45deg)' }} />
-            {isMobile ? 'PDF' : 'Exportar PDF'}
+            {isMobile ? 'PDF' : t('trips.export_pdf')}
           </button>
         )}
         </div>
@@ -326,7 +328,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
               <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
               <input 
                 type="text" 
-                placeholder="Buscar viagem..."
+                placeholder={t('trips.search_trip_placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="glass-input"
@@ -395,7 +397,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
               onClick={() => setSelectedTrip(null)}
               style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--text-main)', fontSize: '0.7rem', padding: '0.4rem 0.75rem', borderRadius: '8px', marginBottom: '1rem', cursor: 'pointer', fontWeight: '700' }}
             >
-              ← TROCAR VIAGEM
+              ← {t('trips.switch_trip')}
             </button>
           )}
 
@@ -425,17 +427,17 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                   
                   setSelectedTrip({ ...selectedTrip, tickets: updatedTickets });
                   setTrips(trips.map(t => t.id === selectedTrip.id ? { ...t, tickets: updatedTickets } : t));
-                  toast.success('Adicionado aos Ingressos!');
+                  toast.success(t('trips.added_to_tickets_success'));
                 } catch (err) {
                   console.error('Error adding ticket:', err);
-                  toast.error('Erro ao adicionar ingresso.');
+                  toast.error(t('trips.error_adding_ticket'));
                 }
               }}
             />
           ) : (
             <div style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
               <Info size={48} style={{ marginBottom: '1rem' }} />
-              <p style={{ fontWeight: '700' }}>Selecione uma viagem para editar o roteiro</p>
+              <p style={{ fontWeight: '700' }}>{t('trips.select_trip_to_edit')}</p>
             </div>
           )}
         </div>

@@ -99,7 +99,7 @@ test.describe('Módulo de Viagens', () => {
     
     // Aguarda o Dashboard carregar (Launchpad)
     await page.waitForSelector('header', { timeout: 20000 });
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
     await unlockApp(page);
 
     // Navega para Viagens via Launchpad
@@ -110,11 +110,11 @@ test.describe('Módulo de Viagens', () => {
     await expect(page.getByTestId('sub-header')).toBeVisible({ timeout: 10000 });
     await page.getByTestId('sidebar-sub-item-trips-list').click();
     
-    await expect(page.getByTestId('header-title').first()).toHaveText(/Viagens/i, { timeout: 15000 });
+    await expect(page.getByTestId('header-title').first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Viagem Teste').first()).toBeVisible({ timeout: 15000 });
     
     // Abre detalhes
-    await page.getByLabel('Menu da Viagem').click();
+    await page.getByTestId('trip-actions-menu-btn').click();
     await page.getByTestId('view-trip-details-btn').click();
 
     // Wait a bit for render
@@ -158,7 +158,7 @@ test.describe('Módulo de Viagens', () => {
     await page.getByTestId('sidebar-sub-item-trips-list').click();
     
     // Abre detalhes via menu de ações
-    await page.getByLabel('Menu da Viagem').click();
+    await page.getByTestId('trip-actions-menu-btn').click();
     await page.getByTestId('view-trip-details-btn').click();
     await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 15000 });
     

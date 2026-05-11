@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock, Eye, EyeOff 
 
 
 import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 const GRADIENTS = {
@@ -19,6 +20,7 @@ const GRADIENTS = {
 
 
 export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey, showValues = true, onToggleValues }) {
+  const { t, i18n } = useTranslation();
   const [data, setData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [revenueCategoryData, setRevenueCategoryData] = useState([]);
@@ -62,8 +64,8 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
         const date = new Date(year, month - 1, day);
         
         const label = isGeneral 
-          ? date.toLocaleDateString('pt-BR', { month: 'short' })
-          : date.toLocaleDateString('pt-BR', { day: '2-digit' });
+          ? date.toLocaleDateString(i18n.language, { month: 'short' })
+          : date.toLocaleDateString(i18n.language, { day: '2-digit' });
         
         if (!monthsMap.has(label)) {
           monthsMap.set(label, { name: label, income: 0, expense: 0, difference: 0 });
@@ -95,7 +97,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
     setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
     setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
-  }, [isGeneral]);
+  }, [isGeneral, i18n.language]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -137,7 +139,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
       <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {isGeneral ? <Filter size={18} color="var(--primary)" /> : <Calendar size={18} color="var(--primary)" />}
-          <span style={{ fontWeight: 600 }}>{isGeneral ? "Filtrar Ano Fiscal" : "Resumo do Mês"}</span>
+          <span style={{ fontWeight: 600 }}>{isGeneral ? t('finances.filter_year') : t('finances.monthly_summary')}</span>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -146,7 +148,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
               className="icon-btn" 
               onClick={onToggleValues}
               style={{ padding: '0.5rem', background: 'var(--tabs-bg)', borderRadius: '0.5rem' }}
-              title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
+              title={showValues ? t('finances.hide_values') : t('finances.show_values')}
             >
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
@@ -175,47 +177,55 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
       >
         <StatCard 
-          title={isGeneral ? "Receita Anual" : "Receita Mensal"} 
+          title={isGeneral ? t('finances.annual_revenue') : t('finances.monthly_revenue')} 
           value={stats.income} 
           icon={<TrendingUp size={22}/>} 
           color="#10b981" 
           gradient={GRADIENTS.income}
           loading={loading} 
           showValues={showValues} 
+          lang={i18n.language}
+          data-testid="stat-card-income"
         />
         <StatCard 
-          title={isGeneral ? "Despesa Anual" : "Despesa Mensal"} 
+          title={isGeneral ? t('finances.annual_expense') : t('finances.monthly_expense')} 
           value={stats.expense} 
           icon={<TrendingDown size={22}/>} 
           color="#ef4444" 
           gradient={GRADIENTS.expense}
           loading={loading} 
           showValues={showValues} 
+          lang={i18n.language}
+          data-testid="stat-card-expense"
         />
         <StatCard 
-          title="Total a Pagar" 
+          title={t('finances.to_pay')} 
           value={stats.pending} 
           icon={<Clock size={22}/>} 
           color="#f59e0b" 
           gradient={GRADIENTS.pending}
           loading={loading} 
           showValues={showValues} 
+          lang={i18n.language}
+          data-testid="stat-card-pending"
         />
         <StatCard 
-          title="Saldo Final" 
+          title={t('finances.final_balance')} 
           value={stats.balance} 
           icon={<Wallet size={22}/>} 
           color="#6366f1" 
           gradient={GRADIENTS.balance}
           loading={loading} 
           showValues={showValues} 
+          lang={i18n.language}
+          data-testid="stat-card-balance"
         />
       </Motion.div>
 
       {/* Main Bar Chart */}
       <div className="glass-card" style={{ padding: '1.5rem', minHeight: '400px' }}>
         <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Calendar size={18} /> {isGeneral ? `Evolução Mensal de ${selectedYear}` : 'Detalhamento Diário'}
+          <Calendar size={18} /> {isGeneral ? `${t('finances.monthly_evolution')} ${selectedYear}` : t('finances.daily_detail')}
         </h4>
         <div style={{ height: '320px' }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -268,9 +278,9 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                   itemStyle={{ color: 'var(--text-main)' }}
                 />
                 <Legend verticalAlign="top" height={isMobile ? 60 : 36} wrapperStyle={{ fontSize: isMobile ? '10px' : '12px', paddingBottom: '1rem' }}/>
-                <Bar dataKey="income" name="Receita" fill="url(#colorIncome)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="expense" name="Despesa" fill="url(#colorExpense)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="difference" name="Resultado" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="income" name={t('finances.income_label')} fill="url(#colorIncome)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="expense" name={t('finances.expense_label')} fill="url(#colorExpense)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="difference" name={t('finances.result_label')} fill="#6366f1" radius={[6, 6, 0, 0]} />
               </BarChart>
             )}
           </ResponsiveContainer>
@@ -283,9 +293,9 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
         {/* Revenues Distribution */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <TrendingUp size={18} color="var(--success)" /> Distribuição de Receitas
+            <TrendingUp size={18} color="var(--success)" /> {t('finances.revenue_distribution')}
           </h4>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Ganhos por categoria</p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>{t('finances.by_category')}</p>
           
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 0.8fr', gap: '1rem', alignItems: 'center' }}>
             <div style={{ height: '220px', position: 'relative' }}>
@@ -325,7 +335,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                 textAlign: 'center',
                 pointerEvents: 'none'
               }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>Total</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>{t('finances.total')}</span>
                 <span style={{ fontSize: '1rem', fontWeight: 800 }}>{showValues ? `R$ ${(stats.income/1000).toFixed(1)}k` : '••••'}</span>
               </div>
             </div>
@@ -347,9 +357,9 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
         {/* Expenses Distribution */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <TrendingDown size={18} color="var(--danger)" /> Distribuição de Gastos
+            <TrendingDown size={18} color="var(--danger)" /> {t('finances.expense_distribution')}
           </h4>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Despesas por categoria</p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>{t('finances.by_category')}</p>
           
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 0.8fr', gap: '1rem', alignItems: 'center' }}>
             <div style={{ height: '220px', position: 'relative' }}>
@@ -389,7 +399,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                 textAlign: 'center',
                 pointerEvents: 'none'
               }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>Total</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>{t('finances.total')}</span>
                 <span style={{ fontSize: '1rem', fontWeight: 800 }}>{showValues ? `R$ ${(stats.expense/1000).toFixed(1)}k` : '••••'}</span>
               </div>
             </div>
@@ -413,9 +423,11 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   );
 }
 
-function StatCard({ title, value, icon, color, gradient, loading, showValues }) {
+function StatCard({ title, value, icon, color, gradient, loading, showValues, 'data-testid': testId }) {
+  const { i18n } = useTranslation();
   return (
     <div 
+      data-testid={testId}
       className="glass-card" 
       style={{ 
         padding: '1.5rem', 
@@ -480,7 +492,7 @@ function StatCard({ title, value, icon, color, gradient, loading, showValues }) 
           {loading ? (
             <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
           ) : (
-            <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+            <>{showValues ? `R$ ${(value || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
           )}
         </div>
         {!loading && (

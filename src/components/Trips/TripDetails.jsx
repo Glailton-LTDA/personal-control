@@ -10,8 +10,11 @@ import { estimateItineraryDistance } from '../../lib/geo';
 import AttachmentManager from './AttachmentManager';
 import { motion as Motion } from 'framer-motion';
 import { CURRENCIES } from '../../constants/currencies';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 export default function TripDetails({ trip, onBack, expenses = [], showValues = true }) {
+  const { t } = useTranslation();
   const [selectedCurrency, setSelectedCurrency] = useState(localStorage.getItem(`pc_trip_${trip.id}_currency`) || trip.currencies?.[0] || 'BRL');
   const [itinerary, setItinerary] = useState([]);
   const estimatedDistance = useMemo(() => estimateItineraryDistance(itinerary), [itinerary]);
@@ -52,10 +55,10 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
           </button>
           <div>
             <h2 data-testid="trip-details-title" style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
-              {trip?.title || 'Carregando...'}
+              {trip?.title || t('trips.loading')}
             </h2>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '800', letterSpacing: '0.05em', textTransform: 'uppercase', opacity: 0.7 }}>
-              RESUMO DA VIAGEM
+              {t('trips.trip_summary_label')}
             </p>
           </div>
         </div>
@@ -66,20 +69,22 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
           {/* Main Info Card */}
           <div className="glass-card" style={{ padding: '2rem', borderRadius: '24px' }}>
             <div className="info-items-container">
-              <InfoItem icon={<Calendar size={20}/>} label="PERÍODO" value={`${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`} />
+              <InfoItem icon={<Calendar size={20}/>} label={t('trips.period_label')} value={`${formatDate(trip.start_date)} - ${formatDate(trip.end_date)}`} />
               <div data-testid="trip-details-location">
-                <InfoItem icon={<MapPin size={20}/>} label="DESTINOS" value={trip.cities?.join(', ') || 'Nenhum'} />
+                <InfoItem icon={<MapPin size={20}/>} label={t('trips.destinations_label')} value={trip.cities?.join(', ') || t('trips.none')} />
               </div>
-              <InfoItem icon={<Globe size={20}/>} label="PAÍSES" value={trip.countries?.join(', ') || 'Nenhum'} />
-              <InfoItem icon={<Navigation size={20}/>} label="DISTÂNCIA ESTIMADA" value={`${(Math.round(estimatedDistance) || 0).toLocaleString()} km`} />
+              <div data-testid="trip-details-countries">
+                <InfoItem icon={<Globe size={20}/>} label={t('trips.countries_label')} value={trip.countries?.join(', ') || t('trips.none')} />
+              </div>
+              <InfoItem icon={<Navigation size={20}/>} label={t('trips.estimated_distance_label')} value={`${(Math.round(estimatedDistance) || 0).toLocaleString(i18n.language)} km`} />
               <div className="info-item-full" data-testid="trip-details-participants">
-                <InfoItem icon={<Users size={20}/>} label="VIAJANTES" value={trip.participants?.join(', ') || 'Glaitton Costa, Deisianne Saraiva'} />
+                <InfoItem icon={<Users size={20}/>} label={t('trips.travelers_label')} value={trip.participants?.join(', ') || 'Glailton Costa, Deisianne Saraiva'} />
               </div>
             </div>
           </div>
 
           <div className="attachments-list">
-            <AttachmentManager label="Hospedagens (Hotéis/Airbnbs)" icon={Building} items={trip.hotels || []} tripId={trip.id} onItemsChange={() => {}} readOnly={true} />
+            <AttachmentManager label={t('trips.accommodations_label')} icon={Building} items={trip.hotels || []} tripId={trip.id} onItemsChange={() => {}} readOnly={true} />
           </div>
         </div>
 
@@ -87,7 +92,7 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
           {/* Financial Card */}
           <div className="glass-card" style={{ padding: '2rem', borderRadius: '24px' }}>
             <h3 style={{ margin: '0 0 2rem 0', fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <DollarSign size={20} className="text-primary" /> Resumo Financeiro
+              <DollarSign size={20} className="text-primary" /> {t('trips.financial_summary_title')}
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -120,7 +125,7 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
                 };
 
                 if (activeCurrencies.length === 0) {
-                  return <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem' }}>Nenhuma despesa registrada.</p>;
+                  return <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem' }}>{t('trips.no_expenses_recorded')}</p>;
                 }
 
                 return activeCurrencies.sort().map(curr => {
@@ -143,14 +148,14 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
                         <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>{curr}</span>
                       </div>
                       <span style={{ fontWeight: '900', fontSize: '1.25rem', color: 'var(--text-main)' }}>
-                        {showValues ? `${info.symbol} ${(Number(totals[curr]) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '••••••'}
+                        {showValues ? `${info.symbol} ${(Number(totals[curr]) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : '••••••'}
                       </span>
                     </div>
                   );
                 });
               })()}
               <p style={{ margin: '1rem 0 0', color: 'var(--text-muted)', fontSize: '0.65rem', opacity: 0.6 }}>
-                * Os valores acima representam a soma bruta de cada moeda, sem conversão cambial aplicada.
+                {t('trips.financial_disclaimer')}
               </p>
             </div>
           </div>

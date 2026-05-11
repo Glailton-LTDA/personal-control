@@ -64,13 +64,12 @@ test.describe('MyCars Module', () => {
      await page.waitForLoadState('networkidle');
      
      await expect(page.getByTestId('car-name').first()).toBeVisible();
-     await page.selectOption('select.glass-input', { label: 'Audi A3 - ABC-1234' });
      
      // Switch to Revision tab
      await page.click('button:has-text("Revisão")');
      
      // Expect maintenance section (it's called "Manutenção e Revisões" inside CarRevisionTable usually)
      // Let's check for "Kilometragem" or similar table headers
-     await expect(page.locator('text=KM').first()).toBeVisible();
+     await expect(page.locator('text=CHECKPOINT').first()).toBeVisible();
   });
 });

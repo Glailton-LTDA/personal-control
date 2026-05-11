@@ -4,6 +4,24 @@ import { describe, it, expect, vi } from 'vitest';
 import SummaryDashboard from './SummaryDashboard';
 import { supabase } from '../../lib/supabase';
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: ({ children, ...props }) => <div {...props}>{children}</div>,
+  },
+  AnimatePresence: ({ children }) => children,
+}));
+
 describe('SummaryDashboard', () => {
   const mockUser = { id: 'user-123' };
 
@@ -24,17 +42,18 @@ describe('SummaryDashboard', () => {
       }).then(cb)),
     }));
 
-    render(<SummaryDashboard user={mockUser} showValues={true} showGeneralView={true} selectedYear={2026} />);
+    render(<SummaryDashboard user={mockUser} showValues={true} isGeneral={true} selectedYear={2026} />);
     
     await waitFor(() => {
-      expect(screen.getByText(/Receita Mensal/i)).toBeInTheDocument();
+      // With the mock, t('finances.annual_revenue') returns the key
+      expect(screen.getByText(/finances\.annual_revenue/i)).toBeInTheDocument();
       expect(screen.getByText(/5\.000/)).toBeInTheDocument();
       expect(screen.getByText(/2\.000/)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
   it('masks values when showValues is false (Privacy Mode)', async () => {
-    render(<SummaryDashboard user={mockUser} showValues={false} showGeneralView={true} selectedYear={2026} />);
+    render(<SummaryDashboard user={mockUser} showValues={false} isGeneral={true} selectedYear={2026} />);
     
     await waitFor(() => {
       // Check for masked pattern R$ •••

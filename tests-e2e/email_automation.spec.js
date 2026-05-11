@@ -46,11 +46,11 @@ test.describe('Configurações - Automação de E-mail', () => {
     await page.waitForSelector('input[type="email"]', { timeout: 15000 });
     await page.locator('input[type="email"]').fill('test@example.com');
     await page.locator('input[type="password"]').fill('password123');
-    await page.getByRole('button', { name: /entrar/i }).click();
+    await page.getByTestId('login-btn').click();
 
     // Aguardar Dashboard via DOM (espera pelo header do novo layout)
     await page.waitForSelector('header', { timeout: 20000 });
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
 
     // Navegação para Configurações via Launchpad
     await page.getByTestId('launchpad-item-settings').click();

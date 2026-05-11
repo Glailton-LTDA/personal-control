@@ -11,41 +11,19 @@ import {
   ChevronRight,
   Coins
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const moduleData = {
-  finances: { 
-    description: 'Controle suas receitas, despesas e fluxo de caixa mensal.',
-    color: '#6366f1',
-    icon: Coins 
-  },
-  cars: { 
-    description: 'Gerencie manutenções, abastecimentos e custos da sua frota.',
-    color: '#3b82f6',
-    icon: Car 
-  },
-  investments: { 
-    description: 'Acompanhe a evolução do seu patrimônio e rentabilidade.',
-    color: '#10b981',
-    icon: TrendingUp 
-  },
-  trips: { 
-    description: 'Planeje roteiros, controle gastos e registre sua jornada.',
-    color: '#a855f7',
-    icon: Plane 
-  },
-  lists: { 
-    description: 'Crie listas personalizadas para qualquer tipo de controle.',
-    color: '#f59e0b',
-    icon: List 
-  },
-  settings: { 
-    description: 'Ajustes de segurança, interface e preferências do sistema.',
-    color: '#94a3b8',
-    icon: Settings 
-  },
+  finances: { color: '#6366f1', icon: Coins },
+  cars: { color: '#3b82f6', icon: Car },
+  investments: { color: '#10b981', icon: TrendingUp },
+  trips: { color: '#a855f7', icon: Plane },
+  lists: { color: '#f59e0b', icon: List },
+  settings: { color: '#94a3b8', icon: Settings },
 };
 
 export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
+  const { t, i18n } = useTranslation();
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -81,8 +59,9 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.5rem' }}
+          data-testid="welcome-message"
         >
-          Olá, <span style={{ color: 'var(--primary)' }}>{user?.email?.split('@')[0]}</span>
+          {t('common.welcome')}, <span style={{ color: 'var(--primary)' }}>{user?.email?.split('@')[0]}</span>
         </Motion.h1>
         <Motion.p 
           initial={{ opacity: 0 }}
@@ -90,7 +69,7 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
           transition={{ delay: 0.2 }}
           style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}
         >
-          O que vamos gerenciar hoje? Selecione um módulo para começar.
+          {t('common.what_to_manage')}
         </Motion.p>
       </header>
 
@@ -100,7 +79,7 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
         gap: '1.5rem' 
       }}>
         {menuItems.map((menuItem) => {
-          const details = moduleData[menuItem.id] || { description: '', color: 'var(--primary)', icon: menuItem.icon };
+          const details = moduleData[menuItem.id] || { color: 'var(--primary)', icon: menuItem.icon };
           const Icon = details.icon;
 
           return (
@@ -170,11 +149,11 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
 
               <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  {menuItem.label}
+                  {t(`nav.${menuItem.id}`)}
                   <ChevronRight size={18} style={{ opacity: 0.3 }} />
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
-                  {details.description}
+                  {t(`nav.${menuItem.id}_desc`)}
                 </p>
               </div>
             </Motion.button>
@@ -213,8 +192,8 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
             <LogOut size={22} />
           </div>
           <div style={{ textAlign: 'left' }}>
-            <span style={{ fontWeight: 700, fontSize: '1.1rem', display: 'block' }}>Sair do Sistema</span>
-            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Encerrar sua sessão atual com segurança.</span>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem', display: 'block' }}>{t('common.logout')}</span>
+            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{i18n.language === 'pt' ? 'Encerrar sua sessão atual com segurança.' : i18n.language === 'en' ? 'Securely end your current session.' : 'Cierra tu sesión actual de forma segura.'}</span>
           </div>
         </Motion.button>
       </div>

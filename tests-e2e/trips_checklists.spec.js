@@ -20,7 +20,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     
     // Aguardar Dashboard via DOM (espera pelo header do novo layout)
     await page.waitForSelector('header', { timeout: 20000 });
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
     await unlockApp(page);
 
     // Navega para Viagens via Launchpad
@@ -126,14 +126,14 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 10000 });
     await page.getByTestId('trip-actions-menu-btn').click();
     await page.getByTestId('view-checklists-btn').click();
-    await expect(page.getByText('Checklists de Viagem')).toBeVisible();
+    await expect(page.getByTestId('checklists-title')).toBeVisible();
   }
 
   test('deve criar uma nova lista e adicionar itens', async ({ page }) => {
     await goToChecklists(page);
     await page.getByTestId('btn-add-checklist').click();
     await page.getByPlaceholder('Ex: Documentos, Mala de Mão...').fill('Nova Lista E2E');
-    await page.getByRole('button', { name: /criar lista/i }).click();
+    await page.getByTestId('create-list-btn').click();
     await expect(page.getByText('Nova Lista E2E')).toBeVisible();
   });
 
@@ -161,7 +161,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
   test('deve abrir o modal de importação', async ({ page }) => {
     await goToChecklists(page);
-    await page.getByRole('button', { name: /importar/i }).click();
-    await expect(page.getByText('Importar de outras viagens')).toBeVisible();
+    await page.getByTestId('import-checklist-btn').click();
+    await expect(page.getByText(/Importar de outras viagens|Import from other trips|Importar de otros viajes/i)).toBeVisible();
   });
 });

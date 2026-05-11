@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown, Layers, Eye, EyeOff, BarChart2, PieChart as PieChartIcon, Building2 } from 'lucide-react';
 import { useEncryption } from '../../contexts/EncryptionContext';
 import { motion as Motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const GRADIENTS = {
   income: 'var(--stat-income)',
@@ -17,6 +18,7 @@ const GRADIENTS = {
 };
 
 export default function InvestmentDashboard({ user, showValues = true, onToggleValues }) {
+  const { t, i18n } = useTranslation();
   const { decryptObject } = useEncryption();
   const [data, setData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(() => {
@@ -41,19 +43,19 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
 
   const years = [2024, 2025, 2026];
   const months = [
-    { value: 0, label: 'Todos os Meses' },
-    { value: 1, label: 'Janeiro' },
-    { value: 2, label: 'Fevereiro' },
-    { value: 3, label: 'Março' },
-    { value: 4, label: 'Abril' },
-    { value: 5, label: 'Maio' },
-    { value: 6, label: 'Junho' },
-    { value: 7, label: 'Julho' },
-    { value: 8, label: 'Agosto' },
-    { value: 9, label: 'Setembro' },
-    { value: 10, label: 'Outubro' },
-    { value: 11, label: 'Novembro' },
-    { value: 12, label: 'Dezembro' }
+    { value: 0, label: t('common.months.all') },
+    { value: 1, label: t('common.months.jan') },
+    { value: 2, label: t('common.months.feb') },
+    { value: 3, label: t('common.months.mar') },
+    { value: 4, label: t('common.months.apr') },
+    { value: 5, label: t('common.months.may') },
+    { value: 6, label: t('common.months.jun') },
+    { value: 7, label: t('common.months.jul') },
+    { value: 8, label: t('common.months.aug') },
+    { value: 9, label: t('common.months.sep') },
+    { value: 10, label: t('common.months.oct') },
+    { value: 11, label: t('common.months.nov') },
+    { value: 12, label: t('common.months.dec') }
   ];
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
@@ -62,7 +64,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
     // 1. Monthly totals for the selected year
     const monthlyDataMap = {};
     for (let i = 1; i <= 12; i++) {
-        const monthLabel = new Date(selectedYear, i-1, 1).toLocaleDateString('pt-BR', { month: 'short' });
+        const monthLabel = new Date(selectedYear, i-1, 1).toLocaleDateString(i18n.language, { month: 'short' });
         monthlyDataMap[i] = { name: monthLabel, yield: 0, balance: 0 };
     }
 
@@ -155,7 +157,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       typeYield: typeYieldData,
       typeBalance: typeBalanceData
     });
-  }, [selectedYear, selectedMonth]);
+  }, [selectedYear, selectedMonth, i18n.language]);
 
   const fetchData = useCallback(async () => {
     const { data: records, error } = await supabase
@@ -186,7 +188,8 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
 
   const formatCurrency = (val) => {
     if (!showValues) return 'R$ ••••••';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    const locale = t('common.locale') === 'pt-BR' ? 'pt-BR' : 'en-US';
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'BRL' }).format(val);
   };
 
   return (
@@ -203,7 +206,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 auto' }}>
           <BarChart2 size={18} color="var(--primary)" />
-          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Performance de Investimentos</span>
+          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{t('investments.performance_title')}</span>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'nowrap' }}>
@@ -212,7 +215,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
               className="action-btn" 
               onClick={onToggleValues}
               style={{ width: '42px', height: '42px', borderRadius: '14px', background: 'var(--card-action-bg)', flexShrink: 0 }}
-              title={showValues ? "Ocultar Valores" : "Mostrar Valores"}
+              title={showValues ? t('finances.hide_values') : t('finances.show_values')}
             >
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
@@ -249,37 +252,41 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
       >
         <StatCard 
-          title="Patrimônio Total" 
+          title={t('investments.total_assets')} 
           value={summary.currentBalance} 
           icon={<Wallet size={22}/>} 
           color="#6366f1" 
           gradient={GRADIENTS.balance}
           showValues={showValues} 
           testId="summary-card-total-balance"
+          lang={i18n.language}
         />
         <StatCard 
-          title={`Rendimento ${selectedYear}`} 
+          title={`${t('investments.yield_year')} ${selectedYear}`} 
           value={summary.totalYieldYear} 
           icon={<TrendingUp size={22}/>} 
           color="#10b981" 
           gradient={GRADIENTS.income}
           showValues={showValues} 
+          lang={i18n.language}
         />
         <StatCard 
-          title="Rendimento Total" 
+          title={t('investments.total_yield')} 
           value={summary.totalYieldAllTime} 
           icon={<TrendingUp size={22}/>} 
           color="#8b5cf6" 
           gradient={GRADIENTS.purple}
           showValues={showValues} 
+          lang={i18n.language}
         />
         <StatCard 
-          title="Média Mensal" 
+          title={t('investments.monthly_average')} 
           value={summary.totalYieldYear / 12} 
           icon={<TrendingUp size={22}/>} 
           color="#f59e0b" 
           gradient={GRADIENTS.pending}
           showValues={showValues} 
+          lang={i18n.language}
         />
       </Motion.div>
 
@@ -287,7 +294,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.5rem' }}>
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Calendar size={18} /> Evolução de Rendimentos em {selectedYear}
+            <Calendar size={18} /> {t('investments.yield_evolution')} {selectedYear}
           </h4>
           <div style={{ height: '320px' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -327,7 +334,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
                   itemStyle={{ color: 'var(--text-main)' }}
                   labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
                 />
-                <Area type="monotone" dataKey="yield" name="Rendimento" stroke="var(--success)" strokeWidth={3} fillOpacity={1} fill="url(#colorYield)" />
+                <Area type="monotone" dataKey="yield" name={t('investments.yield_label')} stroke="var(--success)" strokeWidth={3} fillOpacity={1} fill="url(#colorYield)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -335,7 +342,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
 
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <BarChart2 size={18} /> Alocação por Conta
+            <BarChart2 size={18} /> {t('investments.allocation_by_account')}
           </h4>
           <div style={{ height: '380px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -361,7 +368,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
                   itemStyle={{ color: 'var(--text-main)' }}
                   labelStyle={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}
                 />
-                <Bar dataKey="amount" name="Saldo" radius={[0, 4, 4, 0]} barSize={22}>
+                <Bar dataKey="amount" name={t('investments.balance_label')} radius={[0, 4, 4, 0]} barSize={22}>
                   {summary.distribution?.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
                   ))}
@@ -378,7 +385,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
         {/* Rendimento por Tipo de Conta */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <PieChartIcon size={18} /> Rendimento por Tipo ({selectedYear})
+            <PieChartIcon size={18} /> {t('investments.yield_by_type')} ({selectedYear})
           </h4>
           <div style={{ height: '300px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -419,7 +426,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
         {/* Patrimônio por Instituição */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <BarChart2 size={18} /> Patrimônio por Instituição
+            <BarChart2 size={18} /> {t('investments.assets_by_institution')}
           </h4>
           <div style={{ height: '300px', paddingTop: '1rem' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -440,7 +447,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
                   }}
                   itemStyle={{ color: 'var(--text-main)' }}
                 />
-                <Bar dataKey="value" name="Saldo" radius={[0, 6, 6, 0]} barSize={25}>
+                <Bar dataKey="value" name={t('investments.balance_label')} radius={[0, 6, 6, 0]} barSize={25}>
                   {summary.instBalance?.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -456,6 +463,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
 }
 
 function StatCard({ title, value, icon, color, gradient, loading, showValues, testId }) {
+  const { i18n } = useTranslation();
   return (
     <div 
       className="glass-card" 
@@ -523,7 +531,7 @@ function StatCard({ title, value, icon, color, gradient, loading, showValues, te
           {loading ? (
             <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
           ) : (
-            <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+            <>{showValues ? `R$ ${(value || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
           )}
         </div>
         {!loading && (

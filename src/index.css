@@ -110,7 +110,9 @@ input, select, textarea {
   --stat-balance: rgba(99, 102, 241, 0.15);
   --tabs-bg: rgba(0, 0, 0, 0.04);
   --tab-active-bg: #ffffff;
-  --card-action-bg: rgba(0, 0, 0, 0.02);
+  --btn-primary-bg: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --select-bg: #ffffff;
+  --select-text: #0f172a;
 }
 
 * {
@@ -145,7 +147,7 @@ body {
 }
 
 .icon-btn {
-  background: rgba(255, 255, 255, 0.03) !important;
+  background: var(--card-action-bg) !important;
   border: 1px solid var(--glass-border) !important;
   color: var(--text-main);
   padding: 10px;
@@ -154,7 +156,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .icon-btn:hover {
@@ -200,17 +202,41 @@ body {
 }
 
 /* Fix for unreadable select options in some browsers/OS */
+/* Premium Select Styling */
 select {
-  color-scheme: dark;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1.2rem;
+  padding-right: 2.5rem !important;
+  color-scheme: light dark;
 }
 
-select option, select optgroup {
-  background-color: #1e293b;
-  color: #f8fafc;
+[data-theme='light'] select,
+[data-theme='light'] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
-select:focus option {
-  background-color: #334155;
+[data-theme='dark'] select,
+[data-theme='dark'] select option {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+select {
+  appearance: none;
+  background-color: var(--input-bg) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--glass-border) !important;
+  transition: all 0.2s ease;
+}
+
+select option {
+  padding: 12px;
+  background-color: var(--input-bg);
+  color: var(--text-main);
 }
   .modal-content {
     padding: 1.5rem;
@@ -567,19 +593,25 @@ select:focus option {
 
 /* Filtros e Seletores */
 .select-filter {
-  background: var(--input-bg) !important;
+  background: var(--card-action-bg) !important;
   border: 1px solid var(--glass-border) !important;
   color: var(--text-main) !important;
   padding: 8px 12px;
   border-radius: 10px;
   outline: none;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.select-filter:hover {
+  background: var(--tabs-bg) !important;
+  border-color: var(--primary);
 }
 
 .select-filter option {
-  background: var(--bg-canvas);
-  color: var(--text-main);
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
 }
 
 .input-group { margin-bottom: 1rem; }
@@ -742,7 +774,7 @@ select.glass-input {
 
 
 .btn-primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: var(--btn-primary-bg, linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%));
   color: white;
   padding: 12px 24px;
   border-radius: 12px;
@@ -969,6 +1001,27 @@ select.glass-input {
   .mobile-action-btn.success { color: var(--success); }
   .mobile-action-btn.danger { color: var(--danger); }
   .mobile-action-btn.primary { color: var(--primary); }
+  
+  /* Trip Checklists Mobile Optimization */
+  .checklists-container {
+    padding: 0.5rem !important;
+  }
+  
+  .checklist-group {
+    padding: 1.25rem !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  .checklist-items-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+  
+  .checklist-item {
+    padding: 0.75rem !important;
+    background: rgba(255,255,255,0.03) !important;
+    border-radius: 12px !important;
+  }
 }
 
 @media (min-width: 769px) and (max-width: 1100px) {
@@ -1441,6 +1494,12 @@ select.glass-input {
     width: 60px;
     height: 60px;
   }
+}
+
+/* Light Mode specific adjustment for FAB if needed */
+[data-theme='light'] .contextual-fab {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
 }
 
 /* Custom Lists Specific Styles */

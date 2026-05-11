@@ -81,7 +81,7 @@ test.describe('Minha Jornada (Stats)', () => {
     
     // Aguarda o Dashboard carregar (Launchpad)
     await page.waitForSelector('header', { timeout: 20000 });
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
     
     await unlockApp(page);
     
@@ -102,10 +102,10 @@ test.describe('Minha Jornada (Stats)', () => {
     await page.getByTestId('sidebar-sub-item-trips-stats').click();
 
     // Verifica se o título da página mudou
-    await expect(page.getByRole('heading', { name: 'Minha Jornada' })).toBeVisible();
+    await expect(page.getByTestId('journey-title')).toBeVisible();
 
     // Verifica se as estatísticas básicas estão lá
-    await expect(page.getByText('Total de Viagens')).toBeVisible();
+    await expect(page.getByTestId('stats-card-trips')).toBeVisible();
     await expect(page.getByText('Países Visitados', { exact: false })).toHaveCount(2); // Card and section header
     
     // Verifica se os países do mock aparecem na lista
@@ -115,7 +115,7 @@ test.describe('Minha Jornada (Stats)', () => {
 
     // Testa o botão voltar
     await page.getByTestId('back-to-trips-btn').click();
-    await expect(page.getByRole('heading', { name: 'Minha Jornada' })).not.toBeVisible();
+    await expect(page.getByTestId('journey-title')).not.toBeVisible();
     await expect(page.getByText('Viagem Teste').first()).toBeVisible();
   });
 });

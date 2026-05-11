@@ -5,6 +5,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import FinanceSettings from './FinanceSettings';
 import { supabase } from '../../lib/supabase';
 
+// Mock Lucide Icons
+vi.mock('lucide-react', () => ({
+  Plus: () => <div data-testid="icon-plus" />,
+  Trash2: () => <div />,
+  User: () => <div />,
+  Tag: () => <div />,
+  Star: () => <div />,
+  ShieldCheck: () => <div />,
+}));
+
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
 // Mock Supabase
 vi.mock('../../lib/supabase', () => {
   const chain = {
@@ -84,18 +105,18 @@ describe('FinanceSettings', () => {
       expect(screen.getByText('Maria')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('PRINCIPAL')).toBeInTheDocument();
+    expect(screen.getByText('finances.settings.main_label')).toBeInTheDocument();
   });
 
   it('adds a new category', async () => {
     const user = userEvent.setup();
     render(<FinanceSettings />);
     
-    const input = screen.getByPlaceholderText(/Nome da categoria/i);
+    const input = screen.getByPlaceholderText('finances.settings.category_name_placeholder');
     await user.type(input, 'Comida');
     
     // Find the add button near this input
-    const addButton = screen.getAllByRole('button').find(b => b.querySelector('div[size="20"]'));
+    const addButton = screen.getAllByRole('button').find(b => b.querySelector('div[data-testid="icon-plus"]'));
     await user.click(addButton);
 
     await waitFor(() => {
@@ -108,15 +129,15 @@ describe('FinanceSettings', () => {
     render(<FinanceSettings />);
     
     // FILL NAME
-    const nameInput = screen.getByPlaceholderText(/Nome\.\.\./i);
+    const nameInput = screen.getByPlaceholderText('finances.settings.name_placeholder');
     await user.type(nameInput, 'Carlos');
 
     // FILL EMAIL
-    const emailInput = screen.getByPlaceholderText(/E-mail\.\.\./i);
+    const emailInput = screen.getByPlaceholderText('finances.settings.email_placeholder');
     await user.type(emailInput, 'carlos@example.com');
     
     // CLICK ADD
-    const addButton = screen.getAllByRole('button').filter(b => b.querySelector('div[size="20"]'))[1];
+    const addButton = screen.getAllByRole('button').filter(b => b.querySelector('div[data-testid="icon-plus"]'))[1];
     await user.click(addButton);
 
     // WAIT FOR CALL

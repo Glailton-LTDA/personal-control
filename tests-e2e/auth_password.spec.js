@@ -26,8 +26,8 @@ test.describe('Autenticação - Senha', () => {
     await page.goto('/');
 
     // Clica em "Esqueci minha senha"
-    await expect(page.getByText('Esqueci minha senha')).toBeVisible();
-    await page.getByText('Esqueci minha senha').click();
+    await expect(page.getByTestId('forgot-password-link')).toBeVisible();
+    await page.getByTestId('forgot-password-link').click();
 
     // Deve mostrar o formulário de reset
     await expect(page.getByText('Redefinir senha')).toBeVisible();
@@ -35,7 +35,7 @@ test.describe('Autenticação - Senha', () => {
 
     // Preenche e submete
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.getByRole('button', { name: /Enviar link/i }).click();
+    await page.getByTestId('send-reset-link-btn').click();
 
     // Confirma mensagem de sucesso
     await expect(page.getByText('E-mail enviado!')).toBeVisible({ timeout: 5000 });
@@ -43,11 +43,11 @@ test.describe('Autenticação - Senha', () => {
 
   test('deve voltar para o login a partir do formulário de esqueci a senha', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Esqueci minha senha').click();
+    await page.getByTestId('forgot-password-link').click();
     await expect(page.getByText('Redefinir senha')).toBeVisible();
 
-    await page.getByText('Voltar ao login').click();
-    await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
+    await page.getByTestId('back-to-login-btn').click();
+    await expect(page.getByTestId('login-btn')).toBeVisible();
   });
 
   test('deve exibir seção de Alterar Senha nas configurações', async ({ page }) => {
@@ -68,7 +68,7 @@ test.describe('Autenticação - Senha', () => {
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password123');
-    await page.getByRole('button', { name: 'Entrar' }).click();
+    await page.getByTestId('login-btn').click();
     await expect(page.getByText('Personal Control').first()).toBeVisible({ timeout: 15000 });
 
     // Navega para Configurações expandindo o grupo e clicando em "Geral"
@@ -114,15 +114,15 @@ test.describe('Autenticação - Senha', () => {
 
     await page.fill('input[placeholder="••••••••"] >> nth=0', 'newpassword123');
     await page.fill('input[placeholder="••••••••"] >> nth=1', 'newpassword123');
-    await page.getByRole('button', { name: 'Redefinir senha' }).click();
+    await page.getByTestId('reset-password-btn').click();
 
     // Deve mostrar sucesso
     await expect(page.getByText('Senha redefinida!')).toBeVisible();
 
     // Clica em ir para login
-    await page.getByRole('button', { name: 'Ir para o login' }).click();
+    await page.getByTestId('go-to-login-btn').click();
 
     // Deve estar na tela de login normal
-    await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
+    await expect(page.getByTestId('login-btn')).toBeVisible();
   });
 });

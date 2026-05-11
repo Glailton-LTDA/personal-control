@@ -25,9 +25,20 @@ import {
   List,
   LayoutGrid,
   ChevronRight,
-  Coins
+  Coins,
+  Bell,
+  Search,
+  User,
+  Shield,
+  HelpCircle,
+  FileText,
+  Mail,
+  Smartphone,
+  Check,
+  Filter
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useTranslation } from 'react-i18next';
 import FinanceList from './Finance/FinanceList';
 import SummaryDashboard from './Finance/SummaryDashboard';
 import FinanceSettings from './Finance/FinanceSettings';
@@ -40,46 +51,48 @@ import CustomLists from './CustomLists/CustomLists';
 import Launchpad from './Launchpad';
 
 const defaultMenuItems = [
-  { id: 'finances', icon: Coins, label: 'Finanças' },
-  { id: 'cars', icon: Car, label: 'Carros' },
-  { id: 'investments', icon: TrendingUp, label: 'Investimentos' },
-  { id: 'trips', icon: Plane, label: 'Minhas Viagens' },
-  { id: 'lists', icon: List, label: 'Minhas Listas' },
-  { id: 'settings', icon: Settings, label: 'Configurações' },
+  { id: 'launchpad', icon: LayoutGrid, key: 'launchpad' },
+  { id: 'finances', icon: Coins, key: 'finances' },
+  { id: 'cars', icon: Car, key: 'cars' },
+  { id: 'investments', icon: TrendingUp, key: 'investments' },
+  { id: 'trips', icon: Plane, key: 'trips' },
+  { id: 'lists', icon: List, key: 'lists' },
+  { id: 'settings', icon: Settings, key: 'settings' },
 ];
 
 const moduleSubItems = {
   finances: [
-    { tab: 'finances-dashboard', icon: BarChart2, label: 'Dashboard' },
-    { tab: 'finances-transactions', icon: DollarSign, label: 'Transações' },
-    { tab: 'finances-settings', icon: Settings, label: 'Ajustes' },
+    { tab: 'finances-dashboard', icon: BarChart2, key: 'dashboard' },
+    { tab: 'finances-transactions', icon: DollarSign, key: 'transactions' },
+    { tab: 'finances-settings', icon: Settings, key: 'settings' },
   ],
   cars: [
-    { tab: 'cars-list', icon: Car, label: 'Meus Carros' },
-    { tab: 'cars-settings', icon: Settings, label: 'Ajustes' }
+    { tab: 'cars-list', icon: Car, key: 'my_cars' },
+    { tab: 'cars-settings', icon: Settings, key: 'settings' }
   ],
   investments: [
-    { tab: 'investments-dashboard', icon: BarChart2, label: 'Dashboard' },
-    { tab: 'investments-list', icon: DollarSign, label: 'Planilha de Investimentos' },
-    { tab: 'investments-settings', icon: Settings, label: 'Ajustes' }
+    { tab: 'investments-dashboard', icon: BarChart2, key: 'dashboard' },
+    { tab: 'investments-list', icon: DollarSign, key: 'investment_sheet' },
+    { tab: 'investments-settings', icon: Settings, key: 'settings' }
   ],
   trips: [
-    { tab: 'trips-list', icon: Globe, label: 'Listagem' },
-    { tab: 'trips-itinerary', icon: Calendar, label: 'Roteiros' },
-    { tab: 'trips-stats', icon: PieChart, label: 'Minha Jornada' },
-    { tab: 'trips-settings', icon: Settings, label: 'Ajustes de Viagens' }
+    { tab: 'trips-list', icon: Globe, key: 'list' },
+    { tab: 'trips-itinerary', icon: Calendar, key: 'itineraries' },
+    { tab: 'trips-stats', icon: PieChart, key: 'my_journey' },
+    { tab: 'trips-settings', icon: Settings, key: 'trip_settings' }
   ],
   lists: [
-    { tab: 'lists-manager', icon: List, label: 'Gerenciar Listas' },
-    { tab: 'lists-settings', icon: Settings, label: 'Ajustes' }
+    { tab: 'lists-manager', icon: List, key: 'manage_lists' },
+    { tab: 'lists-settings', icon: Settings, key: 'settings' }
   ],
   settings: [
-    { tab: 'settings-general', icon: Settings, label: 'Geral' },
-    { tab: 'settings-security', icon: ShieldCheck, label: 'Segurança' }
+    { tab: 'settings-general', icon: Settings, key: 'general' },
+    { tab: 'settings-security', icon: ShieldCheck, key: 'security' }
   ]
 };
 
 export default function Dashboard({ user }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('personal-control-active-tab') || 'launchpad';
   });
@@ -264,15 +277,7 @@ export default function Dashboard({ user }) {
 
         {/* Primary Nav */}
         <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
-          {[
-            { id: 'launchpad', label: 'Início', icon: LayoutGrid },
-            { id: 'finances', label: 'Finanças', icon: Coins },
-            { id: 'cars', label: 'Carros', icon: Car },
-            { id: 'investments', label: 'Investimentos', icon: TrendingUp },
-            { id: 'trips', label: 'Viagens', icon: Plane },
-            { id: 'lists', label: 'Listas', icon: List },
-            { id: 'settings', label: 'Ajustes', icon: Settings }
-          ].map(item => {
+          {menuItems.map(item => {
             const isActive = activeTab === item.id || activeTab.startsWith(item.id);
             return (
               <button
@@ -304,7 +309,7 @@ export default function Dashboard({ user }) {
                 }}
               >
                 <item.icon size={18} />
-                <span className="hide-mobile">{item.label}</span>
+                <span className="hide-mobile">{t(`nav.${item.id}`)}</span>
               </button>
             );
           })}
@@ -360,12 +365,14 @@ export default function Dashboard({ user }) {
             whiteSpace: 'nowrap',
             flexShrink: 0
           }}>
-            {activeTab.startsWith('finances') ? 'Finanças' :
-              activeTab.startsWith('cars') ? 'Carros' :
-                activeTab.startsWith('investments') ? 'Investimentos' :
-                  activeTab.startsWith('trips') ? 'Viagens' :
-                    activeTab.startsWith('lists') ? 'Listas' :
-                      activeTab.startsWith('settings') ? 'Ajustes' : ''}
+            <span data-testid="sub-header-title">
+              {activeTab.startsWith('finances') ? t('nav.finances') :
+                activeTab.startsWith('cars') ? t('nav.cars') :
+                  activeTab.startsWith('investments') ? t('nav.investments') :
+                    activeTab.startsWith('trips') ? t('nav.trips') :
+                      activeTab.startsWith('lists') ? t('nav.lists') :
+                        activeTab.startsWith('settings') ? t('nav.settings') : ''}
+            </span>
           </div>
           {(() => {
             const currentModule = activeTab.split('-')[0];
@@ -394,7 +401,7 @@ export default function Dashboard({ user }) {
                     }}
                   >
                     <item.icon size={16} strokeWidth={activeTab === item.tab ? 2.5 : 2} />
-                    {item.label}
+                    {t(`nav.sub.${currentModule}.${item.key}`)}
                   </button>
                 ))}
               </div>
@@ -428,7 +435,7 @@ export default function Dashboard({ user }) {
               <Launchpad
                 user={user}
                 onNavigate={navigate}
-                menuItems={menuItems}
+                menuItems={menuItems.filter(i => i.id !== 'launchpad')}
                 onLogout={() => supabase.auth.signOut()}
               />
             )}

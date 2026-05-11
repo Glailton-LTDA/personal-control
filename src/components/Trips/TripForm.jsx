@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -12,6 +13,7 @@ import AttachmentManager from './AttachmentManager';
 import toast from 'react-hot-toast';
 
 export default function TripForm({ user, trip, onBack, onSave }) {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -77,7 +79,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
   async function handleSubmit(e) {
     if (e) e.preventDefault();
     if (!formData.title) {
-      toast.error('O título da viagem é obrigatório');
+      toast.error(t('trips.trip_title_req'));
       return;
     }
 
@@ -113,10 +115,10 @@ export default function TripForm({ user, trip, onBack, onSave }) {
 
     setIsSaving(false);
     if (!result.error) {
-      toast.success(trip ? 'Viagem atualizada!' : 'Viagem criada com sucesso!');
+      toast.success(trip ? t('trips.trip_update_success') : t('trips.trip_create_success'));
       onSave();
     }
-    else toast.error('Erro ao salvar: ' + result.error.message);
+    else toast.error(t('finances.error_save') + ': ' + result.error.message);
   }
 
   return (
@@ -147,14 +149,14 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           }}
         >
           <ArrowLeft size={20} className="text-primary" /> 
-          <span>VOLTAR</span>
+          <span>{t('trips.voltar').toUpperCase()}</span>
         </button>
         <div style={{ textAlign: 'right' }}>
            <h2 style={{ margin: 0, fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: '900', color: 'white', letterSpacing: '-0.02em', lineHeight: 1 }}>
-             {trip ? 'EDITAR VIAGEM' : 'NOVA VIAGEM'}
+             {trip ? t('trips.edit_trip').toUpperCase() : t('trips.new_trip').toUpperCase()}
            </h2>
            <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '700', letterSpacing: '0.05em' }}>
-             {trip ? 'ATUALIZE SUA JORNADA' : 'PLANEJE SUA PRÓXIMA AVENTURA'}
+             {trip ? t('trips.update_journey').toUpperCase() : t('trips.plan_adventure').toUpperCase()}
            </p>
         </div>
       </div>
@@ -167,11 +169,11 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
               <Plane size={24} className="text-primary" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>INFORMAÇÕES ESSENCIAIS</h3>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>{t('trips.essential_info').toUpperCase()}</h3>
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>TÍTULO DA VIAGEM</label>
+            <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>{t('trips.trip_title').toUpperCase()}</label>
             <input 
               required className="glass-input" 
               style={{ 
@@ -185,16 +187,16 @@ export default function TripForm({ user, trip, onBack, onSave }) {
                 fontWeight: '900',
                 transition: '0.3s'
               }} 
-              value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ex: Férias no Peru 2024" 
+              value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder={t('trips.placeholders.trip_title')}
             />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '2rem' }}>
             <CityBadgeInput 
-              label="LOCAIS VISITADOS" 
+              label={t('trips.locations_visited').toUpperCase()} 
               icon={MapPin} 
               values={formData.cities} 
-              placeholder="Ex: Cusco, Peru..."
+              placeholder={t('trips.placeholders.locations')}
               onValuesChange={(newValues) => {
                 setFormData(prev => {
                   const next = {...prev, cities: newValues};
@@ -211,10 +213,10 @@ export default function TripForm({ user, trip, onBack, onSave }) {
               }} 
             />
             <BadgeInput 
-              label="PAÍSES DETECTADOS" 
+              label={t('trips.detected_countries').toUpperCase()} 
               icon={Globe} 
               values={formData.countries} 
-              placeholder="Detectados automaticamente..."
+              placeholder={t('trips.placeholders.auto_detected')}
               onValuesChange={(newValues) => setFormData({...formData, countries: newValues})} 
               readOnly={true}
             />
@@ -223,7 +225,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '2rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Calendar size={16} className="text-primary" /> DATA DE INÍCIO
+                <Calendar size={16} className="text-primary" /> {t('trips.start_date').toUpperCase()}
               </label>
               <input 
                 type="date" className="glass-input" 
@@ -233,7 +235,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Calendar size={16} className="text-primary" /> DATA DE TÉRMINO
+                <Calendar size={16} className="text-primary" /> {t('trips.end_date').toUpperCase()}
               </label>
               <input 
                 type="date" className="glass-input" 
@@ -250,26 +252,26 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
               <Building size={24} className="text-primary" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>LOGÍSTICA E ANEXOS</h3>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>{t('trips.logistics_attachments').toUpperCase()}</h3>
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <AttachmentManager 
-              label="HOSPEDAGENS" 
+              label={t('trips.hospedagem').toUpperCase()} 
               icon={Building} 
               items={formData.hotels} 
               tripId={trip?.id || 'new'}
               onItemsChange={(newItems) => setFormData({...formData, hotels: newItems})} 
             />
             <AttachmentManager 
-              label="TRANSPORTES" 
+              label={t('trips.transporte').toUpperCase()} 
               icon={Car} 
               items={formData.transports} 
               tripId={trip?.id || 'new'}
               onItemsChange={(newItems) => setFormData({...formData, transports: newItems})} 
             />
             <AttachmentManager 
-              label="INGRESSOS & TICKETS" 
+              label={t('trips.ingressos').toUpperCase()} 
               icon={Ticket} 
               items={formData.tickets} 
               tripId={trip?.id || 'new'}
@@ -277,7 +279,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
               defaultExpanded={false}
             />
             <AttachmentManager 
-              label="DOCUMENTOS" 
+              label={t('trips.documentos').toUpperCase()} 
               icon={FileText} 
               items={formData.misc_docs} 
               tripId={trip?.id || 'new'}
@@ -293,20 +295,20 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
               <Users size={24} className="text-primary" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>PARTICIPANTES E GESTÃO FINANCEIRA</h3>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>{t('trips.finance_participants').toUpperCase()}</h3>
           </div>
 
           <BadgeInput 
-            label="PARTICIPANTES" 
+            label={t('trips.participants').toUpperCase()} 
             icon={Users} 
             values={formData.participants} 
-            placeholder="Ex: Glailton, Deisianne..."
+            placeholder={t('trips.placeholders.participants')}
             onValuesChange={(newValues) => setFormData({...formData, participants: newValues})} 
           />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <DollarSign size={16} className="text-primary" /> MOEDAS ATIVAS
+              <DollarSign size={16} className="text-primary" /> {t('trips.active_currencies').toUpperCase()}
             </label>
             <CurrencySelector 
               selectedCurrencies={formData.currencies} 
@@ -317,7 +319,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                <Info size={16} className="text-primary" />
-               <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>LIMITES DIÁRIOS SUGERIDOS</label>
+               <label style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>{t('trips.daily_limits_desc').toUpperCase()}</label>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.25rem' }}>
               {formData.currencies.map(curr => (
@@ -387,7 +389,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
                border: '1px solid var(--glass-border)'
              }}
            >
-             CANCELAR
+             {t('trips.cancel').toUpperCase()}
            </button>
            <button 
              type="submit" 
@@ -406,7 +408,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
                boxShadow: '0 12px 24px -6px rgba(99, 102, 241, 0.5)'
              }}
            >
-             {isSaving ? 'SALVANDO...' : <><Save size={22} /> {trip ? 'ATUALIZAR VIAGEM' : 'CRIAR VIAGEM'}</>}
+             {isSaving ? t('trips.salvando').toUpperCase() : <><Save size={22} /> {trip ? t('trips.update_trip').toUpperCase() : t('trips.create_trip').toUpperCase()}</>}
            </button>
         </div>
       </form>

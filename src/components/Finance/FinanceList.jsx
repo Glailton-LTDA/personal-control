@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { confirmToast } from '../../lib/toast';
@@ -64,6 +65,7 @@ function getCategoryMeta(category = '') {
 }
 
 export default function FinanceList({ refreshKey, onEdit, user, showValues = true, onToggleValues }) {
+  const { t } = useTranslation();
   const [finances, setFinances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState(() => localStorage.getItem('personal-control-finance-view') || 'lista');
@@ -301,7 +303,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
           <button 
             className="btn-primary" 
             onClick={handleCopyMonth} 
-            title="Copiar mês anterior" 
+            title={t('finances.copy_previous')} 
             style={{ height: '48px', width: '48px', padding: 0, borderRadius: '14px', background: 'rgba(99,102,241,0.1)', color: 'var(--primary)', border: '1px solid rgba(99,102,241,0.2)', boxShadow: 'none' }}
           >
             <Copy size={20} />
@@ -335,7 +337,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 <div style={{ padding: '4px', background: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--tabs-bg)', borderRadius: '6px', color: activeTab === 'RECEITA' ? 'white' : 'var(--success)' }}>
                   <ArrowUp size={14} /> 
                 </div>
-                Receitas
+                {t('finances.revenues')}
               </button>
               <button 
                 className={`tab-btn ${activeTab === 'DESPESA' ? 'active' : ''}`} 
@@ -351,7 +353,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 <div style={{ padding: '4px', background: activeTab === 'DESPESA' ? 'var(--danger)' : 'var(--tabs-bg)', borderRadius: '6px', color: activeTab === 'DESPESA' ? 'white' : 'var(--danger)' }}>
                   <ArrowDown size={14} />
                 </div>
-                Despesas
+                {t('finances.expenses')}
               </button>
             </div>
 

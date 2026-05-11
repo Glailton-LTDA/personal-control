@@ -46,6 +46,7 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import ExpenseModal from './ExpenseModal';
@@ -76,6 +77,7 @@ export default function TripsList({
   showValues = true, onEditTrip, onViewChecklists, onViewItinerary,
   isDetailsOpen: externalIsDetailsOpen, setIsDetailsOpen: setExternalIsDetailsOpen
 }) {
+  const { t, i18n } = useTranslation();
   const [expenses, setExpenses] = useState([]);
   const [activeCurrency, setActiveCurrency] = useState('BRL');
   const [isDetailsOpen, setIsDetailsOpen] = useState(externalIsDetailsOpen);
@@ -175,15 +177,15 @@ export default function TripsList({
   }, [externalSelectedTrip?.user_id, user?.id]);
 
   const deleteExpense = async (id) => {
-    confirmToast('Excluir esta despesa?', async () => {
+    confirmToast(t('trips.confirm_delete_expense', 'Excluir esta despesa?'), async () => {
       const { error } = await supabase.from('trip_expenses').delete().eq('id', id);
       if (!error) {
         fetchExpenses(externalSelectedTrip.id);
-        toast.success('Despesa excluída');
+        toast.success(t('trips.expense_deleted', 'Despesa excluída'));
       } else {
-        toast.error('Erro ao excluir');
+        toast.error(t('trips.error_deleting', 'Erro ao excluir'));
       }
-    }, { danger: true, confirmText: 'Sim, excluir' });
+    }, { danger: true, confirmText: t('common.sim', 'Sim, excluir') });
   };
 
 
@@ -246,7 +248,7 @@ export default function TripsList({
   }, {});
 
   const paidByMap = currencyExpenses.reduce((acc, exp) => {
-    const person = exp.paid_by || 'Não definido';
+    const person = exp.paid_by || t('trips.unidentified', 'Não definido');
     acc[person] = (acc[person] || 0) + (parseFloat(exp.amount) || 0);
     return acc;
   }, {});
@@ -283,9 +285,9 @@ export default function TripsList({
                 <MapPin size={16} />
               </div>
               <div className="trip-selector-text">
-                <span className="trip-selector-label">Viagem Selecionada</span>
+                <span className="trip-selector-label">{t('trips.selected_trip_label')}</span>
                 <span className="trip-selector-title">
-                  {selectedTrip?.title || 'Selecione uma viagem...'}
+                  {selectedTrip?.title || t('trips.select_trip_placeholder')}
                 </span>
               </div>
             </div>
@@ -302,7 +304,7 @@ export default function TripsList({
                   <input 
                     autoFocus 
                     type="text" 
-                    placeholder="Buscar viagem..." 
+                    placeholder={t('trips.search_trip_placeholder')} 
                     value={tripSearchQuery} 
                     onChange={(e) => setTripSearchQuery(e.target.value)} 
                     onClick={(e) => e.stopPropagation()} 
@@ -350,7 +352,7 @@ export default function TripsList({
               <button 
                 onClick={() => setIsActionsMenuOpen(!isActionsMenuOpen)} 
                 className="icon-btn" 
-                aria-label="Menu da Viagem"
+                aria-label={t('trips.trip_menu_label')}
                 data-testid="trip-actions-menu-btn"
                 style={{ 
                   width: '48px', height: '48px', borderRadius: '14px',
@@ -371,10 +373,10 @@ export default function TripsList({
                       className="glass-card trip-actions-dropdown"
                     >
                       {[
-                        { icon: <Edit2 size={16} />, label: 'Editar Viagem', testId: 'edit-trip-btn', onClick: () => onEditTrip(selectedTrip) },
-                        { icon: <FileText size={16} />, label: 'Resumo da Viagem', testId: 'view-trip-details-btn', onClick: () => { setIsDetailsOpen(true); if (setExternalIsDetailsOpen) setExternalIsDetailsOpen(true); } },
-                        { icon: <ListTodo size={16} />, label: 'Checklists', testId: 'view-checklists-btn', onClick: () => onViewChecklists() },
-                        { icon: <Compass size={16} />, label: 'Gerenciar Roteiro', testId: 'view-itinerary-btn', onClick: () => onViewItinerary() }
+                        { icon: <Edit2 size={16} />, label: t('trips.edit_trip'), testId: 'edit-trip-btn', onClick: () => onEditTrip(selectedTrip) },
+                        { icon: <FileText size={16} />, label: t('trips.view_trip_summary'), testId: 'view-trip-details-btn', onClick: () => { setIsDetailsOpen(true); if (setExternalIsDetailsOpen) setExternalIsDetailsOpen(true); } },
+                        { icon: <ListTodo size={16} />, label: t('trips.checklists'), testId: 'view-checklists-btn', onClick: () => onViewChecklists() },
+                        { icon: <Compass size={16} />, label: t('trips.manage_itinerary'), testId: 'view-itinerary-btn', onClick: () => onViewItinerary() }
                       ].map((item, idx) => (
                         <button 
                           key={idx} 
@@ -410,8 +412,8 @@ export default function TripsList({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
                   <div>
                     <div className="trip-hero-badge" style={{ marginBottom: '0.5rem' }}>
-                      {new Date(selectedTrip.end_date) < new Date() ? 'Concluída' : 
-                       new Date(selectedTrip.start_date) > new Date() ? 'Próxima' : 'Em Andamento'}
+                      {new Date(selectedTrip.end_date) < new Date() ? t('trips.status_completed') : 
+                       new Date(selectedTrip.start_date) > new Date() ? t('trips.status_next') : t('trips.status_ongoing')}
                     </div>
                     <h4 style={{ margin: '0.25rem 0 0.4rem 0', fontSize: '1.4rem', fontWeight: '900' }}>{selectedTrip.title}</h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -422,7 +424,7 @@ export default function TripsList({
 
                 <div style={{ marginTop: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.6rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.8 }}>Progresso do Orçamento</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.8 }}>{t('trips.budget_progress')}</span>
                     <span style={{ fontSize: '0.9rem', fontWeight: '900' }}>{Math.round(budgetProgress)}%</span>
                   </div>
                   <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -435,8 +437,8 @@ export default function TripsList({
                     }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.8rem', fontSize: '0.8rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Consumido: <b style={{ color: 'var(--text-main)' }}>{activeCurrency} {(Number(totalSpent) || 0).toLocaleString('pt-BR')}</b></span>
-                    <span style={{ color: 'var(--text-muted)' }}>Meta Total: {activeCurrency} {(Number(totalBudget) || 0).toLocaleString('pt-BR')}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('trips.consumed')}: <b style={{ color: 'var(--text-main)' }}>{activeCurrency} {(Number(totalSpent) || 0).toLocaleString(i18n.language)}</b></span>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('trips.total_target')}: {activeCurrency} {(Number(totalBudget) || 0).toLocaleString(i18n.language)}</span>
                   </div>
                 </div>
               </div>
@@ -481,8 +483,8 @@ export default function TripsList({
                         border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)',
                         marginBottom: '1rem'
                       }}>
-                        {new Date(selectedTrip.end_date) < new Date() ? 'Concluída' : 
-                         new Date(selectedTrip.start_date) > new Date() ? 'Próxima' : 'Em Andamento'}
+                        {new Date(selectedTrip.end_date) < new Date() ? t('trips.status_completed') : 
+                         new Date(selectedTrip.start_date) > new Date() ? t('trips.status_next') : t('trips.status_ongoing')}
                       </div>
                       <h2 style={{ fontSize: '2.25rem', fontWeight: '900', color: 'var(--text-main)', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>
                         {selectedTrip.title}
@@ -494,7 +496,7 @@ export default function TripsList({
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>Moeda Ativa</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>{t('trips.active_currency_label')}</div>
                       <div style={{ 
                         display: 'inline-flex', 
                         alignItems: 'center', 
@@ -523,23 +525,23 @@ export default function TripsList({
                 <div className="hero-card-icon-wrapper" style={{ background: 'var(--primary)', color: 'white', padding: '0.4rem', borderRadius: '10px' }}>
                   <DollarSign size={18} />
                 </div>
-                <span className="hero-card-label">Total Investido</span>
+                <span className="hero-card-label">{t('trips.total_invested')}</span>
               </div>
               
               <div className="hero-card-body">
                 <div className="hero-card-main-value" style={{ marginBottom: '2rem' }}>
                   <div className="value-text" style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
-                    {showValues ? `${activeCurrency} ${(Number(totalSpent) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '••••••'}
+                    {showValues ? `${activeCurrency} ${(Number(totalSpent) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : '••••••'}
                   </div>
                 </div>
                 
                 <div className="hero-card-stats" style={{ display: 'flex', gap: '2rem' }}>
                   <div className="stat-item">
-                    <div className="stat-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>Média/Dia</div>
-                    <div className="stat-value" style={{ fontSize: '1.1rem', fontWeight: '800' }}>{showValues ? `${activeCurrency} ${(Number(dailyAverage) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : '•••'}</div>
+                    <div className="stat-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>{t('trips.daily_average')}</div>
+                    <div className="stat-value" style={{ fontSize: '1.1rem', fontWeight: '800' }}>{showValues ? `${activeCurrency} ${(Number(dailyAverage) || 0).toLocaleString(i18n.language, { maximumFractionDigits: 0 })}` : '•••'}</div>
                   </div>
                   <div className="stat-item">
-                    <div className="stat-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>Meta Restante</div>
+                    <div className="stat-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>{t('trips.remaining_target')}</div>
                     <div className={`stat-value ${remainingBudget > 0 ? 'text-success' : 'text-danger'}`} style={{ fontSize: '1.1rem', fontWeight: '800' }}>
                       {totalBudget > 0 ? `${Math.round((remainingBudget/totalBudget)*100)}%` : '--'}
                     </div>
@@ -559,7 +561,7 @@ export default function TripsList({
                   <div className="hero-card-icon-wrapper" style={{ background: 'var(--secondary)', color: 'white', padding: '0.4rem', borderRadius: '10px' }}>
                     <TrendingUp size={18} />
                   </div>
-                  <span className="hero-card-label">Saúde Financeira</span>
+                  <span className="hero-card-label">{t('trips.financial_health')}</span>
                 </div>
                 <div className={`status-badge ${budgetProgress > 100 ? 'danger' : 'success'}`} style={{ 
                   padding: '0.4rem 0.75rem', 
@@ -571,14 +573,14 @@ export default function TripsList({
                   border: '1px solid currentColor',
                   borderOpacity: 0.2
                 }}>
-                  {budgetProgress > 100 ? 'ESTOURADO' : 'DENTRO DA META'}
+                  {budgetProgress > 100 ? t('trips.overbudget') : t('trips.within_budget')}
                 </div>
               </div>
 
               <div className="hero-card-body">
                 <div className="progress-section" style={{ marginBottom: '2rem' }}>
                   <div className="progress-info" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                    <span className="progress-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Consumo do Orçamento</span>
+                    <span className="progress-label" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('trips.budget_consumption')}</span>
                     <span className={`progress-percentage ${budgetProgress > 90 ? 'text-danger' : ''}`} style={{ fontWeight: '900' }}>{Math.round(budgetProgress)}%</span>
                   </div>
                   <div className="orbit-progress-bar" style={{ height: '10px', background: 'rgba(255,255,255,0.05)' }}>
@@ -589,20 +591,19 @@ export default function TripsList({
                       className={`progress-fill ${budgetProgress > 100 ? 'danger' : 'primary'}`}
                       style={{ height: '100%', borderRadius: '10px' }}
                     />
-                  </div>
-                </div>
-
-                <div className="budget-details" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div className="budget-details" style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <div className="budget-item">
-                    <div className="budget-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>Teto</div>
-                    <div className="budget-value" style={{ fontSize: '1.1rem', fontWeight: '800' }}>{activeCurrency} {(Number(totalBudget) || 0).toLocaleString('pt-BR')}</div>
+                    <div className="budget-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>{t('trips.cap')}</div>
+                    <div className="budget-value" style={{ fontSize: '1.1rem', fontWeight: '800' }}>{activeCurrency} {(Number(totalBudget) || 0).toLocaleString(i18n.language)}</div>
                   </div>
                   <div className="budget-item text-right" style={{ textAlign: 'right' }}>
-                    <div className="budget-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>Disponível</div>
+                    <div className="budget-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.5, fontWeight: '800', marginBottom: '0.25rem' }}>{t('trips.available')}</div>
                     <div className={`budget-value ${remainingBudget > 0 ? 'text-success' : 'text-danger'}`} style={{ fontSize: '1.1rem', fontWeight: '800' }}>
-                      {activeCurrency} {(Number(remainingBudget) || 0).toLocaleString('pt-BR')}
+                      {activeCurrency} {(Number(remainingBudget) || 0).toLocaleString(i18n.language)}
                     </div>
                   </div>
+                </div>
+              </div>
                 </div>
               </div>
             </div>
@@ -611,7 +612,7 @@ export default function TripsList({
           <div className="bento-grid">
             <div className="glass-card" style={{ padding: '1.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <h3 className="hero-card-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <PieChart size={18} className="text-primary" /> Gastos por Categoria
+                <PieChart size={18} className="text-primary" /> {t('trips.expenses_by_category')}
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem' }}>
                 {Object.entries(categoryMap).slice(0, 4).map(([cat, total]) => (
@@ -619,7 +620,7 @@ export default function TripsList({
                     <div className="progress-info" style={{ marginBottom: '0.4rem' }}>
                       <span className="progress-label" style={{ fontSize: '0.8rem', fontWeight: '700' }}>{cat}</span>
                       <span className="progress-percentage" style={{ fontSize: '0.85rem', fontWeight: '900' }}>
-                        {showValues ? (Number(total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '•••'}
+                        {showValues ? (Number(total) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '•••'}
                       </span>
                     </div>
                     <div className="orbit-progress-bar" style={{ height: '6px' }}>
@@ -631,15 +632,15 @@ export default function TripsList({
             </div>
             <div className="glass-card" style={{ padding: '1.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <h3 className="hero-card-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Users size={18} className="text-primary" /> Divisão por Viajante
+                <Users size={18} className="text-primary" /> {t('trips.division_by_traveler')}
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '220px', overflowY: 'auto' }} className="custom-scrollbar">
                 {Object.entries(paidByMap).sort((a,b) => b[1]-a[1]).map(([person, total]) => (
                   <div key={person} className="progress-section">
                     <div className="progress-info" style={{ marginBottom: '0.4rem' }}>
-                      <span className="progress-label" style={{ fontSize: '0.8rem', fontWeight: '700' }}>{person === 'N/A' ? 'Não identificado' : person}</span>
+                      <span className="progress-label" style={{ fontSize: '0.8rem', fontWeight: '700' }}>{person === 'N/A' ? t('trips.unidentified') : person}</span>
                       <span className="progress-percentage" style={{ fontSize: '0.85rem', fontWeight: '900' }}>
-                        {showValues ? (Number(total) || 0).toLocaleString('pt-BR') : '•••'}
+                        {showValues ? (Number(total) || 0).toLocaleString(i18n.language) : '•••'}
                       </span>
                     </div>
                     <div className="orbit-progress-bar" style={{ height: '6px' }}>
@@ -654,10 +655,10 @@ export default function TripsList({
           <div className="glass-card" style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem' }}>
-                <DollarSign size={22} className="text-primary" /> Despesas
+                <DollarSign size={22} className="text-primary" /> {t('trips.expenses_title')}
               </h3>
               <button className="btn" onClick={() => setIsAddingExpense(true)} style={{ background: 'var(--primary)', color: 'white', padding: '0.6rem 1.2rem', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Plus size={16} /> Nova Despesa
+                <Plus size={16} /> {t('trips.new_expense_btn')}
               </button>
             </div>
 
@@ -666,7 +667,7 @@ export default function TripsList({
                 <Search size={18} className="filter-icon" />
                 <input 
                   type="text" 
-                  placeholder="Buscar despesa..." 
+                  placeholder={t('trips.search_expense_placeholder')} 
                   value={searchQuery} 
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="glass-input" 
@@ -679,7 +680,7 @@ export default function TripsList({
                   onChange={(e) => setFilterCategory(e.target.value)}
                   className="glass-input"
                 >
-                  <option value="all">Todas Categorias</option>
+                  <option value="all">{t('trips.all_categories')}</option>
                   {categories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
@@ -690,12 +691,12 @@ export default function TripsList({
               {isExpensesLoading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', gap: '1.5rem', background: 'rgba(255,255,255,0.01)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
                   <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(99, 102, 241, 0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: '600' }}>Sincronizando dados...</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '1rem', fontWeight: '600' }}>{t('trips.syncing_data')}</p>
                 </div>
               ) : filteredExpenses.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.01)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
                   <AlertCircle size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                  <p style={{ fontSize: '1rem', fontWeight: '500' }}>Nenhum lançamento encontrado para esta busca.</p>
+                  <p style={{ fontSize: '1rem', fontWeight: '500' }}>{t('trips.no_entries_found')}</p>
                 </div>
               ) : (
                 <>
@@ -730,7 +731,7 @@ export default function TripsList({
                               </div>
                               <div className="expense-card-amount">
                                 <div className="expense-amount-value">
-                                  {showValues ? (Number(exp.amount) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '••••'}
+                                  {showValues ? (Number(exp.amount) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2 }) : '••••'}
                                 </div>
                                 <div className="expense-amount-currency">{exp.currency}</div>
                               </div>
@@ -745,10 +746,10 @@ export default function TripsList({
                                   <button className="icon-btn" onClick={async () => {
                                     const signedUrl = await getSignedUrl('trip-documents', exp.receipt_url);
                                     if (signedUrl) window.open(signedUrl, '_blank');
-                                  }} title="Ver Comprovante"><FileText size={16} /></button>
+                                  }} title={t('trips.view_receipt')}><FileText size={16} /></button>
                                 )}
-                                <button className="icon-btn" onClick={() => setEditingExpense(exp)} title="Editar"><Edit2 size={16} /></button>
-                                <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title="Excluir"><Trash2 size={16} /></button>
+                                <button className="icon-btn" onClick={() => setEditingExpense(exp)} title={t('trips.edit')}><Edit2 size={16} /></button>
+                                <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title={t('trips.delete')}><Trash2 size={16} /></button>
                               </div>
                             </div>
                           </Motion.div>
@@ -762,13 +763,13 @@ export default function TripsList({
                       <thead>
                         <tr>
                           <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>DATA <ArrowUpDown size={12} /></div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{t('trips.date_col')} <ArrowUpDown size={12} /></div>
                           </th>
-                          <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>DESCRIÇÃO</th>
-                          <th>CATEGORIA</th>
-                          <th>PAGO POR</th>
-                          <th className="text-right">VALOR</th>
-                          <th className="text-center">AÇÕES</th>
+                          <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>{t('trips.description_col')}</th>
+                          <th>{t('trips.category_col')}</th>
+                          <th>{t('trips.paid_by_col')}</th>
+                          <th className="text-right">{t('trips.value_col')}</th>
+                          <th className="text-center">{t('trips.actions_col')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -799,7 +800,7 @@ export default function TripsList({
                               </td>
                               <td>{exp.paid_by}</td>
                               <td className="text-right" style={{ fontWeight: '900' }}>
-                                {showValues ? (Number(exp.amount) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '••••'} 
+                                {showValues ? (Number(exp.amount) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2 }) : '••••'} 
                                 <small style={{ fontSize: '0.65rem', opacity: 0.5, marginLeft: '0.25rem' }}>{exp.currency}</small>
                               </td>
                               <td>
@@ -808,10 +809,10 @@ export default function TripsList({
                                     <button onClick={async () => {
                                       const signedUrl = await getSignedUrl('trip-documents', exp.receipt_url);
                                       if (signedUrl) window.open(signedUrl, '_blank');
-                                    }} className="icon-btn" title="Ver Comprovante"><FileText size={16} /></button>
+                                    }} className="icon-btn" title={t('trips.view_receipt')}><FileText size={16} /></button>
                                   )}
-                                  <button className="icon-btn" onClick={() => setEditingExpense(exp)} title="Editar"><Edit2 size={16} /></button>
-                                  <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title="Excluir"><Trash2 size={16} /></button>
+                                  <button className="icon-btn" onClick={() => setEditingExpense(exp)} title={t('trips.edit')}><Edit2 size={16} /></button>
+                                  <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title={t('trips.delete')}><Trash2 size={16} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -828,8 +829,8 @@ export default function TripsList({
       ) : (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
           <Plane size={48} style={{ opacity: 0.2, marginBottom: '1.5rem' }} />
-          <h3 style={{ margin: 0 }}>Nenhuma viagem selecionada</h3>
-          <p style={{ marginTop: '0.5rem' }}>Selecione uma viagem no menu acima para ver os detalhes.</p>
+          <h3 style={{ margin: 0 }}>{t('trips.no_trips_selected')}</h3>
+          <p style={{ marginTop: '0.5rem' }}>{t('trips.select_trip_desc')}</p>
         </div>
       )}
 

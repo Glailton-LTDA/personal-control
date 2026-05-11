@@ -416,9 +416,19 @@ export default function InvestmentList({ user, showValues = true }) {
 
       {/* FAB - Floating Action Button */}
       <button 
-        className="contextual-fab" 
+        className="btn-primary contextual-fab" 
         onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
         title="Novo Registro"
+        style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          zIndex: 100,
+          boxShadow: '0 12px 24px rgba(99, 102, 241, 0.4)'
+        }}
       >
         <Plus size={32} />
       </button>

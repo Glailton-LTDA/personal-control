@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import TripsItinerary from './TripsItinerary';
 import { supabase } from '../../lib/supabase';
+import React from 'react';
+
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
 
 // Mock ItineraryManager to simplify the test surface
 vi.mock('./ItineraryManager', () => ({
@@ -33,7 +45,7 @@ describe('TripsItinerary Component', () => {
       render(<TripsItinerary user={mockUser} />);
     });
     
-    expect(screen.getByText('Roteiros')).toBeInTheDocument();
+    expect(screen.getByText('trips.itineraries')).toBeInTheDocument();
     expect(await screen.findByText('Viagem 1')).toBeInTheDocument();
     expect(await screen.findByText('Viagem 2')).toBeInTheDocument();
   });
@@ -71,7 +83,7 @@ describe('TripsItinerary Component', () => {
     
     await screen.findByText('Viagem 1');
     
-    const searchInput = screen.getByPlaceholderText('Buscar viagem...');
+    const searchInput = screen.getByPlaceholderText('trips.search_trip_placeholder');
     fireEvent.change(searchInput, { target: { value: 'Viagem 2' } });
     
     expect(screen.queryByText('Viagem 1')).not.toBeInTheDocument();

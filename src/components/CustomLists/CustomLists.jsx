@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   List, Plus, Search, Settings, Trash2, Edit2, 
   ChevronRight, Save, X, Loader2, Info, 
@@ -13,19 +14,20 @@ import toast from 'react-hot-toast';
 import AddressInput from '../Trips/AddressInput';
 
 const FIELD_TYPES = [
-  { id: 'text', label: 'Texto', icon: Type },
-  { id: 'textarea', label: 'Texto Longo', icon: AlignLeft },
-  { id: 'number', label: 'Número', icon: Hash },
-  { id: 'date', label: 'Data', icon: Calendar },
-  { id: 'checkbox', label: 'Checklist', icon: CheckCircle2 },
-  { id: 'address', label: 'Endereço', icon: MapPin },
-  { id: 'link', label: 'Link', icon: ExternalLink },
+  { id: 'text', icon: Type },
+  { id: 'textarea', icon: AlignLeft },
+  { id: 'number', icon: Hash },
+  { id: 'date', icon: Calendar },
+  { id: 'checkbox', icon: CheckCircle2 },
+  { id: 'address', icon: MapPin },
+  { id: 'link', icon: ExternalLink },
 ];
 
 const TEXT_CLAMP_THRESHOLD = 80;
 const TEXT_CLAMP_LINES = 3;
 
 function ExpandableText({ text }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [clamped, setClamped] = useState(false);
   const textRef = useRef(null);
@@ -75,7 +77,7 @@ function ExpandableText({ text }) {
             alignSelf: 'flex-start'
           }}
         >
-          {expanded ? <><ChevronUp size={12} /> Ver menos</> : <><ChevronDown size={12} /> Ver mais</>}
+          {expanded ? <><ChevronUp size={12} /> {t('lists.ver_menos')}</> : <><ChevronDown size={12} /> {t('lists.ver_mais')}</>}
         </button>
       )}
     </div>
@@ -123,6 +125,7 @@ function AutoResizeTextarea({ value, onChange, placeholder, className, style }) 
 }
 
 export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
+  const { t, i18n } = useTranslation();
   const { decryptObject } = useEncryption();
   const [lists, setLists] = useState([]);
   const [selectedList, setSelectedList] = useState(null);
@@ -169,11 +172,11 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       }
     } catch (err) {
       console.error('Error fetching lists:', err);
-      toast.error('Erro ao carregar coleções');
+      toast.error(t('finances.error_loading'));
     } finally {
       setIsLoading(false);
     }
-  }, [user, decryptObject]);
+  }, [user, decryptObject, t]);
 
   const fetchShares = useCallback(async () => {
     if (!selectedList || selectedList.user_id !== user.id) {
@@ -213,9 +216,9 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       }
     } catch (err) {
       console.error('Error fetching items:', err);
-      toast.error('Erro ao carregar itens');
+      toast.error(t('finances.error_loading'));
     }
-  }, [decryptObject]);
+  }, [decryptObject, t]);
 
   useEffect(() => {
     fetchLists();
@@ -237,7 +240,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     } else {
       setSelectedList(null);
     }
-  }, [lists, mode]);
+  }, [lists, mode, selectedList]);
 
   useEffect(() => {
     fetchShares();
@@ -251,7 +254,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
 
   const handleSaveList = async () => {
     if (!newList.name) {
-      toast.error('O nome da lista é obrigatório');
+      toast.error(t('lists.list_name') + ' ' + t('finances.required_field'));
       return;
     }
     setIsSaving(true);
@@ -267,7 +270,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           })
           .eq('id', editingListId);
         if (error) throw error;
-        toast.success('Lista atualizada!');
+        toast.success(t('finances.success_update'));
       } else {
         const { error } = await supabase
           .from('custom_lists')
@@ -279,7 +282,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
             fields: newList.fields
           }]);
         if (error) throw error;
-        toast.success('Lista criada!');
+        toast.success(t('finances.success_save'));
       }
       
       setIsModalOpen(false);
@@ -288,7 +291,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       fetchLists();
     } catch (err) {
       console.error('Error saving list:', err);
-      toast.error('Erro ao salvar lista');
+      toast.error(t('finances.error_save'));
     } finally {
       setIsSaving(false);
     }
@@ -299,16 +302,16 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     if (!list) return;
 
     if (list.user_id === user.id) {
-      if (confirm('Excluir esta coleção e todos os seus itens permanentemente?')) {
+      if (confirm(t('finances.delete_confirm'))) {
         const { error } = await supabase.from('custom_lists').delete().eq('id', id);
         if (!error) {
-          toast.success('Coleção excluída');
+          toast.success(t('finances.success_delete'));
           if (selectedList?.id === id) setSelectedList(null);
           fetchLists();
         }
       }
     } else {
-      if (confirm('Deseja realmente sair desta lista compartilhada?')) {
+      if (confirm(t('finances.delete_confirm'))) {
         const { error } = await supabase
           .from('custom_list_shares')
           .delete()
@@ -316,7 +319,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           .eq('shared_with_email', user.email.toLowerCase().trim());
         
         if (!error) {
-          toast.success('Você saiu da lista');
+          toast.success(t('finances.success_delete'));
           if (selectedList?.id === id) setSelectedList(null);
           fetchLists();
         }
@@ -350,25 +353,25 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       fetchItems(selectedList.id);
       setIsModalOpen(false);
       setEditingItem(null);
-      toast.success(editingItem ? 'Item atualizado' : 'Item adicionado');
+      toast.success(editingItem ? t('finances.success_update') : t('finances.success_save'));
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Erro ao salvar item');
+      toast.error(t('finances.error_save'));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteItem = async (id) => {
-    if (!confirm('Deseja excluir este item?')) return;
+    if (!confirm(t('finances.delete_confirm'))) return;
     try {
       const { error } = await supabase.from('custom_list_items').delete().eq('id', id);
       if (error) throw error;
       setItems(items.filter(i => i.id !== id));
-      toast.success('Item excluído');
+      toast.success(t('finances.success_delete'));
     } catch (err) {
       console.error('Delete error:', err);
-      toast.error('Erro ao excluir');
+      toast.error(t('finances.error_delete'));
     }
   };
 
@@ -409,7 +412,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
             <Circle size={18} style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
           }
           <span style={{ fontSize: '0.85rem', color: item.data[field.id] ? 'var(--success)' : 'var(--text-muted)' }}>
-            {item.data[field.id] ? 'Sim' : 'Não'}
+            {item.data[field.id] ? t('lists.sim') : t('lists.nao')}
           </span>
         </div>
       );
@@ -429,7 +432,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           border: '1px solid var(--glass-border)'
         }}>
           <Calendar size={12} strokeWidth={3} />
-          {item.data[field.id] ? new Date(item.data[field.id] + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
+          {item.data[field.id] ? new Date(item.data[field.id] + 'T00:00:00').toLocaleDateString(i18n.language) : '-'}
         </div>
       );
     }
@@ -499,18 +502,45 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           {/* Accent Glow */}
           <div style={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, background: 'var(--primary)', opacity: 0.1, filter: 'blur(80px)', pointerEvents: 'none' }} />
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', position: 'relative', zIndex: 1 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.03em' }}>Ajustes de Coleções</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 500 }}>Gerencie a arquitetura das suas listas dinâmicas</p>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: isMobile ? 'flex-start' : 'center', 
+            marginBottom: '3rem', 
+            position: 'relative', 
+            zIndex: 1,
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: '1.5rem'
+          }}>
+            <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
+              <h2 style={{ 
+                margin: 0, 
+                fontSize: isMobile ? '1.5rem' : '2rem', 
+                fontWeight: 900, 
+                color: 'var(--text-main)', 
+                letterSpacing: '-0.03em' 
+              }}>
+                {t('lists.settings_title')}
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 500 }}>{t('lists.settings_desc')}</p>
             </div>
             <button 
               onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
               className="btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.8rem 1.5rem', borderRadius: '12px', boxShadow: '0 8px 20px rgba(99, 102, 241, 0.3)' }}
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.75rem', 
+                padding: isMobile ? '1rem 1.5rem' : '0.8rem 1.5rem', 
+                borderRadius: '16px', 
+                boxShadow: '0 8px 20px rgba(99, 102, 241, 0.3)',
+                fontSize: isMobile ? '0.95rem' : '1rem',
+                width: isMobile ? '100%' : 'auto',
+                justifyContent: 'center'
+              }}
               data-testid="btn-add-collection-settings"
             >
-              <Plus size={20} strokeWidth={3} /> <span style={{ fontWeight: 800 }}>NOVA LISTA</span>
+              <Plus size={isMobile ? 22 : 20} strokeWidth={3} /> <span style={{ fontWeight: 800 }}>{t('lists.new_list')}</span>
             </button>
           </div>
 
@@ -520,7 +550,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
             ) : lists.length === 0 ? (
               <div style={{ padding: '5rem', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
                 <Box size={60} style={{ margin: '0 auto 1.5rem', opacity: 0.2 }} />
-                <p style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Comece criando sua primeira coleção personalizada</p>
+                <p style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{t('lists.no_lists')}</p>
               </div>
             ) : lists.map(list => (
               <Motion.div 
@@ -556,8 +586,8 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                   <div>
                     <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>{list.name}</h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--primary)', background: 'rgba(99, 102, 241, 0.1)', padding: '0.1rem 0.6rem', borderRadius: '6px' }}>{list.fields?.length || 0} CAMPOS</span>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{list.user_id === user.id ? 'Proprietário' : 'Compartilhada'}</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--primary)', background: 'rgba(99, 102, 241, 0.1)', padding: '0.1rem 0.6rem', borderRadius: '6px' }}>{t('lists.fields_count', { count: list.fields?.length || 0 })}</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{list.user_id === user.id ? t('lists.owner') : t('lists.shared')}</span>
                     </div>
                   </div>
                 </div>
@@ -572,12 +602,12 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                       }} 
                       className="icon-btn" 
                       style={{ background: 'rgba(255,255,255,0.05)', width: 44, height: 44 }}
-                      title="Editar Estrutura"
+                      title={t('lists.edit_structure')}
                     >
                       <Edit2 size={18} />
                     </button>
                   )}
-                  <button onClick={() => handleDeleteList(list.id)} className="icon-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', width: 44, height: 44 }} title="Excluir Coleção">
+                  <button onClick={() => handleDeleteList(list.id)} className="icon-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', width: 44, height: 44 }} title={t('lists.delete_collection')}>
                     <Trash2 size={18} />
                   </button>
                 </div>
@@ -592,34 +622,34 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
               <Motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-card" style={{ position: 'relative', width: '100%', maxWidth: '550px', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? '1.5rem' : '2.5rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingListId ? 'Editar Coleção' : 'Nova Coleção'}</h3>
+                    <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingListId ? t('lists.edit_list') : t('lists.new_list')}</h3>
                     <button onClick={() => setIsModalOpen(false)} className="icon-btn"><X size={20} /></button>
                   </div>
                   <div className="glass-input-container">
-                    <label style={{ color: 'var(--text-muted)' }}>Nome da Lista</label>
-                    <input className="glass-input" value={newList.name} onChange={e => setNewList({...newList, name: e.target.value})} placeholder="Ex: Inventário de Remédios" />
+                    <label style={{ color: 'var(--text-muted)' }}>{t('lists.list_name')}</label>
+                    <input data-testid="input-list-name" className="glass-input" value={newList.name} onChange={e => setNewList({...newList, name: e.target.value})} placeholder={t('lists.name_placeholder')} />
                   </div>
                   <div className="glass-input-container">
-                    <label style={{ color: 'var(--text-muted)' }}>Descrição</label>
-                    <textarea className="glass-input" value={newList.description} onChange={e => setNewList({...newList, description: e.target.value})} placeholder="Opcional..." rows={2} />
+                    <label style={{ color: 'var(--text-muted)' }}>{t('lists.description_label')}</label>
+                    <textarea className="glass-input" value={newList.description} onChange={e => setNewList({...newList, description: e.target.value})} placeholder={t('lists.optional_placeholder')} rows={2} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>Campos da Tabela</label>
-                    <button onClick={addField} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem' }}>+ ADICIONAR CAMPO</button>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>{t('lists.table_fields')}</label>
+                    <button onClick={addField} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem' }}>{t('lists.add_field')}</button>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {newList.fields.map((f) => (
                       <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 40px', gap: '0.5rem' }}>
-                        <input className="glass-input" value={f.name} onChange={e => updateField(f.id, 'name', e.target.value)} placeholder="Ex: Nome do Item" />
+                        <input className="glass-input" value={f.name} onChange={e => updateField(f.id, 'name', e.target.value)} placeholder={t('lists.field_name_placeholder')} />
                         <select className="glass-input" value={f.type} onChange={e => updateField(f.id, 'type', e.target.value)}>
-                          {FIELD_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                          {FIELD_TYPES.map(type => <option key={type.id} value={type.id}>{t(`lists.field_types.${type.id}`)}</option>)}
                         </select>
                         <button onClick={() => removeField(f.id)} className="icon-btn" style={{ color: 'var(--danger)' }} disabled={newList.fields.length === 1}><Trash2 size={16} /></button>
                       </div>
                     ))}
                   </div>
-                  <button onClick={handleSaveList} disabled={isSaving} className="btn-primary" style={{ padding: '1rem', marginTop: '1rem' }}>
-                    {isSaving ? <Loader2 className="spin" size={18} /> : (editingListId ? 'Salvar Alterações' : 'Criar Lista')}
+                  <button data-testid="btn-save-collection" onClick={handleSaveList} disabled={isSaving} className="btn-primary" style={{ padding: '1rem', marginTop: '1rem' }}>
+                    {isSaving ? <Loader2 className="spin" size={18} /> : (editingListId ? t('lists.save_changes') : t('lists.create_list'))}
                   </button>
                 </div>
               </Motion.div>
@@ -647,7 +677,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
             border: '1px solid var(--glass-border)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Coleções</h3>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('lists.collections')}</h3>
               <button 
                 onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
                 className="icon-btn" 
@@ -689,12 +719,12 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                       </div>
                       <div style={{ flex: 1, overflow: 'hidden' }}>
                         <div style={{ fontWeight: 800, fontSize: '0.95rem', color: isActive ? 'var(--text-main)' : 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{list.name}</div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.6, color: isActive ? 'var(--primary)' : 'var(--text-muted)' }}>{list.fields?.length || 0} CAMPOS</div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.6, color: isActive ? 'var(--primary)' : 'var(--text-muted)' }}>{t('lists.fields_count', { count: list.fields?.length || 0 })}</div>
                       </div>
                     </Motion.button>
                     <button 
                       onClick={() => { setSelectedList(list); setModalType('share'); setIsModalOpen(true); }}
-                      className="icon-btn" style={{ width: 32, height: 32, opacity: isActive ? 1 : 0.4 }} title="Compartilhar"
+                      className="icon-btn" style={{ width: 32, height: 32, opacity: isActive ? 1 : 0.4 }} title={t('lists.share')}
                       data-testid="btn-share-collection"
                     >
                       <Users size={16} />
@@ -709,7 +739,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
         <main style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
           {isMobile && (
             <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Selecionar Coleção</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('lists.select_collection')}</label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <select 
                   className="glass-input" 
@@ -736,20 +766,20 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
               <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div style={{ flex: 1, minWidth: '200px' }}>
                   <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-main)' }}>{selectedList.name}</h2>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{selectedList.description || 'Sua lista dinâmica'}</p>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{selectedList.description || t('lists.dynamic_list')}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   {selectedList.user_id === user.id && (
                     <button 
                       onClick={() => { setModalType('share'); setIsModalOpen(true); }} 
                       className="icon-btn" 
-                      title="Compartilhar"
+                      title={t('lists.share')}
                       data-testid="btn-share-collection"
                     >
                       <Users size={20} />
                     </button>
                   )}
-                  <button onClick={() => { setModalType('item'); setEditingItem(null); setIsModalOpen(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '44px' }}><Plus size={18} /> Novo Item</button>
+                  <button onClick={() => { setModalType('item'); setEditingItem(null); setIsModalOpen(true); }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '44px' }}><Plus size={18} /> {t('lists.new_item')}</button>
                 </div>
               </div>
 
@@ -884,7 +914,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           ) : (
             <div className="glass-card" style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
               <List size={48} style={{ marginBottom: '1rem', color: 'var(--text-main)' }} />
-              <h3 style={{ color: 'var(--text-main)' }}>Selecione uma coleção</h3>
+              <h3 style={{ color: 'var(--text-main)' }}>{t('lists.select_collection')}</h3>
             </div>
           )}
         </main>
@@ -898,34 +928,34 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
               {modalType === 'list' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingListId ? 'Editar Coleção' : 'Nova Coleção'}</h3>
+                    <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingListId ? t('lists.edit_list') : t('lists.new_list')}</h3>
                     <button onClick={() => setIsModalOpen(false)} className="icon-btn"><X size={20} /></button>
                   </div>
                   <div className="glass-input-container">
-                    <label style={{ color: 'var(--text-muted)' }}>Nome da Lista</label>
-                    <input className="glass-input" value={newList.name} onChange={e => setNewList({...newList, name: e.target.value})} placeholder="Ex: Inventário de Remédios" />
+                    <label style={{ color: 'var(--text-muted)' }}>{t('lists.list_name')}</label>
+                    <input className="glass-input" value={newList.name} onChange={e => setNewList({...newList, name: e.target.value})} placeholder={t('lists.name_placeholder')} data-testid="input-list-name" />
                   </div>
                   <div className="glass-input-container">
-                    <label style={{ color: 'var(--text-muted)' }}>Descrição</label>
-                    <textarea className="glass-input" value={newList.description} onChange={e => setNewList({...newList, description: e.target.value})} placeholder="Opcional..." rows={2} />
+                    <label style={{ color: 'var(--text-muted)' }}>{t('lists.description_label')}</label>
+                    <textarea className="glass-input" value={newList.description} onChange={e => setNewList({...newList, description: e.target.value})} placeholder={t('lists.description_placeholder')} rows={2} data-testid="input-list-description" />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>Campos da Tabela</label>
-                    <button onClick={addField} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem' }}>+ ADICIONAR CAMPO</button>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>{t('lists.table_fields')}</label>
+                    <button onClick={addField} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem' }}>{t('lists.add_field')}</button>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {newList.fields.map((f) => (
                       <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 40px', gap: '0.5rem' }}>
-                        <input className="glass-input" value={f.name} onChange={e => updateField(f.id, 'name', e.target.value)} placeholder="Ex: Nome do Item" />
+                        <input className="glass-input" value={f.name} onChange={e => updateField(f.id, 'name', e.target.value)} placeholder={t('lists.field_name_placeholder')} />
                         <select className="glass-input" value={f.type} onChange={e => updateField(f.id, 'type', e.target.value)}>
-                          {FIELD_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                          {FIELD_TYPES.map(type => <option key={type.id} value={type.id}>{t(`lists.field_types.${type.id}`)}</option>)}
                         </select>
                         <button onClick={() => removeField(f.id)} className="icon-btn" style={{ color: 'var(--danger)' }} disabled={newList.fields.length === 1}><Trash2 size={16} /></button>
                       </div>
                     ))}
                   </div>
                   <button onClick={handleSaveList} disabled={isSaving} className="btn-primary" style={{ padding: '1rem', marginTop: '1rem' }}>
-                    {isSaving ? <Loader2 className="spin" size={18} /> : (editingListId ? 'Salvar Alterações' : 'Criar Lista')}
+                    {isSaving ? <Loader2 className="spin" size={18} /> : (editingListId ? t('lists.save_changes') : t('lists.create_list'))}
                   </button>
                 </div>
               ) : modalType === 'share' ? (

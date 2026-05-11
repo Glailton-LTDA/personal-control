@@ -4,6 +4,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import FinanceList from './FinanceList';
 import { supabase } from '../../lib/supabase';
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
 // Mock SummaryDashboard
 vi.mock('./SummaryDashboard', () => ({
   __esModule: true,
@@ -138,7 +149,7 @@ describe('FinanceList', () => {
     await screen.findByTestId('finance-row-Mercado');
     
     // Click Receitas
-    const revenueTab = screen.getByRole('button', { name: /Receitas/i });
+    const revenueTab = screen.getByRole('button', { name: /finances.revenues/i });
     fireEvent.click(revenueTab);
     
     // Wait for Salário to appear

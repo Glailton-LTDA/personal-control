@@ -81,11 +81,11 @@ test.describe('Investments Module', () => {
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password');
-    await page.getByRole('button', { name: 'Entrar' }).click();
+    await page.getByTestId('login-btn').click();
 
     // Wait for Dashboard to mount (Launchpad)
     await page.waitForSelector('header', { timeout: 20000 });
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
   });
 
   test('should display investment dashboard with charts', async ({ page }) => {
@@ -94,13 +94,13 @@ test.describe('Investments Module', () => {
     await page.waitForLoadState('networkidle');
     
     // Wait for the view to change
-    await expect(page.getByText('Performance de Investimentos')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Performance de Investimentos|Investment Performance/i)).toBeVisible({ timeout: 15000 });
     
     // Wait for performance card
-    await expect(page.getByText('Performance de Investimentos')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Performance de Investimentos|Investment Performance/i)).toBeVisible({ timeout: 10000 });
     
     // Check specific stats
-    await expect(page.locator('text=Patrimônio Total')).toBeVisible();
+    await expect(page.getByText(/Patrimônio Total|Total Assets/i)).toBeVisible();
   });
 
   test('should navigate to investment list', async ({ page }) => {
@@ -113,7 +113,7 @@ test.describe('Investments Module', () => {
     await page.getByTestId('sidebar-sub-item-investments-list').click();
 
     // Confirm navigation succeeded via header title change
-    await expect(page.getByTestId('header-title').first()).toHaveText('Investimentos', { timeout: 10000 });
+    await expect(page.getByTestId('header-title').first()).toHaveText(/Investimentos|Investments/i, { timeout: 10000 });
     // Now check the summary card
     await expect(page.getByTestId('summary-card-total-balance-list')).toBeVisible({ timeout: 30000 });
   });

@@ -5,6 +5,17 @@ import MyCars from './MyCars';
 import { supabase } from '../../lib/supabase';
 import { EncryptionProvider } from '../../contexts/EncryptionContext';
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
 const mockCars = [
   { id: '1', name: 'Audi A3', make: 'Audi', model: 'A3', year: 2022, plate: 'ABC-1234', current_km: 15000, is_hidden: false, user_id: 'user-1' },
 ];

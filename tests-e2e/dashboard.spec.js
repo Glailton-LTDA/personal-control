@@ -67,9 +67,9 @@ test.describe('Autenticação e Dashboard', () => {
     await page.getByTestId('launchpad-item-finances').click();
     await page.waitForLoadState('networkidle');
 
-    // Verifica dados mockados nos cards específicos
-    const incomeCard = page.locator('.glass-card', { hasText: /Receita (Anual|Mensal)/i });
-    const balanceCard = page.locator('.glass-card', { hasText: /Saldo Final/i });
+    // Verifica dados mockados nos cards específicos via data-testid
+    const incomeCard = page.getByTestId('stat-card-income');
+    const balanceCard = page.getByTestId('stat-card-balance');
 
     await expect(incomeCard.getByText(/1\.?000,00/i)).toBeVisible();
     await expect(balanceCard.getByText(/500,00/i)).toBeVisible();
@@ -88,7 +88,7 @@ test.describe('Autenticação e Dashboard', () => {
     await page.waitForLoadState('networkidle');
 
     // Valor deve estar visível inicialmente
-    const incomeValue = page.locator('.glass-card', { hasText: /Receita (Anual|Mensal)/i }).getByText(/1\.?000,00/i);
+    const incomeValue = page.getByTestId('stat-card-income').getByText(/1\.?000,00/i);
     await expect(incomeValue).toBeVisible();
 
     // Clica no botão de privacidade

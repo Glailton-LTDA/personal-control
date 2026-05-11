@@ -226,7 +226,8 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               {[
                 { id: 'pt', code: 'br', label: 'Português' },
-                { id: 'en', code: 'us', label: 'English' }
+                { id: 'en', code: 'us', label: 'English' },
+                { id: 'es', code: 'es', label: 'Español' }
               ].map(lang => (
                 <button 
                   key={lang.id}

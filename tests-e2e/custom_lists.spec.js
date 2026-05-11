@@ -5,17 +5,17 @@ test.describe('Custom Lists', () => {
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'password');
-    await page.click('button:has-text("Entrar")');
+    await page.getByTestId('login-btn').click();
     
     // Wait for dashboard to load (Launchpad)
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
 
     // Navega para Finanças via Launchpad para garantir o estado inicial esperado
     await page.getByTestId('launchpad-item-finances').click();
     await page.waitForLoadState('networkidle');
     
     // Agora verifica o título no sub-header
-    await expect(page.getByTestId('header-title').first()).toContainText('Finanças', { timeout: 15000 });
+    await expect(page.getByTestId('header-title').first()).toContainText(/Finanças|Finances|Finanzas/i, { timeout: 15000 });
 
     // Expand "Minhas Listas" using test ID
     await page.getByTestId('sidebar-group-lists').click();
@@ -72,8 +72,8 @@ test.describe('Custom Lists', () => {
     // Create new list
     await page.getByTestId('btn-add-collection').click();
     
-    await page.fill('input[placeholder="Ex: Inventário de Remédios"]', 'Lista E2E Teste');
-    await page.click('button:has-text("Criar Lista")');
+    await page.getByTestId('input-list-name').fill('Lista E2E Teste');
+    await page.getByRole('button', { name: /Criar Lista/i }).click();
     
     // Verify list created in sidebar
     const aside = page.locator('aside.glass-card').filter({ hasText: 'Coleções' });
@@ -100,7 +100,7 @@ test.describe('Custom Lists', () => {
     const shareBtn = page.getByTestId('btn-share-collection').first();
     await shareBtn.click({ force: true });
     
-    await expect(page.getByTestId('modal-title')).toContainText('Compartilhar Lista');
+    await expect(page.getByTestId('modal-title')).toContainText(/Compartilhar Lista|Share List|Compartir Lista/i);
     await expect(page.locator('input[type="email"]')).toBeVisible();
   });
 });

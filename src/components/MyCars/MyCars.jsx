@@ -17,8 +17,10 @@ import {
   Eye,
   EyeOff,
   Filter,
-  FileText
+  FileText,
+  LayoutDashboard
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useEncryption } from '../../contexts/EncryptionContext';
 import { confirmToast } from '../../lib/toast';
@@ -30,6 +32,7 @@ import CarSharesManager from './CarSharesManager';
 import { milestones, defaultServiceTemplates } from './constants';
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
+  const { t } = useTranslation();
   const { decryptObject, encryptObject } = useEncryption();
   const [cars, setCars] = useState([]);
   const [sharedCars, setSharedCars] = useState([]);
@@ -266,8 +269,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               <Filter size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Preferências de Visualização</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Configure como seus dados de frota são exibidos.</p>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>{t('cars.admin.prefs_title')}</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.admin.prefs_desc')}</p>
             </div>
           </div>
           
@@ -292,8 +295,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               style={{ width: '20px', height: '20px', cursor: 'pointer' }}
             />
             <div>
-              <p style={{ fontWeight: 800, fontSize: '0.95rem', margin: 0 }}>Mostrar veículos arquivados</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Exibir carros ocultos na lista de seleção principal.</p>
+              <p style={{ fontWeight: 800, fontSize: '0.95rem', margin: 0 }}>{t('cars.admin.show_archived')}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.admin.show_archived_desc')}</p>
             </div>
           </div>
         </div>
@@ -304,8 +307,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               <EyeOff size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Veículos Arquivados</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Gerencie seus veículos fora de circulação.</p>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>{t('cars.admin.archived_title')}</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.admin.archived_desc')}</p>
             </div>
           </div>
 
@@ -313,7 +316,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
             {cars.filter(c => c.is_hidden).length === 0 && sharedCars.filter(c => c.is_hidden).length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', background: 'var(--card-action-bg)', borderRadius: '16px' }}>
                 <Car size={48} style={{ opacity: 0.1, marginBottom: '1rem' }} />
-                <p style={{ margin: 0 }}>Nenhum veículo arquivado.</p>
+                <p style={{ margin: 0 }}>{t('cars.admin.no_archived')}</p>
               </div>
             ) : (
               <>
@@ -324,7 +327,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate} • {car.make} {car.model}</p>
                     </div>
                     <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                      <Eye size={16} /> Restaurar
+                      <Eye size={16} /> {t('cars.admin.restore')}
                     </button>
                   </div>
                 ))}
@@ -337,7 +340,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate}</p>
                     </div>
                     <button className="btn-secondary" onClick={() => handleToggleArchive(car)} style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                      <Eye size={16} /> Restaurar
+                      <Eye size={16} /> {t('cars.admin.restore')}
                     </button>
                   </div>
                 ))}
@@ -352,14 +355,32 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     );
   }
 
-  if (loading) return <div className="skeleton-loader" style={{ height: '400px' }} />;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem', gap: '1rem' }}>
+        <Car size={48} className="animate-spin" style={{ color: 'var(--primary)', opacity: 0.5 }} />
+        <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{t('cars.loading')}</span>
+      </div>
+    );
+  }
 
-  const visibleCars = cars.filter(c => showHidden || !c.is_hidden);
-  const visibleShared = sharedCars.filter(c => showHidden || !c.is_hidden);
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="cat-icon-wrap" style={{ "--cat-color": "var(--primary)" }}>
+            <Car size={24} />
+          </div>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0 }}>{t('cars.title')}</h2>
+        </div>
+        <button onClick={() => { setModalType('add_car'); setIsModalOpen(true); }} className="btn-primary">
+          <Plus size={18} /> {t('cars.add_car')}
+        </button>
+      </header>
+
       {invitations.length > 0 && (
         <Motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -372,8 +393,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
               <Mail size={24} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Novos Convites</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Você recebeu acesso a novos veículos.</p>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{t('cars.invitations.title')}</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('cars.invitations.desc')}</p>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -384,7 +405,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                   <span style={{ fontWeight: 700 }}>{invite.car_id.name} <small style={{ opacity: 0.6, fontWeight: 500 }}>({invite.car_id.plate})</small></span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn-primary" onClick={() => handleAcceptInvitation(invite.id)} style={{ padding: '8px 16px', fontSize: '0.8rem', height: '36px' }}>Aceitar</button>
+                  <button className="btn-primary" onClick={() => handleAcceptInvitation(invite.id)} style={{ padding: '8px 16px', fontSize: '0.8rem', height: '36px' }}>{t('common.accept')}</button>
                   <button className="action-btn danger" onClick={() => handleRejectInvitation(invite.id)}><XCircle size={18} /></button>
                 </div>
               </div>
@@ -393,82 +414,22 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
         </Motion.div>
       )}
 
-      {/* Car Selection Header - Orbit Style */}
-      <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: '1 1 300px' }}>
-          <div className="premium-gradient" style={{ width: 52, height: 52, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
-            <Car size={28} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>Garagem</label>
-            <div style={{ position: 'relative', maxWidth: '400px' }}>
-              <select 
-                className="glass-input"
-                value={selectedCar?.id || ''} 
-                onChange={(e) => setSelectedCar([...cars, ...sharedCars].find(c => c.id === e.target.value))}
-                style={{ 
-                  padding: '10px 16px', 
-                  height: '46px', 
-                  fontWeight: 700, 
-                  fontSize: '1rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <optgroup label="Meus Veículos">
-                  {visibleCars.map(car => (
-                    <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
-                  ))}
-                </optgroup>
-                {visibleShared.length > 0 && (
-                  <optgroup label="Compartilhados">
-                    {visibleShared.map(car => (
-                      <option key={car.id} value={car.id}>{car.name} - {car.plate}{car.is_hidden ? ' (Arquivado)' : ''}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-          </div>
-        </div>
-        
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button
-            onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}
-            className="btn-primary"
-            style={{ height: '46px', padding: '0 20px', fontSize: '0.9rem' }}
-          >
-            <Plus size={20} /> Novo Veículo
-          </button>
-          
-          {selectedCar && (
-            <button
-              className="action-btn"
-              onClick={() => { setModalType('edit_car'); setIsModalOpen(true); }}
-              title="Configurações"
-              style={{ width: '46px', height: '46px' }}
-            >
-              <Edit2 size={20} />
-            </button>
-          )}
-        </div>
-      </div>
-
       {selectedCar ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
-          <div className="tabs-container" style={{ alignSelf: 'flex-start' }}>
-            <button
-              className={`tab-btn ${activeSubTab === 'summary' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('summary')}
-            >
-              Resumo
-            </button>
-            <button
-              className={`tab-btn ${activeSubTab === 'revision' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('revision')}
-            >
-              Plano de Revisão
-            </button>
+          <div className="glass-card" style={{ padding: '0.5rem', marginBottom: '2.5rem', display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {[
+              { id: 'summary', label: t('cars.tabs.summary'), icon: LayoutDashboard },
+              { id: 'revision', label: t('cars.tabs.revisions'), icon: Wrench }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                className={`tab-btn ${activeSubTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveSubTab(tab.id)}
+              >
+                <tab.icon size={16} /> {tab.label}
+              </button>
+            ))}
           </div>
 
           <AnimatePresence mode="wait">
@@ -514,8 +475,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
           <div className="premium-gradient" style={{ width: 80, height: 80, borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '2rem', opacity: 0.8 }}>
             <Car size={40} />
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>Sua garagem está vazia</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: '400px', margin: '0 auto 2.5rem' }}>Cadastre seus veículos para acompanhar o histórico de manutenções e custos detalhados.</p>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>{t('cars.empty.title')}</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: '400px', margin: '0 auto 2.5rem' }}>{t('cars.empty.desc')}</p>
           <button className="btn-primary" onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}>
             <Plus size={20} /> Cadastrar Primeiro Veículo
           </button>
@@ -656,6 +617,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
 }
 
 function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit }) {
+  const { t } = useTranslation();
   const miles = milestones;
   
   const templateNames = Array.from(new Set([
@@ -680,11 +642,11 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
     <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem' }}>
         <div>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Plano de Manutenção</h3>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Checkpoints sugeridos por quilometragem.</p>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{t('cars.tabs.revisions')}</h3>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{t('cars.revisions.checkpoints_desc')}</p>
         </div>
         <button className="btn-primary" onClick={() => onLogService()} style={{ padding: '10px 20px' }}>
-          <Plus size={18} /> Registrar Serviço
+          <Plus size={18} /> {t('cars.add_service')}
         </button>
       </div>
 
@@ -692,7 +654,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
         <table className="orbit-table">
           <thead>
             <tr>
-              <th className="sticky-col">Serviço / Item</th>
+              <th className="sticky-col">{t('cars.service_item')}</th>
               {miles.map(km => (
                 <th key={km} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
                   <div style={{ fontSize: '0.6rem', opacity: 0.6, fontWeight: 800, color: 'var(--primary)' }}>CHECKPOINT</div>
@@ -704,7 +666,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
           <tbody>
             <tr style={{ background: 'rgba(99, 102, 241, 0.03)' }}>
               <td className="sticky-col" style={{ fontWeight: 800, color: 'var(--primary)' }}>
-                CUSTO TOTAL DA REVISÃO
+                {t('cars.total_cost')}
               </td>
               {miles.map(km => {
                 const entry = getMaintenanceEntry('Custo Total da Revisão', km);
@@ -722,7 +684,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                         fontSize: '0.75rem'
                       }}
                     >
-                      {entry?.amount > 0 ? `R$ ${parseFloat(entry.amount).toLocaleString('pt-BR')}` : '+ Add'}
+                      {entry?.amount > 0 ? `${t('common.currency_symbol')} ${parseFloat(entry.amount).toLocaleString(t('common.locale'))}` : `+ ${t('common.add')}`}
                     </button>
                   </td>
                 );
@@ -737,7 +699,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                     <button 
                       onClick={(e) => { e.stopPropagation(); onAddNote({ description: desc, isList: true }); }}
                       className="action-btn" 
-                      title="Ver Histórico de Notas"
+                      title={t('cars.revisions.view_notes_history')}
                       style={{ 
                         width: '28px', height: '28px',
                         color: maintenance.some(m => m.description === desc && m.notes) ? 'var(--primary)' : 'var(--text-muted)',
@@ -811,7 +773,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
                             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                            title="Ver/Adicionar Observação"
+                            title={t('cars.revisions.view_add_note')}
                           >
                             <MessageSquare size={12} />
                           </button>
@@ -819,7 +781,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                         
                         {entry?.amount > 0 && (
                           <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--success)' }}>
-                            R$ {parseFloat(entry.amount).toLocaleString('pt-BR')}
+                            R$ {parseFloat(entry.amount).toLocaleString(t('common.locale') === 'pt-BR' ? 'pt-BR' : 'en-US')}
                           </div>
                         )}
                       </div>
@@ -834,13 +796,13 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', padding: '1.5rem', background: 'var(--card-action-bg)', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div className="status-badge paid" style={{ padding: '4px' }}><CheckCircle2 size={12} /></div> Concluído
+          <div className="status-badge paid" style={{ padding: '4px' }}><CheckCircle2 size={12} /></div> {t('cars.revisions.status_done')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div className="status-badge pending" style={{ padding: '4px' }}><Clock size={12} /></div> Pendente / Recomendado
+          <div className="status-badge pending" style={{ padding: '4px' }}><Clock size={12} /></div> {t('cars.revisions.status_pending')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div className="status-badge danger" style={{ padding: '4px' }}><XCircle size={12} /></div> Ignorado
+          <div className="status-badge danger" style={{ padding: '4px' }}><XCircle size={12} /></div> {t('cars.revisions.status_ignored')}
         </div>
       </div>
     </div>

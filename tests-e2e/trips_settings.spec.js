@@ -85,7 +85,7 @@ test.describe('Configurações de Viagens', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
     // Aguarda o app estar pronto (Launchpad)
     await page.waitForSelector('header', { timeout: 20000 });
-    await expect(page.getByText('Olá,')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
     await unlockApp(page);
   });
 

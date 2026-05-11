@@ -4,6 +4,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TripsList from './TripsList';
 import { supabase } from '../../lib/supabase';
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
 vi.mock('framer-motion', () => ({
   motion: { 
     div: ({ children, ...props }) => <div {...props}>{children}</div>,
@@ -44,10 +55,10 @@ describe('TripsList', () => {
     expect(screen.getAllByText(/Viagem 1/i).length).toBeGreaterThan(0);
 
     // Click the action menu first
-    const moreBtn = screen.getByLabelText(/Menu da Viagem/i); 
+    const moreBtn = screen.getByLabelText('trips.trip_menu_label'); 
     fireEvent.click(moreBtn);
 
-    const detailsBtn = screen.getByText(/Resumo da Viagem/i);
+    const detailsBtn = screen.getByText('trips.view_trip_summary');
     fireEvent.click(detailsBtn);
 
     await waitFor(() => {
@@ -83,8 +94,8 @@ describe('TripsList', () => {
     });
 
     // Check for mobile-specific icon buttons
-    expect(screen.getAllByTitle('Editar').length).toBeGreaterThan(0);
-    expect(screen.getAllByTitle('Excluir').length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle('trips.edit').length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle('trips.delete').length).toBeGreaterThan(0);
   });
 
   it('handles sorting and filters', async () => {
@@ -114,7 +125,7 @@ describe('TripsList', () => {
     });
 
     // Test Search
-    const searchInput = screen.getByPlaceholderText(/Buscar despesa.../i);
+    const searchInput = screen.getByPlaceholderText('trips.search_expense_placeholder');
     fireEvent.change(searchInput, { target: { value: 'Jantar' } });
 
     expect(screen.queryByText(/Almoço/i)).not.toBeInTheDocument();

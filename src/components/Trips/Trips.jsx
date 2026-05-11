@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import TripsList from './TripsList';
 import TripsSettings from './TripsSettings';
@@ -11,6 +12,7 @@ import { Plus, TrendingUp, DollarSign } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 export default function Trips({ user, refreshKey, mode, showValues }) {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
@@ -245,10 +247,10 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
               fontSize: '0.9rem',
               letterSpacing: '0.02em'
             }}
-            title="Novo Gasto de Viagem"
+            title={t('trips.expenses')}
           >
             <Plus size={24} strokeWidth={3} />
-            {!isMobile && <span>NOVA DESPESA</span>}
+            {!isMobile && <span>{t('trips.expenses').toUpperCase()}</span>}
           </Motion.button>
         )}
       </AnimatePresence>

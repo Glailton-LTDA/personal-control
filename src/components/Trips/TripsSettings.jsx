@@ -8,8 +8,10 @@ import AttachmentManager from './AttachmentManager';
 import { CURRENCIES } from '../../constants/currencies';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useTranslation } from 'react-i18next';
 
 export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip, onSelectTrip }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('trips'); // 'trips', 'categories', 'shares'
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -78,19 +80,19 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
   }, [user, refreshKey, fetchTrips, fetchCategories, fetchShares]);
 
   async function deleteItem(table, id, callback) {
-    confirmToast('Deseja realmente excluir este item?', async () => {
+    confirmToast(t('trips.delete_confirm'), async () => {
       const { error } = await supabase.from(table).delete().eq('id', id);
       if (!error) {
         callback();
-        toast.success('Excluído com sucesso!');
+        toast.success(t('common.success_delete') || 'Excluído com sucesso!');
       } else {
-        toast.error('Erro ao excluir: ' + error.message);
+        toast.error(t('trips.save_error') + error.message);
       }
-    }, { danger: true, confirmText: 'Sim, excluir' });
+    }, { danger: true, confirmText: t('common.yes') || 'Sim, excluir' });
   }
 
   async function cancelMyShare(tripId) {
-    confirmToast('Deseja realmente remover seu acesso a esta viagem?', async () => {
+    confirmToast(t('trips.delete_share_confirm'), async () => {
       const { error } = await supabase
         .from('trip_shares')
         .delete()
@@ -99,11 +101,11 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
 
       if (!error) {
         fetchTrips();
-        toast.success('Acesso removido');
+        toast.success(t('trips.share_removed'));
       } else {
-        toast.error('Erro ao sair da viagem: ' + error.message);
+        toast.error(t('trips.save_error') + error.message);
       }
-    }, { danger: true, confirmText: 'Remover Acesso' });
+    }, { danger: true, confirmText: t('trips.exit_trip') });
   }
 
   const tabIcons = {
@@ -113,9 +115,9 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
   };
 
   const tabTitles = {
-    trips: 'Viagens',
-    categories: 'Categorias',
-    shares: 'Compartilhamento'
+    trips: t('trips.tabs.trips'),
+    categories: t('trips.tabs.categories'),
+    shares: t('trips.tabs.shares')
   };
 
   return (
@@ -178,8 +180,8 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               gap: '1.5rem'
             }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>Gerenciar Viagens</h3>
-                <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Configure os detalhes e moedas de cada jornada</p>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>{t('trips.manage_trips')}</h3>
+                <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>{t('trips.manage_trips_desc')}</p>
               </div>
               <button 
                 className="btn" 
@@ -198,12 +200,12 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                 }} 
                 onClick={() => onAddTrip()}
               >
-                <Plus size={20} strokeWidth={3} /> Nova Viagem
+                <Plus size={20} strokeWidth={3} /> {t('trips.new_trip')}
               </button>
             </div>
 
             <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-              {trips.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>Nenhuma viagem cadastrada.</div>}
+              {trips.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>{t('trips.no_trips')}</div>}
               {trips.map(trip => (
                 <div key={trip.id} className="glass-card item-card" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1px solid var(--glass-border)', transition: 'transform 0.2s', borderRadius: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -211,11 +213,11 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                       <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem', fontWeight: '800' }}>{trip.title}</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          <MapPin size={14} style={{ color: 'var(--primary)' }} /> {trip.cities?.join(', ') || 'Várias Cidades'}
+                          <MapPin size={14} style={{ color: 'var(--primary)' }} /> {trip.cities?.join(', ') || t('trips.none')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                           <Calendar size={14} style={{ color: 'var(--primary)' }} /> 
-                          {trip.start_date ? formatDate(trip.start_date) : 'A definir'} 
+                          {trip.start_date ? formatDate(trip.start_date) : t('trips.none')} 
                           {trip.end_date && ` - ${formatDate(trip.end_date)}`}
                         </div>
                       </div>
@@ -252,7 +254,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                     <div className="actions-row" style={{ justifyContent: 'center', width: '100%' }}>
                       {(trip.user_id === user.id || localStorage.getItem('pc_e2e_test') === 'true') ? (
                         <>
-                          <button className="action-btn" data-testid="edit-trip-btn" onClick={() => onEditTrip(trip)} title="Editar">
+                          <button className="action-btn" data-testid="edit-trip-btn" onClick={() => onEditTrip(trip)} title={t('trips.edit')}>
                             <Edit size={18} />
                           </button>
                           <button 
@@ -263,11 +265,11 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                               if (onSelectTrip) onSelectTrip(trip);
                               window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
                             }} 
-                            title="Ver no Dashboard"
+                            title={t('trips.dashboard_tooltip')}
                           >
                             <LayoutDashboard size={18} />
                           </button>
-                          <button className="action-btn danger" onClick={() => deleteItem('trips', trip.id, fetchTrips)} title="Excluir">
+                          <button className="action-btn danger" onClick={() => deleteItem('trips', trip.id, fetchTrips)} title={t('trips.delete')}>
                             <Trash2 size={18} />
                           </button>
                         </>
@@ -281,17 +283,17 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                               if (onSelectTrip) onSelectTrip(trip);
                               window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
                             }} 
-                            title="Ver no Dashboard"
+                            title={t('trips.dashboard_tooltip')}
                           >
-                            <LayoutDashboard size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>Ver Dashboard</span>
+                            <LayoutDashboard size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{t('trips.view_dashboard')}</span>
                           </button>
                           <button 
                             className="action-btn danger" 
                             onClick={() => cancelMyShare(trip.id)} 
-                            title="Sair da Viagem"
+                            title={t('trips.exit_trip')}
                             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', width: 'auto' }}
                           >
-                            <X size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>Sair da Viagem</span>
+                            <X size={18} /> <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{t('trips.exit_trip')}</span>
                           </button>
                         </div>
                       )}
@@ -314,8 +316,8 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               gap: '1.5rem'
             }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>Categorias</h3>
-                <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Organize seus gastos por tipo</p>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>{t('trips.categories_title')}</h3>
+                <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>{t('trips.categories_desc')}</p>
               </div>
               <button 
                 className="btn" 
@@ -334,12 +336,12 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                 }} 
                 onClick={() => setIsAddingCategory(true)}
               >
-                <Plus size={20} strokeWidth={3} /> Nova Categoria
+                <Plus size={20} strokeWidth={3} /> {t('trips.new_category')}
               </button>
             </div>
 
             <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-              {categories.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>Nenhuma categoria cadastrada.</div>}
+              {categories.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>{t('trips.no_categories')}</div>}
               {categories.map(cat => (
                 <div key={cat.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -347,10 +349,10 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                     <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)' }}>{cat.name}</span>
                   </div>
                   <div className="actions-row">
-                    <button className="action-btn" onClick={() => setEditingCategory(cat)} title="Editar">
+                    <button className="action-btn" onClick={() => setEditingCategory(cat)} title={t('trips.edit')}>
                       <Edit size={18} />
                     </button>
-                    <button className="action-btn danger" onClick={() => deleteItem('trip_categories', cat.id, fetchCategories)} title="Excluir">
+                    <button className="action-btn danger" onClick={() => deleteItem('trip_categories', cat.id, fetchCategories)} title={t('trips.delete')}>
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -371,8 +373,8 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               gap: '1.5rem'
             }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>Compartilhamento</h3>
-                <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>Convide outras pessoas para visualizar sua viagem</p>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '800' }}>{t('trips.shares_title')}</h3>
+                <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>{t('trips.shares_desc')}</p>
               </div>
               <button 
                 className="btn" 
@@ -391,12 +393,12 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                 }} 
                 onClick={() => setIsAddingShare(true)}
               >
-                <Plus size={20} strokeWidth={3} /> Compartilhar Viagem
+                <Plus size={20} strokeWidth={3} /> {t('trips.share_trip')}
               </button>
             </div>
 
             <div style={{ display: 'grid', gap: '1rem' }}>
-              {shares.length === 0 && <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.5 }}>Nenhum compartilhamento ativo.</div>}
+              {shares.length === 0 && <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.5 }}>{t('trips.no_shares')}</div>}
               {shares.map(share => (
                 <div key={share.id} className="glass-card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--glass-border)', borderRadius: '20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
@@ -411,7 +413,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                     </div>
                   </div>
                   <div className="actions-row">
-                    <button className="action-btn danger" onClick={() => deleteItem('trip_shares', share.id, fetchShares)} title="Excluir">
+                    <button className="action-btn danger" onClick={() => deleteItem('trip_shares', share.id, fetchShares)} title={t('trips.delete')}>
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -481,6 +483,7 @@ function BaseModal({ title, subtitle, icon: Icon, onClose, children }) {
 
 
 function CategoryModal({ user, category, onClose, onSave }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(category?.name || '');
 
   async function handleSubmit(e) {
@@ -492,22 +495,22 @@ function CategoryModal({ user, category, onClose, onSave }) {
       result = await supabase.from('trip_categories').insert([{ user_id: user.id, name }]);
     }
     if (!result.error) onSave();
-    else toast.error('Erro: ' + result.error.message);
+    else toast.error(t('trips.save_error') + result.error.message);
   }
 
   return (
-    <BaseModal title={category ? 'Editar Categoria' : 'Nova Categoria'} subtitle="Organize seus gastos de forma clara" icon={Tag} onClose={onClose}>
+    <BaseModal title={category ? t('trips.edit_category') : t('trips.new_category')} subtitle={t('trips.categories_desc')} icon={Tag} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div>
-          <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Tag size={16} /> Nome da Categoria</label>
+          <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Tag size={16} /> {t('trips.category_name')}</label>
           <input 
             required autoFocus className="glass-input" 
             style={{ width: '100%', padding: '1rem 1.25rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '12px', fontSize: '1.1rem' }} 
-            value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Alimentação, Passeios..." 
+            value={name} onChange={e => setName(e.target.value)} placeholder={t('trips.category_placeholder')} 
           />
         </div>
         <button type="submit" className="btn" style={{ width: '100%', padding: '1.25rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 10px 20px -5px rgba(99,102,241,0.5)' }}>
-          <Save size={20} /> Salvar Categoria
+          <Save size={20} /> {t('trips.save_category')}
         </button>
       </form>
     </BaseModal>
@@ -515,6 +518,7 @@ function CategoryModal({ user, category, onClose, onSave }) {
 }
 
 function ShareModal({ user, trips, onClose, onSave }) {
+  const { t } = useTranslation();
   const [tripId, setTripId] = useState('');
   const [email, setEmail] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -532,39 +536,39 @@ function ShareModal({ user, trips, onClose, onSave }) {
       }]);
 
       if (!error) {
-        toast.success('Viagem compartilhada com sucesso!');
+        toast.success(t('trips.share_success'));
         onSave();
       } else {
-        toast.error('Erro ao registrar compartilhamento: ' + error.message);
+        toast.error(t('trips.save_error') + error.message);
       }
     } catch (err) {
       console.error(err);
-      toast.error('Erro inesperado ao compartilhar.');
+      toast.error(t('trips.save_error'));
     } finally {
       setIsSharing(false);
     }
   }
 
   return (
-    <BaseModal title="Compartilhar" subtitle="Dê acesso a outros membros para verem esta viagem" icon={Users} onClose={onClose}>
+    <BaseModal title={t('trips.shares_title')} subtitle={t('trips.shares_desc')} icon={Users} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div>
-          <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Plane size={16} /> Selecione a Viagem</label>
+          <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Plane size={16} /> {t('trips.select_trip_share')}</label>
           <select 
             required className="glass-input" 
             style={{ width: '100%', padding: '1rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '12px' }} 
             value={tripId} onChange={e => setTripId(e.target.value)}
           >
-            <option value="">Selecione uma viagem...</option>
+            <option value="">{t('trips.select_trip_placeholder')}</option>
             {trips.filter(t => t.user_id === user.id).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
         </div>
         <div>
-          <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Mail size={16} /> E-mail do Parceiro(a)</label>
+          <label className="modal-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: '600', opacity: 0.7 }}><Mail size={16} /> {t('trips.partner_email')}</label>
           <input 
             required type="email" className="glass-input" 
             style={{ width: '100%', padding: '1rem 1.25rem', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '12px' }} 
-            value={email} onChange={e => setEmail(e.target.value)} placeholder="amigo@exemplo.com" 
+            value={email} onChange={e => setEmail(e.target.value)} placeholder={t('trips.email_placeholder')} 
           />
         </div>
         <button 
@@ -573,7 +577,7 @@ function ShareModal({ user, trips, onClose, onSave }) {
           className="btn" 
           style={{ width: '100%', padding: '1.25rem', background: 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '1rem', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.5)' }}
         >
-          <Users size={20} /> {isSharing ? 'Compartilhando...' : 'Confirmar Compartilhamento'}
+          <Users size={20} /> {isSharing ? t('trips.sharing_btn') : t('trips.confirm_share')}
         </button>
       </form>
     </BaseModal>

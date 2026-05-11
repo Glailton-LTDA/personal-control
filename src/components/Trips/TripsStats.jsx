@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion as Motion } from 'framer-motion';
 import {
   Globe, Compass, Loader2, ChevronLeft, MapPin, Navigation, Calendar, Map, Plane, Award
@@ -84,12 +85,22 @@ const countryZoomConfig = {
   'Paraguai': { center: [-58, -23], scale: 1500 }
 };
 
+const continentMapping = {
+  'Europa': 'Europe',
+  'América do Sul': 'SouthAmerica',
+  'América do Norte': 'NorthAmerica',
+  'Ásia': 'Asia',
+  'África': 'Africa',
+  'Oceania': 'Oceania'
+};
+
 export default function TripsStats({ trips, onBack }) {
   const [itineraries, setItineraries] = useState({});
   const [isLoadingItineraries, setIsLoadingItineraries] = useState(true);
   const [selectedCountry, setSelectedCountry] = useState(null);
-  const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' or 'all'
-  const [continentFilter, setContinentFilter] = useState('Todos');
+  const { t } = useTranslation();
+  const [continentFilter, setContinentFilter] = useState('All');
+  const [viewMode, setViewMode] = useState('dashboard');
   const { decryptObject, isUnlocked } = useEncryption();
 
   useEffect(() => {
@@ -225,15 +236,21 @@ export default function TripsStats({ trips, onBack }) {
     });
 
     const continentTotals = {
-      'Europa': 44, 'América do Sul': 12, 'América do Norte': 23,
-      'Ásia': 48, 'África': 54, 'Oceania': 14
+      'Europe': 44, 'SouthAmerica': 12, 'NorthAmerica': 23,
+      'Asia': 48, 'Africa': 54, 'Oceania': 14
     };
 
-    const continentStats = Object.keys(continentTotals).map(name => {
-      const visitedInContinent = Array.from(countries).filter(c => getContinent(c) === name).length;
+
+
+    const continentStats = Object.keys(continentTotals).map(key => {
+      const visitedInContinent = Array.from(countries).filter(c => {
+          const cont = getContinent(c);
+          return continentMapping[cont] === key || cont === key;
+      }).length;
       return {
-        name,
-        progress: continentTotals[name] > 0 ? Math.round((visitedInContinent / continentTotals[name]) * 100) : 0,
+        key,
+        name: t(`trips.continents.${key}`),
+        progress: continentTotals[key] > 0 ? Math.round((visitedInContinent / continentTotals[key]) * 100) : 0,
         count: visitedInContinent
       };
     });
@@ -253,23 +270,23 @@ export default function TripsStats({ trips, onBack }) {
       continentStats,
       mapPoints
     };
-  }, [trips, itineraries]);
+  }, [trips, itineraries, t]);
 
   if (!stats) return (
     <div className="trips-stats-empty">
       <Compass size={64} color="rgba(124, 58, 237, 0.3)" />
-      <h3>Nenhuma viagem registrada</h3>
-      <p>Suas estatísticas aparecerão aqui assim que você registrar sua primeira aventura.</p>
+      <h3>{t('trips.no_trips')}</h3>
+      <p>{t('trips.no_trips_desc')}</p>
     </div>
   );
 
   const summaryCards = [
-    { label: 'Países Visitados', value: stats.countriesCount.toString().padStart(2, '0'), color: '#8b5cf6', icon: <Globe size={24}/>, trend: 'Novos horizontes' },
-    { label: 'Cidades Visitadas', value: stats.citiesCount.toString().padStart(2, '0'), color: '#10b981', icon: <MapPin size={24}/>, trend: 'Locais explorados' },
-    { label: 'Km Percorridos', value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#3b82f6', icon: <Navigation size={24}/>, trend: 'Distância total' },
-    { label: 'Dias Fora', value: stats.totalDays.toString().padStart(2, '0'), color: '#f59e0b', icon: <Calendar size={24}/>, trend: 'Tempo de viagem' },
-    { label: 'Continentes', value: stats.continentsCount.toString().padStart(2, '0'), color: '#ec4899', icon: <Globe size={24}/>, trend: 'Pelo mundo' },
-    { label: 'Total de Viagens', value: stats.tripsCount.toString().padStart(2, '0'), color: '#06b6d4', icon: <Plane size={24}/>, trend: 'Aventuras' },
+    { id: 'countries', label: t('trips.countries_visited'), value: stats.countriesCount.toString().padStart(2, '0'), color: '#8b5cf6', icon: <Globe size={24}/>, trend: t('trips.trend_horizons') },
+    { id: 'cities', label: t('trips.cities_visited'), value: stats.citiesCount.toString().padStart(2, '0'), color: '#10b981', icon: <MapPin size={24}/>, trend: t('trips.trend_explored') },
+    { id: 'km', label: t('trips.km_traveled'), value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#3b82f6', icon: <Navigation size={24}/>, trend: t('trips.trend_distance') },
+    { id: 'days', label: t('trips.days_out'), value: stats.totalDays.toString().padStart(2, '0'), color: '#f59e0b', icon: <Calendar size={24}/>, trend: t('trips.trend_time') },
+    { id: 'continents', label: t('trips.continents_visited'), value: stats.continentsCount.toString().padStart(2, '0'), color: '#ec4899', icon: <Globe size={24}/>, trend: t('trips.trend_world') },
+    { id: 'trips', label: t('trips.total_trips'), value: stats.tripsCount.toString().padStart(2, '0'), color: '#06b6d4', icon: <Plane size={24}/>, trend: t('trips.trend_adventures') },
   ];
 
   return (
@@ -284,11 +301,11 @@ export default function TripsStats({ trips, onBack }) {
           <ChevronLeft size={20} />
         </button>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', letterSpacing: '-0.02em' }}>
-            {viewMode === 'all' ? 'Países Visitados' : 'Minha Jornada'}
+          <h2 data-testid="journey-title" style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', letterSpacing: '-0.02em' }}>
+            {viewMode === 'all' ? t('trips.visited_countries') : t('trips.journey_title')}
           </h2>
           <p style={{ margin: '0.25rem 0 0 0', opacity: 0.5, fontSize: '0.9rem' }}>
-            {viewMode === 'all' ? 'Galeria completa de suas explorações' : 'Suas estatísticas globais e mapa de aventuras'}
+            {viewMode === 'all' ? t('trips.gallery_desc') : t('trips.stats_desc')}
           </p>
         </div>
       </div>
@@ -300,6 +317,7 @@ export default function TripsStats({ trips, onBack }) {
             {summaryCards.map((card, i) => (
               <Motion.div
                 key={i}
+                data-testid={`stats-card-${card.id}`}
                 className="glass-card summary-card"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -378,8 +396,8 @@ export default function TripsStats({ trips, onBack }) {
                 <div className="section-header">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <div>
-                      <h2>Mapa de Aventuras</h2>
-                      <p>Sua jornada mapeada pelo mundo</p>
+                      <h2>{t('trips.adventure_map')}</h2>
+                      <p>{t('trips.map_desc')}</p>
                     </div>
                     {isLoadingItineraries && <Loader2 size={16} className="animate-spin" style={{ opacity: 0.5 }} />}
                   </div>
@@ -421,7 +439,7 @@ export default function TripsStats({ trips, onBack }) {
                   <div className="map-legend">
                     <div className="legend-item">
                       <div className="legend-dot" style={{ background: '#7c3aed' }}></div>
-                      <span>Locais Visitados</span>
+                      <span>{t('trips.visited_locations')}</span>
                     </div>
                   </div>
                 </div>
@@ -430,13 +448,13 @@ export default function TripsStats({ trips, onBack }) {
 
             <div className="side-content">
               <section className="continents-card">
-                <h3 className="section-subtitle">Exploração por Continente</h3>
+                <h3 className="section-subtitle">{t('trips.exploration_by_continent')}</h3>
                 <div className="continent-list">
                   {stats.continentStats.map((cont, i) => (
                     <div key={i} className="continent-item">
                       <div className="continent-info">
                         <span>{cont.name}</span>
-                        <span className="progress-value">{cont.count} {cont.count === 1 ? 'país' : 'países'} • {cont.progress}%</span>
+                        <span className="progress-value">{cont.count} {cont.count === 1 ? t('finances.entry') : t('finances.entries')} • {cont.progress}%</span>
                       </div>
                       <div className="progress-track">
                         <Motion.div
@@ -457,9 +475,9 @@ export default function TripsStats({ trips, onBack }) {
 
               <section className="countries-card">
                 <div className="card-header">
-                  <h3 className="section-subtitle">Países Visitados</h3>
+                  <h3 className="section-subtitle">{t('trips.countries_visited')}</h3>
                   <button className="see-all-btn" onClick={() => setViewMode('all')}>
-                    Ver Todos
+                    {t('trips.see_all')}
                   </button>
                 </div>
                 <div className="countries-grid">
@@ -481,13 +499,13 @@ export default function TripsStats({ trips, onBack }) {
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{country.name}</span>
                         <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>
-                          {country.cityCount} {country.cityCount === 1 ? 'cidade' : 'cidades'}
+                          {country.cityCount} {country.cityCount === 1 ? t('finances.entry') : t('finances.entries')}
                         </span>
                       </div>
                     </div>
                   ))}
                   {stats.countriesList.length === 0 && (
-                    <p className="empty-text">Nenhum país registrado</p>
+                    <p className="empty-text">{t('trips.no_countries_recorded')}</p>
                   )}
                 </div>
               </section>
@@ -497,7 +515,7 @@ export default function TripsStats({ trips, onBack }) {
       ) : (
         <div className="all-countries-view">
           <div className="filters-bar" style={{ marginBottom: '2rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            {['Todos', 'Europa', 'América do Sul', 'América do Norte', 'Ásia', 'África', 'Oceania'].map(cont => (
+            {['All', 'Europe', 'SouthAmerica', 'NorthAmerica', 'Asia', 'Africa', 'Oceania'].map(cont => (
               <button
                 key={cont}
                 onClick={() => setContinentFilter(cont)}
@@ -513,7 +531,7 @@ export default function TripsStats({ trips, onBack }) {
                   transition: 'all 0.2s'
                 }}
               >
-                {cont}
+                {cont === 'All' ? t('common.months.all') : t(`trips.continents.${cont}`)}
               </button>
             ))}
           </div>
@@ -524,7 +542,11 @@ export default function TripsStats({ trips, onBack }) {
             gap: '1.25rem' 
           }}>
             {stats.countriesList
-              .filter(c => continentFilter === 'Todos' || getContinent(c.name) === continentFilter)
+              .filter(c => {
+                  if (continentFilter === 'All') return true;
+                  const cont = getContinent(c.name);
+                  return continentMapping[cont] === continentFilter || cont === continentFilter;
+              })
               .map((country, i) => (
                 <Motion.div
                   key={i}
@@ -567,10 +589,10 @@ export default function TripsStats({ trips, onBack }) {
                   )}
                   <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '800' }}>{country.name}</h4>
                   <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                    {country.cityCount} {country.cityCount === 1 ? 'Cidade' : 'Cidades'}
+                    {country.cityCount} {country.cityCount === 1 ? t('finances.entry') : t('finances.entries')}
                   </p>
                   <div style={{ marginTop: '1rem', fontSize: '0.65rem', color: 'var(--primary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Ver Detalhes
+                    {t('common.view')}
                   </div>
                 </Motion.div>
             ))}
@@ -590,7 +612,7 @@ export default function TripsStats({ trips, onBack }) {
             <div className="modal-header">
               <div className="modal-title-group">
                 <h2>{selectedCountry.name}</h2>
-                <p>{selectedCountry.cityCount} {selectedCountry.cityCount === 1 ? 'Cidade visitada' : 'Cidades visitadas'}</p>
+                <p>{selectedCountry.cityCount} {selectedCountry.cityCount === 1 ? t('finances.entry') : t('finances.entries')}</p>
               </div>
               <button className="close-modal-btn" onClick={() => setSelectedCountry(null)}>&times;</button>
             </div>
@@ -647,7 +669,7 @@ export default function TripsStats({ trips, onBack }) {
             </div>
 
             <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid rgba(255,255,255,0.05)', overflowY: 'auto', maxHeight: '200px' }}>
-              <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', opacity: 0.5, textTransform: 'uppercase' }}>Cidades Registradas</h4>
+              <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', opacity: 0.5, textTransform: 'uppercase' }}>{t('trips.registered_cities')}</h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                 {Array.from(stats.countriesList.find(cl => cl.name === selectedCountry.name)?.cities || []).map((city, idx) => (
                   <span key={idx} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '0.85rem', color: '#e2e8f0' }}>
@@ -658,7 +680,7 @@ export default function TripsStats({ trips, onBack }) {
             </div>
 
             <div className="modal-footer">
-              <button className="modal-primary-btn" onClick={() => setSelectedCountry(null)}>Fechar Detalhes</button>
+              <button className="modal-primary-btn" onClick={() => setSelectedCountry(null)}>{t('common.cancel')}</button>
             </div>
           </Motion.div>
         </div>
