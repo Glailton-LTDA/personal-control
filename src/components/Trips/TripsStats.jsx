@@ -15,6 +15,8 @@ import { getContinent } from '../../data/continents';
 import { estimateItineraryDistance } from '../../lib/geo';
 import { supabase } from '../../lib/supabase';
 import { useEncryption } from '../../contexts/EncryptionContext';
+import { countryToCode } from '../../data/countries';
+import { geoCentroid, geoBounds } from "d3-geo";
 import './TripsStats.css';
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -33,57 +35,15 @@ const countryNameMap = {
   'Argentina': 'Argentina',
   'Peru': 'Peru',
   'Reino Unido': 'United Kingdom',
-  'Paraguai': 'Paraguay'
+  'Paraguai': 'Paraguay',
+  'Vaticano': 'Vatican City',
+  'Bolívia': 'Bolivia'
 };
 
-const flagMapping = {
-  'Brasil': 'br',
-  'França': 'fr',
-  'Reino Unido': 'gb',
-  'Inglaterra': 'gb',
-  'Espanha': 'es',
-  'Itália': 'it',
-  'Alemanha': 'de',
-  'Estados Unidos': 'us',
-  'Japão': 'jp',
-  'Portugal': 'pt',
-  'Argentina': 'ar',
-  'Peru': 'pe',
-  'Paraguai': 'py',
-  'Uruguai': 'uy',
-  'Chile': 'cl',
-  'Vaticano': 'va'
-};
-
-// Geographic boundaries for common countries (lat/lng bounding boxes)
-const COUNTRY_BOUNDS = {
-  'Brasil': { lat: [-34.0, 5.5], lng: [-74.5, -34.5] },
-  'Portugal': { lat: [36.8, 42.2], lng: [-9.6, -6.1] },
-  'Espanha': { lat: [35.8, 43.8], lng: [-9.4, 3.4] },
-  'França': { lat: [41.3, 51.1], lng: [-5.2, 9.7] },
-  'Itália': { lat: [35.4, 47.1], lng: [6.6, 18.6] },
-  'Inglaterra': { lat: [49.8, 55.9], lng: [-6.5, 1.8] },
-  'Argentina': { lat: [-55.1, -21.8], lng: [-73.7, -53.5] },
-  'Peru': { lat: [-18.4, 0.1], lng: [-81.4, -68.6] },
-  'Paraguai': { lat: [-27.7, -19.2], lng: [-62.7, -54.1] },
-  'Uruguai': { lat: [-35.0, -30.0], lng: [-58.5, -53.0] },
-  'Chile': { lat: [-56.0, -17.5], lng: [-75.7, -66.4] }
-};
-
-
-
-// Zoom and center configurations for specific countries
-const countryZoomConfig = {
-  'Brasil': { center: [-55, -10], scale: 600 },
-  'França': { center: [2, 46], scale: 2000 },
-  'Inglaterra': { center: [-2, 54], scale: 2000 },
-  'Espanha': { center: [-3, 40], scale: 2000 },
-  'Itália': { center: [12, 42], scale: 2000 },
-  'Portugal': { center: [-8, 39], scale: 3000 },
-  'Argentina': { center: [-63, -38], scale: 600 },
-  'Estados Unidos': { center: [-95, 37], scale: 600 },
-  'Peru': { center: [-75, -9], scale: 1200 },
-  'Paraguai': { center: [-58, -23], scale: 1500 }
+const getFlagCode = (countryName) => {
+  if (!countryName) return null;
+  const normalized = countryName.toLowerCase().trim();
+  return countryToCode[normalized] || null;
 };
 
 const continentMapping = {
@@ -103,6 +63,37 @@ export default function TripsStats({ trips, onBack }) {
   const [continentFilter, setContinentFilter] = useState('All');
   const [viewMode, setViewMode] = useState('dashboard');
   const { decryptObject, isUnlocked } = useEncryption();
+  
+  const [dynamicMapConfig, setDynamicMapConfig] = useState({ center: [0, 0], scale: 400 });
+  const geometriesRef = React.useRef([]);
+
+  const handleSelectCountry = (country) => {
+    if (geometriesRef.current.length > 0) {
+      const feature = geometriesRef.current.find(g => 
+        g.properties.name === country.name || 
+        g.properties.name === countryNameMap[country.name]
+      );
+
+      if (feature) {
+        const center = geoCentroid(feature);
+        const bounds = geoBounds(feature);
+        
+        const dx = bounds[1][0] - bounds[0][0];
+        const dy = bounds[1][1] - bounds[0][1];
+        const maxDelta = Math.max(dx, dy);
+        
+        let scale = 180 / (maxDelta || 1);
+        scale = Math.min(Math.max(scale * 150, 400), 3000);
+
+        if (maxDelta < 0.1) scale = 5000;
+        
+        setDynamicMapConfig({ center, scale });
+      } else {
+        setDynamicMapConfig({ center: [0, 0], scale: 400 });
+      }
+    }
+    setSelectedCountry(country);
+  };
 
   useEffect(() => {
     async function fetchAllItineraries() {
@@ -121,8 +112,8 @@ export default function TripsStats({ trips, onBack }) {
         if (error) throw error;
 
         // Decrypt the data item by item with its respective trip key
-        const decryptedData = await Promise.all(data.map(item => 
-          decryptObject(item, ['activity', 'location', 'notes'], { 
+        const decryptedData = await Promise.all(data.map(item =>
+          decryptObject(item, ['activity', 'location', 'notes'], {
             resourceId: item.trip_id,
             resourceType: 'TRIP'
           })
@@ -183,7 +174,7 @@ export default function TripsStats({ trips, onBack }) {
           // If it's a "City, Country" format, we use the country for attribution
           // Otherwise, we try to match against the trip's countries list
           let attributedCountry = null;
-          
+
           if (parts.length > 1 && tripCountries.includes(countryName)) {
             attributedCountry = countryName;
           } else {
@@ -193,10 +184,10 @@ export default function TripsStats({ trips, onBack }) {
           if (attributedCountry) {
             countries.add(attributedCountry);
             if (!countryToCities[attributedCountry]) countryToCities[attributedCountry] = new Set();
-            
+
             const displayCity = cityName;
             const normalizedCity = displayCity.toLowerCase();
-            
+
             // Avoid adding the country name itself as a city
             if (normalizedCity !== attributedCountry.toLowerCase()) {
               // Case-insensitive check to avoid duplicates like "Lisboa" and "lisboa"
@@ -215,7 +206,7 @@ export default function TripsStats({ trips, onBack }) {
       // Itinerary data (KM and Map Points)
       if (tripItinerary.length > 0) {
         totalKm += estimateItineraryDistance(tripItinerary);
-        
+
         // Collect map points from itinerary
         tripItinerary.forEach(item => {
           if (item.coordinates && Array.isArray(item.coordinates) && item.coordinates.length === 2) {
@@ -245,8 +236,8 @@ export default function TripsStats({ trips, onBack }) {
 
     const continentStats = Object.keys(continentTotals).map(key => {
       const visitedInContinent = Array.from(countries).filter(c => {
-          const cont = getContinent(c);
-          return continentMapping[cont] === key || cont === key;
+        const cont = getContinent(c);
+        return continentMapping[cont] === key || cont === key;
       }).length;
       return {
         key,
@@ -282,12 +273,12 @@ export default function TripsStats({ trips, onBack }) {
   );
 
   const summaryCards = [
-    { id: 'countries', label: t('trips.countries_visited'), value: stats.countriesCount.toString().padStart(2, '0'), color: '#8b5cf6', icon: <Globe size={24}/>, trend: t('trips.trend_horizons') },
-    { id: 'cities', label: t('trips.cities_visited'), value: stats.citiesCount.toString().padStart(2, '0'), color: '#10b981', icon: <MapPin size={24}/>, trend: t('trips.trend_explored') },
-    { id: 'km', label: t('trips.km_traveled'), value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#3b82f6', icon: <Navigation size={24}/>, trend: t('trips.trend_distance') },
-    { id: 'days', label: t('trips.days_out'), value: stats.totalDays.toString().padStart(2, '0'), color: '#f59e0b', icon: <Calendar size={24}/>, trend: t('trips.trend_time') },
-    { id: 'continents', label: t('trips.continents_visited'), value: stats.continentsCount.toString().padStart(2, '0'), color: '#ec4899', icon: <Globe size={24}/>, trend: t('trips.trend_world') },
-    { id: 'trips', label: t('trips.total_trips'), value: stats.tripsCount.toString().padStart(2, '0'), color: '#06b6d4', icon: <Plane size={24}/>, trend: t('trips.trend_adventures') },
+    { id: 'countries', label: t('trips.countries_visited'), value: stats.countriesCount.toString().padStart(2, '0'), color: '#8b5cf6', icon: <Globe size={24} />, trend: t('trips.trend_horizons') },
+    { id: 'cities', label: t('trips.cities_visited'), value: stats.citiesCount.toString().padStart(2, '0'), color: '#10b981', icon: <MapPin size={24} />, trend: t('trips.trend_explored') },
+    { id: 'km', label: t('trips.km_traveled'), value: stats.totalKm > 1000 ? `${(stats.totalKm / 1000).toFixed(1)}K` : Math.round(stats.totalKm), color: '#3b82f6', icon: <Navigation size={24} />, trend: t('trips.trend_distance') },
+    { id: 'days', label: t('trips.days_out'), value: stats.totalDays.toString().padStart(2, '0'), color: '#f59e0b', icon: <Calendar size={24} />, trend: t('trips.trend_time') },
+    { id: 'continents', label: t('trips.continents_visited'), value: stats.continentsCount.toString().padStart(2, '0'), color: '#ec4899', icon: <Globe size={24} />, trend: t('trips.trend_world') },
+    { id: 'trips', label: t('trips.total_trips'), value: stats.tripsCount.toString().padStart(2, '0'), color: '#06b6d4', icon: <Plane size={24} />, trend: t('trips.trend_adventures') },
   ];
 
   return (
@@ -323,8 +314,8 @@ export default function TripsStats({ trips, onBack }) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
-                style={{ 
-                  padding: '1.5rem', 
+                style={{
+                  padding: '1.5rem',
                   background: 'var(--bg-card)',
                   border: '1px solid var(--glass-border)',
                   position: 'relative',
@@ -338,11 +329,11 @@ export default function TripsStats({ trips, onBack }) {
                 }}
               >
                 {/* Background Icon Glow */}
-                <div style={{ 
-                  position: 'absolute', 
-                  right: '-10px', 
-                  top: '-10px', 
-                  opacity: 0.05, 
+                <div style={{
+                  position: 'absolute',
+                  right: '-10px',
+                  top: '-10px',
+                  opacity: 0.05,
                   transform: 'rotate(-15deg)',
                   pointerEvents: 'none'
                 }}>
@@ -350,10 +341,10 @@ export default function TripsStats({ trips, onBack }) {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <div style={{ 
-                    color: card.color, 
-                    background: `color-mix(in srgb, ${card.color} 15%, transparent)`, 
-                    padding: '0.6rem', 
+                  <div style={{
+                    color: card.color,
+                    background: `color-mix(in srgb, ${card.color} 15%, transparent)`,
+                    padding: '0.6rem',
                     borderRadius: '12px',
                     display: 'flex',
                     alignItems: 'center',
@@ -368,20 +359,20 @@ export default function TripsStats({ trips, onBack }) {
                 </div>
 
                 <div>
-                  <div style={{ 
-                    fontSize: '1.75rem', 
-                    fontWeight: 900, 
+                  <div style={{
+                    fontSize: '1.75rem',
+                    fontWeight: 900,
                     color: 'var(--text-main)',
                     letterSpacing: '-0.02em',
                     lineHeight: 1
                   }}>
                     {card.value}
                   </div>
-                  <div style={{ 
-                    marginTop: '0.25rem', 
-                    height: '4px', 
-                    width: '40px', 
-                    background: card.color, 
+                  <div style={{
+                    marginTop: '0.25rem',
+                    height: '4px',
+                    width: '40px',
+                    background: card.color,
                     borderRadius: '2px',
                     opacity: 0.6
                   }} />
@@ -408,8 +399,11 @@ export default function TripsStats({ trips, onBack }) {
                   <ComposableMap projectionConfig={{ scale: 140 }}>
                     <ZoomableGroup center={[0, 20]} zoom={1}>
                       <Geographies geography={geoUrl}>
-                        {({ geographies }) =>
-                          geographies.map((geo) => (
+                        {({ geographies }) => {
+                          if (geometriesRef.current.length === 0) {
+                            geometriesRef.current = geographies;
+                          }
+                          return geographies.map((geo) => (
                             <Geography
                               key={geo.rsmKey}
                               geography={geo}
@@ -423,7 +417,7 @@ export default function TripsStats({ trips, onBack }) {
                               }}
                             />
                           ))
-                        }
+                        }}
                       </Geographies>
 
                       {stats.mapPoints.map((point, index) => (
@@ -486,11 +480,11 @@ export default function TripsStats({ trips, onBack }) {
                     <div
                       key={i}
                       className="country-chip clickable"
-                      onClick={() => setSelectedCountry(country)}
+                      onClick={() => handleSelectCountry(country)}
                     >
-                      {flagMapping[country.name] ? (
-                        <img 
-                          src={`https://flagcdn.com/w40/${flagMapping[country.name]}.png`} 
+                      {getFlagCode(country.name) ? (
+                        <img
+                          src={`https://flagcdn.com/w40/${getFlagCode(country.name)}.png`}
                           alt={country.name}
                           style={{ width: '24px', height: '16px', borderRadius: '3px', objectFit: 'cover' }}
                         />
@@ -537,16 +531,16 @@ export default function TripsStats({ trips, onBack }) {
             ))}
           </div>
 
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
-            gap: '1.25rem' 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: '1.25rem'
           }}>
             {stats.countriesList
               .filter(c => {
-                  if (continentFilter === 'All') return true;
-                  const cont = getContinent(c.name);
-                  return continentMapping[cont] === continentFilter || cont === continentFilter;
+                if (continentFilter === 'All') return true;
+                const cont = getContinent(c.name);
+                return continentMapping[cont] === continentFilter || cont === continentFilter;
               })
               .map((country, i) => (
                 <Motion.div
@@ -555,7 +549,7 @@ export default function TripsStats({ trips, onBack }) {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: i * 0.05 }}
                   className="country-card-full"
-                  onClick={() => setSelectedCountry(country)}
+                  onClick={() => handleSelectCountry(country)}
                   style={{
                     background: 'var(--bg-card)',
                     border: '1px solid var(--glass-border)',
@@ -569,19 +563,19 @@ export default function TripsStats({ trips, onBack }) {
                     transition: 'all 0.3s ease'
                   }}
                 >
-                  {flagMapping[country.name] ? (
-                    <img 
-                      src={`https://flagcdn.com/w80/${flagMapping[country.name]}.png`} 
+                  {getFlagCode(country.name) ? (
+                    <img
+                      src={`https://flagcdn.com/w80/${getFlagCode(country.name)}.png`}
                       alt={country.name}
-                      style={{ 
-                        width: '60px', height: '40px', borderRadius: '8px', 
+                      style={{
+                        width: '60px', height: '40px', borderRadius: '8px',
                         marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.1)',
                         objectFit: 'cover', boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}
                     />
                   ) : (
-                    <div className="flag-big-placeholder" style={{ 
-                      width: '60px', height: '40px', background: 'rgba(255,255,255,0.05)', 
+                    <div className="flag-big-placeholder" style={{
+                      width: '60px', height: '40px', background: 'rgba(255,255,255,0.05)',
                       borderRadius: '8px', marginBottom: '1rem', border: '1px solid var(--glass-border)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
@@ -596,7 +590,7 @@ export default function TripsStats({ trips, onBack }) {
                     {t('common.view')}
                   </div>
                 </Motion.div>
-            ))}
+              ))}
           </div>
         </div>
       )}
@@ -621,11 +615,11 @@ export default function TripsStats({ trips, onBack }) {
             <div className="modal-map-container">
               <ComposableMap
                 projectionConfig={{
-                  scale: countryZoomConfig[selectedCountry.name]?.scale || 400
+                  scale: dynamicMapConfig.scale
                 }}
               >
                 <ZoomableGroup
-                  center={countryZoomConfig[selectedCountry.name]?.center || [0, 0]}
+                  center={dynamicMapConfig.center}
                   zoom={1}
                   maxZoom={1}
                 >
@@ -653,8 +647,8 @@ export default function TripsStats({ trips, onBack }) {
                   {stats.mapPoints
                     .filter(p => {
                       // Show points that belong to trips covering this country
-                      return trips.some(t => 
-                        t.countries.includes(selectedCountry.name) && 
+                      return trips.some(t =>
+                        t.countries.includes(selectedCountry.name) &&
                         itineraries[t.id]?.some(i => (i.location === p.name || i.activity === p.name) && i.coordinates)
                       );
                     })
