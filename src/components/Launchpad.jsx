@@ -61,7 +61,9 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
           style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.5rem' }}
           data-testid="welcome-message"
         >
-          {t('common.welcome')}, <span style={{ color: 'var(--primary)' }}>{user?.email?.split('@')[0]}</span>
+          {t('common.welcome')}, <span style={{ color: 'var(--primary)' }}>
+            {user?.user_metadata?.full_name || user?.user_metadata?.name || (user?.email?.split('@')[0]?.charAt(0).toUpperCase() + user?.email?.split('@')[0]?.slice(1))}
+          </span>
         </Motion.h1>
         <Motion.p 
           initial={{ opacity: 0 }}

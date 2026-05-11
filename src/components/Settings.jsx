@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2, Loader2, LayoutGrid, Sun, Moon, Globe } from 'lucide-react';
+import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2, Loader2, LayoutGrid, Sun, Moon, Globe, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useEncryption } from '../contexts/EncryptionContext';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,23 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState(null); 
   const { migrateToPlainText } = useEncryption();
+
+  // Profile name state
+  const [displayName, setDisplayName] = useState(user?.user_metadata?.full_name || user?.user_metadata?.name || '');
+  const [updatingName, setUpdatingName] = useState(false);
+
+  async function handleUpdateName() {
+    setUpdatingName(true);
+    const { error } = await supabase.auth.updateUser({
+      data: { full_name: displayName }
+    });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(t('settings.profile_updated'));
+    }
+    setUpdatingName(false);
+  }
 
   useEffect(() => {
     fetchSettings();
@@ -139,6 +156,41 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
           alignItems: 'start' 
         }}>
           
+          {/* Card 0: Profile */}
+          <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
+                <User size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.profile')}</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{t('settings.profile_desc')}</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('settings.profile_name')}</label>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <input 
+                    type="text" 
+                    value={displayName} 
+                    onChange={e => setDisplayName(e.target.value)}
+                    placeholder="Seu nome"
+                    style={{ borderRadius: '12px', flex: 1 }}
+                  />
+                  <button 
+                    onClick={handleUpdateName} 
+                    disabled={updatingName || !displayName.trim()} 
+                    className="btn-primary" 
+                    style={{ padding: '0 1.5rem', borderRadius: '12px' }}
+                  >
+                    {updatingName ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Motion.div>
           {/* Card 1: Theme Selection */}
           <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
