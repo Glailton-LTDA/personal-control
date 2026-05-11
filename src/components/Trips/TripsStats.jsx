@@ -51,7 +51,8 @@ const flagMapping = {
   'Peru': 'pe',
   'Paraguai': 'py',
   'Uruguai': 'uy',
-  'Chile': 'cl'
+  'Chile': 'cl',
+  'Vaticano': 'va'
 };
 
 // Geographic boundaries for common countries (lat/lng bounding boxes)
