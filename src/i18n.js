@@ -133,7 +133,9 @@ i18n
             total: 'Total',
             income_label: 'Receita',
             expense_label: 'Despesa',
-            result_label: 'Resultado'
+            result_label: 'Resultado',
+            entry: 'registro',
+            entries: 'registros'
           },
           investments: {
             title: 'Investimentos',
@@ -273,6 +275,10 @@ i18n
             km_traveled: 'Km Percorridos',
             days_out: 'Dias Fora',
             total_trips: 'Total de Viagens',
+            country_singular: 'país',
+            country_plural: 'países',
+            city_singular: 'cidade',
+            city_plural: 'cidades',
             adventure_map: 'Mapa de Aventuras',
             map_desc: 'Sua jornada mapeada pelo mundo',
             visited_locations: 'Locais Visitados',
@@ -320,6 +326,9 @@ i18n
             email_placeholder: 'amigo@exemplo.com',
             sharing_btn: 'Compartilhando...',
             confirm_share: 'Confirmar Compartilhamento',
+            outgoing: 'Enviado',
+            incoming: 'Recebido',
+            shared_by_label: 'Compartilhado com você',
             delete_confirm: 'Deseja realmente excluir este item?',
             delete_share_confirm: 'Deseja realmente remover seu acesso a esta viagem?',
             share_removed: 'Acesso removido',
@@ -457,6 +466,8 @@ i18n
           common: {
             save: 'Salvar',
             cancel: 'Cancelar',
+            yes: 'Sim',
+            no: 'Não',
             edit: 'Editar',
             delete: 'Excluir',
             add: 'Adicionar',
@@ -622,7 +633,9 @@ i18n
             total: 'Total',
             income_label: 'Income',
             expense_label: 'Expense',
-            result_label: 'Result'
+            result_label: 'Result',
+            entry: 'entry',
+            entries: 'entries'
           },
           trips: {
             title: 'My Journey',
@@ -779,6 +792,10 @@ i18n
             km_traveled: 'Km Traveled',
             days_out: 'Days Out',
             total_trips: 'Total Trips',
+            country_singular: 'country',
+            country_plural: 'countries',
+            city_singular: 'city',
+            city_plural: 'cities',
             continents_visited: 'Continents Visited',
             adventure_map: 'Adventure Map',
             map_desc: 'Your global footprint on an interactive map',
@@ -869,6 +886,8 @@ i18n
           common: {
             save: 'Save',
             cancel: 'Cancel',
+            yes: 'Yes',
+            no: 'No',
             edit: 'Edit',
             delete: 'Delete',
             add: 'Add',
@@ -1034,7 +1053,9 @@ i18n
             total: 'Total',
             income_label: 'Ingresos',
             expense_label: 'Gastos',
-            result_label: 'Resultado'
+            result_label: 'Resultado',
+            entry: 'registro',
+            entries: 'registros'
           },
           trips: {
             title: 'Mi Jornada',
@@ -1191,6 +1212,10 @@ i18n
             km_traveled: 'Km Recorridos',
             days_out: 'Días Fuera',
             total_trips: 'Total de Viajes',
+            country_singular: 'país',
+            country_plural: 'países',
+            city_singular: 'ciudad',
+            city_plural: 'ciudades',
             continents_visited: 'Continentes Visitados',
             adventure_map: 'Mapa de Aventuras',
             map_desc: 'Su huella global en um mapa interactivo',
@@ -1281,6 +1306,8 @@ i18n
           common: {
             save: 'Guardar',
             cancel: 'Cancelar',
+            yes: 'Sí',
+            no: 'No',
             edit: 'Editar',
             delete: 'Eliminar',
             add: 'Añadir',

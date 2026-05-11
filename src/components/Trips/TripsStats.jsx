@@ -454,7 +454,7 @@ export default function TripsStats({ trips, onBack }) {
                     <div key={i} className="continent-item">
                       <div className="continent-info">
                         <span>{cont.name}</span>
-                        <span className="progress-value">{cont.count} {cont.count === 1 ? t('finances.entry') : t('finances.entries')} • {cont.progress}%</span>
+                        <span className="progress-value">{cont.count} {cont.count === 1 ? t('trips.country_singular') : t('trips.country_plural')} • {cont.progress}%</span>
                       </div>
                       <div className="progress-track">
                         <Motion.div
@@ -499,7 +499,7 @@ export default function TripsStats({ trips, onBack }) {
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{country.name}</span>
                         <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>
-                          {country.cityCount} {country.cityCount === 1 ? t('finances.entry') : t('finances.entries')}
+                          {country.cityCount} {country.cityCount === 1 ? t('trips.city_singular') : t('trips.city_plural')}
                         </span>
                       </div>
                     </div>
@@ -589,7 +589,7 @@ export default function TripsStats({ trips, onBack }) {
                   )}
                   <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '800' }}>{country.name}</h4>
                   <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                    {country.cityCount} {country.cityCount === 1 ? t('finances.entry') : t('finances.entries')}
+                    {country.cityCount} {country.cityCount === 1 ? t('trips.city_singular') : t('trips.city_plural')}
                   </p>
                   <div style={{ marginTop: '1rem', fontSize: '0.65rem', color: 'var(--primary)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {t('common.view')}
@@ -612,7 +612,7 @@ export default function TripsStats({ trips, onBack }) {
             <div className="modal-header">
               <div className="modal-title-group">
                 <h2>{selectedCountry.name}</h2>
-                <p>{selectedCountry.cityCount} {selectedCountry.cityCount === 1 ? t('finances.entry') : t('finances.entries')}</p>
+                <p>{selectedCountry.cityCount} {selectedCountry.cityCount === 1 ? t('trips.city_singular') : t('trips.city_plural')}</p>
               </div>
               <button className="close-modal-btn" onClick={() => setSelectedCountry(null)}>&times;</button>
             </div>

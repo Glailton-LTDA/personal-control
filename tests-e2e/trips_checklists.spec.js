@@ -123,7 +123,6 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await expect(page.getByTestId('trip-selector')).toBeVisible({ timeout: 10000 });
     await page.getByTestId('trip-selector').click();
     await page.getByTestId('trip-select-trip-1').click();
-    await expect(page.getByTestId('trip-details-title')).toBeVisible({ timeout: 10000 });
     await page.getByTestId('trip-actions-menu-btn').click();
     await page.getByTestId('view-checklists-btn').click();
     await expect(page.getByTestId('checklists-title')).toBeVisible();

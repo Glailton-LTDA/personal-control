@@ -191,8 +191,9 @@ export default function TripsList({
 
   const handleTripSelect = (trip) => {
     setInternalSelectedTrip(trip);
+    setIsDetailsOpen(false);
+    if (setExternalIsDetailsOpen) setExternalIsDetailsOpen(false);
     if (onTripSelect) onTripSelect(trip);
-    setIsDetailsOpen(true);
   };
 
   const handleSort = (key) => {
@@ -274,7 +275,7 @@ export default function TripsList({
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       <div className="trip-header-container" style={{ zIndex: 1100, position: 'relative' }}>
-        <div className="trip-selector-wrapper">
+        <div className="trip-selector-wrapper" style={{ position: 'relative', zIndex: isTripMenuOpen ? 2000 : 1 }}>
           <div 
             className="glass-card trip-selector-card" 
             data-testid="trip-selector"
@@ -304,7 +305,7 @@ export default function TripsList({
                   <input 
                     autoFocus 
                     type="text" 
-                    placeholder={t('trips.search_trip_placeholder')} 
+                    placeholder={trips.length > 0 ? `${t('trips.search_trip_placeholder')} (${trips.length})` : t('trips.search_trip_placeholder')} 
                     value={tripSearchQuery} 
                     onChange={(e) => setTripSearchQuery(e.target.value)} 
                     onClick={(e) => e.stopPropagation()} 
@@ -312,17 +313,19 @@ export default function TripsList({
                   />
                 </div>
                 <div className="trip-menu-list">
-                  {trips.filter(t => t.title.toLowerCase().includes(tripSearchQuery.toLowerCase())).map(trip => (
-                    <button 
-                      key={trip.id} 
-                      data-testid={'trip-select-' + trip.id}
-                      onClick={() => { handleTripSelect(trip); setIsTripMenuOpen(false); setTripSearchQuery(''); }} 
-                      className={`trip-menu-item ${selectedTrip?.id === trip.id ? 'active' : ''}`}
-                    >
-                      <div className="trip-menu-indicator" />
-                      {trip.title}
-                    </button>
-                  ))}
+                  {(trips || [])
+                    .filter(t => (t.title || '').toLowerCase().includes(tripSearchQuery.toLowerCase()))
+                    .map(trip => (
+                      <button 
+                        key={trip.id} 
+                        data-testid={'trip-select-' + trip.id}
+                        onClick={() => { handleTripSelect(trip); setIsTripMenuOpen(false); setTripSearchQuery(''); }} 
+                        className={`trip-menu-item ${selectedTrip?.id === trip.id ? 'active' : ''}`}
+                      >
+                        <div className="trip-menu-indicator" />
+                        {trip.title}
+                      </button>
+                    ))}
                 </div>
               </div>
             )}
@@ -397,7 +400,7 @@ export default function TripsList({
         </div>
       </div>
 
-      {isDetailsOpen ? (
+      {isDetailsOpen && selectedTrip ? (
         <TripDetails 
           trip={selectedTrip} expenses={expenses} showValues={showValues}
           onBack={() => setIsDetailsOpen(false)} 
@@ -419,6 +422,11 @@ export default function TripsList({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       <Calendar size={14} /> {formatDate(selectedTrip.start_date, { month: 'short', day: '2-digit' })} - {formatDate(selectedTrip.end_date, { month: 'short', day: '2-digit' })}
                     </div>
+                    {(Array.isArray(selectedTrip.participants) && selectedTrip.participants.length > 0) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                        <Users size={14} /> {selectedTrip.participants.join(', ')}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -558,7 +566,7 @@ export default function TripsList({
               </div>
               <div className="hero-card-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div className="hero-card-header-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div className="hero-card-icon-wrapper" style={{ background: 'var(--secondary)', color: 'white', padding: '0.4rem', borderRadius: '10px' }}>
+                  <div className="hero-card-icon-wrapper">
                     <TrendingUp size={18} />
                   </div>
                   <span className="hero-card-label">{t('trips.financial_health')}</span>

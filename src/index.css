@@ -1848,6 +1848,7 @@ select.glass-input {
   .trip-header-container {
     flex-direction: column;
     align-items: stretch;
+    gap: 1.25rem;
   }
   
   .trip-selector-wrapper {
@@ -1855,7 +1856,9 @@ select.glass-input {
   }
   
   .trip-header-actions {
-    justify-content: space-between;
+    width: 100%;
+    justify-content: flex-end; /* Changed to flex-end to push buttons to the right */
+    gap: 1rem;
   }
   
   .currency-switcher .currency-code {
@@ -2298,20 +2301,7 @@ select.glass-input {
 }
 
 .trip-actions-dropdown {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  min-width: 220px;
-  background: var(--bg-card);
-  backdrop-filter: blur(30px);
-  border-radius: 20px;
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-  padding: 0.6rem;
-  z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  /* Merged with previous definition to avoid duplicates */
 }
 
 .menu-dropdown-item {
@@ -2510,16 +2500,19 @@ select.glass-input {
 
 .trip-actions-dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
   min-width: 220px;
-  z-index: 9999;
-  padding: 0.5rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(30px);
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+  padding: 0.6rem;
+  z-index: 2000;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--glass-border);
+  gap: 0.2rem;
 }
 
 .menu-overlay {
@@ -2597,12 +2590,4 @@ select.glass-input {
   opacity: 1;
 }
 
-.trip-actions-dropdown {
-  position: absolute;
-  top: calc(100% + 12px);
-  right: 0;
-  width: 240px;
-  z-index: 9999;
-  padding: 0.6rem;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-}
+/* Removed duplicate trip-actions-dropdown */

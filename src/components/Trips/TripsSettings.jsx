@@ -51,7 +51,10 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
 
   const fetchTrips = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
+    const { data } = await supabase
+      .from('trips')
+      .select('*')
+      .order('start_date', { ascending: false });
     if (data) {
       setTrips(data);
     }
@@ -67,7 +70,10 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
 
   const fetchShares = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase.from('trip_shares').select('*, trips(title)').eq('shared_by', user.id);
+    const { data } = await supabase
+      .from('trip_shares')
+      .select('*, trips(title, user_id)')
+      .or(`shared_by.eq.${user.id},shared_with_email.eq.${user.email.toLowerCase()}`);
     if (data) {
       setShares(data);
     }
@@ -399,26 +405,44 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
 
             <div style={{ display: 'grid', gap: '1rem' }}>
               {shares.length === 0 && <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.5 }}>{t('trips.no_shares')}</div>}
-              {shares.map(share => (
-                <div key={share.id} className="glass-card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--glass-border)', borderRadius: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '0.75rem', borderRadius: '12px' }}>
-                      <Users size={22} style={{ color: 'var(--primary)' }} />
-                    </div>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{share.trips?.title}</h4>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        <Mail size={14} /> {share.shared_with_email}
+              {shares.map(share => {
+                const isOutgoing = share.shared_by === user.id;
+                return (
+                  <div key={share.id} className="glass-card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--glass-border)', borderRadius: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                      <div style={{ background: isOutgoing ? 'rgba(99, 102, 241, 0.1)' : 'rgba(16, 185, 129, 0.1)', padding: '0.75rem', borderRadius: '12px' }}>
+                        <Users size={22} style={{ color: isOutgoing ? 'var(--primary)' : 'var(--success)' }} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{share.trips?.title}</h4>
+                          <span style={{ 
+                            fontSize: '0.65rem', 
+                            padding: '0.2rem 0.5rem', 
+                            borderRadius: '6px', 
+                            background: isOutgoing ? 'rgba(99, 102, 241, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            color: isOutgoing ? 'var(--primary)' : 'var(--success)',
+                            fontWeight: '800',
+                            textTransform: 'uppercase'
+                          }}>
+                            {isOutgoing ? t('trips.outgoing') : t('trips.incoming')}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          <Mail size={14} /> {isOutgoing ? share.shared_with_email : t('trips.shared_by_label')}
+                        </div>
                       </div>
                     </div>
+                    <div className="actions-row">
+                      {isOutgoing && (
+                        <button className="action-btn danger" onClick={() => deleteItem('trip_shares', share.id, fetchShares)} title={t('trips.delete')}>
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="actions-row">
-                    <button className="action-btn danger" onClick={() => deleteItem('trip_shares', share.id, fetchShares)} title={t('trips.delete')}>
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

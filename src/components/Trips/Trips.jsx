@@ -16,7 +16,9 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(() => {
+    return localStorage.getItem('pc_trips_details_open') === 'true';
+  });
   const [categories, setCategories] = useState([]);
   const [trips, setTrips] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
@@ -50,17 +52,25 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     else if (mode === 'itinerary') setCurrentView('itinerary');
     else if (mode === 'checklists') setCurrentView('checklists');
     else if (mode === 'stats') setCurrentView('stats');
-    else if (mode === 'list') setCurrentView('main');
+    else if (mode === 'list') {
+      setCurrentView('main');
+      setIsDetailsOpen(false);
+      localStorage.setItem('pc_trips_details_open', 'false');
+    }
   }, [mode]);
 
   const STORAGE_KEY = 'pc_selected_trip_v2';
 
-  // Persistent Selected Trip
   useEffect(() => {
     if (selectedTrip && selectedTrip.id && !selectedTrip._isPlaceholder) {
       localStorage.setItem(STORAGE_KEY, selectedTrip.id);
     }
   }, [selectedTrip]);
+
+  // Persist Details state
+  useEffect(() => {
+    localStorage.setItem('pc_trips_details_open', isDetailsOpen);
+  }, [isDetailsOpen]);
 
   const fetchTrips = useCallback(async () => {
     if (!user) return;
@@ -74,24 +84,28 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
       return;
     }
 
-    if (data && data.length > 0) {
-      setTrips(data);
-      
+    // Always set trips, even if empty, to ensure UI state is correct
+    const tripsData = data || [];
+    setTrips(tripsData);
+    
+    if (tripsData.length > 0) {
       const savedTripId = localStorage.getItem(STORAGE_KEY);
       
       setSelectedTrip(current => {
         if (current?.id && !current._isPlaceholder) {
-          const updated = data.find(t => String(t.id) === String(current.id));
+          const updated = tripsData.find(t => String(t.id) === String(current.id));
           return updated || current;
         }
         
         if (savedTripId) {
-          const saved = data.find(t => String(t.id) === String(savedTripId));
+          const saved = tripsData.find(t => String(t.id) === String(savedTripId));
           if (saved) return saved;
         }
 
-        return data[0];
+        return tripsData[0];
       });
+    } else {
+      setSelectedTrip(null);
     }
   }, [user]);
 
@@ -203,7 +217,6 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         refreshKey={refreshKey || localRefreshKey} 
         onTripSelect={(trip) => {
           setSelectedTrip(trip);
-          setIsDetailsOpen(true);
         }}
         externalSelectedTrip={selectedTrip}
         isDetailsOpen={isDetailsOpen}

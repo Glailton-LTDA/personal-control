@@ -15,9 +15,20 @@ import i18n from '../../i18n';
 
 export default function TripDetails({ trip, onBack, expenses = [], showValues = true }) {
   const { t } = useTranslation();
-  const [selectedCurrency, setSelectedCurrency] = useState(localStorage.getItem(`pc_trip_${trip.id}_currency`) || trip.currencies?.[0] || 'BRL');
+  
+  const [selectedCurrency, setSelectedCurrency] = useState(() => {
+    if (!trip?.id) return 'BRL';
+    return localStorage.getItem(`pc_trip_${trip.id}_currency`) || trip.currencies?.[0] || 'BRL';
+  });
   const [itinerary, setItinerary] = useState([]);
+  const [shares, setShares] = useState([]);
   const estimatedDistance = useMemo(() => estimateItineraryDistance(itinerary), [itinerary]);
+
+  const allParticipants = useMemo(() => {
+    const manual = Array.isArray(trip?.participants) ? trip.participants : [];
+    const fromShares = shares.map(s => s.shared_with_email);
+    return Array.from(new Set([...manual, ...fromShares]));
+  }, [trip?.participants, shares]);
 
   useEffect(() => {
     const fetchItinerary = async () => {
@@ -29,9 +40,22 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
       
       if (data) setItinerary(data);
     };
+
+    const fetchShares = async () => {
+      if (!trip?.id) return;
+      const { data } = await supabase
+        .from('trip_shares')
+        .select('shared_with_email')
+        .eq('trip_id', trip.id);
+      
+      if (data) setShares(data);
+    };
     
     fetchItinerary();
+    fetchShares();
   }, [trip?.id]);
+
+  if (!trip) return null;
 
   return (
     <Motion.div 
@@ -78,7 +102,11 @@ export default function TripDetails({ trip, onBack, expenses = [], showValues = 
               </div>
               <InfoItem icon={<Navigation size={20}/>} label={t('trips.estimated_distance_label')} value={`${(Math.round(estimatedDistance) || 0).toLocaleString(i18n.language)} km`} />
               <div className="info-item-full" data-testid="trip-details-participants">
-                <InfoItem icon={<Users size={20}/>} label={t('trips.travelers_label')} value={trip.participants?.join(', ') || 'Glailton Costa, Deisianne Saraiva'} />
+                <InfoItem 
+                  icon={<Users size={20}/>} 
+                  label={t('trips.travelers_label')} 
+                  value={allParticipants.length > 0 ? allParticipants.join(', ') : t('trips.none')} 
+                />
               </div>
             </div>
           </div>
