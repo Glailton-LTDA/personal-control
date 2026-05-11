@@ -40,6 +40,19 @@ const countryNameMap = {
   'Bolívia': 'Bolivia'
 };
 
+// Fallback coordinates for microstates or countries missing from 110m resolution
+const MICROSTATE_COORDS = {
+  'Vaticano': { center: [12.4534, 41.9029], scale: 8000 },
+  'Vatican City': { center: [12.4534, 41.9029], scale: 8000 },
+  'Monaco': { center: [7.4128, 43.7384], scale: 8000 },
+  'San Marino': { center: [12.4578, 43.9424], scale: 6000 },
+  'Andorra': { center: [1.5218, 42.5063], scale: 5000 },
+  'Liechtenstein': { center: [9.5209, 47.1410], scale: 5000 },
+  'Malta': { center: [14.4419, 35.9173], scale: 4000 },
+  'Maldivas': { center: [73.5361, 1.9772], scale: 3000 },
+  'Singapura': { center: [103.8198, 1.3521], scale: 4000 }
+};
+
 const getFlagCode = (countryName) => {
   if (!countryName) return null;
   const normalized = countryName.toLowerCase().trim();
@@ -68,7 +81,12 @@ export default function TripsStats({ trips, onBack }) {
   const geometriesRef = React.useRef([]);
 
   const handleSelectCountry = (country) => {
-    if (geometriesRef.current.length > 0) {
+    // 1. Check for manual fallback (microstates)
+    if (MICROSTATE_COORDS[country.name]) {
+      setDynamicMapConfig(MICROSTATE_COORDS[country.name]);
+    } 
+    // 2. Try to find in geometries
+    else if (geometriesRef.current.length > 0) {
       const feature = geometriesRef.current.find(g => 
         g.properties.name === country.name || 
         g.properties.name === countryNameMap[country.name]
@@ -89,6 +107,7 @@ export default function TripsStats({ trips, onBack }) {
         
         setDynamicMapConfig({ center, scale });
       } else {
+        // Fallback for unknown
         setDynamicMapConfig({ center: [0, 0], scale: 400 });
       }
     }
@@ -614,6 +633,7 @@ export default function TripsStats({ trips, onBack }) {
 
             <div className="modal-map-container">
               <ComposableMap
+                projection="geoMercator"
                 projectionConfig={{
                   scale: dynamicMapConfig.scale
                 }}
