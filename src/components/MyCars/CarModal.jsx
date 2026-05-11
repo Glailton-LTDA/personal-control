@@ -377,6 +377,7 @@ function ShareCarSection({ car, user, onClose }) {
         car_id: car.id,
         shared_by: user.id,
         shared_with_email: email.toLowerCase().trim(),
+        permission: 'WRITE',
         status: 'PENDING'
       });
 
