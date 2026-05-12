@@ -219,6 +219,12 @@ export default function Login({ onLogin, recoveryMode, onRecoveryComplete }) {
           }
         </Motion.div>
       </AnimatePresence>
+
+      <div style={{ position: 'absolute', bottom: '2rem', left: '0', right: '0', textAlign: 'center', opacity: 0.5 }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Personal Control v1.2.5
+        </span>
+      </div>
     </div>
   );
 }

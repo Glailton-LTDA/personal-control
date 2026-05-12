@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MyCars from './MyCars';
 import { supabase } from '../../lib/supabase';
-import { EncryptionProvider } from '../../contexts/EncryptionContext';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -26,8 +25,6 @@ describe('MyCars', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    // Set bypass for E2E/Test mode in EncryptionContext
-    window.localStorage.setItem('pc_e2e_test', 'true');
 
     // Setup specific mock for this test using the global supabase mock structure
     vi.mocked(supabase.from).mockImplementation((table) => {
@@ -47,9 +44,7 @@ describe('MyCars', () => {
 
   it('renders the car list and selects the first one', async () => {
     render(
-      <EncryptionProvider user={mockUser}>
-        <MyCars user={mockUser} />
-      </EncryptionProvider>
+      <MyCars user={mockUser} />
     );
 
     // Wait for the car name to appear in a heading or button

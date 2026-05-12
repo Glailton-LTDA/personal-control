@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { useEncryption } from '../../contexts/EncryptionContext';
 import toast from 'react-hot-toast';
 import AddressInput from '../Trips/AddressInput';
 
@@ -126,7 +125,6 @@ function AutoResizeTextarea({ value, onChange, placeholder, className, style }) 
 
 export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   const { t, i18n } = useTranslation();
-  const { decryptObject } = useEncryption();
   const [lists, setLists] = useState([]);
   const [selectedList, setSelectedList] = useState(null);
   const [items, setItems] = useState([]);
@@ -176,7 +174,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, decryptObject, t]);
+  }, [user, t]);
 
   const fetchShares = useCallback(async () => {
     if (!selectedList || selectedList.user_id !== user.id) {
@@ -218,7 +216,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       console.error('Error fetching items:', err);
       toast.error(t('finances.error_loading'));
     }
-  }, [decryptObject, t]);
+  }, [t]);
 
   useEffect(() => {
     fetchLists();

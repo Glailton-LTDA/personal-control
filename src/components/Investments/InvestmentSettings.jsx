@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Edit2, Save, X, Palette, Building2, Layers, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function InvestmentSettings({ user }) {
   const [activeTab, setActiveTab] = useState('accounts');
@@ -14,7 +13,6 @@ export default function InvestmentSettings({ user }) {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const { encryptObject, decryptObject } = useEncryption();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -50,15 +48,14 @@ export default function InvestmentSettings({ user }) {
         .order('name');
       
       if (accs) {
-        const decrypted = await decryptObject(accs, ['name']);
-        setAccounts(decrypted);
+        setAccounts(accs);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
-  }, [decryptObject]);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -74,7 +71,7 @@ export default function InvestmentSettings({ user }) {
 
   async function handleAccountSubmit(e) {
     e.preventDefault();
-    const encrypted = await encryptObject(formData, ['name']);
+    const encrypted = formData;
     
     if (editingId) {
       const { error } = await supabase

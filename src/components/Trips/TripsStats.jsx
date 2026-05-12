@@ -14,7 +14,6 @@ import {
 import { getContinent } from '../../data/continents';
 import { estimateItineraryDistance } from '../../lib/geo';
 import { supabase } from '../../lib/supabase';
-import { useEncryption } from '../../contexts/EncryptionContext';
 import { countryToCode } from '../../data/countries';
 import { geoCentroid, geoBounds } from "d3-geo";
 import './TripsStats.css';
@@ -75,15 +74,15 @@ export default function TripsStats({ trips, onBack }) {
   const { t } = useTranslation();
   const [continentFilter, setContinentFilter] = useState('All');
   const [viewMode, setViewMode] = useState('dashboard');
-  const { decryptObject, isUnlocked } = useEncryption();
   
   const [dynamicMapConfig, setDynamicMapConfig] = useState({ center: [0, 0], scale: 400 });
   const geometriesRef = React.useRef([]);
 
   const handleSelectCountry = (country) => {
     // 1. Check for manual fallback (microstates)
-    if (MICROSTATE_COORDS[country.name]) {
-      setDynamicMapConfig(MICROSTATE_COORDS[country.name]);
+    const microConfig = MICROSTATE_COORDS[country.name] || MICROSTATE_COORDS[countryNameMap[country.name]];
+    if (microConfig) {
+      setDynamicMapConfig(microConfig);
     } 
     // 2. Try to find in geometries
     else if (geometriesRef.current.length > 0) {
@@ -131,12 +130,7 @@ export default function TripsStats({ trips, onBack }) {
         if (error) throw error;
 
         // Decrypt the data item by item with its respective trip key
-        const decryptedData = await Promise.all(data.map(item =>
-          decryptObject(item, ['activity', 'location', 'notes'], {
-            resourceId: item.trip_id,
-            resourceType: 'TRIP'
-          })
-        ));
+        const decryptedData = data || [];
 
         const grouped = {};
         decryptedData.forEach(item => {
@@ -152,7 +146,7 @@ export default function TripsStats({ trips, onBack }) {
     }
 
     fetchAllItineraries();
-  }, [trips, decryptObject, isUnlocked]);
+  }, [trips]);
 
   const stats = useMemo(() => {
     if (!trips || trips.length === 0) return null;

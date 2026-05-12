@@ -3,10 +3,8 @@ import { motion as Motion } from 'framer-motion';
 import { XCircle, Car, Wrench, FileText, Share2, DollarSign, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 
 export default function CarModal({ isOpen, onClose, type, car, maintenance, user, onSuccess }) {
-  const { encryptObject } = useEncryption();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0, is_hidden: false });
   const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
@@ -48,13 +46,13 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     if (!noteData.notes.trim()) return;
     setLoading(true);
     
-    const encrypted = await encryptObject({
+    const encrypted = {
       car_id: car.id,
       description: noteData.description,
       km_milestone: noteData.km_milestone,
       notes: noteData.notes,
       updated_at: new Date().toISOString()
-    }, ['notes'], { resourceId: car.id, resourceType: 'CAR' });
+    };
 
     const { error } = await supabase.from('car_maintenance').upsert(encrypted, { onConflict: 'car_id,description,km_milestone' });
 
@@ -71,18 +69,14 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     setLoading(true);
     const carId = crypto.randomUUID();
 
-    const encrypted = await encryptObject({ 
+    const encrypted = { 
       id: carId,
       user_id: user.id, 
       name: formData.name, 
       plate: formData.plate, 
       current_km: formData.current_km,
       is_hidden: formData.is_hidden
-    }, ['name', 'plate'], { 
-      resourceId: carId, 
-      resourceType: 'CAR', 
-      isCreation: true 
-    });
+    };
 
     const { error } = await supabase.from('cars').insert(encrypted);
     if (!error) onSuccess();
@@ -91,15 +85,12 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
 
   async function handleUpdateCar() {
     setLoading(true);
-    const encrypted = await encryptObject({ 
+    const encrypted = { 
       name: formData.name, 
       plate: formData.plate, 
       current_km: formData.current_km,
       is_hidden: formData.is_hidden
-    }, ['name', 'plate'], { 
-      resourceId: car.id, 
-      resourceType: 'CAR' 
-    });
+    };
 
     const { error } = await supabase.from('cars').update(encrypted).eq('id', car.id);
     if (!error) onSuccess();
@@ -362,17 +353,12 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
 function ShareCarSection({ car, user, onClose }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const { shareResourceKey } = useEncryption();
-
   async function handleShare(e) {
     e.preventDefault();
     if (!email.trim()) return;
     
     setLoading(true);
     try {
-      const shared = await shareResourceKey(car.id, 'CAR', email.toLowerCase().trim());
-      if (!shared) return;
-
       const { error } = await supabase.from('car_shares').insert({
         car_id: car.id,
         shared_by: user.id,

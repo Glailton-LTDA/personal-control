@@ -49,6 +49,7 @@ import Investments from './Investments/Investments';
 import Trips from './Trips/Trips';
 import CustomLists from './CustomLists/CustomLists';
 import Launchpad from './Launchpad';
+import Footer from './Footer';
 
 const defaultMenuItems = [
   { id: 'launchpad', icon: LayoutGrid, key: 'launchpad' },
@@ -480,6 +481,7 @@ export default function Dashboard({ user }) {
           </Motion.div>
         </AnimatePresence>
       </main>
+      <Footer />
 
       {/* ── Contextual FAB ── */}
       <AnimatePresence>

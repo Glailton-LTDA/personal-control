@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
-import { useEncryption } from '../../contexts/EncryptionContext';
 import { confirmToast } from '../../lib/toast';
 import toast from 'react-hot-toast';
 import CarModal from './CarModal';
@@ -33,7 +32,6 @@ import { milestones, defaultServiceTemplates } from './constants';
 
 export default function MyCars({ user, refreshKey, mode = 'list' }) {
   const { t } = useTranslation();
-  const { decryptObject, encryptObject } = useEncryption();
   const [cars, setCars] = useState([]);
   const [sharedCars, setSharedCars] = useState([]);
   const [activeShares, setActiveShares] = useState([]);
@@ -96,42 +94,28 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .select('*, car_id (*)')
       .eq('shared_by', user.id);
  
-    const decryptedOwn = await decryptObject(own || [], ['name', 'plate', 'make', 'model'], { resourceType: 'CAR' });
-    
-    const decryptShareList = async (list) => {
-      if (!list) return [];
-      return await Promise.all(list.map(async (item) => {
-        if (!item.car_id) return item;
-        const decCar = await decryptObject([item.car_id], ['name', 'plate', 'make', 'model'], {
-          resourceId: item.car_id.id,
-          resourceType: 'CAR'
-        });
-        return { ...item, car_id: decCar[0] };
-      }));
-    };
+    const decryptedShared = shared || [];
+    const decryptedPends = pends || [];
+    const decryptedActive = active || [];
 
-    const decryptedShared = await decryptShareList(shared);
-    const decryptedPends = await decryptShareList(pends);
-    const decryptedActive = await decryptShareList(active);
-
-    setCars(decryptedOwn);
-    setSharedCars(decryptedShared?.map(s => s.car_id) || []);
+    setCars(own || []);
+    setSharedCars(decryptedShared.map(s => s.car_id) || []);
     setInvitations(decryptedPends || []);
     setActiveShares(decryptedActive || []);
  
     if (!selectedCar) {
-      const firstVisible = decryptedOwn?.find(c => !c.is_hidden) || decryptedShared?.find(s => !s.car_id.is_hidden)?.car_id;
+      const firstVisible = (own || [])?.find(c => !c.is_hidden) || (shared || [])?.find(s => !s.car_id.is_hidden)?.car_id;
       if (firstVisible) {
         setSelectedCar(firstVisible);
-      } else if (decryptedOwn?.length > 0) {
-        setSelectedCar(decryptedOwn[0]);
-      } else if (decryptedShared?.length > 0) {
-        setSelectedCar(decryptedShared[0].car_id);
+      } else if (own?.length > 0) {
+        setSelectedCar(own[0]);
+      } else if (shared?.length > 0) {
+        setSelectedCar(shared[0].car_id);
       }
     }
  
     setLoading(false);
-  }, [user.id, user.email, decryptObject, selectedCar]);
+  }, [user.id, user.email, selectedCar]);
 
   const fetchMaintenance = useCallback(async (carId) => {
     const { data } = await supabase
@@ -139,12 +123,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .select('*')
       .eq('car_id', carId);
     
-    const decrypted = await decryptObject(data || [], ['notes'], { 
-      resourceId: carId, 
-      resourceType: 'CAR' 
-    });
-    setMaintenance(decrypted);
-  }, [decryptObject]);
+    setMaintenance(data || []);
+  }, []);
 
   useEffect(() => {
     fetchCars();
@@ -174,7 +154,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     
     const existing = maintenance.find(m => m.description === desc && m.km_milestone === km);
     
-    const encrypted = await encryptObject({
+    const payload = {
       car_id: selectedCar.id,
       description: desc,
       km_milestone: km,
@@ -182,9 +162,9 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       completed: nextStatus === 'DONE',
       notes: existing?.notes || null,
       updated_at: new Date().toISOString()
-    }, ['notes'], { resourceId: selectedCar.id, resourceType: 'CAR' });
+    };
 
-    const { error } = await supabase.from('car_maintenance').upsert(encrypted, { onConflict: 'car_id,description,km_milestone' });
+    const { error } = await supabase.from('car_maintenance').upsert(payload, { onConflict: 'car_id,description,km_milestone' });
 
     if (!error) {
       fetchMaintenance(selectedCar.id);

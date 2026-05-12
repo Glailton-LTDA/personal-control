@@ -11,7 +11,6 @@ import {
 import InvestmentModal from './InvestmentModal';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
-import { useEncryption } from '../../contexts/EncryptionContext';
 import { motion as Motion } from 'framer-motion';
 
 const GRADIENTS = {
@@ -112,7 +111,6 @@ export default function InvestmentList({ user, showValues = true }) {
   const [records, setRecords] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { decryptObject } = useEncryption();
   const [filterYear, setFilterYear] = useState(() => {
     const saved = localStorage.getItem('investment_filter_year');
     return saved ? Number(saved) : new Date().getFullYear();
@@ -166,8 +164,7 @@ export default function InvestmentList({ user, showValues = true }) {
       .from('investment_accounts')
       .select('*, institution:investment_institutions(name), type:investment_account_types(name)');
     if (accountsData) {
-      const decryptedAccs = await decryptObject(accountsData, ['name']);
-      setAccounts(decryptedAccs);
+      setAccounts(accountsData);
     }
 
     let query = supabase
@@ -197,16 +194,13 @@ export default function InvestmentList({ user, showValues = true }) {
 
     const { data, error } = await query;
     if (!error && data) {
-      const decryptedRecords = await decryptObject(data, [
-        'investment_accounts.name'
-      ]);
-      setRecords(decryptedRecords);
+      setRecords(data);
       // Expand all groups by default
-      const allInstitutions = new Set(decryptedRecords.map(r => r.investment_accounts?.institution || 'Outros'));
+      const allInstitutions = new Set(data.map(r => r.investment_accounts?.institution?.name || 'Outros'));
       setExpandedGroups(allInstitutions);
     }
     setLoading(false);
-  }, [filterYear, filterMonth, decryptObject]);
+  }, [filterYear, filterMonth]);
 
   useEffect(() => {
     fetchData();

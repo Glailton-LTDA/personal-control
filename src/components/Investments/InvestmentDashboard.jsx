@@ -5,7 +5,6 @@ import {
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
 import { TrendingUp, Wallet, Calendar, Filter, ArrowUpRight, TrendingDown, Layers, Eye, EyeOff, BarChart2, PieChart as PieChartIcon, Building2 } from 'lucide-react';
-import { useEncryption } from '../../contexts/EncryptionContext';
 import { motion as Motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 
@@ -19,7 +18,6 @@ const GRADIENTS = {
 
 export default function InvestmentDashboard({ user, showValues = true, onToggleValues }) {
   const { t, i18n } = useTranslation();
-  const { decryptObject } = useEncryption();
   const [data, setData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(() => {
     const saved = localStorage.getItem('investment_dashboard_year');
@@ -173,12 +171,9 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       .order('record_date', { ascending: true });
 
     if (!error && records) {
-      const decryptedRecords = await decryptObject(records, [
-        'investment_accounts.name'
-      ]);
-      processData(decryptedRecords);
+      processData(records);
     }
-  }, [processData, decryptObject]);
+  }, [processData]);
 
   useEffect(() => {
     localStorage.setItem('investment_dashboard_year', selectedYear);
@@ -197,16 +192,21 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       
       {/* Header with Period Selectors */}
       <div className="glass-card" style={{ 
-        padding: '1rem 1.5rem', 
+        padding: '1.25rem 1.5rem', 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '0.75rem'
+        gap: '1.25rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 auto' }}>
-          <BarChart2 size={18} color="var(--primary)" />
-          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{t('investments.performance_title')}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '250px' }}>
+          <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)', flexShrink: 0 }}>
+            <Layers size={24} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('investments.dashboard_title')}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>{t('investments.dashboard_desc')}</p>
+          </div>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'nowrap' }}>
@@ -249,7 +249,9 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       <Motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
+        transition={{ delay: 0.1 }}
+        className="responsive-grid"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '1.5rem' }}
       >
         <StatCard 
           title={t('investments.total_assets')} 
@@ -291,7 +293,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       </Motion.div>
 
       {/* Main Charts */}
-      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.5rem' }}>
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))', gap: '1.5rem' }}>
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Calendar size={18} /> {t('investments.yield_evolution')} {selectedYear}
@@ -380,7 +382,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
       </div>
 
       {/* Grouped Charts Grid */}
-      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))', gap: '1.5rem' }}>
         
         {/* Rendimento por Tipo de Conta */}
         <div className="glass-card" style={{ padding: '1.5rem' }}>

@@ -96,22 +96,3 @@ vi.mock('../lib/supabase', () => ({
     },
   },
 }));
-
-// Global Mock for EncryptionContext
-const mockEncryption = {
-  isUnlocked: true,
-  masterKey: 'test-key',
-  encryptData: vi.fn((data) => Promise.resolve(data)),
-  decryptData: vi.fn((data) => Promise.resolve(data)),
-  encryptObject: vi.fn((obj) => Promise.resolve(obj)),
-  decryptObject: vi.fn((obj) => Promise.resolve(obj)),
-  deriveKey: vi.fn(() => Promise.resolve(true)),
-  clearMasterKey: vi.fn(),
-  showUnlockModal: false,
-  setShowUnlockModal: vi.fn()
-};
-
-vi.mock('../contexts/EncryptionContext', () => ({
-  useEncryption: () => mockEncryption,
-  EncryptionProvider: ({ children }) => children
-}));

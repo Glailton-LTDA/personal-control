@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2, Loader2, LayoutGrid, Sun, Moon, Globe, User } from 'lucide-react';
+import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2, Loader2, LayoutGrid, Sun, Moon, Globe, User, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useEncryption } from '../contexts/EncryptionContext';
 import { useTranslation } from 'react-i18next';
 
 export default function Settings({ user, menuOrder, setMenuOrder, menuItems, activeTab, theme, setTheme }) {
@@ -23,7 +22,6 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
   const [pwShow, setPwShow] = useState({ current: false, next: false, confirm: false });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState(null); 
-  const { migrateToPlainText } = useEncryption();
 
   // Profile name state
   const [displayName, setDisplayName] = useState(user?.user_metadata?.full_name || user?.user_metadata?.name || '');
@@ -151,7 +149,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
       {activeTab === 'settings-general' && (
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', 
           gap: '1.5rem', 
           alignItems: 'start' 
         }}>
@@ -171,21 +169,21 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="input-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('settings.profile_name')}</label>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <input 
                     type="text" 
                     value={displayName} 
                     onChange={e => setDisplayName(e.target.value)}
                     placeholder="Seu nome"
-                    style={{ borderRadius: '12px', flex: 1 }}
+                    style={{ borderRadius: '12px', flex: 1, minWidth: '200px' }}
                   />
                   <button 
                     onClick={handleUpdateName} 
                     disabled={updatingName || !displayName.trim()} 
                     className="btn-primary" 
-                    style={{ padding: '0 1.5rem', borderRadius: '12px' }}
+                    style={{ padding: '0.8rem 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flex: '1 1 auto' }}
                   >
-                    {updatingName ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                    {updatingName ? <Loader2 size={18} className="animate-spin" /> : <><Save size={18} /> <span>{t('settings.save')}</span></>}
                   </button>
                 </div>
               </div>
@@ -374,18 +372,27 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
           </Motion.div>
 
           {/* Card 4: Email & System Notifications */}
-          <Motion.div data-testid="section-notifications" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card" style={{ padding: '2rem', gridColumn: '1 / -1' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
+          <Motion.div data-testid="section-notifications" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card" style={{ padding: '2rem' }}>
+            <div className="settings-card-header" style={{ marginBottom: '2.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '250px' }}>
+                <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)', flexShrink: 0 }}>
                   <Bell size={24} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.system')}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{t('settings.system_desc')}</p>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.system')}</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500, margin: 0, lineHeight: 1.4 }}>{t('settings.system_desc')}</p>
                 </div>
               </div>
-              <button data-testid="save-settings-button" disabled={saving} onClick={handleSave} className="btn-primary" style={{ padding: '0.8rem 2rem' }}>
+              <button 
+                data-testid="save-settings-button" 
+                disabled={saving} 
+                onClick={handleSave} 
+                className="btn-primary" 
+                style={{ 
+                  padding: '0.8rem 2rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
                 {saving ? t('settings.saving') : <><Save size={18} /> {t('settings.save')}</>}
               </button>
             </div>
@@ -441,6 +448,51 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
               </div>
             </div>
           </Motion.div>
+
+          {/* Card 5: About System */}
+          <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
+                <Info size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'pt' ? 'Sobre o Sistema' : 'About System'}</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{i18n.language === 'pt' ? 'Informações da plataforma' : 'Platform information'}</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Versão</span>
+                  <span style={{ color: 'var(--text-main)', fontWeight: 800 }}>1.2.5 (Stable)</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Build ID</span>
+                  <span style={{ color: 'var(--text-main)', fontWeight: 800 }}>2026.05.12</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Design System</span>
+                  <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Orbit Core</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <a 
+                  href="https://github.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="btn-secondary" 
+                  style={{ flex: 1, padding: '0.75rem', fontSize: '0.8rem', justifyContent: 'center' }}
+                >
+                  <Globe size={16} /> GitHub
+                </a>
+                <div style={{ flex: 1, padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#10b981', fontSize: '0.8rem', fontWeight: 700 }}>
+                  <CheckCircle2 size={16} /> Online
+                </div>
+              </div>
+            </div>
+          </Motion.div>
         </div>
       )}
 
@@ -448,7 +500,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
       {activeTab === 'settings-security' && (
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', 
           gap: '1.5rem', 
           alignItems: 'start' 
         }}>
@@ -502,38 +554,6 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             </form>
           </Motion.div>
 
-          {/* Card 2: Security Health & Maintenance */}
-          <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card" style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-              <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '1rem', color: 'var(--danger)' }}>
-                <ShieldCheck size={24} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.maintenance')}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{t('settings.maintenance_desc')}</p>
-              </div>
-            </div>
-            
-            <div style={{ padding: '1.5rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '24px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-              <p style={{ fontSize: '0.85rem', marginBottom: '1.5rem', color: 'var(--text-main)', opacity: 0.8, lineHeight: '1.6', fontWeight: 500 }}>
-                {i18n.language === 'pt' ? 'Utilize esta ferramenta se encontrar dados legados com criptografia antiga. Esta ação é irreversível.' : 'Use this tool if you find legacy data with old encryption. This action is irreversible.'}
-              </p>
-              <button 
-                onClick={() => migrateToPlainText()}
-                className="btn-secondary" 
-                style={{ width: '100%', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#ef4444', fontWeight: 800, padding: '1rem', background: 'rgba(239, 68, 68, 0.05)' }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)'}
-              >
-                <KeyRound size={18} /> {i18n.language === 'pt' ? 'EXECUTAR RESGATE' : 'RUN RECOVERY'}
-              </button>
-            </div>
-
-            <div style={{ marginTop: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: 'rgba(34,197,94,0.1)', borderRadius: '16px', border: '1px solid rgba(34,197,94,0.2)' }}>
-               <CheckCircle2 size={16} style={{ color: '#10b981' }} />
-               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981' }}>{i18n.language === 'pt' ? 'Sistema de Criptografia Ativo' : 'Encryption System Active'}</span>
-            </div>
-          </Motion.div>
 
         </div>
       )}

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import CustomLists from './CustomLists';
-import * as EncryptionContextModule from '../../contexts/EncryptionContext';
 
 // Mock supabase
 vi.mock('../../lib/supabase', () => ({
@@ -29,14 +28,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock useEncryption hook
-const mockEncryption = {
-  decryptObject: vi.fn(val => Promise.resolve(val)),
-  encryptObject: vi.fn(val => Promise.resolve(val)),
-  isUnlocked: true,
-};
-
-vi.spyOn(EncryptionContextModule, 'useEncryption').mockReturnValue(mockEncryption);
 
 const mockUser = { id: 'user-123', email: 'test@example.com' };
 
