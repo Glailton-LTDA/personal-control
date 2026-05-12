@@ -469,6 +469,7 @@ i18n
           },
           common: {
             save: 'Salvar',
+            save_changes: 'Salvar Alterações',
             cancel: 'Cancelar',
             yes: 'Sim',
             no: 'Não',
@@ -895,6 +896,7 @@ i18n
           },
           common: {
             save: 'Save',
+            save_changes: 'Save Changes',
             cancel: 'Cancel',
             yes: 'Yes',
             no: 'No',
@@ -1321,6 +1323,7 @@ i18n
           },
           common: {
             save: 'Guardar',
+            save_changes: 'Guardar Cambios',
             cancel: 'Cancelar',
             yes: 'Sí',
             no: 'No',
