@@ -39,6 +39,12 @@ coverage/
 .vitest/
 .last-run.json
 test-out*.txt
+test_output.txt
+
+# Artifacts & Debugging
+artifacts/
+*.png
+!src/assets/*.png
 
 # Vite temporary files
 .vite/
