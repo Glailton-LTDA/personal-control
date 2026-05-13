@@ -73,7 +73,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
         
         const current = monthsMap.get(label);
         const amount = Number(item.amount);
-        const cat = item.category || 'Outros';
+        const cat = item.category || t('common.other', 'Outros');
 
         if (item.type === 'RECEITA') {
           current.income += amount;
@@ -97,7 +97,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
     setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
     setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
-  }, [isGeneral, i18n.language]);
+  }, [isGeneral, i18n.language, t]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -128,8 +128,8 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   }, [isGeneral, month, selectedYear, refreshKey, fetchData]);
 
   const formatValue = (val) => {
-    if (!showValues) return 'R$ ••••••';
-    return `R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!showValues) return `${t('common.currency_symbol', 'R$')} ••••••`;
+    return `${t('common.currency_symbol', 'R$')} ${Number(val).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -336,7 +336,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                 pointerEvents: 'none'
               }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>{t('finances.total')}</span>
-                <span style={{ fontSize: '1rem', fontWeight: 800 }}>{showValues ? `R$ ${(stats.income/1000).toFixed(1)}k` : '••••'}</span>
+                <span style={{ fontSize: 14, fontWeight: 800 }}>{showValues ? `${t('common.currency_symbol', 'R$')} ${(stats.income/1000).toFixed(1)}k` : '••••'}</span>
               </div>
             </div>
             
@@ -400,7 +400,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
                 pointerEvents: 'none'
               }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>{t('finances.total')}</span>
-                <span style={{ fontSize: '1rem', fontWeight: 800 }}>{showValues ? `R$ ${(stats.expense/1000).toFixed(1)}k` : '••••'}</span>
+                <span style={{ fontSize: 14, fontWeight: 800 }}>{showValues ? `${t('common.currency_symbol', 'R$')} ${(stats.expense/1000).toFixed(1)}k` : '••••'}</span>
               </div>
             </div>
             
@@ -424,7 +424,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
 }
 
 function StatCard({ title, value, icon, color, gradient, loading, showValues, 'data-testid': testId }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div 
       data-testid={testId}
@@ -492,7 +492,7 @@ function StatCard({ title, value, icon, color, gradient, loading, showValues, 'd
           {loading ? (
             <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
           ) : (
-            <>{showValues ? `R$ ${(value || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+            <>{showValues ? `${t('common.currency_symbol', 'R$')} ${(value || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}</>
           )}
         </div>
         {!loading && (

@@ -1,8 +1,22 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Investments Module', () => {
+  /** Desbloqueia o app se o modal de segurança aparecer. */
+  async function unlockApp(page) {
+    const unlockModal = page.getByText('Acesso Seguro');
+    if (await unlockModal.isVisible()) {
+      await page.getByTestId('master-password-input').fill('password123');
+      await page.getByRole('button', { name: 'Desbloquear Dados' }).click();
+      await expect(unlockModal).not.toBeVisible({ timeout: 10000 });
+    }
+  }
+
   test.beforeEach(async ({ page }) => {
-    // Mock Supabase auth token (login + refresh)
+    // Logging para debug
+    page.on('pageerror', error => console.log('PAGE ERROR:', error.message));
+    page.on('console', msg => { if (msg.type() === 'error') console.log('CONSOLE ERROR:', msg.text()); });
+
+    // Intercepta Auth
     await page.route('**/auth/v1/token*', async (route) => {
       await route.fulfill({
         status: 200,
@@ -12,109 +26,129 @@ test.describe('Investments Module', () => {
           token_type: 'bearer',
           expires_in: 3600,
           refresh_token: 'mock-refresh',
-          user: { id: '123', email: 'test@example.com' } 
+          user: { id: 'user-123', email: 'test@example.com' } 
         }),
       });
     });
 
-    // Mock auth user endpoint
     await page.route('**/auth/v1/user*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ id: '123', email: 'test@example.com' }),
+        body: JSON.stringify({ id: 'user-123', email: 'test@example.com' }),
       });
     });
 
-    // Block Supabase Realtime WebSocket — fake-token causes auth failure
-    // which triggers onAuthStateChange(SIGNED_OUT) → session cleared → Dashboard unmounts
+    // Mocks Rest API
+    await page.route(/.*\/rest\/v1\/.*/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+
+      if (method === 'GET') {
+        if (url.includes('investment_records')) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([
+              { 
+                id: 1, 
+                account_id: 1, 
+                yield: 120.50, 
+                final_balance: 5000.00, 
+                record_date: '2026-05-01', 
+                investment_accounts: { 
+                  id: 1,
+                  name: 'CDB Inter', 
+                  color: '#ff9500',
+                  institution: { name: 'Inter' },
+                  type: { name: 'Renda Fixa' }
+                } 
+              }
+            ]),
+          });
+        }
+
+        if (url.includes('investment_accounts')) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([
+              { 
+                id: 1, 
+                name: 'CDB Inter', 
+                color: '#ff9500',
+                institution: { name: 'Inter' },
+                type: { name: 'Renda Fixa' }
+              }
+            ]),
+          });
+        }
+
+        if (url.includes('notification_settings') || url.includes('car_shares')) {
+          return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
+        }
+
+        // Fallback para outros GETs (finanças, etc)
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
+      }
+
+      await route.continue();
+    });
+
+    // Dummy Realtime
     await page.route('**/realtime/**', async (route) => {
-      await route.abort();
+      await route.fulfill({ status: 200, body: '' });
     });
 
-    // Mock Dashboard boot requests
-    await page.route('**/rest/v1/notification_settings*', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
-    });
-
-    await page.route('**/rest/v1/car_shares*', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
-    });
-
-    // Mock investment data
-    await page.route('**/rest/v1/investment_records*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { id: 1, account_id: 1, yield: 100, final_balance: 1000, record_date: '2026-04-01', investment_accounts: { institution: 'Inter', name: 'CDB', color: '#10b981' } }
-        ]),
-      });
-    });
-
-    await page.route('**/rest/v1/investment_accounts*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { id: 1, name: 'CDB', institution: 'Inter', color: '#10b981' }
-        ]),
-      });
-    });
-
-    // Catch-all for any unmocked Supabase REST calls (finances dashboard is default tab)
-    await page.route('**/rest/v1/finances*', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
-    });
-    await page.route('**/rest/v1/finance_responsibles*', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
-    });
-    await page.route('**/rest/v1/finance_categories*', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
-    });
-
-    // Must be set before goto so EncryptionContext bypass is active on app boot
     await page.addInitScript(() => {
+      window.localStorage.clear();
       window.localStorage.setItem('pc_e2e_test', 'true');
     });
 
     await page.goto('/');
     await page.fill('input[type="email"]', 'test@example.com');
-    await page.fill('input[type="password"]', 'password');
+    await page.fill('input[type="password"]', 'password123');
     await page.getByTestId('login-btn').click();
 
-    // Wait for Dashboard to mount (Launchpad)
+    // Aguarda o Dashboard carregar (Launchpad)
     await page.waitForSelector('header', { timeout: 20000 });
     await expect(page.getByTestId('welcome-message')).toBeVisible({ timeout: 15000 });
+    await unlockApp(page);
   });
 
   test('should display investment dashboard with charts', async ({ page }) => {
     // Navega para Investimentos via Launchpad
-    await page.getByTestId('launchpad-item-investments').click();
-    await page.waitForLoadState('networkidle');
+    await page.getByTestId('launchpad-item-investments').click({ force: true });
     
-    // Wait for the view to change
-    await expect(page.getByText(/Performance de Investimentos|Investment Performance/i)).toBeVisible({ timeout: 15000 });
+    // Aguarda a saída do Launchpad e entrada do sub-header
+    await expect(page.getByTestId('welcome-message')).toBeHidden({ timeout: 10000 });
+    await expect(page.getByTestId('sub-header')).toBeVisible({ timeout: 10000 });
+
+    // Verifica o título interno do dashboard
+    await expect(page.getByTestId('investment-dashboard-main-title')).toBeVisible({ timeout: 15000 });
     
-    // Wait for performance card
-    await expect(page.getByText(/Performance de Investimentos|Investment Performance/i)).toBeVisible({ timeout: 10000 });
-    
-    // Check specific stats
+    // Verifica se os dados mockados aparecem (Patrimônio Total)
+    // O valor 5.000,00 deve estar formatado como R$ 5.000,00 ou similar
     await expect(page.getByText(/Patrimônio Total|Total Assets/i)).toBeVisible();
+    await expect(page.getByText(/5\.?000,00/)).toBeVisible({ timeout: 10000 });
   });
 
   test('should navigate to investment list', async ({ page }) => {
     // Navega para Investimentos via Launchpad
-    await page.getByTestId('launchpad-item-investments').click();
-    await page.waitForLoadState('networkidle');
-
-    // Wait for the investments-dashboard to load
+    await page.getByTestId('launchpad-item-investments').click({ force: true });
+    await expect(page.getByTestId('sub-header')).toBeVisible({ timeout: 10000 });
+    
     // Clica em "Planilha" no sub-header
-    await page.getByTestId('sidebar-sub-item-investments-list').click();
+    const subItem = page.getByTestId('sidebar-sub-item-investments-list');
+    await expect(subItem).toBeVisible({ timeout: 10000 });
+    await subItem.click();
 
-    // Confirm navigation succeeded via header title change
-    await expect(page.getByTestId('header-title').first()).toHaveText(/Investimentos|Investments/i, { timeout: 10000 });
-    // Now check the summary card
-    await expect(page.getByTestId('summary-card-total-balance-list')).toBeVisible({ timeout: 30000 });
+    // Confirma navegação via header title (Dashboard.jsx)
+    await expect(page.getByTestId('header-title').first()).toHaveText(/Investimentos|Investments/i, { timeout: 15000 });
+    
+    // Verifica a presença do card de resumo na listagem
+    await expect(page.getByTestId('summary-card-total-balance-list')).toBeVisible({ timeout: 15000 });
+    // Verifica o valor total na listagem
+    await expect(page.getByTestId('summary-card-total-balance-list').getByText(/5\.?000,00/)).toBeVisible();
   });
 });

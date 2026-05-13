@@ -36,7 +36,7 @@ vi.mock('lucide-react', () => ({
   Search: () => <div data-testid="search-icon" />,
   ChevronLeft: () => <div />,
   ChevronRight: () => <div />,
-  CheckCircle2: () => <div />,
+  CheckCircle: () => <div />,
   XCircle: () => <div />,
   CreditCard: () => <div />,
   MoreVertical: () => <div />,
@@ -102,11 +102,12 @@ const mockFinances = [
 
 describe('FinanceList', () => {
   beforeEach(() => {
+    vi.setSystemTime(new Date('2026-04-15'));
     localStorage.clear();
     vi.clearAllMocks();
     
     // Default mock implementation
-    supabase.from.mockImplementation((tableName) => {
+    vi.mocked(supabase.from).mockImplementation((tableName) => {
       let chainState = { type: null };
       const chain = {
         select: vi.fn(() => chain),

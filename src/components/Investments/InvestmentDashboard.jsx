@@ -182,9 +182,9 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
   }, [user, selectedYear, selectedMonth, fetchData]);
 
   const formatCurrency = (val) => {
-    if (!showValues) return 'R$ ••••••';
-    const locale = t('common.locale') === 'pt-BR' ? 'pt-BR' : 'en-US';
-    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'BRL' }).format(val);
+    if (!showValues) return `${t('common.currency_symbol', 'R$')} ••••••`;
+    const locale = i18n.language === 'pt-BR' ? 'pt-BR' : 'en-US';
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: t('common.currency_code', 'BRL') }).format(val);
   };
 
   return (
@@ -204,7 +204,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
             <Layers size={24} />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('investments.dashboard_title')}</h3>
+            <h3 data-testid="investment-dashboard-main-title" style={{ fontSize: '1.1rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('investments.dashboard_title')}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>{t('investments.dashboard_desc')}</p>
           </div>
         </div>
@@ -318,7 +318,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
                 <YAxis 
                   stroke="var(--text-muted)" 
                   fontSize={11} 
-                  tickFormatter={(v) => `R$ ${v}`} 
+                  tickFormatter={(v) => `${t('common.currency_symbol', 'R$')} ${v}`} 
                   axisLine={false}
                   tickLine={false}
                 />
@@ -465,7 +465,7 @@ export default function InvestmentDashboard({ user, showValues = true, onToggleV
 }
 
 function StatCard({ title, value, icon, color, gradient, loading, showValues, testId }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div 
       className="glass-card" 
@@ -533,7 +533,7 @@ function StatCard({ title, value, icon, color, gradient, loading, showValues, te
           {loading ? (
             <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
           ) : (
-            <>{showValues ? `R$ ${(value || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+            <>{showValues ? `${t('common.currency_symbol', 'R$')} ${(value || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}</>
           )}
         </div>
         {!loading && (

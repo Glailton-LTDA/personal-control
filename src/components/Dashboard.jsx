@@ -366,13 +366,13 @@ export default function Dashboard({ user }) {
             whiteSpace: 'nowrap',
             flexShrink: 0
           }}>
-            <span data-testid="sub-header-title">
+            <span data-testid="sub-header-title-text">
               {activeTab.startsWith('finances') ? t('nav.finances') :
                 activeTab.startsWith('cars') ? t('nav.cars') :
-                  activeTab.startsWith('investments') ? t('nav.investments') :
-                    activeTab.startsWith('trips') ? t('nav.trips') :
-                      activeTab.startsWith('lists') ? t('nav.lists') :
-                        activeTab.startsWith('settings') ? t('nav.settings') : ''}
+                activeTab.startsWith('investments') ? t('nav.investments') :
+                activeTab.startsWith('trips') ? t('nav.trips') :
+                activeTab.startsWith('lists') ? t('nav.lists') :
+                activeTab.startsWith('settings') ? t('nav.settings') : ''}
             </span>
           </div>
           {(() => {
@@ -419,7 +419,7 @@ export default function Dashboard({ user }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.1 }}
           >
             {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
             {activeTab === 'finances-transactions' && (

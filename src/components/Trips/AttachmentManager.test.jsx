@@ -26,8 +26,8 @@ describe('AttachmentManager', () => {
 
     expect(screen.getAllByText(/Hospedagem/i).length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue(/Hotel 1/i)).toBeInTheDocument();
-    // Correct text is "+ Adicionar novo..."
-    expect(screen.getByText(/\+ Adicionar novo/i)).toBeInTheDocument();
+    // Correct text is translation key
+    expect(screen.getByText(/trips\.labels\.add_new_item/i)).toBeInTheDocument();
   });
 
   it('adds a new item when clicking on Add New', () => {
@@ -40,7 +40,7 @@ describe('AttachmentManager', () => {
       />
     );
 
-    const addBtn = screen.getByText(/\+ Adicionar novo/i);
+    const addBtn = screen.getByText(/trips\.labels\.add_new_item/i);
     fireEvent.click(addBtn);
 
     expect(onItemsChange).toHaveBeenCalled();

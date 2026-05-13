@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   List, Plus, Search, Settings, Trash2, Edit2, 
   ChevronRight, Save, X, Loader2, Info, 
-  CheckCircle2, Circle, Calendar, Hash, Type, AlignLeft,
+  CheckCircle, Circle, Calendar, Hash, Type, AlignLeft,
   MapPin, CheckSquare as CheckboxIcon, Box, ExternalLink,
   Users, Share2, Mail, Lock, ChevronDown, ChevronUp
 } from 'lucide-react';
@@ -17,7 +17,7 @@ const FIELD_TYPES = [
   { id: 'textarea', icon: AlignLeft },
   { id: 'number', icon: Hash },
   { id: 'date', icon: Calendar },
-  { id: 'checkbox', icon: CheckCircle2 },
+  { id: 'checkbox', icon: CheckCircle },
   { id: 'address', icon: MapPin },
   { id: 'link', icon: ExternalLink },
 ];
@@ -406,11 +406,11 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       return (
         <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '0.5rem' }}>
           {item.data[field.id] ? 
-            <div style={{ background: 'var(--success)', borderRadius: '50%', padding: '2px', display: 'flex' }}><CheckCircle2 size={16} color="white" /></div> : 
+            <div style={{ background: 'var(--success)', borderRadius: '50%', padding: '2px', display: 'flex' }}><CheckCircle size={16} color="white" /></div> : 
             <Circle size={18} style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
           }
           <span style={{ fontSize: '0.85rem', color: item.data[field.id] ? 'var(--success)' : 'var(--text-muted)' }}>
-            {item.data[field.id] ? t('lists.sim') : t('lists.nao')}
+            {item.data[field.id] ? t('common.yes', 'Sim') : t('common.no', 'Não')}
           </span>
         </div>
       );
@@ -845,7 +845,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                           background: item.completed ? 'var(--success)' : 'transparent',
                           transition: 'all 0.2s'
                         }}>
-                          {item.completed && <CheckCircle2 size={16} color="white" />}
+                          {item.completed && <CheckCircle size={16} color="white" />}
                         </div>
                         <span style={{ 
                           fontWeight: 900, 
@@ -854,7 +854,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em'
                         }}>
-                          {item.completed ? 'Concluído' : 'Pendente'}
+                          {item.completed ? t('common.completed', 'Concluído') : t('common.pending', 'Pendente')}
                         </span>
                       </button>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -904,7 +904,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                 )) : (
                   <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.3, gridColumn: '1 / -1' }}>
                     <Box size={48} style={{ margin: '0 auto 1rem' }} />
-                    <p style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>Nenhum item nesta lista ainda</p>
+                    <p style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>{t('lists.no_items', 'Nenhum item nesta lista ainda')}</p>
                   </div>
                 )}
               </div>
@@ -989,6 +989,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
 }
 
 function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState('WRITE');
   const [isLoading, setIsLoading] = useState(false);
@@ -1031,7 +1032,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, color: 'var(--text-main)' }} data-testid="modal-title">Compartilhar Lista</h3>
+        <h3 style={{ margin: 0, color: 'var(--text-main)' }} data-testid="modal-title">{t('lists.share_title', 'Compartilhar Lista')}</h3>
         <button onClick={onClose} className="icon-btn"><X size={20} /></button>
       </div>
       <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1047,7 +1048,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
           </select>
         </div>
         <button type="submit" disabled={isLoading} className="btn-primary" style={{ padding: '0.75rem' }}>
-          {isLoading ? <Loader2 className="spin" size={18} /> : 'Compartilhar'}
+          {isLoading ? <Loader2 className="spin" size={18} /> : t('lists.share', 'Compartilhar')}
         </button>
       </form>
       {activeShares.length > 0 && (
@@ -1058,7 +1059,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.shared_with_email}</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--primary)' }}>{s.permission === 'WRITE' ? 'EDITOR' : 'LEITOR'}</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--primary)' }}>{s.permission === 'WRITE' ? t('lists.editor', 'EDITOR') : t('lists.reader', 'LEITOR')}</span>
                 </div>
                 <button onClick={() => handleRevoke(s.id)} className="icon-btn" style={{ color: 'var(--danger)', flexShrink: 0 }}><Trash2 size={14} /></button>
               </div>
@@ -1100,7 +1101,7 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
                   border: '1px solid var(--glass-border)', cursor: 'pointer', color: 'var(--text-main)'
                 }}
               >
-                {formData[field.id] ? <CheckCircle2 className="text-primary" /> : <Circle />}
+                {formData[field.id] ? <CheckCircle className="text-primary" /> : <Circle />}
                 <span style={{ fontWeight: 600 }}>{field.name}</span>
               </button>
             ) : field.type === 'address' ? (

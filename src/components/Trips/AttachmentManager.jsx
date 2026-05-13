@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { 
   Plus, X, Upload, FileText, Trash2, ExternalLink, 
@@ -14,6 +15,7 @@ import BadgeInput from './BadgeInput';
 import { AIRPORTS } from '../../data/airports';
 
 export default function AttachmentManager({ label, icon: Icon, items, onItemsChange, tripId, defaultExpanded = true, readOnly = false }) {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   React.useEffect(() => {
@@ -52,9 +54,9 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
         idx === index ? { ...item, receipt_url: filePath } : item
       );
       onItemsChange(newItems);
-      toast.success('Arquivo enviado com sucesso');
+      toast.success(t('trips.upload_success'));
     } catch (error) {
-      toast.error('Erro ao fazer upload: ' + error.message);
+      toast.error(t('trips.upload_error') + ': ' + error.message);
     } finally {
       setIsUploading(false);
     }
@@ -92,7 +94,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
   const [localDateValues, setLocalDateValues] = useState({});
 
   const removeItem = (id) => {
-    confirmToast('Deseja remover este item?', () => {
+    confirmToast(t('trips.confirm_remove_item'), () => {
       onItemsChange(items.filter(item => item.id !== id));
     }, { danger: true });
   };
@@ -127,41 +129,75 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
   const isMisc = /documentos/i.test(label) || /diversos/i.test(label);
 
   const getStartLabel = () => {
-    if (isLodging) return 'CHECK-IN';
-    if (isTransport) return 'PARTIDA';
-    if (isTour) return 'DATA / HORA';
-    if (isMisc) return 'DATA';
-    return 'DATA / HORA';
+    if (isLodging) return t('trips.labels.checkin');
+    if (isTransport) return t('trips.labels.departure');
+    if (isTour) return t('trips.labels.datetime');
+    if (isMisc) return t('trips.labels.date');
+    return t('trips.labels.datetime');
   };
 
   const getEndLabel = () => {
-    if (isLodging) return 'CHECK-OUT';
-    if (isTransport) return 'CHEGADA';
+    if (isLodging) return t('trips.labels.checkout');
+    if (isTransport) return t('trips.labels.arrival');
     return null;
   };
 
   const TRANSPORT_TYPES = [
-    { id: 'flight', icon: Plane, label: 'Voo' },
-    { id: 'train', icon: Train, label: 'Trem' },
-    { id: 'bus', icon: Bus, label: 'Ônibus' },
-    { id: 'ship', icon: Ship, label: 'Navio' },
-    { id: 'car', icon: Car, label: 'Carro' },
-    { id: 'generic', icon: MapPin, label: 'Outro' }
+    { id: 'flight', icon: Plane, label: t('trips.transport_types.flight') },
+    { id: 'train', icon: Train, label: t('trips.transport_types.train') },
+    { id: 'bus', icon: Bus, label: t('trips.transport_types.bus') },
+    { id: 'ship', icon: Ship, label: t('trips.transport_types.ship') },
+    { id: 'car', icon: Car, label: t('trips.transport_types.car') },
+    { id: 'generic', icon: MapPin, label: t('trips.transport_types.generic') }
   ];
 
   const getTransportLabels = (type) => {
     switch (type) {
       case 'train':
-        return { origin: 'Estação de Partida', destination: 'Estação de Chegada', id: 'Nº do Trem', showSeats: true, showCoach: true, coachLabel: 'Vagão' };
+        return { 
+          origin: t('trips.transport_labels.train.origin'), 
+          destination: t('trips.transport_labels.train.destination'), 
+          id: t('trips.transport_labels.train.id'), 
+          showSeats: true, 
+          showCoach: true, 
+          coachLabel: t('trips.transport_labels.train.coach') 
+        };
       case 'bus':
-        return { origin: 'Terminal de Partida', destination: 'Terminal de Chegada', id: 'Empresa / Linha', showSeats: true, showCoach: true, coachLabel: 'Box / Plataf.' };
+        return { 
+          origin: t('trips.transport_labels.bus.origin'), 
+          destination: t('trips.transport_labels.bus.destination'), 
+          id: t('trips.transport_labels.bus.id'), 
+          showSeats: true, 
+          showCoach: true, 
+          coachLabel: t('trips.transport_labels.bus.coach') 
+        };
       case 'ship':
-        return { origin: 'Porto de Partida', destination: 'Porto de Chegada', id: 'Cruzeiro / Cabine', showSeats: true, showCoach: true, coachLabel: 'Deck / Piso' };
+        return { 
+          origin: t('trips.transport_labels.ship.origin'), 
+          destination: t('trips.transport_labels.ship.destination'), 
+          id: t('trips.transport_labels.ship.id'), 
+          showSeats: true, 
+          showCoach: true, 
+          coachLabel: t('trips.transport_labels.ship.coach') 
+        };
       case 'car':
-        return { origin: 'Retirada', destination: 'Devolução', id: 'Modelo / Placa', showSeats: false, showCoach: false };
+        return { 
+          origin: t('trips.transport_labels.car.origin'), 
+          destination: t('trips.transport_labels.car.destination'), 
+          id: t('trips.transport_labels.car.id'), 
+          showSeats: false, 
+          showCoach: false 
+        };
       case 'flight':
       default:
-        return { origin: 'Origem (IATA)', destination: 'Destino (IATA)', id: 'Voo / Cia', showSeats: true, showCoach: true, coachLabel: 'Portão' };
+        return { 
+          origin: t('trips.transport_labels.flight.origin'), 
+          destination: t('trips.transport_labels.flight.destination'), 
+          id: t('trips.transport_labels.flight.id'), 
+          showSeats: true, 
+          showCoach: true, 
+          coachLabel: t('trips.transport_labels.flight.coach') 
+        };
     }
   };
 
@@ -261,7 +297,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         </div>
                         
                         <div style={{ flex: 1 }}>
-                          <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>NOME / DESCRIÇÃO</label>
+                          <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'block', fontWeight: '900' }}>{t('trips.labels.name_desc')}</label>
                           <input 
                             className="glass-input"
                             value={item.name || ''}
@@ -278,7 +314,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               borderRadius: '14px',
                               letterSpacing: '-0.02em'
                             }}
-                            placeholder={isTransport ? "Ex: Voo LATAM 1234..." : isTour ? "Ex: Ingressos Louvre..." : "Ex: Hotel Hilton..."}
+                            placeholder={isTransport ? t('trips.placeholders.transport') : isTour ? t('trips.placeholders.ticket') : t('trips.placeholders.hotel')}
                           />
                         </div>
 
@@ -342,7 +378,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       }}>
                         <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
-                            <Hash size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> CONFIRMAÇÃO
+                            <Hash size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> {t('trips.labels.confirmation')}
                           </label>
                           <input 
                             className="glass-input"
@@ -359,7 +395,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                               borderRadius: '12px',
                               fontWeight: '700'
                             }}
-                            placeholder="Código da reserva..."
+                            placeholder={t('trips.labels.reservation_code')}
                           />
                         </div>
 
@@ -385,7 +421,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                   borderRadius: '12px',
                                   fontWeight: '700'
                                 }}
-                                placeholder={currentType === 'flight' ? "IATA (Ex: GRU)" : "Cidade / Estação"}
+                                placeholder={currentType === 'flight' ? t('trips.labels.iata_placeholder_origin') : t('trips.labels.city_station_placeholder')}
                               />
                               {currentType === 'flight' && (
                                 <datalist id={`airports-origin-${item.id}`}>
@@ -416,7 +452,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                   borderRadius: '12px',
                                   fontWeight: '700'
                                 }}
-                                placeholder={currentType === 'flight' ? "IATA (Ex: JFK)" : "Cidade / Estação"}
+                                placeholder={currentType === 'flight' ? t('trips.labels.iata_placeholder_dest') : t('trips.labels.city_station_placeholder')}
                               />
                               {currentType === 'flight' && (
                                 <datalist id={`airports-destination-${item.id}`}>
@@ -437,7 +473,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                 onChange={(e) => updateItemField(item.id, 'transport_id', e.target.value)}
                                 disabled={readOnly}
                                 style={{ width: '100%', background: 'var(--card-action-bg)', border: '1px solid var(--glass-border)', padding: '0.85rem', fontSize: '1rem', color: 'var(--text-main)', borderRadius: '12px', fontWeight: '700' }}
-                                placeholder="Nº do Voo, Trem ou Placa..."
+                                placeholder={t('trips.labels.transport_id_placeholder')}
                               />
                             </div>
 
@@ -461,7 +497,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                     borderRadius: '12px',
                                     fontWeight: '700'
                                   }}
-                                  placeholder="Ex: 4, G12..."
+                                  placeholder={t('trips.labels.coach_placeholder')}
                                 />
                               </div>
                             )}
@@ -469,10 +505,10 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                             {labels.showSeats && (
                               <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                                 <BadgeInput 
-                                  label="ASSENTOS / POLTRONAS" 
+                                  label={t('trips.labels.seats')} 
                                   icon={Ticket} 
                                   values={item.seats || []} 
-                                  placeholder="Adicionar assento..."
+                                  placeholder={t('trips.labels.seats_placeholder')}
                                   onValuesChange={(newValues) => updateItemField(item.id, 'seats', newValues)} 
                                   readOnly={readOnly}
                                 />
@@ -484,7 +520,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                         {(isTour || isLodging) && (
                           <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                     <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900', color: 'var(--text-muted)' }}>
-                              <MapPin size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> ENDEREÇO / LOCAL
+                              <MapPin size={12} style={{ display: 'inline', marginRight: '4px', marginTop: '-2px' }} /> {t('trips.labels.address_local')}
                             </label>
                             <div style={{ display: 'flex', gap: '0.75rem', flexDirection: isMobile ? 'column' : 'row' }}>
                               <div style={{ flex: 1 }}>
@@ -495,7 +531,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                     if (coords) updateItemField(item.id, 'coordinates', coords);
                                   }}
                                   disabled={readOnly}
-                                  placeholder="Digite o endereço completo..."
+                                  placeholder={t('trips.labels.address_placeholder')}
                                   style={{ 
                                     background: 'var(--card-action-bg)', 
                                     border: '1px solid var(--glass-border)', 
@@ -526,7 +562,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                                     whiteSpace: 'nowrap'
                                   }}
                                 >
-                                  <Navigation size={16} /> VER NO MAPA
+                                  <Navigation size={16} /> {t('trips.labels.view_map')}
                                 </button>
                               )}
                             </div>
@@ -609,7 +645,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                 {/* Notes Premium */}
                 <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '900' }}>
-                    <Info size={12} /> NOTAS ADICIONAIS
+                    <Info size={12} /> {t('trips.labels.additional_notes')}
                   </label>
                   <textarea 
                     className="glass-input"
@@ -634,7 +670,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                       overflow: 'hidden',
                       transition: '0.2s'
                     }}
-                    placeholder="Check-in às 14h, café incluso, portão C3..."
+                    placeholder={t('trips.labels.notes_placeholder_detailed')}
                   />
                 </div>
 
@@ -654,7 +690,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           alignItems: 'center', justifyContent: 'center', gap: '0.75rem', fontWeight: '900' 
                         }}
                       >
-                        <FileText size={20} /> VISUALIZAR DOCUMENTO
+                        <FileText size={20} /> {t('trips.labels.view_document')}
                       </button>
                       {!readOnly && (
                         <button
@@ -662,7 +698,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           onClick={() => updateItemField(item.id, 'receipt_url', null)}
                           className="action-btn danger"
                           style={{ width: '52px', height: '52px' }}
-                          title="Remover anexo"
+                          title={t('trips.labels.remove_attachment')}
                         >
                           <X size={22} />
                         </button>
@@ -689,8 +725,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                           onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                         >
-                          {isUploading ? <Loader2 size={20} className="spin" /> : <Upload size={20} />}
-                          {isUploading ? 'ENVIANDO ARQUIVO...' : 'ANEXAR VOUCHER / COMPROVANTE'}
+                          {isUploading ? t('trips.labels.uploading') : t('trips.labels.attach_voucher')}
                         </label>
                       </div>
                     ) : null
@@ -713,7 +748,7 @@ export default function AttachmentManager({ label, icon: Icon, items, onItemsCha
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.background = 'rgba(99,102,241,0.02)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
               >
-                + Adicionar novo item
+                {t('trips.labels.add_new_item')}
               </button>
             )}
           </Motion.div>

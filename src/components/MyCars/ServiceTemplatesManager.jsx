@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Wrench, Plus, Trash2, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 export default function ServiceTemplatesManager({ user }) {
+  const { t } = useTranslation();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,9 +35,9 @@ export default function ServiceTemplatesManager({ user }) {
     if (!error) {
       setForm({ description: '', km_milestone: 10000 });
       fetchTemplates();
-      toast.success('Milestone adicionado!');
+      toast.success(t('cars.milestone_added', 'Milestone adicionado!'));
     } else {
-      toast.error('Erro ao adicionar: ' + error.message);
+      toast.error(t('cars.errors.service_log_failed', 'Erro ao adicionar') + ': ' + error.message);
     }
     setSaving(false);
   }
@@ -60,9 +62,9 @@ export default function ServiceTemplatesManager({ user }) {
           <Wrench size={22} />
         </div>
         <div>
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Plano de Revisão Mestre</h3>
+          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>{t('cars.master_revision_plan', 'Plano de Revisão Mestre')}</h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-            Gerencie os marcos de quilometragem globais.
+            {t('cars.manage_milestones', 'Gerencie os marcos de quilometragem globais.')}
           </p>
         </div>
       </div>
@@ -73,7 +75,7 @@ export default function ServiceTemplatesManager({ user }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem', maxHeight: 450, overflowY: 'auto', paddingRight: '0.5rem' }}>
           {existingNames.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: 'var(--card-action-bg)', borderRadius: '12px' }}>
-              Nenhum milestone personalizado definido.
+              {t('cars.no_custom_milestones', 'Nenhum milestone personalizado definido.')}
             </div>
           ) : (
             existingNames.map(desc => (
@@ -128,10 +130,10 @@ export default function ServiceTemplatesManager({ user }) {
       )}
 
       <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem' }}>
-        <h4 style={{ fontSize: '0.9rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-main)' }}>Novo Milestone Personalizado</h4>
+        <h4 style={{ fontSize: '0.9rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-main)' }}>{t('cars.new_custom_milestone', 'Novo Milestone Personalizado')}</h4>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
           <div className="input-group" style={{ marginBottom: 0 }}>
-            <label>Descrição do Serviço</label>
+            <label>{t('cars.service_description', 'Descrição do Serviço')}</label>
             <input
               type="text" list="template-names-mgr"
               value={form.description}
@@ -143,7 +145,7 @@ export default function ServiceTemplatesManager({ user }) {
             </datalist>
           </div>
           <div className="input-group" style={{ marginBottom: 0 }}>
-            <label>Checkpoint (KM)</label>
+            <label>{t('cars.checkpoint_km', 'Checkpoint (KM)')}</label>
             <select value={form.km_milestone} onChange={e => setForm({ ...form, km_milestone: parseInt(e.target.value) })}>
               {[5000,10000,15000,20000,25000,30000,40000,50000,60000,70000,80000,90000,100000,120000,150000].map(k => (
                 <option key={k} value={k}>{k.toLocaleString()} km</option>
@@ -151,7 +153,7 @@ export default function ServiceTemplatesManager({ user }) {
             </select>
           </div>
           <button className="btn-primary" onClick={addTemplate} disabled={saving || !form.description.trim()} style={{ height: '42px', padding: '0 1.5rem' }}>
-            <Plus size={18} /> {saving ? '...' : 'Adicionar'}
+            <Plus size={18} /> {saving ? '...' : t('common.add', 'Adicionar')}
           </button>
         </div>
       </div>

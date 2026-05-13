@@ -68,8 +68,27 @@ test.describe('MyCars Module', () => {
      // Switch to Revision tab
      await page.click('button:has-text("Revisão")');
      
-     // Expect maintenance section (it's called "Manutenção e Revisões" inside CarRevisionTable usually)
-     // Let's check for "Kilometragem" or similar table headers
+     // Expect maintenance section
      await expect(page.locator('text=CHECKPOINT').first()).toBeVisible();
+  });
+
+  test('should open register service modal and show status options', async ({ page }) => {
+    // Navigate to Cars
+    await page.getByTestId('launchpad-item-cars').click();
+    await page.waitForLoadState('networkidle');
+
+    // Switch to Revision tab
+    await page.click('button:has-text("Revisão")');
+
+    // Click "Registrar Serviço"
+    await page.click('button:has-text("Registrar Serviço")');
+
+    // Verify modal is open
+    await expect(page.locator('h3:has-text("Registrar Serviço")')).toBeVisible();
+
+    // Verify status options are visible (this triggers rendering of CheckCircle2, Clock, XCircle)
+    await expect(page.locator('text=Concluído').first()).toBeVisible();
+    await expect(page.locator('text=Pendente').first()).toBeVisible();
+    await expect(page.locator('text=Ignorar').first()).toBeVisible();
   });
 });

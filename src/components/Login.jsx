@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { LogIn, Mail, Lock, ArrowLeft, KeyRound, CheckCircle2, RefreshCw } from 'lucide-react';
+import { LogIn, Mail, Lock, ArrowLeft, KeyRound, CheckCircle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 
@@ -98,7 +98,7 @@ function ForgotPasswordForm({ onBack }) {
 
       {sent ? (
         <div style={{ textAlign: 'center', padding: '1.5rem', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '12px' }}>
-          <CheckCircle2 size={36} style={{ color: 'var(--success)', marginBottom: '0.75rem' }} />
+          <CheckCircle size={36} style={{ color: 'var(--success)', marginBottom: '0.75rem' }} />
           <p style={{ color: 'var(--success)', fontWeight: '600' }}>{t('login.email_sent')}</p>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>{t('login.check_inbox')}</p>
         </div>
@@ -145,7 +145,7 @@ function ResetPasswordForm({ onDone }) {
 
   if (success) return (
     <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-      <CheckCircle2 size={48} style={{ color: 'var(--success)', marginBottom: '1rem' }} />
+      <CheckCircle size={48} style={{ color: 'var(--success)', marginBottom: '1rem' }} />
       <h2 style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>{t('login.password_reset_success')}</h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>{t('login.can_login_now')}</p>
       <button data-testid="go-to-login-btn" onClick={onDone} className="btn-primary" style={{ width: '100%' }}>

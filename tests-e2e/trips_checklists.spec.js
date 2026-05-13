@@ -150,12 +150,20 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await goToChecklists(page);
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('checklist-title-checklist-alpha')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeVisible({ timeout: 15000 });
+    
+    // Ensure item is visible first
+    const taskItem = page.getByTestId('checklist-item-task-task-alpha');
+    await expect(taskItem).toBeVisible({ timeout: 15000 });
+    
+    // Collapse
     await page.getByTestId('checklist-title-checklist-alpha').click({ force: true });
-    // Espera o item sumir
-    await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeHidden({ timeout: 10000 });
+    await expect(taskItem).toBeHidden({ timeout: 10000 });
+    
+    // Expand
     await page.getByTestId('checklist-title-checklist-alpha').click({ force: true });
-    await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeVisible({ timeout: 10000 });
+    // Wait for animation
+    await page.waitForTimeout(500); 
+    await expect(taskItem).toBeVisible({ timeout: 15000 });
   });
 
   test('deve abrir o modal de importação', async ({ page }) => {

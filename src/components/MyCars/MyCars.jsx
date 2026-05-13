@@ -4,9 +4,8 @@ import {
   Car, 
   Plus, 
   Wrench, 
-  Trash2, 
   AlertTriangle,
-  CheckCircle2,
+  CheckCircle,
   XCircle,
   Clock,
   Edit2,
@@ -18,7 +17,10 @@ import {
   EyeOff,
   Filter,
   FileText,
-  LayoutDashboard
+  LayoutDashboard,
+  Trash2,
+  User,
+  Send
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
@@ -82,29 +84,25 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .select('*, car_id (*)')
       .eq('shared_with_email', user.email)
       .eq('status', 'ACCEPTED');
- 
+    
     const { data: pends } = await supabase
       .from('car_shares')
       .select('*, car_id (*)')
       .eq('shared_with_email', user.email)
       .eq('status', 'PENDING');
- 
+    
     const { data: active } = await supabase
       .from('car_shares')
       .select('*, car_id (*)')
       .eq('shared_by', user.id);
- 
-    const decryptedShared = shared || [];
-    const decryptedPends = pends || [];
-    const decryptedActive = active || [];
 
     setCars(own || []);
-    setSharedCars(decryptedShared.map(s => s.car_id) || []);
-    setInvitations(decryptedPends || []);
-    setActiveShares(decryptedActive || []);
+    setSharedCars((shared || []).map(s => s.car_id) || []);
+    setInvitations(pends || []);
+    setActiveShares(active || []);
  
     if (!selectedCar) {
-      const firstVisible = (own || [])?.find(c => !c.is_hidden) || (shared || [])?.find(s => !s.car_id.is_hidden)?.car_id;
+      const firstVisible = (own || [])?.find(c => !c.is_hidden) || (shared || [])?.find(s => !s.car_id?.is_hidden)?.car_id;
       if (firstVisible) {
         setSelectedCar(firstVisible);
       } else if (own?.length > 0) {
@@ -168,10 +166,14 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
 
     if (!error) {
       fetchMaintenance(selectedCar.id);
-      const statusLabels = { 'DONE': 'Concluído', 'SKIPPED': 'Não será feito', 'PENDING': 'Pendente' };
-      toast.success(`Status: ${statusLabels[nextStatus]}`);
+      const statusLabels = { 
+        'DONE': t('cars.revisions.status_done'), 
+        'SKIPPED': t('cars.revisions.status_ignored'), 
+        'PENDING': t('cars.revisions.status_pending') 
+      };
+      toast.success(`${t('common.status', 'Status')}: ${statusLabels[nextStatus]}`);
     } else {
-      toast.error('Erro ao atualizar status.');
+      toast.error(t('common.error_updating', 'Erro ao atualizar status.'));
     }
   }
 
@@ -182,7 +184,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .eq('id', inviteId);
     
     if (!error) {
-      toast.success('Convite aceito!');
+      toast.success(t('cars.success.invite_accepted', 'Convite aceito!'));
       fetchCars();
     }
   }
@@ -194,30 +196,30 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .eq('id', inviteId);
     
     if (!error) {
-      toast.success('Convite recusado.');
+      toast.success(t('cars.success.invite_rejected', 'Convite recusado.'));
       fetchCars();
     }
   }
 
   async function handleRevokeShare(shareId) {
-    confirmToast("Revogar acesso deste usuário?", async () => {
+    confirmToast(t('cars.confirm.revoke_share', "Revogar acesso deste usuário?"), async () => {
       const { error } = await supabase
         .from('car_shares')
         .delete()
         .eq('id', shareId);
       
       if (!error) {
-        toast.success('Acesso revogado');
+        toast.success(t('cars.success.share_revoked', 'Acesso revogado'));
         fetchCars();
       }
     }, { danger: true });
   }
 
   async function handleDeleteCar(carId) {
-    confirmToast("Tem certeza que deseja excluir este veículo? Todos os dados de manutenção serão perdidos.", async () => {
+    confirmToast(t('cars.confirm.delete_car', "Tem certeza que deseja excluir este veículo? Todos os dados de manutenção serão perdidos."), async () => {
       const { error } = await supabase.from('cars').delete().eq('id', carId);
       if (!error) {
-        toast.success('Veículo excluído');
+        toast.success(t('cars.success.car_deleted', 'Veículo excluído'));
         setSelectedCar(null);
         fetchCars();
       }
@@ -231,12 +233,11 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       .eq('id', car.id);
     
     if (!error) {
-      toast.success(car.is_hidden ? 'Veículo restaurado' : 'Veículo arquivado');
-      // If we archive the current car, we might want to select another one
+      toast.success(car.is_hidden ? t('cars.success.car_restored', 'Veículo restaurado') : t('cars.success.car_archived', 'Veículo arquivado'));
       if (!car.is_hidden) setSelectedCar(null);
       fetchCars();
     } else {
-      toast.error('Erro ao atualizar status do veículo.');
+      toast.error(t('common.error_updating', 'Erro ao atualizar status do veículo.'));
     }
   }
 
@@ -315,7 +316,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                   <div key={car.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', background: 'var(--card-action-bg)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
                     <div>
                       <p style={{ fontWeight: 800, fontSize: '1rem', margin: 0, color: 'var(--text-main)' }}>
-                        {car.name} <span style={{ fontSize: '0.65rem', color: 'var(--primary)', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px', marginLeft: '0.5rem' }}>Compartilhado</span>
+                        {car.name} <span style={{ fontSize: '0.65rem', color: 'var(--primary)', background: 'rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '4px', marginLeft: '0.5rem' }}>{t('common.shared', 'Compartilhado')}</span>
                       </p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{car.plate}</p>
                     </div>
@@ -344,10 +345,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     );
   }
 
-
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div data-testid="my-cars-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -458,7 +457,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>{t('cars.empty.title')}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '1rem', maxWidth: '400px', margin: '0 auto 2.5rem' }}>{t('cars.empty.desc')}</p>
           <button className="btn-primary" onClick={() => { setModalType('add_car'); setIsModalOpen(true); }}>
-            <Plus size={20} /> Cadastrar Primeiro Veículo
+            <Plus size={20} /> {t('cars.add_car')}
           </button>
         </div>
       )}
@@ -483,6 +482,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
 }
 
 function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, isOwner }) {
+  const { t } = useTranslation();
   const nextMilestone = milestones.find(m => m > car.current_km) || 120000;
   const kmRemaining = nextMilestone - car.current_km;
   const progress = Math.max(0, Math.min(100, ((car.current_km % 10000) / 10000) * 100));
@@ -499,7 +499,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.02em' }} data-testid="car-name">{car.name}</h2>
                 {car.is_hidden && (
-                  <span className="cat-chip" style={{ "--cat-color": "var(--text-muted)" }}>ARQUIVADO</span>
+                  <span className="cat-chip" style={{ "--cat-color": "var(--text-muted)" }}>{t('common.archived', 'ARQUIVADO')}</span>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
@@ -518,11 +518,11 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
               {isOwner && (
                 <>
                   <button className="action-btn" onClick={onEdit} title="Editar"><Edit2 size={18} /></button>
-                  <button className="action-btn" onClick={onShare} title="Compartilhar"><Share2 size={18} /></button>
-                  <button className="action-btn" onClick={onArchive} title={car.is_hidden ? "Restaurar" : "Arquivar"}>
+                  <button className="action-btn" onClick={onShare} title={t('common.share', 'Compartilhar')}><Share2 size={18} /></button>
+                  <button className="action-btn" onClick={onArchive} title={car.is_hidden ? t('cars.admin.restore') : t('common.archive', 'Arquivar')}>
                     {car.is_hidden ? <Eye size={18} /> : <EyeOff size={18} />}
                   </button>
-                  <button className="action-btn danger" onClick={onDelete} title="Excluir"><Trash2 size={18} /></button>
+                  <button className="action-btn danger" onClick={onDelete} title={t('common.delete', 'Excluir')}><Trash2 size={18} /></button>
                 </>
               )}
             </div>
@@ -530,7 +530,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
 
           <div style={{ background: 'var(--card-action-bg)', padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Próximo Checkpoint</span>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('cars.summary.next_checkpoint', 'Próximo Checkpoint')}</span>
               <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
             </div>
             <div style={{ height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '5px', overflow: 'hidden', marginBottom: '0.75rem' }}>
@@ -543,7 +543,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
-                Restam <b style={{ color: 'var(--text-main)' }}>{kmRemaining.toLocaleString()} KM</b> para a próxima revisão sugerida.
+                {t('cars.summary.km_remaining', { km: kmRemaining.toLocaleString() }, `Restam ${kmRemaining.toLocaleString()} KM para a próxima revisão sugerida.`)}
               </p>
               <div className="status-badge paid" style={{ fontSize: '10px', padding: '2px 8px' }}>{(progress).toFixed(0)}%</div>
             </div>
@@ -558,36 +558,36 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
 
       {/* Financial Premium Card - Bento Normal */}
       <div className="glass-card premium-gradient" style={{ padding: '1.75rem', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '220px' }}>
-        <p style={{ fontSize: '0.85rem', opacity: 0.8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>Investimento Total</p>
+        <p style={{ fontSize: '0.85rem', opacity: 0.8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>{t('cars.summary.total_investment', 'Investimento Total')}</p>
         <h2 style={{ fontSize: 'clamp(1.75rem, 5vw, 2.5rem)', fontWeight: 900, margin: 0, letterSpacing: '-0.04em', whiteSpace: 'nowrap' }}>
-          <small style={{ fontSize: '0.5em', opacity: 0.7, fontWeight: 600, marginRight: '4px' }}>R$</small>
-          {totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <small style={{ fontSize: '0.5em', opacity: 0.7, fontWeight: 600, marginRight: '4px' }}>{t('common.currency_symbol')}</small>
+          {totalSpent.toLocaleString(t('common.locale'), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </h2>
         <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <CheckCircle2 size={16} style={{ opacity: 0.8 }} />
-          <p style={{ fontSize: '0.8rem', opacity: 0.9, margin: 0, fontWeight: 500 }}>Histórico de manutenções consolidado.</p>
+          <CheckCircle size={16} style={{ opacity: 0.8 }} />
+          <p style={{ fontSize: '0.8rem', opacity: 0.9, margin: 0, fontWeight: 500 }}>{t('cars.summary.history_consolidated', 'Histórico de manutenções consolidado.')}</p>
         </div>
       </div>
 
       {/* Maintenance Alerts - Bento Normal */}
       <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
         <h4 style={{ fontSize: '0.95rem', fontWeight: 800, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          <AlertTriangle size={20} style={{ color: '#f59e0b' }} /> Insights & Alertas
+          <AlertTriangle size={20} style={{ color: '#f59e0b' }} /> {t('cars.summary.insights_alerts', 'Insights & Alertas')}
         </h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-            <div style={{ color: 'var(--success)' }}><CheckCircle2 size={20} /></div>
+            <div style={{ color: 'var(--success)' }}><CheckCircle size={20} /></div>
             <div>
-              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Status: OK</p>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>Documentos e seguros vigentes.</p>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>{t('common.status', 'Status')}: OK</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.summary.docs_ok', 'Documentos e seguros vigentes.')}</p>
             </div>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
             <div style={{ color: '#f59e0b' }}><Clock size={20} /></div>
             <div>
-              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Próxima Revisão</p>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>Faltam {kmRemaining.toLocaleString()} KM para o check-up.</p>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>{t('cars.summary.next_revision', 'Próxima Revisão')}</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.summary.km_to_go', { km: kmRemaining.toLocaleString() }, `Faltam ${kmRemaining.toLocaleString()} KM para o check-up.`)}</p>
             </div>
           </div>
         </div>
@@ -597,7 +597,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
 }
 
 function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const miles = milestones;
   
   const templateNames = Array.from(new Set([
@@ -725,7 +725,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                               e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
-                            {status === 'DONE' && <CheckCircle2 size={18} />}
+                            {status === 'DONE' && <CheckCircle size={18} />}
                             {status === 'PENDING' && <Clock size={18} />}
                             {status === 'SKIPPED' && <XCircle size={18} />}
                             {(status === 'NONE' || status === 'RECOMMENDED') && <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />}
@@ -761,7 +761,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                         
                         {entry?.amount > 0 && (
                           <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--success)' }}>
-                            R$ {parseFloat(entry.amount).toLocaleString(t('common.locale') === 'pt-BR' ? 'pt-BR' : 'en-US')}
+                            {t('common.currency_symbol', 'R$')} {parseFloat(entry.amount).toLocaleString(i18n.language)}
                           </div>
                         )}
                       </div>
@@ -776,7 +776,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', padding: '1.5rem', background: 'var(--card-action-bg)', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div className="status-badge paid" style={{ padding: '4px' }}><CheckCircle2 size={12} /></div> {t('cars.revisions.status_done')}
+          <div className="status-badge paid" style={{ padding: '4px' }}><CheckCircle size={12} /></div> {t('cars.revisions.status_done')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div className="status-badge pending" style={{ padding: '4px' }}><Clock size={12} /></div> {t('cars.revisions.status_pending')}

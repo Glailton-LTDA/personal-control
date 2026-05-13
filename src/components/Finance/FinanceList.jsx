@@ -8,7 +8,7 @@ import {
   Search, 
   ChevronLeft, 
   ChevronRight, 
-  CheckCircle2, 
+  CheckCircle, 
   XCircle, 
   CreditCard,
   Trash2,
@@ -65,7 +65,7 @@ function getCategoryMeta(category = '') {
 }
 
 export default function FinanceList({ refreshKey, onEdit, user, showValues = true, onToggleValues }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [finances, setFinances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState(() => localStorage.getItem('personal-control-finance-view') || 'lista');
@@ -77,7 +77,11 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   const [emailLoading, setEmailLoading] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState(null);
 
-  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const months = [
+    t('common.months.jan'), t('common.months.feb'), t('common.months.mar'), t('common.months.apr'), 
+    t('common.months.may'), t('common.months.jun'), t('common.months.jul'), t('common.months.aug'), 
+    t('common.months.sep'), t('common.months.oct'), t('common.months.nov'), t('common.months.dec')
+  ];
   const years = [2024, 2025, 2026];
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -143,13 +147,13 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   }, [activeTab, activeView, selectedMonth, selectedYear, refreshKey, fetchFinances, fetchResponsibles]);
 
   const handleDelete = async (id) => {
-    confirmToast('Tem certeza que deseja excluir este registro?', async () => {
+    confirmToast(t('finances.confirm_delete', 'Tem certeza que deseja excluir este registro?'), async () => {
       const { error } = await supabase.from('finances').delete().eq('id', id);
       if (!error) {
         fetchFinances();
-        toast.success('Registro excluído');
+        toast.success(t('common.deleted', 'Registro excluído'));
       } else {
-        toast.error('Erro ao excluir: ' + error.message);
+        toast.error(t('common.error_deleting', 'Erro ao excluir') + ': ' + error.message);
       }
     }, { danger: true });
   };
@@ -171,11 +175,11 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     try {
       setEmailLoading(true);
       const { error: fnError } = await supabase.functions.invoke('send-finance-email', {
-        body: { to: recipientEmail, subject: `${item.type === 'RECEITA' ? 'Receita' : 'Despesa'} registrada: ${item.description}`, data: item, bcc: notificationSettings?.bcc_email }
+        body: { to: recipientEmail, subject: `${item.type === 'RECEITA' ? t('finances.revenue', 'Receita') : t('finances.expense', 'Despesa')} ${t('finances.registered', 'registrada')}: ${item.description}`, data: item, bcc: notificationSettings?.bcc_email }
       });
       if (fnError) throw fnError;
       await supabase.from('finances').update({ email_sent: true }).eq('id', item.id);
-      toast.success(`E-mail enviado para ${recipientEmail}!`);
+      toast.success(t('finances.email_sent_to', 'E-mail enviado para {{email}}!', { email: recipientEmail }));
       fetchFinances();
       setEmailModalOpen(false);
     } catch (err) {
@@ -186,7 +190,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
   };
 
   const handleCopyMonth = () => {
-    confirmToast(`Deseja copiar todas as transações de ${selectedMonth === 0 ? months[11] : months[selectedMonth - 1]} para o mês atual (${months[selectedMonth]})?`, async () => {
+    confirmToast(t('finances.confirm_copy', 'Deseja copiar todas as transações de {{prevMonth}} para o mês atual ({{currMonth}})?', { 
+      prevMonth: selectedMonth === 0 ? months[11] : months[selectedMonth - 1],
+      currMonth: months[selectedMonth]
+    }), async () => {
       try {
         setLoading(true);
         const prevMonth = selectedMonth === 0 ? 11 : selectedMonth - 1;
@@ -207,7 +214,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         });
         const { error } = await supabase.from('finances').insert(newEntries);
         if (error) throw error;
-        toast.success(`${newEntries.length} transações copiadas!`);
+        toast.success(t('finances.transactions_copied', '{{count}} transações copiadas!', { count: newEntries.length }));
         fetchFinances();
       } catch (err) {
         toast.error(`Erro ao copiar: ${err.message}`);
@@ -254,7 +261,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     if (dateStr === 'Sem Data') return dateStr;
     const [y, m, d] = dateStr.split('-').map(Number);
     const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
+    return date.toLocaleDateString(i18n.language, { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
   };
 
   const getDayShort = (dateStr) => {
@@ -278,8 +285,8 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       {/* HEADER FILTERS */}
       <div className="glass-card" style={{ padding: isMobile ? '1rem' : '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div className="tabs-container" style={{ marginBottom: 0, padding: '4px', background: 'var(--card-action-bg)' }}>
-          <button className={`tab-btn ${activeView === 'resumo' ? 'active' : ''}`} onClick={() => setActiveView('resumo')}>Dashboard</button>
-          <button className={`tab-btn ${activeView === 'lista' ? 'active' : ''}`} onClick={() => setActiveView('lista')}>Movimentações</button>
+          <button className={`tab-btn ${activeView === 'resumo' ? 'active' : ''}`} onClick={() => setActiveView('resumo')}>{t('finances.tabs.summary', 'Dashboard')}</button>
+          <button className={`tab-btn ${activeView === 'lista' ? 'active' : ''}`} onClick={() => setActiveView('lista')}>{t('finances.tabs.transactions', 'Movimentações')}</button>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-end' }}>
@@ -360,12 +367,12 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
             <div style={{ display: 'flex', gap: '1rem', flex: 1, width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 'none' : '600px' }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <Search style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
-                <input type="text" placeholder="Filtrar por descrição..." className="glass-input" style={{ paddingLeft: '3.25rem', height: '48px', fontSize: '0.95rem', fontWeight: 600 }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <input type="text" placeholder={t('finances.filter_description', 'Filtrar por descrição...')} className="glass-input" style={{ paddingLeft: '3.25rem', height: '48px', fontSize: '0.95rem', fontWeight: 600 }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
               <button 
                 className="icon-btn" 
                 onClick={() => handleSort('amount')}
-                title="Ordenar por valor"
+                title={t('finances.sort_by_value', 'Ordenar por valor')}
                 style={{ height: '48px', width: '48px', border: '1px solid var(--glass-border)', borderRadius: '14px', flexShrink: 0 }}
               >
                 <ArrowUpDown size={20} />
@@ -387,17 +394,17 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
             gap: '1.25rem'
           }}>
             <div>
-              <h2 style={{ fontSize: isMobile ? '1.1rem' : '1.35rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>{activeTab === 'RECEITA' ? 'Fluxo de Receitas' : 'Fluxo de Gastos'}</h2>
+              <h2 style={{ fontSize: isMobile ? '1.1rem' : '1.35rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>{activeTab === 'RECEITA' ? t('finances.revenue_flow', 'Fluxo de Receitas') : t('finances.expense_flow', 'Fluxo de Gastos')}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{filteredAndSortedFinances.length} registros</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{t('finances.records_count', '{{count}} registros', { count: filteredAndSortedFinances.length })}</span>
                 <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--text-muted)', opacity: 0.5 }} />
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{months[selectedMonth]} {selectedYear}</span>
               </div>
             </div>
             <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Acumulado</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{t('finances.accumulated_total', 'Total Acumulado')}</span>
               <span style={{ fontSize: isMobile ? '1.5rem' : '1.85rem', fontWeight: 900, color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--danger)', letterSpacing: '-0.03em' }}>
-                {showValues ? `R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}
+                {showValues ? `${t('common.currency_symbol', 'R$')} ${totalAmount.toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
               </span>
             </div>
           </div>
@@ -411,8 +418,8 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 <div style={{ width: 80, height: 80, background: 'var(--tabs-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
                    <Package size={40} style={{ opacity: 0.2 }} />
                 </div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Nenhum registro encontrado</h3>
-                <p style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>Tente ajustar seus filtros ou mude o período selecionado.</p>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>{t('finances.no_records', 'Nenhum registro encontrado')}</h3>
+                <p style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>{t('finances.adjust_filters', 'Tente ajustar seus filtros ou mude o período selecionado.')}</p>
               </div>
             ) : (
               groupedFinances.map(([dateStr, items]) => (
@@ -524,10 +531,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                               {isMobile && (
                                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                   <div style={{ fontWeight: 900, fontSize: '1rem', color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--text-main)', letterSpacing: '-0.02em' }}>
-                                    {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}
+                                    {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} ${t('common.currency_symbol', 'R$')} ${Number(item.amount).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
                                   </div>
                                   <div className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} style={{ marginTop: '0.25rem', fontSize: '9px', padding: '2px 8px' }}>
-                                    {item.status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
+                                    {item.status === 'PAGO' ? t('finances.status_paid', 'PAGO') : t('finances.status_pending', 'PENDENTE')}
                                   </div>
                                 </div>
                               )}
@@ -537,7 +544,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                               <>
                                 <div style={{ textAlign: 'right', minWidth: '130px' }}>
                                   <div style={{ fontWeight: 900, fontSize: '1.25rem', color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--text-main)', letterSpacing: '-0.02em' }}>
-                                    {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ ••••••'}
+                                    {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} ${t('common.currency_symbol', 'R$')} ${Number(item.amount).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
                                   </div>
                                   <Motion.span 
                                     whileHover={{ scale: 1.05 }}
@@ -553,18 +560,18 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                                       letterSpacing: '0.02em'
                                     }}
                                   >
-                                    {item.status === 'PAGO' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                                    {item.status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
+                                    {item.status === 'PAGO' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                                    {item.status === 'PAGO' ? t('finances.status_paid', 'PAGO') : t('finances.status_pending', 'PENDENTE')}
                                   </Motion.span>
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '0.5rem', paddingLeft: '1rem', borderLeft: '1px solid var(--glass-border)' }}>
-                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); handleSendEmail(item); }} title="Enviar E-mail" style={{ color: item.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}><Send size={18} /></button>
+                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); handleSendEmail(item); }} title={t('finances.send_email', 'Enviar E-mail')} style={{ color: item.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}><Send size={18} /></button>
                                   {item.status === 'PENDENTE' && (
-                                    <button className="action-btn success" onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item.id); }} title="Marcar como Pago" style={{ color: 'var(--success)' }}><CheckCircle2 size={18} /></button>
+                                    <button className="action-btn success" onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item.id); }} title={t('finances.mark_as_paid', 'Marcar como Pago')} style={{ color: 'var(--success)' }}><CheckCircle size={18} /></button>
                                   )}
-                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); onEdit(item); }} title="Editar"><Edit2 size={18} /></button>
-                                  <button className="action-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} title="Excluir"><Trash2 size={18} /></button>
+                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); onEdit(item); }} title={t('common.edit')}><Edit2 size={18} /></button>
+                                  <button className="action-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} title={t('common.delete')}><Trash2 size={18} /></button>
                                 </div>
                               </>
                             )}
@@ -590,9 +597,9 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                                       justifyContent: 'center',
                                       boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
                                     }}
-                                    title="Pagar Agora"
+                                    title={t('finances.pay_now', 'Pagar Agora')}
                                   >
-                                    <CheckCircle2 size={20} />
+                                    <CheckCircle size={20} />
                                   </button>
                                 )}
                               </div>
@@ -633,12 +640,12 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                    <div style={{ padding: '0.5rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
                       <Mail size={24} />
                    </div>
-                   <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>Enviar Comprovante</h3>
+                   <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em' }}>{t('finances.send_receipt', 'Enviar Comprovante')}</h3>
                 </div>
                 <button className="icon-btn" onClick={() => setEmailModalOpen(false)}><X size={20} /></button>
               </div>
 
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem', fontWeight: 500 }}>Selecione o responsável que deve receber os detalhes desta transação via e-mail.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem', fontWeight: 500 }}>{t('finances.select_recipient', 'Selecione o responsável que deve receber os detalhes desta transação via e-mail.')}</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {responsibles.map(resp => (
@@ -669,9 +676,9 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 800, fontSize: '1rem', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {resp.name}
-                        {resp.is_main && <span style={{ fontSize: '9px', background: 'var(--primary)', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 900 }}>FIXO</span>}
+                        {resp.is_main && <span style={{ fontSize: '9px', background: 'var(--primary)', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 900 }}>{t('finances.settings.main_label', 'FIXO')}</span>}
                       </div>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0', fontWeight: 500 }}>{resp.email || 'Sem e-mail cadastrado'}</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0', fontWeight: 500 }}>{resp.email || t('finances.settings.no_email', 'Sem e-mail cadastrado')}</p>
                     </div>
                     <ChevronRight size={18} style={{ opacity: 0.3 }} />
                   </Motion.button>
@@ -685,7 +692,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                   style={{ marginTop: '2rem', textAlign: 'center', color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}
                 >
                   <div className="spinner" style={{ width: 16, height: 16, border: '2px solid rgba(99,102,241,0.2)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  Processando envio...
+                  {t('finances.sending', 'Processando envio...')}
                 </Motion.div>
               )}
             </Motion.div>

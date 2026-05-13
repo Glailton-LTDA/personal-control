@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calendar, Tag, DollarSign, User, CheckCircle2 } from 'lucide-react';
+import { X, Save, Calendar, Tag, DollarSign, User, CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 export default function TransactionModal({ isOpen, onClose, onRefresh, user, initialData = null }) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -92,8 +94,8 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
       <div className="glass-card modal-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{initialData ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{initialData ? 'Altere as informações do registro' : 'Adicione uma nova transação financeira'}</p>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{initialData ? t('finance.edit_transaction', 'Editar Lançamento') : t('finance.new_transaction', 'Novo Lançamento')}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{initialData ? t('finance.edit_desc', 'Altere as informações do registro') : t('finance.new_desc', 'Adicione uma nova transação financeira')}</p>
           </div>
           <button className="icon-btn" onClick={onClose}>
             <X size={24} />
@@ -102,17 +104,17 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label><Tag size={14} style={{ marginRight: '4px' }}/> Descrição</label>
+            <label><Tag size={14} style={{ marginRight: '4px' }}/> {t('finance.description', 'Descrição')}</label>
             <input 
               type="text" required value={formData.description}
               onChange={e => setFormData({...formData, description: e.target.value})}
-              placeholder="Ex: Aluguel, Salário..."
+              placeholder={t('finance.description_placeholder', 'Ex: Aluguel, Salário...')}
             />
           </div>
 
           <div className="form-grid">
             <div className="input-group">
-              <label><DollarSign size={14} style={{ marginRight: '4px' }}/> Valor (R$)</label>
+              <label><DollarSign size={14} style={{ marginRight: '4px' }}/> {t('finance.amount', 'Valor (R$)')}</label>
               <input 
                 type="text" 
                 required 
@@ -130,7 +132,7 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
               />
             </div>
             <div className="input-group">
-              <label><Calendar size={14} style={{ marginRight: '4px' }}/> Data</label>
+              <label><Calendar size={14} style={{ marginRight: '4px' }}/> {t('finance.date', 'Data')}</label>
               <input 
                 type="date" required value={formData.payment_date}
                 onChange={e => setFormData({...formData, payment_date: e.target.value})}
@@ -140,19 +142,19 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
 
           <div className="form-grid">
             <div className="input-group">
-              <label>Tipo</label>
+              <label>{t('finance.type', 'Tipo')}</label>
               <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
-                <option value="DESPESA">Despesa</option>
-                <option value="RECEITA">Receita</option>
+                <option value="DESPESA">{t('finance.expense', 'Despesa')}</option>
+                <option value="RECEITA">{t('finance.income', 'Receita')}</option>
               </select>
             </div>
             <div className="input-group">
-              <label><User size={14} style={{ marginRight: '4px' }}/> Responsável</label>
+              <label><User size={14} style={{ marginRight: '4px' }}/> {t('finance.responsible', 'Responsável')}</label>
               <select 
                 required value={formData.paid_by} 
                 onChange={e => setFormData({...formData, paid_by: e.target.value})}
               >
-                <option value="">Selecione...</option>
+                <option value="">{t('common.select_placeholder', 'Selecione...')}</option>
                 {responsibles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
               </select>
             </div>
@@ -160,27 +162,27 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
 
           <div className="form-grid">
             <div className="input-group">
-              <label>Categoria</label>
+              <label>{t('finance.category', 'Categoria')}</label>
               <select 
                 required value={formData.category} 
                 onChange={e => setFormData({...formData, category: e.target.value})}
               >
-                <option value="">Selecione...</option>
+                <option value="">{t('common.select_placeholder', 'Selecione...')}</option>
                 {filteredCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             <div className="input-group">
-              <label>Status</label>
+              <label>{t('finance.status', 'Status')}</label>
               <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                <option value="PAGO">Pago</option>
-                <option value="PENDENTE">Pendente</option>
+                <option value="PAGO">{t('finance.paid', 'Pago')}</option>
+                <option value="PENDENTE">{t('finance.pending', 'Pendente')}</option>
               </select>
             </div>
           </div>
 
           <div style={{ marginTop: '2rem' }}>
             <button disabled={loading} className="btn-primary" style={{ width: '100%', height: '3.5rem' }}>
-              {loading ? 'Processando...' : <><Save size={22} /> {initialData ? 'Atualizar Dados' : 'Salvar Lançamento'}</>}
+              {loading ? t('common.processing', 'Processando...') : <><Save size={22} /> {initialData ? t('finance.update_data', 'Atualizar Dados') : t('finance.save_transaction', 'Salvar Lançamento')}</>}
             </button>
           </div>
         </form>

@@ -56,8 +56,8 @@ describe('SummaryDashboard', () => {
     render(<SummaryDashboard user={mockUser} showValues={false} isGeneral={true} selectedYear={2026} />);
     
     await waitFor(() => {
-      // Check for masked pattern R$ •••
-      const maskedElements = screen.getAllByText(/R\$ •+/);
+      // Check for masked pattern
+      const maskedElements = screen.getAllByText(/common\.currency_symbol •+/);
       expect(maskedElements.length).toBeGreaterThan(0);
     }, { timeout: 3000 });
   });

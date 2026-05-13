@@ -222,7 +222,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
             <input 
               required autoFocus className="glass-input" 
               style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px' }} 
-              value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Ex: Jantar em Cusco, Passagens..." 
+              value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t('trips.description_placeholder', 'Ex: Jantar em Cusco, Passagens...')} 
             />
           </div>
 
@@ -296,7 +296,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                     style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px', outline: 'none' }} 
                     value={displayDate} 
                     onChange={handleDateChange}
-                    placeholder="DD/MM/AAAA"
+                    placeholder={t('common.date_placeholder', 'DD/MM/AAAA')}
                     autoFocus={isCustomDate}
                   />
                   {tripDates.length > 0 && (
@@ -355,7 +355,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
                     style={{ width: '100%', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '0.85rem 1rem', borderRadius: '12px' }} 
                     value={formData.paid_by} 
                     onChange={e => setFormData({...formData, paid_by: e.target.value})}
-                    placeholder="Nome do responsável"
+                    placeholder={t('trips.responsible_placeholder', 'Nome do responsável')}
                   />
                   <button 
                     type="button"

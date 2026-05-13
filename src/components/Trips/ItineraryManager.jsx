@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  Calendar, Clock, MapPin, CheckCircle2, Circle, 
+  Calendar, Clock, MapPin, CheckCircle, Circle, 
   Plus, Trash2, ChevronDown, ChevronUp, Map, 
   ExternalLink, Ticket, Check, Bell, GripVertical,
   Navigation, Info
@@ -116,7 +116,7 @@ const ItineraryItem = ({ entry, isMobile, focusedId, setFocusedId, updateEntry, 
                   transform: entry.completed ? 'scale(1.1)' : 'scale(1)'
                 }}
               >
-                {entry.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+                {entry.completed ? <CheckCircle size={24} /> : <Circle size={24} />}
               </button>
               
               <div style={{ position: 'relative', width: isMobile ? '120px' : '140px' }}>

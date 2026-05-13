@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
-  ChevronLeft, Plus, Trash2, CheckCircle2, Circle, 
+  ChevronLeft, Plus, Trash2, CheckCircle, Circle, 
   ListTodo, Save, X, Edit2, Check, Copy, Search,
   ChevronDown, ChevronRight, Layers, LayoutGrid,
   ClipboardList
@@ -75,15 +75,15 @@ export default function TripChecklists({ user, trip, onBack }) {
       setChecklists([...checklists, { ...data, title: newListTitle.trim(), items: [] }]);
       setNewListTitle('');
       setIsAddingList(false);
-      toast.success('Lista criada');
+      toast.success(t('trips.success.list_created', 'Lista criada'));
     } else {
-      toast.error('Erro ao criar lista');
+      toast.error(t('trips.error_creating_list', 'Erro ao criar lista'));
     }
     setLoading(false);
   };
 
   const removeChecklist = async (id) => {
-    confirmToast('Deseja excluir esta lista inteira?', async () => {
+    confirmToast(t('trips.confirm.delete_list', 'Deseja excluir esta lista inteira?'), async () => {
       const { error } = await supabase
         .from('trip_checklists')
         .delete()
@@ -91,9 +91,9 @@ export default function TripChecklists({ user, trip, onBack }) {
 
       if (!error) {
         setChecklists(checklists.filter(c => c.id !== id));
-        toast.success('Lista removida');
+        toast.success(t('trips.success.list_deleted', 'Lista removida'));
       } else {
-        toast.error('Erro ao remover lista');
+        toast.error(t('trips.error_removing_list', 'Erro ao remover lista'));
       }
     }, { danger: true });
   };
@@ -124,7 +124,7 @@ export default function TripChecklists({ user, trip, onBack }) {
       setNewItemTask('');
       setAddingItemToId(null);
     } else {
-      toast.error('Erro ao adicionar item');
+      toast.error(t('trips.error_adding_item', 'Erro ao adicionar item'));
     }
   };
 
@@ -199,9 +199,9 @@ export default function TripChecklists({ user, trip, onBack }) {
         }
         return c;
       }));
-      toast.success('Item atualizado');
+      toast.success(t('trips.success.item_updated', 'Item atualizado'));
     } else {
-      toast.error('Erro ao atualizar item');
+      toast.error(t('trips.error_updating_item', 'Erro ao atualizar item'));
     }
     setEditingItemId(null);
   };
@@ -305,7 +305,7 @@ export default function TripChecklists({ user, trip, onBack }) {
     }
     
     setIsImportModalOpen(false);
-    toast.success('Lista importada com sucesso');
+    toast.success(t('trips.success.list_imported', 'Lista importada com sucesso'));
   };
 
   if (!trip) {
@@ -314,8 +314,8 @@ export default function TripChecklists({ user, trip, onBack }) {
         <Motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}>
           <LayoutGrid size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
         </Motion.div>
-        <p>Carregando informações da viagem...</p>
-        <button onClick={onBack} className="btn-cancel" style={{ marginTop: '1.5rem' }}>Voltar</button>
+        <p>{t('trips.loading_trip_info', 'Carregando informações da viagem...')}</p>
+        <button onClick={onBack} className="btn-cancel" style={{ marginTop: '1.5rem' }}>{t('common.back', 'Voltar')}</button>
       </div>
     );
   }
@@ -329,7 +329,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             <ChevronLeft size={24} />
           </button>
           <div>
-            <h2 data-testid="checklists-title" style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>{t('trips.checklists_title', 'Checklists de Viagem')}</h2>
+            <h2 data-testid="checklists-title" style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>{t('trips.checklists_title')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '700', fontSize: '0.85rem' }}>
               <ClipboardList size={14} />
               {trip.title}
@@ -425,7 +425,7 @@ export default function TripChecklists({ user, trip, onBack }) {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900' }}>Como se chamará sua lista?</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900' }}>{t('trips.list_name_question', 'Como se chamará sua lista?')}</h3>
               <button onClick={() => setIsAddingList(false)} className="action-btn"><X size={20} /></button>
             </div>
             <input 
@@ -434,7 +434,7 @@ export default function TripChecklists({ user, trip, onBack }) {
               value={newListTitle}
               onChange={e => setNewListTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddChecklist()}
-              placeholder="Ex: Documentos, Mala de Mão..."
+              placeholder={t('trips.list_name_placeholder', 'Ex: Documentos, Mala de Mão...')}
               className="glass-input"
               style={{ fontSize: '1.1rem', padding: '1rem' }}
             />
@@ -455,7 +455,7 @@ export default function TripChecklists({ user, trip, onBack }) {
           <Motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
             <ListTodo size={64} style={{ opacity: 0.1, color: 'var(--primary)' }} />
           </Motion.div>
-          <p style={{ color: 'var(--text-muted)', marginTop: '1rem', fontWeight: '600' }}>Sincronizando suas listas...</p>
+          <p style={{ color: 'var(--text-muted)', marginTop: '1rem', fontWeight: '600' }}>{t('trips.syncing_data', 'Sincronizando suas listas...')}</p>
         </div>
       ) : checklists.length === 0 ? (
         <Motion.div 
@@ -478,9 +478,9 @@ export default function TripChecklists({ user, trip, onBack }) {
             <ListTodo size={64} />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>Sua jornada começa aqui</h3>
+            <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>{t('trips.empty_state_title')}</h3>
             <p style={{ color: 'var(--text-muted)', maxWidth: '400px', margin: '0.75rem auto 0', lineHeight: '1.6', fontSize: '1rem' }}>
-              Organize tudo o que você precisa levar ou fazer. Crie checklists personalizados ou importe de suas viagens passadas.
+              {t('trips.empty_state_desc')}
             </p>
           </div>
           <button onClick={() => setIsAddingList(true)} className="btn-primary" style={{ padding: '1rem 2rem', borderRadius: '16px', fontWeight: '900', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)' }}>
@@ -497,23 +497,22 @@ export default function TripChecklists({ user, trip, onBack }) {
 
               return (
                 <Motion.div 
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  key={checklist.id} 
-                  className="glass-card" 
-                  style={{ 
-                    padding: '1.75rem', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '1.25rem', 
-                    alignSelf: 'flex-start',
-                    border: progress === 100 && totalCount > 0 ? '1px solid var(--success)' : '1px solid var(--glass-border)',
-                    background: progress === 100 && totalCount > 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(15, 23, 42, 0.3)',
-                    transition: '0.3s'
-                  }}
-                >
+                   initial={{ opacity: 0, scale: 0.95 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   exit={{ opacity: 0, scale: 0.95 }}
+                   key={checklist.id} 
+                   className="glass-card" 
+                   style={{ 
+                     padding: '1.75rem', 
+                     display: 'flex', 
+                     flexDirection: 'column', 
+                     gap: '1.25rem', 
+                     alignSelf: 'flex-start',
+                     border: progress === 100 && totalCount > 0 ? '1px solid var(--success)' : '1px solid var(--glass-border)',
+                     background: progress === 100 && totalCount > 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(15, 23, 42, 0.3)',
+                     transition: 'border-color 0.3s, background 0.3s'
+                   }}
+                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
                       <button 
@@ -521,76 +520,83 @@ export default function TripChecklists({ user, trip, onBack }) {
                         className="action-btn" 
                         style={{ padding: '6px', width: '32px', height: '32px', flexShrink: 0 }}
                       >
-                        {collapsedIds.has(checklist.id) ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
-                      </button>
-
-                      {editingTitleId === checklist.id ? (
-                        <input 
-                          autoFocus
-                          type="text" 
-                          value={tempTitle}
-                          onChange={e => setTempTitle(e.target.value)}
-                          onBlur={() => saveTitle(checklist.id)}
-                          onKeyDown={e => e.key === 'Enter' && saveTitle(checklist.id)}
-                          className="glass-input"
-                          style={{ padding: '0.4rem 0.75rem', fontSize: '1.1rem', width: '100%', fontWeight: '900' }}
-                        />
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                          <h3 
-                            data-testid={'checklist-title-' + checklist.id}
-                            style={{ 
-                              margin: 0, 
-                              fontSize: '1.25rem', 
-                              fontWeight: '900',
-                              color: progress === 100 && totalCount > 0 ? 'var(--success)' : 'var(--text-main)', 
-                              cursor: 'pointer',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}
-                            onClick={() => toggleCollapse(checklist.id)}
-                          >
-                            {checklist.title}
-                          </h3>
-                          <button onClick={() => startEditingTitle(checklist)} className="icon-btn" style={{ opacity: 0.3 }}><Edit2 size={14} /></button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <button onClick={() => removeChecklist(checklist.id)} className="action-btn danger" style={{ width: '32px', height: '32px', flexShrink: 0 }}>
-                      <Trash2 size={16} />
+                      <Motion.div 
+                        animate={{ rotate: collapsedIds.has(checklist.id) ? 0 : 90 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ display: 'flex' }}
+                      >
+                        <ChevronRight size={18} />
+                      </Motion.div>
                     </button>
-                  </div>
 
-                  {/* Progress Bar Premium */}
-                  <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
-                    <Motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      style={{ 
-                        height: '100%', 
-                        background: progress === 100 ? 'var(--success)' : 'var(--primary)',
-                        boxShadow: `0 0 10px ${progress === 100 ? 'rgba(16, 185, 129, 0.5)' : 'rgba(99, 102, 241, 0.5)'}`
-                      }} 
-                    />
-                    <div style={{ position: 'absolute', right: 0, top: '-20px', fontSize: '0.65rem', fontWeight: '900', opacity: 0.5, letterSpacing: '0.05em' }}>
-                      {completedCount}/{totalCount}
-                    </div>
+                    {editingTitleId === checklist.id ? (
+                      <input 
+                        autoFocus
+                        type="text" 
+                        value={tempTitle}
+                        onChange={e => setTempTitle(e.target.value)}
+                        onBlur={() => saveTitle(checklist.id)}
+                        onKeyDown={e => e.key === 'Enter' && saveTitle(checklist.id)}
+                        className="glass-input"
+                        style={{ padding: '0.4rem 0.75rem', fontSize: '1.1rem', width: '100%', fontWeight: '900' }}
+                      />
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                        <h3 
+                          data-testid={'checklist-title-' + checklist.id}
+                          style={{ 
+                            margin: 0, 
+                            fontSize: '1.25rem', 
+                            fontWeight: '900',
+                            color: progress === 100 && totalCount > 0 ? 'var(--success)' : 'var(--text-main)', 
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                          onClick={() => toggleCollapse(checklist.id)}
+                        >
+                          {checklist.title}
+                        </h3>
+                        <button onClick={() => startEditingTitle(checklist)} className="icon-btn" style={{ opacity: 0.3 }}><Edit2 size={14} /></button>
+                      </div>
+                    )}
                   </div>
+                  
+                  <button onClick={() => removeChecklist(checklist.id)} className="action-btn danger" style={{ width: '32px', height: '32px', flexShrink: 0 }}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
 
+                {/* Progress Bar Premium */}
+                <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
+                  <Motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    style={{ 
+                      height: '100%', 
+                      background: progress === 100 ? 'var(--success)' : 'var(--primary)',
+                      boxShadow: `0 0 10px ${progress === 100 ? 'rgba(16, 185, 129, 0.5)' : 'rgba(99, 102, 241, 0.5)'}`
+                    }} 
+                  />
+                  <div style={{ position: 'absolute', right: 0, top: '-20px', fontSize: '0.65rem', fontWeight: '900', opacity: 0.5, letterSpacing: '0.05em' }}>
+                    {completedCount}/{totalCount}
+                  </div>
+                </div>
+
+                <AnimatePresence initial={false}>
                   {!collapsedIds.has(checklist.id) && (
                     <Motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+                      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflow: 'hidden' }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <AnimatePresence initial={false}>
                           {checklist.items.map(item => (
                             <Motion.div 
-                              layout
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
                               exit={{ opacity: 0, scale: 0.95 }}
@@ -616,7 +622,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                                   transform: item.completed ? 'scale(1.1)' : 'scale(1)'
                                 }}
                               >
-                                {item.completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                                {item.completed ? <CheckCircle size={22} /> : <Circle size={22} />}
                               </button>
 
                               {editingItemId === item.id ? (
@@ -676,7 +682,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                             onChange={e => setNewItemTask(e.target.value)}
                             onBlur={() => !newItemTask.trim() && setAddingItemToId(null)}
                             onKeyDown={e => e.key === 'Enter' && handleAddItem(checklist.id)}
-                            placeholder="O que precisa ser feito?"
+                            placeholder={t('trips.item_placeholder', 'O que precisa ser feito?')}
                             className="glass-input"
                             style={{ fontSize: '1rem', padding: '0.85rem' }}
                           />
@@ -707,15 +713,16 @@ export default function TripChecklists({ user, trip, onBack }) {
                           }}
                           className="add-item-btn-premium"
                         >
-                          <Plus size={20} /> Adicionar item
+                          <Plus size={20} /> {t('trips.add_item_btn', 'Adicionar item')}
                         </button>
                       )}
                     </Motion.div>
                   )}
-                </Motion.div>
-              );
-            })}
-          </AnimatePresence>
+                </AnimatePresence>
+              </Motion.div>
+            );
+          })}
+        </AnimatePresence>
         </div>
       )}
 
@@ -733,7 +740,7 @@ export default function TripChecklists({ user, trip, onBack }) {
               <div style={{ padding: '2rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>{t('trips.import_from_other_trips', 'Importar de outras viagens')}</h3>
-                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Escolha uma lista de suas aventuras anteriores</p>
+                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('trips.import_modal_desc')}</p>
                 </div>
                 <button onClick={() => setIsImportModalOpen(false)} className="action-btn"><X size={24} /></button>
               </div>
@@ -743,7 +750,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                   <Search size={20} style={{ position: 'absolute', left: '1.25rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
                   <input 
                     type="text" 
-                    placeholder="Pesquisar por título da viagem..." 
+                    placeholder={t('trips.import_search_placeholder')} 
                     className="glass-input" 
                     style={{ width: '100%', padding: '1rem 1rem 1rem 3.5rem', fontSize: '1rem', borderRadius: '16px' }}
                     value={importSearch}

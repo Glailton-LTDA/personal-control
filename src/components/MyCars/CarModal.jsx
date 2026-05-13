@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { XCircle, Car, Wrench, FileText, Share2, DollarSign, Calendar } from 'lucide-react';
+import { XCircle, Car, Wrench, FileText, Share2, DollarSign, Calendar, CheckCircle, Clock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export default function CarModal({ isOpen, onClose, type, car, maintenance, user, onSuccess }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0, is_hidden: false });
   const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
@@ -58,9 +60,9 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
 
     if (!error) {
       onSuccess();
-      toast.success('Nota salva');
+      toast.success(t('common.success_saved', 'Salvo com sucesso'));
     } else {
-      toast.error('Erro ao salvar observação.');
+      toast.error(t('common.error_saving', 'Erro ao salvar'));
     }
     setLoading(false);
   }
@@ -93,13 +95,18 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     };
 
     const { error } = await supabase.from('cars').update(encrypted).eq('id', car.id);
-    if (!error) onSuccess();
+    if (!error) {
+      onSuccess();
+      toast.success(t('common.success_updated', 'Atualizado com sucesso'));
+    } else {
+      toast.error(t('common.error_updating', 'Erro ao atualizar'));
+    }
     setLoading(false);
   }
 
   async function handleLogService() {
     if (!serviceData.description.trim()) {
-      toast.error('Preencha a descrição do serviço.');
+      toast.error(t('cars.errors.description_required', 'Preencha a descrição do serviço.'));
       return;
     }
     setLoading(true);
@@ -116,9 +123,9 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     if (!error) {
       setServiceData({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
       onSuccess();
-      toast.success('Serviço registrado!');
+      toast.success(t('cars.success.service_logged', 'Serviço registrado!'));
     } else {
-      toast.error('Erro ao salvar serviço.');
+      toast.error(t('cars.errors.service_log_failed', 'Erro ao salvar serviço.'));
     }
     setLoading(false);
   }
@@ -152,14 +159,14 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
             </div>
             <div>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
-                {isCarForm ? (type === 'add_car' ? 'Novo Veículo' : 'Editar Veículo') :
-                 isServiceForm ? 'Registrar Serviço' :
-                 (typeof type === 'object' && type.isList ? 'Histórico de Notas' : 'Observações')}
+                {isCarForm ? (type === 'add_car' ? t('cars.new_vehicle') : t('cars.edit_vehicle')) :
+                 isServiceForm ? t('cars.add_service') :
+                 (typeof type === 'object' && type.isList ? t('cars.revisions.notes_history', 'Histórico de Notas') : t('cars.revisions.notes', 'Observações'))}
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                {isCarForm ? 'Informações básicas do veículo.' :
-                 isServiceForm ? 'Atualize o histórico de manutenção.' :
-                 'Detalhes adicionais do checkpoint.'}
+                {isCarForm ? t('cars.basic_info') :
+                 isServiceForm ? t('cars.log_service_desc') :
+                 t('cars.notes_desc')}
               </p>
             </div>
           </div>
@@ -171,16 +178,16 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
         {isCarForm && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="input-group">
-              <label>Identificação do Veículo</label>
-              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Ônix Premier" />
+              <label>{t('cars.vehicle_id')}</label>
+              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder={t('cars.vehicle_placeholder')} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
               <div className="input-group">
-                <label>Placa</label>
+                <label>{t('cars.plate')}</label>
                 <input type="text" value={formData.plate} onChange={e => setFormData({...formData, plate: e.target.value})} maxLength={8} style={{ textTransform: 'uppercase' }} />
               </div>
               <div className="input-group">
-                <label>KM Atual</label>
+                <label>{t('cars.current_km')}</label>
                 <input type="number" value={formData.current_km} onChange={e => setFormData({...formData, current_km: parseInt(e.target.value)})} />
               </div>
             </div>
@@ -203,10 +210,10 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 onChange={() => {}}
                 style={{ width: '18px', height: '18px', margin: 0 }}
               />
-              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Arquivar este veículo</span>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('cars.archive_vehicle')}</span>
             </div>
             <button className="btn-primary" onClick={type === 'add_car' ? handleAddCar : handleUpdateCar} disabled={loading} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
-              {loading ? 'Salvando...' : 'Confirmar Alterações'}
+              {loading ? t('settings.saving') : t('common.save_changes')}
             </button>
           </div>
         )}
@@ -214,18 +221,18 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
         {isServiceForm && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="input-group">
-              <label>Serviço Executado</label>
+              <label>{t('cars.executed_service')}</label>
               <input
                 type="text"
                 value={serviceData.description}
                 onChange={e => setServiceData({...serviceData, description: e.target.value})}
-                placeholder="Ex: Troca de Pneus..."
+                placeholder={t('cars.service_placeholder')}
                 autoFocus
               />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
               <div className="input-group">
-                <label>Checkpoint (KM)</label>
+                <label>{t('cars.checkpoint_km')}</label>
                 <select value={serviceData.km_milestone} onChange={e => setServiceData({...serviceData, km_milestone: parseInt(e.target.value)})}>
                   {[10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000].map(k => (
                     <option key={k} value={k}>{k.toLocaleString()} km</option>
@@ -233,9 +240,9 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 </select>
               </div>
               <div className="input-group">
-                <label>Custo do Serviço</label>
+                <label>{t('cars.service_cost')}</label>
                 <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.9rem', fontWeight: 700 }}>R$</span>
+                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.9rem', fontWeight: 700 }}>{t('common.currency_symbol')}</span>
                   <input
                     type="text"
                     value={serviceData.amount}
@@ -255,12 +262,12 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               </div>
             </div>
             <div className="input-group">
-              <label>Status da Manutenção</label>
+              <label>{t('cars.maintenance_status')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
                 {[
-                  { id: 'DONE', label: 'Concluído', icon: <CheckCircle2 size={16} />, color: 'var(--success)' },
-                  { id: 'PENDING', label: 'Pendente', icon: <Clock size={16} />, color: 'var(--pending)' },
-                  { id: 'SKIPPED', label: 'Ignorar', icon: <XCircle size={16} />, color: 'var(--danger)' }
+                  { id: 'DONE', label: t('cars.revisions.status_done'), icon: <CheckCircle size={16} />, color: 'var(--success)' },
+                  { id: 'PENDING', label: t('cars.revisions.status_pending'), icon: <Clock size={16} />, color: 'var(--pending)' },
+                  { id: 'SKIPPED', label: t('cars.revisions.status_ignored'), icon: <XCircle size={16} />, color: 'var(--danger)' }
                 ].map(s => (
                   <div 
                     key={s.id}
@@ -288,7 +295,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               </div>
             </div>
             <button className="btn-primary" onClick={handleLogService} disabled={loading || !serviceData.description.trim()} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
-              {loading ? 'Registrando...' : 'Salvar Manutenção'}
+              {loading ? t('common.saving') : t('cars.save_maintenance')}
             </button>
           </div>
         )}
@@ -313,7 +320,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 ) : (
                   <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                     <FileText size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                    <p>Nenhuma observação encontrada para este serviço.</p>
+                    <p>{t('cars.empty_notes') || 'Nenhuma observação encontrada para este serviço.'}</p>
                   </div>
                 )}
               </div>
@@ -321,21 +328,21 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               <>
                 <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)', marginBottom: '0.5rem' }}>
                   <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--primary)' }}>{noteData.description}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Checkpoint: {noteData.km_milestone.toLocaleString()} KM</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.checkpoint_km')}: {noteData.km_milestone.toLocaleString()} KM</p>
                 </div>
                 <div className="input-group">
-                  <label>Relatório do Serviço</label>
+                  <label>{t('cars.service_report')}</label>
                   <textarea
                     value={noteData.notes}
                     onChange={e => setNoteData({...noteData, notes: e.target.value})}
-                    placeholder="Ex: Utilizado óleo 5W30 sintético. Verificado pastilhas de freio..."
+                    placeholder={t('cars.notes_placeholder')}
                     className="settings-textarea"
                     style={{ minHeight: '160px', padding: '1.25rem', fontSize: '0.95rem' }}
                     autoFocus
                   />
                 </div>
                 <button className="btn-primary" onClick={handleSaveNote} disabled={loading} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
-                  {loading ? 'Salvando...' : 'Salvar Observação'}
+                  {loading ? t('common.saving') : t('cars.save_note')}
                 </button>
               </>
             )}
@@ -351,6 +358,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
 }
 
 function ShareCarSection({ car, user, onClose }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   async function handleShare(e) {
@@ -368,14 +376,14 @@ function ShareCarSection({ car, user, onClose }) {
       });
 
       if (!error) {
-        toast.success('Convite enviado com sucesso!');
+        toast.success(t('cars.success.invite_sent', 'Convite enviado com sucesso!'));
         onClose();
       } else {
-        toast.error('Erro ao registrar compartilhamento: ' + error.message);
+        toast.error(t('cars.errors.invite_failed', 'Erro ao registrar compartilhamento: ') + error.message);
       }
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao compartilhar veículo.');
+      toast.error(t('cars.errors.share_failed', 'Erro ao compartilhar veículo.'));
     } finally {
       setLoading(false);
     }
@@ -385,13 +393,13 @@ function ShareCarSection({ car, user, onClose }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-          Convide outra pessoa para gerenciar a manutenção do <strong>{car.name}</strong>.
+          {t('cars.share_desc')} <strong>{car.name}</strong>.
         </p>
       </div>
       
       <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div className="input-group">
-          <label>E-mail do convidado</label>
+          <label>{t('cars.guest_email')}</label>
           <div style={{ position: 'relative' }}>
             <input 
               type="email" 
@@ -408,7 +416,7 @@ function ShareCarSection({ car, user, onClose }) {
         </div>
         
         <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
-          {loading ? 'Enviando convite...' : 'Enviar Convite'}
+          {loading ? t('cars.sending_invite', 'Enviando convite...') : t('cars.send_invite')}
         </button>
       </form>
     </div>

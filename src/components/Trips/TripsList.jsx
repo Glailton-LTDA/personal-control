@@ -243,7 +243,7 @@ export default function TripsList({
   const dailyAverage = totalSpent / daysCount;
 
   const categoryMap = currencyExpenses.reduce((acc, exp) => {
-    const cat = exp.trip_categories?.name || 'Geral';
+    const cat = exp.trip_categories?.name || t('trips.general', 'Geral');
     acc[cat] = (acc[cat] || 0) + (parseFloat(exp.amount) || 0);
     return acc;
   }, {});
@@ -733,7 +733,7 @@ export default function TripsList({
                                 <div className="expense-card-details">
                                   <div className="expense-card-title">{exp.description}</div>
                                   <div className="expense-card-subtitle">
-                                    {exp.date ? formatDate(exp.date, { day: '2-digit', month: 'short' }) : '--'} • {exp.trip_categories?.name || 'Geral'}
+                                    {exp.date ? formatDate(exp.date, { day: '2-digit', month: 'short' }) : '--'} • {exp.trip_categories?.name || t('trips.general', 'Geral')}
                                   </div>
                                 </div>
                               </div>
@@ -803,7 +803,7 @@ export default function TripsList({
                               </td>
                               <td>
                                 <span className="orbit-category-badge">
-                                  {exp.trip_categories?.name || 'Geral'}
+                                  {exp.trip_categories?.name || t('trips.general', 'Geral')}
                                 </span>
                               </td>
                               <td>{exp.paid_by}</td>

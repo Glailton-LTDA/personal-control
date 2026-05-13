@@ -70,13 +70,13 @@ export default function FinanceSettings() {
   }
 
   async function deleteItem(table, id) {
-    confirmToast('Excluir este item? Isso pode afetar registros vinculados.', async () => {
+    confirmToast(t('finances.confirm_delete_item', 'Excluir este item? Isso pode afetar registros vinculados.'), async () => {
       const { error } = await supabase.from(table).delete().eq('id', id);
       if (!error) {
         fetchData();
-        toast.success('Item excluído');
+        toast.success(t('common.success_delete'));
       } else {
-        toast.error('Erro ao excluir item');
+        toast.error(t('common.error_deleting'));
       }
     }, { danger: true });
   }
@@ -132,8 +132,8 @@ export default function FinanceSettings() {
                 value={newCat.type}
                 onChange={e => setNewCat({...newCat, type: e.target.value})}
               >
-                <option value="DESPESA">Gasto</option>
-                <option value="RECEITA">Entrada</option>
+                <option value="DESPESA">{t('finances.settings.expense_type', 'Gasto')}</option>
+                <option value="RECEITA">{t('finances.settings.income_type', 'Entrada')}</option>
               </select>
               <button 
                 className="btn-primary" 
@@ -181,7 +181,7 @@ export default function FinanceSettings() {
             </AnimatePresence>
             {categories.length === 0 && (
               <div style={{ width: '100%', textAlign: 'center', padding: '2rem', opacity: 0.3 }}>
-                <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>Nenhuma categoria personalizada</p>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('finances.settings.no_custom_categories', 'Nenhuma categoria personalizada')}</p>
               </div>
             )}
           </div>
@@ -283,7 +283,7 @@ export default function FinanceSettings() {
                       {r.name}
                       {r.is_main && <span style={{ fontSize: '10px', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '6px', fontWeight: 900, letterSpacing: '0.05em' }}>{t('finances.settings.main_label')}</span>}
                     </div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.email || 'Sem e-mail configurado'}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.email || t('finances.settings.no_email_config', 'Sem e-mail configurado')}</div>
                   </div>
 
                   <button 
@@ -298,7 +298,7 @@ export default function FinanceSettings() {
             </AnimatePresence>
             {responsibles.length === 0 && (
               <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.3 }}>
-                <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>Nenhum responsável cadastrado</p>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('finances.settings.no_responsibles', 'Nenhum responsável cadastrado')}</p>
               </div>
             )}
           </div>
@@ -332,10 +332,9 @@ export default function FinanceSettings() {
           <ShieldCheck size={28} />
         </div>
         <div>
-          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>Segurança de Dados Ativa</p>
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{t('finances.settings.security_active', 'Segurança de Dados Ativa')}</p>
           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500, lineHeight: '1.4' }}>
-            Seus dados financeiros estão protegidos por políticas de Row Level Security (RLS) no Supabase. 
-            Somente você tem acesso aos seus registros e configurações personalizadas.
+            {t('finances.settings.security_desc', 'Seus dados financeiros estão protegidos por políticas de Row Level Security (RLS) no Supabase. Somente você tem acesso aos seus registros e configurações personalizadas.')}
           </p>
         </div>
       </Motion.div>

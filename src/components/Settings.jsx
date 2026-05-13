@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle2, Loader2, LayoutGrid, Sun, Moon, Globe, User, Info } from 'lucide-react';
+import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle, Loader2, LayoutGrid, Sun, Moon, Globe, User, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -464,15 +464,15 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Versão</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('settings.version', 'Versão')}</span>
                   <span style={{ color: 'var(--text-main)', fontWeight: 800 }}>1.2.5 (Stable)</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Build ID</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('settings.build_id', 'Build ID')}</span>
                   <span style={{ color: 'var(--text-main)', fontWeight: 800 }}>2026.05.12</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Design System</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('settings.design_system', 'Design System')}</span>
                   <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Orbit Core</span>
                 </div>
               </div>
@@ -488,7 +488,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                   <Globe size={16} /> GitHub
                 </a>
                 <div style={{ flex: 1, padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#10b981', fontSize: '0.8rem', fontWeight: 700 }}>
-                  <CheckCircle2 size={16} /> Online
+                  <CheckCircle size={16} /> Online
                 </div>
               </div>
             </div>

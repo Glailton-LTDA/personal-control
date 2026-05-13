@@ -81,7 +81,7 @@ vi.mock('lucide-react', () => {
     Save: mockIcon('save'),
     Loader2: mockIcon('loader-2'),
     Info: mockIcon('info'),
-    CheckCircle2: mockIcon('check-circle-2'),
+    CheckCircle: mockIcon('check-circle'),
     Circle: mockIcon('circle'),
     Hash: mockIcon('hash'),
     Type: mockIcon('type'),
