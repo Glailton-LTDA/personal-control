@@ -471,6 +471,14 @@ i18n
             what_to_do_placeholder: 'O que vamos fazer?',
             location_placeholder: 'Local ou endereço...',
             exploration_by_continent: 'Exploração por Continente',
+            continents: {
+              Europe: 'Europa',
+              SouthAmerica: 'América do Sul',
+              NorthAmerica: 'América do Norte',
+              Asia: 'Ásia',
+              Africa: 'África',
+              Oceania: 'Oceania'
+            },
             countries_visited: 'Países Visitados',
             see_all: 'Ver todos',
             no_countries_recorded: 'Ainda não há países registrados.',
@@ -1046,6 +1054,14 @@ i18n
             what_to_do_placeholder: 'What are we going to do?',
             location_placeholder: 'Location or address...',
             exploration_by_continent: 'Exploration by Continent',
+            continents: {
+              Europe: 'Europe',
+              SouthAmerica: 'South America',
+              NorthAmerica: 'North America',
+              Asia: 'Asia',
+              Africa: 'Africa',
+              Oceania: 'Oceania'
+            },
             countries_visited: 'Countries Visited',
             see_all: 'See all',
             no_countries_recorded: 'No countries recorded yet.',
@@ -1555,6 +1571,14 @@ i18n
             what_to_do_placeholder: '¿Qué vamos a hacer?',
             location_placeholder: 'Lugar o dirección...',
             exploration_by_continent: 'Exploración por Continente',
+            continents: {
+              Europe: 'Europa',
+              SouthAmerica: 'América del Sur',
+              NorthAmerica: 'América del Norte',
+              Asia: 'Asia',
+              Africa: 'África',
+              Oceania: 'Oceanía'
+            },
             countries_visited: 'Países Visitados',
             see_all: 'Ver todos',
             no_countries_recorded: 'Aún no hay países registrados.',
