@@ -57,7 +57,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   const fetchServiceTemplates = useCallback(async () => {
     const { data } = await supabase
       .from('car_service_templates')
-      .select('*');
+      .select('*, interval_km, interval_months');
     
     const templates = [...defaultServiceTemplates];
     if (data) {
@@ -69,6 +69,55 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     }
     setServiceTemplates(templates);
   }, []);
+
+  const calculateInsights = useCallback(() => {
+    if (!selectedCar || !maintenance.length) return [];
+    
+    const insights = [];
+    const now = new Date();
+    
+    const uniqueTemplates = serviceTemplates.reduce((acc, t) => {
+      if (!acc[t.description] || (t.interval_km && !acc[t.description].interval_km)) {
+        acc[t.description] = t;
+      }
+      return acc;
+    }, {});
+
+    Object.values(uniqueTemplates).forEach(template => {
+      const history = maintenance
+        .filter(m => m.description === template.description && m.status === 'DONE')
+        .sort((a, b) => (b.km_milestone || 0) - (a.km_milestone || 0));
+      
+      const lastExecution = history[0];
+      
+      if (lastExecution && (template.interval_km || template.interval_months)) {
+        let nextKm = lastExecution.km_milestone + (template.interval_km || 10000);
+        let kmRemaining = nextKm - selectedCar.current_km;
+        
+        let nextDate = null;
+        if (template.interval_months && lastExecution.updated_at) {
+          nextDate = new Date(lastExecution.updated_at);
+          nextDate.setMonth(nextDate.getMonth() + template.interval_months);
+        }
+
+        const isUrgent = kmRemaining < 500 || (nextDate && nextDate < now);
+        
+        insights.push({
+          type: 'prediction',
+          description: template.description,
+          nextKm,
+          kmRemaining,
+          nextDate,
+          isUrgent,
+          status: kmRemaining < 0 ? 'OVERDUE' : (isUrgent ? 'WARNING' : 'OK')
+        });
+      }
+    });
+
+    return insights.sort((a, b) => a.kmRemaining - b.kmRemaining).slice(0, 3);
+  }, [selectedCar, maintenance, serviceTemplates]);
+
+  const insights = calculateInsights();
 
   const fetchCars = useCallback(async () => {
     setLoading(true);
@@ -423,6 +472,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                 <CarSummary 
                   car={selectedCar} 
                   maintenance={maintenance}
+                  insights={insights}
                   onEdit={() => { setModalType('edit_car'); setIsModalOpen(true); }}
                   onDelete={() => handleDeleteCar(selectedCar.id)}
                   onShare={() => { setModalType('share_car'); setIsModalOpen(true); }}
@@ -481,10 +531,10 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   );
 }
 
-function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, isOwner }) {
+function CarSummary({ car, maintenance, insights, onEdit, onDelete, onShare, onArchive, isOwner }) {
   const { t } = useTranslation();
   const nextMilestone = milestones.find(m => m > car.current_km) || 120000;
-  const kmRemaining = nextMilestone - car.current_km;
+  const kmRemainingGlobal = nextMilestone - car.current_km;
   const progress = Math.max(0, Math.min(100, ((car.current_km % 10000) / 10000) * 100));
   const totalSpent = maintenance.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
   
@@ -543,7 +593,7 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
-                {t('cars.summary.km_remaining', { km: kmRemaining.toLocaleString() }, `Restam ${kmRemaining.toLocaleString()} KM para a próxima revisão sugerida.`)}
+                {t('cars.summary.km_remaining', { km: kmRemainingGlobal.toLocaleString() }, `Restam ${kmRemainingGlobal.toLocaleString()} KM para a próxima revisão sugerida.`)}
               </p>
               <div className="status-badge paid" style={{ fontSize: '10px', padding: '2px 8px' }}>{(progress).toFixed(0)}%</div>
             </div>
@@ -575,21 +625,39 @@ function CarSummary({ car, maintenance, onEdit, onDelete, onShare, onArchive, is
           <AlertTriangle size={20} style={{ color: '#f59e0b' }} /> {t('cars.summary.insights_alerts', 'Insights & Alertas')}
         </h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-            <div style={{ color: 'var(--success)' }}><CheckCircle size={20} /></div>
-            <div>
-              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>{t('common.status', 'Status')}: OK</p>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.summary.docs_ok', 'Documentos e seguros vigentes.')}</p>
+          {insights.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+              <div style={{ color: 'var(--success)' }}><CheckCircle size={20} /></div>
+              <div>
+                <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>{t('common.status', 'Status')}: OK</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.summary.docs_ok', 'Sem manutenções urgentes detectadas.')}</p>
+              </div>
             </div>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
-            <div style={{ color: '#f59e0b' }}><Clock size={20} /></div>
-            <div>
-              <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>{t('cars.summary.next_revision', 'Próxima Revisão')}</p>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>{t('cars.summary.km_to_go', { km: kmRemaining.toLocaleString() }, `Faltam ${kmRemaining.toLocaleString()} KM para o check-up.`)}</p>
-            </div>
-          </div>
+          ) : (
+            insights.map((insight, idx) => (
+              <div key={idx} style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.875rem', 
+                padding: '1rem', 
+                background: insight.isUrgent ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)', 
+                borderRadius: '12px', 
+                border: `1px solid ${insight.isUrgent ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)'}` 
+              }}>
+                <div style={{ color: insight.isUrgent ? 'var(--danger)' : '#f59e0b' }}>
+                  {insight.status === 'OVERDUE' ? <AlertTriangle size={20} /> : <Clock size={20} />}
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>{insight.description}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
+                    {insight.kmRemaining < 0 
+                      ? t('cars.summary.overdue_km', { km: Math.abs(insight.kmRemaining).toLocaleString() }, `Atrasado há ${Math.abs(insight.kmRemaining).toLocaleString()} KM`)
+                      : t('cars.summary.km_to_go', { km: insight.kmRemaining.toLocaleString() }, `Faltam ${insight.kmRemaining.toLocaleString()} KM`)}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

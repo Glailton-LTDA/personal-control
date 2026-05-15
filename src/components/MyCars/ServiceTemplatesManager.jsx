@@ -9,7 +9,7 @@ export default function ServiceTemplatesManager({ user }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ description: '', km_milestone: 10000 });
+  const [form, setForm] = useState({ description: '', km_milestone: 10000, interval_km: 10000, interval_months: 12 });
 
   useEffect(() => { fetchTemplates(); }, []);
 
@@ -30,10 +30,12 @@ export default function ServiceTemplatesManager({ user }) {
     const { error } = await supabase.from('car_service_templates').insert({
       description: form.description.trim(),
       km_milestone: parseInt(form.km_milestone),
+      interval_km: form.interval_km ? parseInt(form.interval_km) : null,
+      interval_months: form.interval_months ? parseInt(form.interval_months) : null,
       user_id: user.id
     });
     if (!error) {
-      setForm({ description: '', km_milestone: 10000 });
+      setForm({ description: '', km_milestone: 10000, interval_km: 10000, interval_months: 12 });
       fetchTemplates();
       toast.success(t('cars.milestone_added', 'Milestone adicionado!'));
     } else {
@@ -108,13 +110,20 @@ export default function ServiceTemplatesManager({ user }) {
                     }}>
                       <Calendar size={12} />
                       {t.km_milestone.toLocaleString()} km
+                      {(t.interval_km || t.interval_months) && (
+                        <span style={{ opacity: 0.6, fontSize: '0.65rem', marginLeft: '4px' }}>
+                          ({t.interval_km ? `${t.interval_km/1000}k km` : ''} 
+                           {t.interval_km && t.interval_months ? ' / ' : ''}
+                           {t.interval_months ? `${t.interval_months}m` : ''})
+                        </span>
+                      )}
                       {t.user_id && (
                         <button 
                           onClick={() => deleteTemplate(t.id)} 
                           style={{ 
                             background: 'none', border: 'none', cursor: 'pointer', 
                             color: 'var(--danger)', padding: 0, display: 'flex', 
-                            alignItems: 'center', opacity: 0.7 
+                            alignItems: 'center', opacity: 0.7, marginLeft: '4px'
                           }}
                         >
                           <Plus size={14} style={{ transform: 'rotate(45deg)' }} />
@@ -131,7 +140,7 @@ export default function ServiceTemplatesManager({ user }) {
 
       <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem' }}>
         <h4 style={{ fontSize: '0.9rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-main)' }}>{t('cars.new_custom_milestone', 'Novo Milestone Personalizado')}</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
           <div className="input-group" style={{ marginBottom: 0 }}>
             <label>{t('cars.service_description', 'Descrição do Serviço')}</label>
             <input
@@ -151,6 +160,27 @@ export default function ServiceTemplatesManager({ user }) {
                 <option key={k} value={k}>{k.toLocaleString()} km</option>
               ))}
             </select>
+          </div>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+          <div className="input-group" style={{ marginBottom: 0 }}>
+            <label>{t('cars.interval_km', 'Recorrência (KM)')}</label>
+            <input
+              type="number"
+              value={form.interval_km}
+              onChange={e => setForm({ ...form, interval_km: e.target.value })}
+              placeholder="Ex: 10000"
+            />
+          </div>
+          <div className="input-group" style={{ marginBottom: 0 }}>
+            <label>{t('cars.interval_months', 'Recorrência (Meses)')}</label>
+            <input
+              type="number"
+              value={form.interval_months}
+              onChange={e => setForm({ ...form, interval_months: e.target.value })}
+              placeholder="Ex: 12"
+            />
           </div>
           <button className="btn-primary" onClick={addTemplate} disabled={saving || !form.description.trim()} style={{ height: '42px', padding: '0 1.5rem' }}>
             <Plus size={18} /> {saving ? '...' : t('common.add', 'Adicionar')}

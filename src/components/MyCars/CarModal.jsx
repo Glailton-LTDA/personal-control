@@ -9,7 +9,13 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0, is_hidden: false });
-  const [serviceData, setServiceData] = useState({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
+  const [serviceData, setServiceData] = useState({ 
+    description: '', 
+    km_milestone: 10000, 
+    status: 'DONE', 
+    amount: '',
+    service_date: new Date().toISOString().split('T')[0]
+  });
   const [noteData, setNoteData] = useState({ description: '', km_milestone: 10000, notes: '' });
 
   useEffect(() => {
@@ -20,12 +26,16 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
         current_km: car.current_km,
         is_hidden: car.is_hidden || false
       });
+      // Set default KM for service to current car KM if it's a generic log
+      if (type === 'log_service') {
+        setServiceData(prev => ({ ...prev, km_milestone: car.current_km }));
+      }
     }
   }, [car, type]);
 
   useEffect(() => {
     if (typeof type === 'object') {
-      const { desc, description, km, km_milestone, notes, isList, amount } = type;
+      const { desc, description, km, km_milestone, notes, isList, amount, service_date } = type;
       const finalDesc = desc || description;
       const finalKm = km || km_milestone;
 
@@ -36,7 +46,8 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
           ...prev, 
           description: finalDesc || prev.description, 
           km_milestone: finalKm || prev.km_milestone,
-          amount: amount !== undefined ? amount : prev.amount
+          amount: amount !== undefined ? amount : prev.amount,
+          service_date: service_date || prev.service_date
         }));
       }
     }
@@ -117,11 +128,23 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
       status: serviceData.status,
       completed: serviceData.status === 'DONE',
       amount: serviceData.amount ? parseFloat(String(serviceData.amount).replace(',', '.')) : 0,
+      service_date: serviceData.service_date,
       updated_at: new Date().toISOString()
     }, { onConflict: 'car_id,description,km_milestone' });
     
     if (!error) {
-      setServiceData({ description: '', km_milestone: 10000, status: 'DONE', amount: '' });
+      // Also update car's current KM if the service KM is higher
+      if (parseInt(serviceData.km_milestone.toString()) > car.current_km) {
+        await supabase.from('cars').update({ current_km: parseInt(serviceData.km_milestone.toString()) }).eq('id', car.id);
+      }
+
+      setServiceData({ 
+        description: '', 
+        km_milestone: 10000, 
+        status: 'DONE', 
+        amount: '',
+        service_date: new Date().toISOString().split('T')[0]
+      });
       onSuccess();
       toast.success(t('cars.success.service_logged', 'Serviço registrado!'));
     } else {
@@ -233,32 +256,46 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
               <div className="input-group">
                 <label>{t('cars.checkpoint_km')}</label>
-                <select value={serviceData.km_milestone} onChange={e => setServiceData({...serviceData, km_milestone: parseInt(e.target.value)})}>
+                <input
+                  type="number"
+                  list="km-suggestions"
+                  value={serviceData.km_milestone}
+                  onChange={e => setServiceData({...serviceData, km_milestone: parseInt(e.target.value)})}
+                />
+                <datalist id="km-suggestions">
                   {[10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000, 110000, 120000].map(k => (
-                    <option key={k} value={k}>{k.toLocaleString()} km</option>
+                    <option key={k} value={k} />
                   ))}
-                </select>
+                </datalist>
               </div>
               <div className="input-group">
-                <label>{t('cars.service_cost')}</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.9rem', fontWeight: 700 }}>{t('common.currency_symbol')}</span>
-                  <input
-                    type="text"
-                    value={serviceData.amount}
-                    style={{ paddingLeft: '2.5rem' }}
-                    onChange={e => {
-                      let val = e.target.value.replace(/\D/g, '');
-                      if (!val) {
-                        setServiceData({...serviceData, amount: ''});
-                        return;
-                      }
-                      val = (parseInt(val) / 100).toFixed(2);
-                      setServiceData({...serviceData, amount: val.replace('.', ',')});
-                    }}
-                    placeholder="0,00"
-                  />
-                </div>
+                <label>{t('cars.service_date')}</label>
+                <input
+                  type="date"
+                  value={serviceData.service_date}
+                  onChange={e => setServiceData({...serviceData, service_date: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="input-group">
+              <label>{t('cars.service_cost')}</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.9rem', fontWeight: 700 }}>{t('common.currency_symbol')}</span>
+                <input
+                  type="text"
+                  value={serviceData.amount}
+                  style={{ paddingLeft: '2.5rem' }}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (!val) {
+                      setServiceData({...serviceData, amount: ''});
+                      return;
+                    }
+                    val = (parseInt(val) / 100).toFixed(2);
+                    setServiceData({...serviceData, amount: val.replace('.', ',')});
+                  }}
+                  placeholder="0,00"
+                />
               </div>
             </div>
             <div className="input-group">
