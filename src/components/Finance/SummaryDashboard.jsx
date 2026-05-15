@@ -9,6 +9,7 @@ import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock, Eye, EyeOff 
 
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import FinanceInsights from './FinanceInsights';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 const GRADIENTS = {
@@ -25,7 +26,10 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
   const [categoryData, setCategoryData] = useState([]);
   const [revenueCategoryData, setRevenueCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rawFinances, setRawFinances] = useState([]);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, pending: 0 });
+  const [prevStats, setPrevStats] = useState({ income: 0, expense: 0 });
+  const [prevCategoryData, setPrevCategoryData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(initialYear || 2026);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth < 1024);
@@ -41,7 +45,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
 
   const years = [2024, 2025, 2026];
 
-  const processCharts = useCallback((finances) => {
+  const processCharts = useCallback((finances, isPrevious = false) => {
     const monthsMap = new Map();
     const incomeCategoriesMap = {};
     const expenseCategoriesMap = {};
@@ -93,17 +97,23 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
       }
     });
 
-    setData(Array.from(monthsMap.values()));
-    setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-    setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-    setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
+    if (isPrevious) {
+      setPrevStats({ income: totalIncome, expense: totalExpense });
+      setPrevCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })));
+    } else {
+      setRawFinances(finances);
+      setData(Array.from(monthsMap.values()));
+      setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
+      setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
+      setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
+    }
   }, [isGeneral, i18n.language, t]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     
+    // Fetch Current Period
     let query = supabase.from('finances').select('*').eq('user_id', user?.id);
-
     if (isGeneral) {
       const startOfYear = `${selectedYear}-01-01`;
       const endOfYear = `${selectedYear}-12-31`;
@@ -120,6 +130,34 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     if (finances) {
       processCharts(finances);
     }
+
+    // Fetch Previous Month if not General
+    if (!isGeneral && month !== undefined) {
+      let prevMonth = month - 1;
+      let prevYear = selectedYear;
+      if (prevMonth < 0) {
+        prevMonth = 11;
+        prevYear -= 1;
+      }
+      const pMonthStr = String(prevMonth + 1).padStart(2, '0');
+      const pLastDayDate = new Date(prevYear, prevMonth + 1, 0).getDate();
+      const pStart = `${prevYear}-${pMonthStr}-01`;
+      const pEnd = `${prevYear}-${pMonthStr}-${String(pLastDayDate).padStart(2, '0')}`;
+      
+      const { data: prevFinances } = await supabase.from('finances')
+        .select('*')
+        .eq('user_id', user?.id)
+        .gte('payment_date', pStart)
+        .lte('payment_date', pEnd);
+        
+      if (prevFinances) {
+        processCharts(prevFinances, true);
+      } else {
+        setPrevStats({ income: 0, expense: 0 });
+        setPrevCategoryData([]);
+      }
+    }
+
     setLoading(false);
   }, [isGeneral, month, selectedYear, user?.id, processCharts]);
 
@@ -221,6 +259,21 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
           data-testid="stat-card-balance"
         />
       </Motion.div>
+
+      {/* Financial Intelligence Engine */}
+      {!isGeneral && (
+        <FinanceInsights 
+          stats={stats}
+          prevStats={prevStats}
+          categoryData={categoryData}
+          prevCategoryData={prevCategoryData}
+          finances={rawFinances}
+          loading={loading}
+          showValues={showValues}
+          month={month}
+          year={selectedYear}
+        />
+      )}
 
       {/* Main Bar Chart */}
       <div className="glass-card" style={{ padding: '1.5rem', minHeight: '400px' }}>

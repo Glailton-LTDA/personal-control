@@ -248,6 +248,17 @@ i18n
             tabs: {
               summary: 'Dashboard',
               transactions: 'Movimentações'
+            },
+            insights: {
+              title: 'Inteligência Financeira',
+              projection: 'Projeção de Gastos',
+              burn_rate_desc: 'No ritmo atual, sua despesa final será de {{amount}}.',
+              category_alert: 'A categoria {{category}} subiu {{percent}}% em relação ao mês passado.',
+              saving_win: 'Economia detectada em {{category}}! Você gastou {{percent}}% menos que no mês passado.',
+              budget_safe: 'Orçamento Sob Controle',
+              no_previous_data: 'Aguardando mais dados para gerar insights comparativos.',
+              monthly_win_desc: 'Excelente! Você economizou {{percent}}% ({{amount}}) em relação ao mês anterior.',
+              monthly_loss_desc: 'Atenção: Seus gastos subiram {{percent}}% ({{amount}}) em relação ao mês anterior.'
             }
           },
           investments: {
@@ -889,6 +900,17 @@ i18n
             tabs: {
               summary: 'Dashboard',
               transactions: 'Transactions'
+            },
+            insights: {
+              title: 'Financial Intelligence',
+              projection: 'Spending Projection',
+              burn_rate_desc: 'At the current rate, your final expense will be {{amount}}.',
+              category_alert: 'The {{category}} category rose {{percent}}% compared to last month.',
+              saving_win: 'Savings detected! You spent {{percent}}% less than last month.',
+              budget_safe: 'Budget Under Control',
+              no_previous_data: 'Waiting for more data to generate comparative insights.',
+              monthly_win_desc: 'Great! You saved {{percent}}% ({{amount}}) compared to the previous month.',
+              monthly_loss_desc: 'Warning: Your spending increased by {{percent}}% ({{amount}}) compared to the previous month.'
             }
           },
           investments: {
