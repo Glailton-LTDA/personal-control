@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   ChevronRight,
-  Coins
+  Coins,
+  Music
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +20,7 @@ const moduleData = {
   investments: { color: '#10b981', icon: TrendingUp },
   trips: { color: '#a855f7', icon: Plane },
   lists: { color: '#f59e0b', icon: List },
+  music: { color: '#f43f5e', icon: Music },
   settings: { color: '#94a3b8', icon: Settings },
 };
 
@@ -101,6 +103,7 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
                 else if (menuItem.id === 'investments') onNavigate('investments-dashboard');
                 else if (menuItem.id === 'trips') onNavigate('trips-list');
                 else if (menuItem.id === 'lists') onNavigate('lists-manager');
+                else if (menuItem.id === 'music') onNavigate('music-repertoire');
                 else if (menuItem.id === 'settings') onNavigate('settings-general');
                 else onNavigate(menuItem.id);
               }}

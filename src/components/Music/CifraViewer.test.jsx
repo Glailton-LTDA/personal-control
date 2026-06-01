@@ -1,0 +1,151 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
+import CifraViewer from './CifraViewer';
+
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+    i18n: {
+      changeLanguage: vi.fn(),
+      language: 'pt-BR',
+    },
+  }),
+}));
+
+const mockSong = {
+  id: 'song-123',
+  title: 'Love of My Life',
+  artist: 'Queen',
+  type: 'cifra',
+  content: `A                         F#m
+Love of my life you've hurt me
+Bm
+You've broken my heart
+
+E|-----------------------------|
+B|-------------3---------------|
+G|-------2-------2-------------|
+D|-----0---0-------0-----------|
+A|---0-------------------------|
+E|-3---------------------------|`
+};
+
+describe('CifraViewer Component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders song title and artist correctly', () => {
+    render(<CifraViewer song={mockSong} />);
+    
+    expect(screen.getByText('Love of My Life')).toBeDefined();
+    expect(screen.getByText('Queen')).toBeDefined();
+  });
+
+  it('identifies and displays chords and lyrics lines', () => {
+    render(<CifraViewer song={mockSong} />);
+    
+    // Check if chords are rendered
+    expect(screen.getAllByText('A').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('F#m').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bm').length).toBeGreaterThan(0);
+    
+    // Check if lyric lines are rendered
+    expect(screen.getAllByText("Love of my life you've hurt me").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("You've broken my heart").length).toBeGreaterThan(0);
+  });
+
+  it('identifies and groups tablature blocks', () => {
+    const { container } = render(<CifraViewer song={mockSong} />);
+    
+    // Check for pre tags which render tabs
+    const pre = container.querySelector('pre');
+    expect(pre).not.toBeNull();
+    expect(pre.textContent).toContain('E|-----------------------------|');
+    expect(pre.textContent).toContain('E|-3---------------------------|');
+  });
+
+  it('transposes chords correctly when clicking tom controls', () => {
+    render(<CifraViewer song={mockSong} />);
+    
+    // Find key display indicator (initially 0)
+    const tomDisplay = screen.getByText('0');
+    expect(tomDisplay).toBeDefined();
+    
+    // Find the increase half tone button (Aumentar Meio Tom)
+    const incBtn = screen.getByTitle('Aumentar Meio Tom');
+    fireEvent.click(incBtn);
+    
+    // The tom display should change to +1
+    expect(screen.getByText('+1')).toBeDefined();
+    
+    // The chord A transposed +1 is A#
+    expect(screen.getAllByText('A#').length).toBeGreaterThan(0);
+    
+    // The chord F#m transposed +1 is Gm
+    expect(screen.getAllByText('Gm').length).toBeGreaterThan(0);
+  });
+
+  it('filters tablature blocks based on instrument specific tags', () => {
+    const songWithTags = {
+      id: 'song-tag-123',
+      title: 'Multinstrument Song',
+      artist: 'Artist',
+      type: 'cifra',
+      content: `[violao]
+E|--guitar-tab--|
+[ukulele]
+A|--ukulele-tab--|
+[geral]
+Common Lyric Line`
+    };
+
+    render(<CifraViewer song={songWithTags} />);
+
+    // Active instrument is default (violao)
+    expect(screen.queryAllByText('E|--guitar-tab--|').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('A|--ukulele-tab--|').length).toBe(0);
+    expect(screen.getAllByText('Common Lyric Line').length).toBeGreaterThan(0);
+
+    // Select Ukulele instrument
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'ukulele' } });
+
+    // Now ukulele tab is visible, guitar tab is hidden
+    expect(screen.queryAllByText('E|--guitar-tab--|').length).toBe(0);
+    expect(screen.queryAllByText('A|--ukulele-tab--|').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Common Lyric Line').length).toBeGreaterThan(0);
+  });
+
+  it('shows Edit button when onEdit prop is provided and fires callback on click', () => {
+    const onEdit = vi.fn();
+    render(<CifraViewer song={mockSong} onEdit={onEdit} />);
+
+    const editBtn = screen.getByTitle('Editar música');
+    expect(editBtn).toBeDefined();
+    fireEvent.click(editBtn);
+    expect(onEdit).toHaveBeenCalledWith(mockSong);
+  });
+
+  it('does not show Edit button when onEdit prop is not provided', () => {
+    render(<CifraViewer song={mockSong} />);
+    expect(screen.queryByTitle('Editar música')).toBeNull();
+  });
+
+  it('renders music_link badge when song has a link', () => {
+    const songWithLink = { ...mockSong, music_link: 'https://youtube.com/watch?v=abc' };
+    render(<CifraViewer song={songWithLink} />);
+
+    const linkBadge = screen.getByText('Abrir Link de Referência');
+    expect(linkBadge).toBeDefined();
+    expect(linkBadge.closest('a').getAttribute('href')).toBe('https://youtube.com/watch?v=abc');
+    expect(linkBadge.closest('a').getAttribute('target')).toBe('_blank');
+  });
+
+  it('does not render music_link badge when song has no link', () => {
+    render(<CifraViewer song={mockSong} />);
+    expect(screen.queryByText('Abrir Link de Referência')).toBeNull();
+  });
+});

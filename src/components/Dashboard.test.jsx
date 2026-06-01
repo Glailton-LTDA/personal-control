@@ -92,7 +92,8 @@ vi.mock('lucide-react', () => {
     LayoutGrid: mockIcon('layout-grid'),
     ChevronRight: mockIcon('chevron-right'),
     Cpu: mockIcon('cpu'),
-    Shield: mockIcon('shield')
+    Shield: mockIcon('shield'),
+    Music: mockIcon('music')
   };
 });
 

@@ -35,7 +35,8 @@ import {
   Mail,
   Smartphone,
   Check,
-  Filter
+  Filter,
+  Music as MusicIcon
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +49,7 @@ import MyCars from './MyCars/MyCars';
 import Investments from './Investments/Investments';
 import Trips from './Trips/Trips';
 import CustomLists from './CustomLists/CustomLists';
+import Music from './Music/Music';
 import Launchpad from './Launchpad';
 import Footer from './Footer';
 
@@ -58,6 +60,7 @@ const defaultMenuItems = [
   { id: 'investments', icon: TrendingUp, key: 'investments' },
   { id: 'trips', icon: Plane, key: 'trips' },
   { id: 'lists', icon: List, key: 'lists' },
+  { id: 'music', icon: MusicIcon, key: 'music' },
   { id: 'settings', icon: Settings, key: 'settings' },
 ];
 
@@ -85,6 +88,10 @@ const moduleSubItems = {
   lists: [
     { tab: 'lists-manager', icon: List, key: 'manage_lists' },
     { tab: 'lists-settings', icon: Settings, key: 'settings' }
+  ],
+  music: [
+    { tab: 'music-repertoire', icon: MusicIcon, key: 'repertoire' },
+    { tab: 'music-settings', icon: Settings, key: 'settings' }
   ],
   settings: [
     { tab: 'settings-general', icon: Settings, key: 'general' },
@@ -291,6 +298,7 @@ export default function Dashboard({ user }) {
                   else if (item.id === 'investments') navigate('investments-dashboard');
                   else if (item.id === 'trips') navigate('trips-list');
                   else if (item.id === 'lists') navigate('lists-manager');
+                  else if (item.id === 'music') navigate('music-repertoire');
                   else if (item.id === 'settings') navigate('settings-general');
                 }}
                 style={{
@@ -372,6 +380,7 @@ export default function Dashboard({ user }) {
                 activeTab.startsWith('investments') ? t('nav.investments') :
                 activeTab.startsWith('trips') ? t('nav.trips') :
                 activeTab.startsWith('lists') ? t('nav.lists') :
+                activeTab.startsWith('music') ? t('nav.music') :
                 activeTab.startsWith('settings') ? t('nav.settings') : ''}
             </span>
           </div>
@@ -463,6 +472,9 @@ export default function Dashboard({ user }) {
             {activeTab.startsWith('lists') && (
               <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
             )}
+            {activeTab.startsWith('music') && (
+              <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} />
+            )}
 
             {/* Fallback for development */}
             {activeTab !== 'finances-transactions' &&
@@ -473,6 +485,7 @@ export default function Dashboard({ user }) {
               !activeTab.startsWith('cars') &&
               !activeTab.startsWith('trips') &&
               !activeTab.startsWith('lists') &&
+              !activeTab.startsWith('music') &&
               !activeTab.startsWith('investments') && (
                 <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
                   <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>
