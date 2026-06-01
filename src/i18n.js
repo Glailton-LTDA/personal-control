@@ -57,6 +57,8 @@ i18n
             trips_desc: 'Planeje roteiros, controle gastos e registre sua jornada.',
             lists: 'Listas',
             lists_desc: 'Crie listas personalizadas para qualquer tipo de controle.',
+            music: 'Músicas',
+            music_desc: 'Acompanhe cifras, tablaturas e partituras dos seus instrumentos.',
             settings: 'Ajustes',
             settings_desc: 'Ajustes de segurança, interface e preferências do sistema.',
             what_to_manage: 'O que vamos gerenciar hoje?',
@@ -66,6 +68,7 @@ i18n
               investments: { dashboard: 'Dashboard', investment_sheet: 'Planilha de Investimentos', settings: 'Ajustes' },
               trips: { list: 'Listagem', itineraries: 'Roteiros', my_journey: 'Minha Jornada', trip_settings: 'Ajustes de Viagens' },
               lists: { manage_lists: 'Gerenciar Listas', settings: 'Ajustes' },
+              music: { repertoire: 'Repertório', settings: 'Acordes' },
               settings: { general: 'Geral', security: 'Segurança' }
             }
           },
@@ -717,6 +720,8 @@ i18n
             trips_desc: 'Plan itineraries, track costs, and record journeys.',
             lists: 'Lists',
             lists_desc: 'Create custom lists for any type of control.',
+            music: 'Music',
+            music_desc: 'Track chords, tablatures, and sheet music for your instruments.',
             settings: 'Settings',
             settings_desc: 'Security settings, interface, and system preferences.',
             what_to_manage: 'What shall we manage today?',
@@ -726,6 +731,7 @@ i18n
               investments: { dashboard: 'Dashboard', investment_sheet: 'Investment Sheet', settings: 'Settings' },
               trips: { list: 'List', itineraries: 'Itineraries', my_journey: 'My Journey', trip_settings: 'Trip Settings' },
               lists: { manage_lists: 'Manage Lists', settings: 'Settings' },
+              music: { repertoire: 'Repertoire', settings: 'Chords' },
               settings: { general: 'General', security: 'Security' }
             }
           },
@@ -1320,6 +1326,8 @@ i18n
             trips_desc: 'Planifique itinerarios, controle gastos y registre su jornada.',
             lists: 'Listas',
             lists_desc: 'Cree listas personalizadas para cualquier tipo de control.',
+            music: 'Música',
+            music_desc: 'Sigue acordes, tablaturas y partituras para tus instrumentos.',
             settings: 'Ajustes',
             settings_desc: 'Ajustes de seguridad, interfaz y preferencias del sistema.',
             what_to_manage: '¿Qué vamos a gestionar hoy?',
@@ -1329,6 +1337,7 @@ i18n
               investments: { dashboard: 'Dashboard', investment_sheet: 'Hoja de Inversiones', settings: 'Ajustes' },
               trips: { list: 'Listado', itineraries: 'Itinerarios', my_journey: 'Mi Jornada', trip_settings: 'Ajustes de Viajes' },
               lists: { manage_lists: 'Gestionar Listas', settings: 'Ajustes' },
+              music: { repertoire: 'Repertorio', settings: 'Acordes' },
               settings: { general: 'General', security: 'Seguridad' }
             }
           },
