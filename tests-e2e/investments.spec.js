@@ -55,7 +55,7 @@ test.describe('Investments Module', () => {
                 account_id: 1, 
                 yield: 120.50, 
                 final_balance: 5000.00, 
-                record_date: '2026-05-01', 
+                record_date: new Date().toISOString().split('T')[0], 
                 investment_accounts: { 
                   id: 1,
                   name: 'CDB Inter', 
