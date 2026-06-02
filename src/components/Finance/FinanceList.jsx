@@ -257,6 +257,12 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     return filteredAndSortedFinances.reduce((acc, curr) => acc + Number(curr.amount), 0);
   }, [filteredAndSortedFinances]);
 
+  const totalPendingAmount = useMemo(() => {
+    return filteredAndSortedFinances
+      .filter(item => item.status === 'PENDENTE')
+      .reduce((acc, curr) => acc + Number(curr.amount), 0);
+  }, [filteredAndSortedFinances]);
+
   const formatDate = (dateStr) => {
     if (dateStr === 'Sem Data') return dateStr;
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -401,11 +407,21 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{months[selectedMonth]} {selectedYear}</span>
               </div>
             </div>
-            <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{t('finances.accumulated_total', 'Total Acumulado')}</span>
-              <span style={{ fontSize: isMobile ? '1.5rem' : '1.85rem', fontWeight: 900, color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--danger)', letterSpacing: '-0.03em' }}>
-                {showValues ? `${t('common.currency_symbol', 'R$')} ${totalAmount.toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
-              </span>
+            <div style={{ display: 'flex', gap: isMobile ? '1.5rem' : '2.5rem', flexWrap: 'wrap', textAlign: isMobile ? 'left' : 'right' }}>
+              <div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{t('finances.accumulated_total', 'Total Acumulado')}</span>
+                <span style={{ fontSize: isMobile ? '1.5rem' : '1.85rem', fontWeight: 900, color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--danger)', letterSpacing: '-0.03em' }}>
+                  {showValues ? `${t('common.currency_symbol', 'R$')} ${totalAmount.toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
+                </span>
+              </div>
+              {activeTab === 'DESPESA' && (
+                <div style={{ borderLeft: isMobile ? 'none' : '1px solid var(--glass-border)', paddingLeft: isMobile ? '0' : '2.5rem' }} data-testid="pending-total-card">
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{t('finances.to_pay', 'Total a Pagar')}</span>
+                  <span style={{ fontSize: isMobile ? '1.5rem' : '1.85rem', fontWeight: 900, color: 'var(--pending)', letterSpacing: '-0.03em' }}>
+                    {showValues ? `${t('common.currency_symbol', 'R$')} ${totalPendingAmount.toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

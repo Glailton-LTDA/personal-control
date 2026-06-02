@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import FinanceList from './FinanceList';
 import { supabase } from '../../lib/supabase';
@@ -98,6 +98,7 @@ vi.mock('../../lib/supabase', () => {
 const mockFinances = [
   { id: '1', description: 'Mercado', amount: 150.5, category: 'Alimentação', payment_date: '2026-04-10', status: 'PAGO', type: 'DESPESA' },
   { id: '2', description: 'Salário', amount: 5000, category: 'Salário', payment_date: '2026-04-01', status: 'PAGO', type: 'RECEITA' },
+  { id: '3', description: 'Internet', amount: 99.9, category: 'Lazer', payment_date: '2026-04-12', status: 'PENDENTE', type: 'DESPESA' },
 ];
 
 describe('FinanceList', () => {
@@ -161,4 +162,28 @@ describe('FinanceList', () => {
       expect(screen.queryByTestId('finance-row-Mercado')).not.toBeInTheDocument();
     }, { timeout: 10000 });
   }, 20000);
+
+  it('displays the Total a Pagar card in DESPESA tab and hides it in RECEITA tab', async () => {
+    render(<FinanceList user={{ id: '123' }} />);
+    
+    // Wait for the data to load
+    await screen.findByTestId('finance-row-Mercado');
+    await screen.findByTestId('finance-row-Internet');
+
+    // Total a Pagar should be visible and have value 99.90
+    const pendingCard = screen.getByTestId('pending-total-card');
+    expect(pendingCard).toBeInTheDocument();
+    expect(within(pendingCard).getByText(/finances.to_pay/i)).toBeInTheDocument();
+    expect(within(pendingCard).getByText(/99,90/i)).toBeInTheDocument();
+
+    // Click Receitas
+    const revenueTab = screen.getByRole('button', { name: /finances.revenues/i });
+    fireEvent.click(revenueTab);
+
+    // Wait for Salário to appear
+    await screen.findByTestId('finance-row-Salário');
+
+    // Total a Pagar should not be in document
+    expect(screen.queryByTestId('pending-total-card')).not.toBeInTheDocument();
+  });
 });
