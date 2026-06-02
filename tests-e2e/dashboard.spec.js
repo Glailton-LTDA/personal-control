@@ -104,5 +104,34 @@ test.describe('Autenticação e Dashboard', () => {
     await expect(incomeValue).toBeVisible();
   });
 
+  test('deve exibir o card de total pendente (Falta Pagar) na lista de movimentações de despesa', async ({ page }) => {
+    await page.goto('/');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.click('button:has-text("Entrar")');
+    await page.waitForLoadState('networkidle');
+    await unlockApp(page);
+    
+    // Navega para Finanças via Launchpad
+    await page.getByTestId('launchpad-item-finances').click();
+    await page.waitForLoadState('networkidle');
+
+    // Alterna para o submenu de Transações
+    await page.click('button:has-text("Transações")');
+    await page.waitForLoadState('networkidle');
+
+    // Por padrão a aba DESPESA está ativa.
+    // O total acumulado de despesas pendentes deve ser 500,00 (do aluguel pendente de 500)
+    const pendingTotalCard = page.getByTestId('pending-total-card');
+    await expect(pendingTotalCard).toBeVisible();
+    await expect(pendingTotalCard.getByText(/500,00/i)).toBeVisible();
+
+    // Alterna para a aba de Receitas (revenues)
+    await page.click('button:has-text("Receitas")');
+
+    // O card de despesas pendentes não deve ser exibido na aba de Receitas
+    await expect(pendingTotalCard).not.toBeVisible();
+  });
+
   // O teste de colapsar menu lateral foi removido pois a navegação agora é superior (Orbit Layout)
 });
