@@ -101,6 +101,16 @@ const mockFinances = [
   { id: '3', description: 'Internet', amount: 99.9, category: 'Lazer', payment_date: '2026-04-12', status: 'PENDENTE', type: 'DESPESA' },
 ];
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
 describe('FinanceList', () => {
   beforeEach(() => {
     vi.setSystemTime(new Date('2026-04-15'));
@@ -138,14 +148,22 @@ describe('FinanceList', () => {
   });
 
   it('renders and shows data', async () => {
-    render(<FinanceList user={{ id: '123' }} />);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <FinanceList user={{ id: '123' }} />
+      </QueryClientProvider>
+    );
     await waitFor(() => {
       expect(screen.getByText(/Mercado/i)).toBeInTheDocument();
     });
   });
 
   it('switches between tabs', async () => {
-    render(<FinanceList user={{ id: '123' }} />);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <FinanceList user={{ id: '123' }} />
+      </QueryClientProvider>
+    );
     
     // Wait for initial data
     await screen.findByTestId('finance-row-Mercado');
@@ -164,7 +182,11 @@ describe('FinanceList', () => {
   }, 20000);
 
   it('displays the Total a Pagar card in DESPESA tab and hides it in RECEITA tab', async () => {
-    render(<FinanceList user={{ id: '123' }} />);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <FinanceList user={{ id: '123' }} />
+      </QueryClientProvider>
+    );
     
     // Wait for the data to load
     await screen.findByTestId('finance-row-Mercado');

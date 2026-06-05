@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -13,13 +13,20 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { confirmToast } from '../../lib/toast';
 
+import { 
+  useFinanceCategories, 
+  useFinanceResponsibles,
+  useCreateCategory,
+  useDeleteCategory,
+  useCreateResponsible,
+  useDeleteResponsible,
+  useSetMainResponsible
+} from '../../hooks/useFinance';
+
 export default function FinanceSettings() {
   const { t } = useTranslation();
-  const [categories, setCategories] = useState([]);
-  const [responsibles, setResponsibles] = useState([]);
   const [newCat, setNewCat] = useState({ name: '', type: 'DESPESA' });
   const [newResp, setNewResp] = useState({ name: '', email: '' });
-  const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useEffect(() => {
@@ -28,54 +35,49 @@ export default function FinanceSettings() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const fetchData = useCallback(async () => {
-    const { data: catData } = await supabase.from('finance_categories').select('*').order('name');
-    const { data: respData } = await supabase.from('finance_responsibles').select('*').order('name');
-    
-    if (catData) {
-      setCategories(catData);
-    }
-    if (respData) {
-      setResponsibles(respData);
-    }
-  }, []);
+  const { data: categories = [] } = useFinanceCategories();
+  const { data: responsibles = [] } = useFinanceResponsibles();
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const createCategoryMutation = useCreateCategory();
+  const deleteCategoryMutation = useDeleteCategory();
+  const createResponsibleMutation = useCreateResponsible();
+  const deleteResponsibleMutation = useDeleteResponsible();
+  const setMainResponsibleMutation = useSetMainResponsible();
+
+  const loading = setMainResponsibleMutation.isPending;
 
   async function addCategory() {
     if (!newCat.name) return;
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('finance_categories').insert([{ ...newCat, user_id: user.id }]);
+    await createCategoryMutation.mutateAsync({ ...newCat, user_id: user.id });
     setNewCat({ name: '', type: 'DESPESA' });
-    fetchData();
   }
 
   async function addResponsible() {
     if (!newResp.name) return;
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('finance_responsibles').insert([{ ...newResp, user_id: user.id }]);
+    await createResponsibleMutation.mutateAsync({ ...newResp, user_id: user.id });
     setNewResp({ name: '', email: '' });
-    fetchData();
   }
 
   async function setMainResponsible(id) {
-    setLoading(true);
-    // Supabase rejects filterless updates — use .neq() to reset all others
-    await supabase.from('finance_responsibles').update({ is_main: false }).neq('id', id);
-    await supabase.from('finance_responsibles').update({ is_main: true }).eq('id', id);
-    fetchData();
-    setLoading(false);
+    try {
+      await setMainResponsibleMutation.mutateAsync(id);
+    } catch {
+      toast.error('Erro ao definir responsável principal');
+    }
   }
 
   async function deleteItem(table, id) {
     confirmToast(t('finances.confirm_delete_item', 'Excluir este item? Isso pode afetar registros vinculados.'), async () => {
-      const { error } = await supabase.from(table).delete().eq('id', id);
-      if (!error) {
-        fetchData();
+      try {
+        if (table === 'finance_categories') {
+          await deleteCategoryMutation.mutateAsync(id);
+        } else if (table === 'finance_responsibles') {
+          await deleteResponsibleMutation.mutateAsync(id);
+        }
         toast.success(t('common.success_delete'));
-      } else {
+      } catch {
         toast.error(t('common.error_deleting'));
       }
     }, { danger: true });

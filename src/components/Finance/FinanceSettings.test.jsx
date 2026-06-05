@@ -65,6 +65,16 @@ const mockResponsibles = [
   { id: '2', name: 'José', email: 'jose@example.com', is_main: false },
 ];
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
 describe('FinanceSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,7 +108,11 @@ describe('FinanceSettings', () => {
   });
 
   it('renders categories and responsibles', async () => {
-    render(<FinanceSettings />);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <FinanceSettings />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Netflix')).toBeInTheDocument();
@@ -110,7 +124,11 @@ describe('FinanceSettings', () => {
 
   it('adds a new category', async () => {
     const user = userEvent.setup();
-    render(<FinanceSettings />);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <FinanceSettings />
+      </QueryClientProvider>
+    );
     
     const input = screen.getByPlaceholderText('finances.settings.category_name_placeholder');
     await user.type(input, 'Comida');
@@ -126,7 +144,11 @@ describe('FinanceSettings', () => {
 
   it('adds a new responsible', async () => {
     const user = userEvent.setup();
-    render(<FinanceSettings />);
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <FinanceSettings />
+      </QueryClientProvider>
+    );
     
     // FILL NAME
     const nameInput = screen.getByPlaceholderText('finances.settings.name_placeholder');

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { supabase } from '../../lib/supabase';
+import { useFinances } from '../../hooks/useFinance';
 import { TrendingUp, TrendingDown, Wallet, Calendar, Filter, Clock, Eye, EyeOff } from 'lucide-react';
 
 
@@ -20,16 +20,8 @@ const GRADIENTS = {
 };
 
 
-export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, refreshKey, showValues = true, onToggleValues }) {
+export default function SummaryDashboard({ user, isGeneral, month, year: initialYear, showValues = true, onToggleValues }) {
   const { t, i18n } = useTranslation();
-  const [data, setData] = useState([]);
-  const [categoryData, setCategoryData] = useState([]);
-  const [revenueCategoryData, setRevenueCategoryData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [rawFinances, setRawFinances] = useState([]);
-  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0, pending: 0 });
-  const [prevStats, setPrevStats] = useState({ income: 0, expense: 0 });
-  const [prevCategoryData, setPrevCategoryData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(initialYear || 2026);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth < 1024);
@@ -45,7 +37,38 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
 
   const years = [2024, 2025, 2026];
 
-  const processCharts = useCallback((finances, isPrevious = false) => {
+  // 1. Fetch current finances using React Query
+  const { data: financesData = [], isLoading: isLoadingCurrent } = useFinances({
+    userId: user?.id,
+    month: isGeneral ? undefined : month,
+    year: selectedYear,
+    isGeneral
+  });
+
+  // Calculate previous month configuration
+  let prevMonth = undefined;
+  let prevYear = undefined;
+  if (!isGeneral && month !== undefined) {
+    prevMonth = month - 1;
+    prevYear = selectedYear;
+    if (prevMonth < 0) {
+      prevMonth = 11;
+      prevYear -= 1;
+    }
+  }
+
+  // 2. Fetch previous finances using React Query
+  const { data: prevFinancesData = [], isLoading: isLoadingPrev } = useFinances({
+    userId: user?.id,
+    month: prevMonth,
+    year: prevYear,
+    isGeneral: false
+  });
+
+  const loading = isLoadingCurrent || (prevYear !== undefined && isLoadingPrev);
+
+  // Compute charts data and stats for current finances
+  const { data, categoryData, revenueCategoryData, stats } = useMemo(() => {
     const monthsMap = new Map();
     const incomeCategoriesMap = {};
     const expenseCategoriesMap = {};
@@ -53,7 +76,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
     let totalExpense = 0;
     let totalPending = 0;
 
-    const sortedFinances = [...finances].sort((a, b) => {
+    const sortedFinances = [...financesData].sort((a, b) => {
       const dateA = a.payment_date ? new Date(a.payment_date) : new Date(0);
       const dateB = b.payment_date ? new Date(b.payment_date) : new Date(0);
       return dateA - dateB;
@@ -97,73 +120,45 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
       }
     });
 
-    if (isPrevious) {
-      setPrevStats({ income: totalIncome, expense: totalExpense });
-      setPrevCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })));
-    } else {
-      setRawFinances(finances);
-      setData(Array.from(monthsMap.values()));
-      setCategoryData(Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-      setRevenueCategoryData(Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-      setStats({ income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending });
-    }
-  }, [isGeneral, i18n.language, t]);
+    return {
+      data: Array.from(monthsMap.values()),
+      categoryData: Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
+      revenueCategoryData: Object.entries(incomeCategoriesMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
+      stats: { income: totalIncome, expense: totalExpense, balance: totalIncome - totalExpense, pending: totalPending }
+    };
+  }, [financesData, isGeneral, i18n.language, t]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    
-    // Fetch Current Period
-    let query = supabase.from('finances').select('*').eq('user_id', user?.id);
-    if (isGeneral) {
-      const startOfYear = `${selectedYear}-01-01`;
-      const endOfYear = `${selectedYear}-12-31`;
-      query = query.gte('payment_date', startOfYear).lte('payment_date', endOfYear);
-    } else if (month !== undefined) {
-      const monthStr = String(month + 1).padStart(2, '0');
-      const lastDayDate = new Date(selectedYear, month + 1, 0).getDate();
-      const start = `${selectedYear}-${monthStr}-01`;
-      const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
-      query = query.gte('payment_date', start).lte('payment_date', end);
+  // Compute stats for previous finances
+  const { prevStats, prevCategoryData } = useMemo(() => {
+    if (isGeneral || month === undefined || !prevFinancesData || prevFinancesData.length === 0) {
+      return { prevStats: { income: 0, expense: 0 }, prevCategoryData: [] };
     }
 
-    const { data: finances } = await query;
-    if (finances) {
-      processCharts(finances);
-    }
+    const expenseCategoriesMap = {};
+    let totalIncome = 0;
+    let totalExpense = 0;
 
-    // Fetch Previous Month if not General
-    if (!isGeneral && month !== undefined) {
-      let prevMonth = month - 1;
-      let prevYear = selectedYear;
-      if (prevMonth < 0) {
-        prevMonth = 11;
-        prevYear -= 1;
+    prevFinancesData.forEach(item => {
+      try {
+        const amount = Number(item.amount);
+        const cat = item.category || t('common.other', 'Outros');
+
+        if (item.type === 'RECEITA') {
+          totalIncome += amount;
+        } else {
+          totalExpense += amount;
+          expenseCategoriesMap[cat] = (expenseCategoriesMap[cat] || 0) + amount;
+        }
+      } catch (e) {
+        console.error("Error processing previous finance item:", e);
       }
-      const pMonthStr = String(prevMonth + 1).padStart(2, '0');
-      const pLastDayDate = new Date(prevYear, prevMonth + 1, 0).getDate();
-      const pStart = `${prevYear}-${pMonthStr}-01`;
-      const pEnd = `${prevYear}-${pMonthStr}-${String(pLastDayDate).padStart(2, '0')}`;
-      
-      const { data: prevFinances } = await supabase.from('finances')
-        .select('*')
-        .eq('user_id', user?.id)
-        .gte('payment_date', pStart)
-        .lte('payment_date', pEnd);
-        
-      if (prevFinances) {
-        processCharts(prevFinances, true);
-      } else {
-        setPrevStats({ income: 0, expense: 0 });
-        setPrevCategoryData([]);
-      }
-    }
+    });
 
-    setLoading(false);
-  }, [isGeneral, month, selectedYear, user?.id, processCharts]);
-
-  useEffect(() => {
-    fetchData();
-  }, [isGeneral, month, selectedYear, refreshKey, fetchData]);
+    return {
+      prevStats: { income: totalIncome, expense: totalExpense },
+      prevCategoryData: Object.entries(expenseCategoriesMap).map(([name, value]) => ({ name, value }))
+    };
+  }, [prevFinancesData, isGeneral, month, t]);
 
   const formatValue = (val) => {
     if (!showValues) return `${t('common.currency_symbol', 'R$')} ••••••`;
@@ -267,7 +262,7 @@ export default function SummaryDashboard({ user, isGeneral, month, year: initial
           prevStats={prevStats}
           categoryData={categoryData}
           prevCategoryData={prevCategoryData}
-          finances={rawFinances}
+          finances={financesData}
           loading={loading}
           showValues={showValues}
           month={month}
