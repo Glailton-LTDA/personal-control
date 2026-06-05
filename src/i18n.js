@@ -68,7 +68,7 @@ i18n
               investments: { dashboard: 'Dashboard', investment_sheet: 'Planilha de Investimentos', settings: 'Ajustes' },
               trips: { list: 'Listagem', itineraries: 'Roteiros', my_journey: 'Minha Jornada', trip_settings: 'Ajustes de Viagens' },
               lists: { manage_lists: 'Gerenciar Listas', settings: 'Ajustes' },
-              music: { repertoire: 'Repertório', settings: 'Acordes' },
+              music: { repertoire: 'Repertório', settings: 'Ajustes' },
               settings: { general: 'Geral', security: 'Segurança' }
             }
           },
@@ -731,7 +731,7 @@ i18n
               investments: { dashboard: 'Dashboard', investment_sheet: 'Investment Sheet', settings: 'Settings' },
               trips: { list: 'List', itineraries: 'Itineraries', my_journey: 'My Journey', trip_settings: 'Trip Settings' },
               lists: { manage_lists: 'Manage Lists', settings: 'Settings' },
-              music: { repertoire: 'Repertoire', settings: 'Chords' },
+              music: { repertoire: 'Repertoire', settings: 'Settings' },
               settings: { general: 'General', security: 'Security' }
             }
           },
@@ -1337,7 +1337,7 @@ i18n
               investments: { dashboard: 'Dashboard', investment_sheet: 'Hoja de Inversiones', settings: 'Ajustes' },
               trips: { list: 'Listado', itineraries: 'Itinerarios', my_journey: 'Mi Jornada', trip_settings: 'Ajustes de Viajes' },
               lists: { manage_lists: 'Gestionar Listas', settings: 'Ajustes' },
-              music: { repertoire: 'Repertorio', settings: 'Acordes' },
+              music: { repertoire: 'Repertorio', settings: 'Ajustes' },
               settings: { general: 'General', security: 'Seguridad' }
             }
           },

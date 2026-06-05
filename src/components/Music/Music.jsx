@@ -36,7 +36,13 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [uniqueArtists, setUniqueArtists] = useState([]);
-  const PAGE_SIZE = 12;
+  const [pageSize, setPageSize] = useState(25);
+  const [pageInput, setPageInput] = useState('');
+
+  // Estados de navegação hierárquica A-Z
+  const [activeLetter, setActiveLetter] = useState(null);
+  const [artistsList, setArtistsList] = useState([]);
+  const [artistsLoading, setArtistsLoading] = useState(false);
 
   // Dropdown de artista pesquisável
   const [artistSearch, setArtistSearch] = useState('');
@@ -118,6 +124,10 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
   }, [artistSearch, artistDropdownOpen, fetchUniqueArtists]);
 
   const fetchSongs = useCallback(async () => {
+    if (activeLetter && selectedArtist === 'all') {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       let query = supabase
@@ -156,8 +166,8 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
         .order('title', { ascending: true });
 
       // Paginação
-      const from = page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
       query = query.range(from, to);
 
       const { data, error, count } = await query;
@@ -171,11 +181,64 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
     } finally {
       setLoading(false);
     }
-  }, [page, search, filterType, selectedArtist, selectedGenre, PAGE_SIZE]);
+  }, [page, search, filterType, selectedArtist, selectedGenre, pageSize, activeLetter]);
 
   useEffect(() => {
     fetchSongs();
   }, [fetchSongs, refreshKey, mode]);
+
+  const fetchArtistsByLetter = useCallback(async (letter) => {
+    if (!user?.id || !letter) return;
+    setArtistsLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_artists_by_letter', {
+        p_user_id: user.id,
+        p_letter: letter
+      });
+      if (error) throw error;
+      setArtistsList(data || []);
+    } catch (err) {
+      console.error('Erro ao buscar artistas por letra:', err);
+      toast.error('Erro ao carregar artistas.');
+    } finally {
+      setArtistsLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (activeLetter) {
+      fetchArtistsByLetter(activeLetter);
+    }
+  }, [activeLetter, refreshKey, fetchArtistsByLetter]);
+
+  const handleLetterClick = (letter) => {
+    setActiveLetter(letter);
+    setSelectedArtist('all');
+    setPage(0);
+    setSearch('');
+  };
+
+  const handleArtistClick = (artist) => {
+    setSelectedArtist(artist);
+    setPage(0);
+  };
+
+  const clearLetterFilter = () => {
+    setActiveLetter(null);
+    setSelectedArtist('all');
+    setPage(0);
+  };
+
+  const goBackToArtists = () => {
+    setSelectedArtist('all');
+    setPage(0);
+  };
+
+  const resetNavigation = () => {
+    setActiveLetter(null);
+    setSelectedArtist('all');
+    setPage(0);
+  };
 
   const fetchGenres = async () => {
     try {
@@ -291,6 +354,10 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
   const handleSearchChange = (val) => {
     setSearch(val);
     setPage(0);
+    if (val.trim()) {
+      setActiveLetter(null);
+      setSelectedArtist('all');
+    }
   };
 
   const handleFilterTypeChange = (val) => {
@@ -362,7 +429,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
   }
 
   const isFiltered = search.trim() || filterType !== 'all' || selectedArtist !== 'all' || selectedGenre !== 'all';
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
@@ -405,9 +472,114 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
       {subTab === 'setlists' ? (
         <Setlists user={user} onSelectSong={setSelectedSong} />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
           
-          {/* ── Filter & Search Toolbar ── */}
+          {/* Breadcrumbs & Botão de Voltar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {(activeLetter || selectedArtist !== 'all') && (
+              <button
+                className="icon-btn"
+                onClick={() => {
+                  if (selectedArtist !== 'all') {
+                    goBackToArtists();
+                  } else {
+                    resetNavigation();
+                  }
+                }}
+                style={{ padding: '6px' }}
+                title="Voltar"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+              <span
+                onClick={resetNavigation}
+                style={{
+                  cursor: 'pointer',
+                  color: activeLetter ? 'var(--primary)' : 'var(--text-main)',
+                  fontWeight: activeLetter ? 500 : 700
+                }}
+              >
+                Repertório Geral
+              </span>
+              {activeLetter && (
+                <>
+                  <span style={{ color: 'var(--text-muted)' }}>/</span>
+                  <span
+                    onClick={goBackToArtists}
+                    style={{
+                      cursor: 'pointer',
+                      color: selectedArtist !== 'all' ? 'var(--primary)' : 'var(--text-main)',
+                      fontWeight: selectedArtist !== 'all' ? 500 : 700
+                    }}
+                  >
+                    Letra {activeLetter}
+                  </span>
+                </>
+              )}
+              {selectedArtist !== 'all' && (
+                <>
+                  <span style={{ color: 'var(--text-muted)' }}>/</span>
+                  <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>
+                    {selectedArtist}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Barra de Filtro Alfabético */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', background: 'rgba(255, 255, 255, 0.01)', padding: '0.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '#'].map((char) => (
+              <button
+                key={char}
+                onClick={() => handleLetterClick(char)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  background: activeLetter === char ? 'var(--primary)' : 'transparent',
+                  color: activeLetter === char ? '#ffffff' : 'var(--text-muted)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                className="alphabet-btn"
+                onMouseEnter={e => { if (activeLetter !== char) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
+                onMouseLeave={e => { if (activeLetter !== char) e.currentTarget.style.background = 'transparent'; }}
+              >
+                {char}
+              </button>
+            ))}
+            {activeLetter && (
+              <button
+                onClick={clearLetterFilter}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--danger)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '0.25rem 0.5rem',
+                  marginLeft: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.2rem'
+                }}
+              >
+                <X size={14} /> Limpar
+              </button>
+            )}
+          </div>
+
+          {/* ── Barra de Busca e Filtros ── */}
           <div className="glass-card" style={{
             padding: '1.5rem',
             display: 'flex',
@@ -416,7 +588,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
             flexWrap: 'wrap',
             gap: '1rem'
           }}>
-            {/* Search */}
+            {/* Busca */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '250px', position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)' }} />
               <input
@@ -429,7 +601,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
               />
             </div>
 
-            {/* Action Panel */}
+            {/* Painel de Ações */}
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Tipo de Documento */}
               <select
@@ -605,226 +777,312 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
             </div>
           </div>
 
-          {/* ── Repertoire Grid ── */}
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '4rem' }}>
-              <Loader2 className="animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
-              <span>Carregando seu repertório...</span>
-            </div>
-          ) : songs.length === 0 ? (
-            isFiltered ? (
+          {/* Renderização Condicional do Conteúdo */}
+          {activeLetter && selectedArtist === 'all' ? (
+            /* ── TELA 1: Grid de Artistas Filtrados por Letra ── */
+            artistsLoading ? (
+              <div style={{ textAlign: 'center', padding: '4rem' }}>
+                <Loader2 className="animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
+                <span>Carregando artistas...</span>
+              </div>
+            ) : artistsList.length === 0 ? (
               <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
                 <MusicIcon size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
-                <h4 style={{ margin: 0 }}>Nenhuma música encontrada</h4>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 1.25rem 0' }}>Tente ajustar os termos de pesquisa ou remover alguns filtros.</p>
-                <button className="btn-secondary" onClick={() => { setSearch(''); setFilterType('all'); setSelectedArtist('all'); setSelectedGenre('all'); setPage(0); }} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Limpar Filtros</button>
+                <h4 style={{ margin: 0 }}>Nenhum artista encontrado</h4>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0' }}>Não há artistas cadastrados que começam com a letra "{activeLetter}".</p>
               </div>
             ) : (
-              <div className="glass-card" style={{ padding: '5rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
-                <MusicIcon size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 1.5rem' }} />
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>Seu repertório está vazio</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0.5rem auto 1.5rem', lineHeight: 1.5 }}>
-                  Cadastre novas cifras manualmente ou use o script de importação para carregar seus arquivos locais de partitura.
-                </p>
-                <button className="btn-primary" onClick={() => { setEditingSong(null); setIsModalOpen(true); }} style={{ padding: '0.6rem 1.5rem' }}>
-                  Cadastrar Primeira Música
-                </button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem' }}>
+                {artistsList.map(({ artist, song_count }) => (
+                  <div
+                    key={artist}
+                    onClick={() => handleArtistClick(artist)}
+                    className="glass-card"
+                    style={{
+                      padding: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      border: '1px solid var(--glass-border)',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.borderColor = 'var(--glass-border)';
+                    }}
+                  >
+                    <div style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: 'rgba(99, 102, 241, 0.08)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: '1.4rem',
+                      marginBottom: '1rem'
+                    }}>
+                      {artist.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', whiteSpace: 'nowrap' }}>
+                      {artist}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                      {song_count} {song_count === 1 ? 'música' : 'músicas'}
+                    </div>
+                  </div>
+                ))}
               </div>
             )
           ) : (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                {songs.map(song => {
-                  const isSheet = song.type === 'partitura';
-                  return (
-                    <div
-                      key={song.id}
-                      onClick={() => setSelectedSong(song)}
-                      className="glass-card"
-                      style={{
-                        padding: '1.5rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        minHeight: '180px',
-                        cursor: 'pointer',
-                        border: '1px solid var(--glass-border)',
-                        position: 'relative',
-                        overflow: 'hidden',
-                        transition: 'transform 0.2s, border-color 0.2s'
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'translateY(-3px)';
-                        e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.borderColor = 'var(--glass-border)';
-                      }}
-                    >
-                      {/* Visual Background Glow */}
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20%',
-                        right: '-10%',
-                        width: '100px',
-                        height: '100px',
-                        background: isSheet ? 'var(--success)' : 'var(--primary)',
-                        filter: 'blur(50px)',
-                        opacity: 0.08,
-                        zIndex: 0
-                      }} />
-
-                      {/* Top Info */}
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                          <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '10px',
-                            background: isSheet ? 'rgba(16, 185, 129, 0.08)' : 'rgba(99, 102, 241, 0.08)',
-                            color: isSheet ? 'var(--success)' : 'var(--primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            {isSheet ? <FileText size={18} /> : <MusicIcon size={18} />}
-                          </div>
-                          
-                          {/* Badge */}
-                          <span style={{
-                            fontSize: '0.65rem',
-                            fontWeight: 800,
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            background: isSheet ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
-                            color: isSheet ? '#34d399' : '#818cf8'
-                          }}>
-                            {song.type}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <h4 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                            {song.title}
-                          </h4>
-                          <button
-                            onClick={(e) => toggleFavorite(e, song)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              color: song.is_favorite ? '#fbbf24' : 'var(--text-muted)',
-                              padding: '2px',
-                              marginLeft: '8px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                            title={song.is_favorite ? "Remover dos favoritos" : "Marcar como favorito"}
-                          >
-                            <Star size={16} fill={song.is_favorite ? "#fbbf24" : "transparent"} />
-                          </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {song.artist || 'Artista Desconhecido'}
-                        </p>
-
-                        {song.music_genres?.name && (
-                          <span style={{
-                            fontSize: '0.7rem',
-                            color: 'var(--text-muted)',
-                            background: 'rgba(255,255,255,0.04)',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            marginTop: '6px',
-                            display: 'inline-block'
-                          }}>
-                            🏷️ {song.music_genres.name}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Footer and edit/delete actions */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', position: 'relative', zIndex: 1 }}>
-                        
-                        {/* Storage Type for PDFs */}
-                        {isSheet ? (
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-                            {song.storage_type === 'cloud' ? '☁️ Sincronizado' : '💻 Local'}
-                          </span>
-                        ) : (
-                          <span />
-                        )}
-
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <button
-                            className="icon-btn"
-                            onClick={(e) => handleEditSong(e, song)}
-                            style={{ padding: '6px' }}
-                            title="Editar Música"
-                          >
-                            <Edit size={12} />
-                          </button>
-                          <button
-                            className="icon-btn"
-                            onClick={(e) => handleDeleteSong(e, song.id)}
-                            style={{ padding: '6px', color: 'var(--danger)' }}
-                            title="Excluir Música"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-
-                    </div>
-                  );
-                })}
+            /* ── TELA 2: Tabela Densa de Músicas (Geral ou Artista Selecionado) ── */
+            loading ? (
+              <div style={{ textAlign: 'center', padding: '4rem' }}>
+                <Loader2 className="animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
+                <span>Carregando repertório...</span>
               </div>
-
-              {/* ── Pagination Footer ── */}
-              {totalPages > 1 && (
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: '1rem',
-                  marginTop: '2.5rem',
-                  borderTop: '1px solid var(--glass-border)',
-                  paddingTop: '1.5rem'
-                }}>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => setPage(p => Math.max(0, p - 1))}
-                    disabled={page === 0}
-                    style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                  >
-                    Anterior
-                  </button>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                    Página <b>{page + 1}</b> de <b>{totalPages}</b> ({totalCount} músicas)
-                  </span>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                    disabled={page >= totalPages - 1}
-                    style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                  >
-                    Próxima
+            ) : songs.length === 0 ? (
+              isFiltered ? (
+                <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
+                  <MusicIcon size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
+                  <h4 style={{ margin: 0 }}>Nenhuma música encontrada</h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 1.25rem 0' }}>Tente ajustar os termos de pesquisa ou remover alguns filtros.</p>
+                  <button className="btn-secondary" onClick={() => { setSearch(''); setFilterType('all'); setSelectedArtist('all'); setSelectedGenre('all'); setPage(0); }} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Limpar Filtros</button>
+                </div>
+              ) : (
+                <div className="glass-card" style={{ padding: '5rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
+                  <MusicIcon size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 1.5rem' }} />
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>Seu repertório está vazio</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0.5rem auto 1.5rem', lineHeight: 1.5 }}>
+                    Cadastre novas cifras manualmente ou use o script de importação para carregar seus arquivos locais de partitura.
+                  </p>
+                  <button className="btn-primary" onClick={() => { setEditingSong(null); setIsModalOpen(true); }} style={{ padding: '0.6rem 1.5rem' }}>
+                    Cadastrar Primeira Música
                   </button>
                 </div>
-              )}
-            </>
+              )
+            ) : (
+              <>
+                <div className="table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
+                  <table className="dense-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px', padding: '0.75rem 0.5rem' }}></th>
+                        <th>Título</th>
+                        <th>Artista</th>
+                        <th>Gênero</th>
+                        <th style={{ width: '120px' }}>Tipo</th>
+                        <th style={{ width: '100px', textAlign: 'right' }}>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {songs.map(song => {
+                        const isSheet = song.type === 'partitura';
+                        return (
+                          <tr
+                            key={song.id}
+                            onClick={() => setSelectedSong(song)}
+                            className="table-row-hover"
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={(e) => toggleFavorite(e, song)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  color: song.is_favorite ? '#fbbf24' : 'var(--text-muted)',
+                                  padding: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                                title={song.is_favorite ? "Remover dos favoritos" : "Marcar como favorito"}
+                              >
+                                <Star size={16} fill={song.is_favorite ? "#fbbf24" : "transparent"} />
+                              </button>
+                            </td>
+                            <td style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ color: isSheet ? 'var(--success)' : 'var(--primary)', display: 'flex', alignItems: 'center' }}>
+                                  {isSheet ? <FileText size={16} /> : <MusicIcon size={16} />}
+                                </span>
+                                <span>{song.title}</span>
+                              </div>
+                            </td>
+                            <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              {song.artist || 'Artista Desconhecido'}
+                            </td>
+                            <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              {song.music_genres?.name ? (
+                                <span style={{
+                                  background: 'rgba(255, 255, 255, 0.04)',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem'
+                                }}>
+                                  {song.music_genres.name}
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                background: isSheet ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                color: isSheet ? '#34d399' : '#818cf8',
+                                display: 'inline-block'
+                              }}>
+                                {song.type}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                                <button
+                                  className="icon-btn"
+                                  onClick={(e) => handleEditSong(e, song)}
+                                  style={{ padding: '6px' }}
+                                  title="Editar Música"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  className="icon-btn"
+                                  onClick={(e) => handleDeleteSong(e, song.id)}
+                                  style={{ padding: '6px', color: 'var(--danger)' }}
+                                  title="Excluir Música"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ── Paginação Avançada ── */}
+                {totalPages > 1 && (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    marginTop: '2.5rem',
+                    borderTop: '1px solid var(--glass-border)',
+                    paddingTop: '1.5rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    {/* Items por Página */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      <span>Itens por página:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setPage(0);
+                        }}
+                        className="select-filter"
+                        style={{ padding: '0.25rem 0.5rem', minWidth: '75px' }}
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+
+                    {/* Controles */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => setPage(0)}
+                        disabled={page === 0}
+                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
+                        title="Primeira Página"
+                      >
+                        &lt;&lt;
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => setPage(p => Math.max(0, p - 1))}
+                        disabled={page === 0}
+                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
+                      >
+                        Anterior
+                      </button>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0.5rem' }}>
+                        Página <b>{page + 1}</b> de <b>{totalPages}</b> ({totalCount} músicas)
+                      </span>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={page >= totalPages - 1}
+                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
+                      >
+                        Próxima
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => setPage(totalPages - 1)}
+                        disabled={page >= totalPages - 1}
+                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
+                        title="Última Página"
+                      >
+                        &gt;&gt;
+                      </button>
+                    </div>
+
+                    {/* Ir Para Página */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      <span>Ir para:</span>
+                      <input
+                        type="number"
+                        value={pageInput}
+                        onChange={(e) => setPageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = parseInt(pageInput, 10);
+                            if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                              setPage(val - 1);
+                              setPageInput('');
+                            } else {
+                              toast.error(`Página inválida. Escolha entre 1 e ${totalPages}.`);
+                            }
+                          }
+                        }}
+                        placeholder="Nº"
+                        className="glass-input"
+                        style={{ width: '60px', padding: '0.25rem 0.5rem', textAlign: 'center', fontSize: '0.85rem' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )
           )}
 
           {/* Song Modal Form */}
           <SongModal
             isOpen={isModalOpen}
             onClose={() => { setIsModalOpen(false); setEditingSong(null); }}
-            onRefresh={() => { fetchSongs(); fetchUniqueArtists(); }}
+            onRefresh={() => { fetchSongs(); fetchUniqueArtists(); if (activeLetter) fetchArtistsByLetter(activeLetter); }}
             user={user}
             initialData={editingSong}
           />
