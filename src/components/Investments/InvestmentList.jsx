@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
@@ -354,6 +355,52 @@ export default function InvestmentList({ user, showValues = true }) {
     return Object.values(groups).sort((a, b) => b.balance - a.balance);
   }, [records]);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const flatItems = useMemo(() => {
+    const list = [];
+    groupedRecords.forEach(group => {
+      list.push({
+        type: 'group-header',
+        id: `group-header-${group.name}`,
+        group,
+      });
+      if (expandedGroups.has(group.name)) {
+        group.items.forEach(record => {
+          list.push({
+            type: 'group-item',
+            id: `record-${record.id}`,
+            record,
+            groupColor: group.color,
+          });
+        });
+      }
+    });
+    return list;
+  }, [groupedRecords, expandedGroups]);
+
+  const parentRef = useRef(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => {
+      const item = flatItems[index];
+      if (item?.type === 'group-header') {
+        return isMobile ? 70 : 65;
+      }
+      return isMobile ? 100 : 60;
+    },
+    overscan: 5,
+    initialRect: { width: 1000, height: 800 },
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '100px' }}>
       
@@ -544,113 +591,109 @@ export default function InvestmentList({ user, showValues = true }) {
           </div>
         )}
 
-        {/* Desktop View: Table */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
           <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>Detalhamento</h4>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
             {records.length} {records.length === 1 ? 'registro' : 'registros'}
           </span>
         </div>
-        <div className="glass-card desktop-only" style={{ overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.03)' }}>
-                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Data</th>
-                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Conta</th>
-                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Saldo Final</th>
-                <th style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Rendimento</th>
-                <th style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Buscando registros...</td></tr>
-              ) : records.length === 0 ? (
-                <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</td></tr>
-              ) : groupedRecords.map(group => {
-                const isExpanded = expandedGroups.has(group.name);
-                return (
-                  <React.Fragment key={group.name}>
-                    <tr 
-                      style={{ 
-                        background: 'color-mix(in srgb, var(--primary) 8%, transparent)', 
-                        borderBottom: '1px solid var(--glass-border)',
-                        cursor: 'pointer'
-                      }} 
-                      onClick={() => toggleGroup(group.name)}
-                      className="table-row-hover"
-                    >
-                      <td style={{ padding: '1.25rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 800 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          SUMÁRIO
-                        </div>
-                      </td>
-                      <td style={{ padding: '1.25rem 1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
-                          <span style={{ fontWeight: 900, color: 'var(--text-main)', letterSpacing: '0.5px' }}>{group.name.toUpperCase()}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '1.25rem 1rem', fontWeight: 900, fontSize: '1.05rem', color: 'var(--text-main)' }}>{formatCurrency(group.balance)}</td>
-                      <td style={{ padding: '1.25rem 1rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 900, fontSize: '1.05rem' }}>
-                        {formatCurrency(group.yield)}
-                      </td>
-                      <td style={{ padding: '1.25rem 1rem' }}></td>
-                    </tr>
-                    {isExpanded && group.items.map(record => (
-                      <tr key={record.id} style={{ borderBottom: '1px solid var(--glass-border)', fontSize: '0.9rem' }} className="table-row-hover">
-                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-muted)', paddingLeft: '1.5rem' }}>
-                          {new Date(record.record_date).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
-                        </td>
-                        <td style={{ padding: '1.25rem 1rem', paddingLeft: '2.5rem' }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{record.investment_accounts?.name}</div>
-                        </td>
-                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-main)', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</td>
-                        <td style={{ padding: '1.25rem 1rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', opacity: 0.9, fontWeight: 600 }}>
-                          {formatCurrency(record.yield)}
-                        </td>
-                        <td style={{ padding: '1.25rem 1rem', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                            <button className="action-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={18} /></button>
-                            <button className="action-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={18} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile View: Grouped Cards */}
-        <div className="mobile-only">
+        <div 
+          ref={parentRef}
+          style={{ 
+            maxHeight: '60vh', 
+            overflowY: 'auto', 
+            position: 'relative',
+            borderRadius: '24px',
+            paddingRight: '6px'
+          }}
+          className="custom-scrollbar"
+        >
           {loading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Buscando registros...</div>
-          ) : records.length === 0 ? (
+          ) : flatItems.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</div>
           ) : (
-            groupedRecords.map(group => {
-              const isExpanded = expandedGroups.has(group.name);
-              return (
-                <div key={group.name} className="mobile-group-card">
-                  <div className="mobile-group-header" onClick={() => toggleGroup(group.name)}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
-                      <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.9rem' }}>{group.name.toUpperCase()}</span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{formatCurrency(group.balance)}</div>
-                      <div style={{ fontSize: '0.75rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-                        {formatCurrency(group.yield)}
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {!isMobile && (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '150px 2fr 1fr 1fr 120px', 
+                  textAlign: 'left', 
+                  borderBottom: '1px solid var(--glass-border)', 
+                  background: 'rgba(255,255,255,0.03)',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 20,
+                  backdropFilter: 'blur(12px)',
+                  fontWeight: 700,
+                }}>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Data</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Conta</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Saldo Final</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Rendimento</div>
+                  <div style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></div>
+                </div>
+              )}
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const item = flatItems[virtualRow.index];
+                if (!item) return null;
+
+                if (isMobile) {
+                  if (item.type === 'group-header') {
+                    const group = item.group;
+                    return (
+                      <div
+                        key={item.id}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        className="mobile-group-card"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                          margin: 0,
+                        }}
+                      >
+                        <div className="mobile-group-header" onClick={() => toggleGroup(group.name)}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
+                            <span style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.9rem' }}>{group.name.toUpperCase()}</span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{formatCurrency(group.balance)}</div>
+                            <div style={{ fontSize: '0.75rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                              {formatCurrency(group.yield)}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  
-                  {isExpanded && group.items.map(record => (
-                    <div key={record.id} className="mobile-item-card">
+                    );
+                  }
+
+                  const record = item.record;
+                  return (
+                    <div
+                      key={item.id}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      className="mobile-item-card"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                        borderBottom: '1px solid var(--glass-border)',
+                      }}
+                    >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{record.investment_accounts?.name}</div>
@@ -672,10 +715,93 @@ export default function InvestmentList({ user, showValues = true }) {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              );
-            })
+                  );
+                } else {
+                  if (item.type === 'group-header') {
+                    const group = item.group;
+                    const isExpanded = expandedGroups.has(group.name);
+                    return (
+                      <div
+                        key={item.id}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                          display: 'grid',
+                          gridTemplateColumns: '150px 2fr 1fr 1fr 120px',
+                          background: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+                          borderBottom: '1px solid var(--glass-border)',
+                          cursor: 'pointer',
+                          alignItems: 'center',
+                        }}
+                        onClick={() => toggleGroup(group.name)}
+                      >
+                        <div style={{ padding: '1.25rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 800 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            SUMÁRIO
+                          </div>
+                        </div>
+                        <div style={{ padding: '1.25rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: group.color }}></div>
+                            <span style={{ fontWeight: 900, color: 'var(--text-main)', letterSpacing: '0.5px' }}>{group.name.toUpperCase()}</span>
+                          </div>
+                        </div>
+                        <div style={{ padding: '1.25rem 1rem', fontWeight: 900, fontSize: '1.05rem', color: 'var(--text-main)' }}>{formatCurrency(group.balance)}</div>
+                        <div style={{ padding: '1.25rem 1rem', color: group.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 900, fontSize: '1.05rem' }}>
+                          {formatCurrency(group.yield)}
+                        </div>
+                        <div style={{ padding: '1.25rem 1rem' }}></div>
+                      </div>
+                    );
+                  }
+
+                  const record = item.record;
+                  return (
+                    <div
+                      key={item.id}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                        display: 'grid',
+                        gridTemplateColumns: '150px 2fr 1fr 1fr 120px',
+                        borderBottom: '1px solid var(--glass-border)',
+                        fontSize: '0.9rem',
+                        alignItems: 'center',
+                        background: 'var(--bg-card)',
+                      }}
+                    >
+                      <div style={{ padding: '1.25rem 1rem', color: 'var(--text-muted)', paddingLeft: '1.5rem' }}>
+                        {new Date(record.record_date).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
+                      </div>
+                      <div style={{ padding: '1.25rem 1rem', paddingLeft: '2.5rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{record.investment_accounts?.name}</div>
+                      </div>
+                      <div style={{ padding: '1.25rem 1rem', color: 'var(--text-main)', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</div>
+                      <div style={{ padding: '1.25rem 1rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', opacity: 0.9, fontWeight: 600 }}>
+                        {formatCurrency(record.yield)}
+                      </div>
+                      <div style={{ padding: '1.25rem 1rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                          <button className="action-btn" onClick={() => { setEditingRecord(record); setIsModalOpen(true); }}><Edit2 size={18} /></button>
+                          <button className="action-btn danger" onClick={() => handleDelete(record.id)}><Trash2 size={18} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+            </div>
           )}
         </div>
       </div>
