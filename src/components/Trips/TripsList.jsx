@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { formatDate } from '../../lib/utils';
 import { 
@@ -229,6 +230,26 @@ export default function TripsList({
     const matchesCategory = filterCategory === 'all' || String(exp.category_id) === String(filterCategory);
     
     return matchesSearch && matchesCategory;
+  });
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const parentRef = useRef(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredExpenses.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => {
+      return isMobile ? 120 : 60;
+    },
+    overscan: 5,
+    initialRect: { width: 1000, height: 800 },
   });
 
   const dailyMap = currencyExpenses.reduce((acc, exp) => {
@@ -695,7 +716,19 @@ export default function TripsList({
                 </select>
               </div>
             </div>
-            <div style={{ overflowX: 'auto', borderRadius: '16px' }}>
+            <div 
+              ref={parentRef}
+              style={{ 
+                maxHeight: '60vh', 
+                overflowY: 'auto', 
+                position: 'relative',
+                borderRadius: '16px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--bg-card)',
+                paddingRight: '6px'
+              }}
+              className="custom-scrollbar"
+            >
               {isExpensesLoading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', gap: '1.5rem', background: 'rgba(255,255,255,0.01)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
                   <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(99, 102, 241, 0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -707,20 +740,70 @@ export default function TripsList({
                   <p style={{ fontSize: '1rem', fontWeight: '500' }}>{t('trips.no_entries_found')}</p>
                 </div>
               ) : (
-                <>
-                  <div className="mobile-only">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {filteredExpenses.map((exp, idx) => {
-                        const meta = getTripCategoryMeta(exp.trip_categories?.name);
-                        const Icon = meta.icon;
-                        return (
-                          <Motion.div 
-                            key={exp.id} 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.05 }}
-                            className="expense-item-card"
-                          >
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {!isMobile && (
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: '100px 2fr 1fr 1fr 1fr 120px', 
+                      textAlign: 'left', 
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      borderBottom: '1px solid var(--glass-border)',
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backdropFilter: 'blur(12px)',
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: 'var(--text-muted)'
+                    }}>
+                      <div 
+                        onClick={() => handleSort('date')} 
+                        style={{ cursor: 'pointer', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        {t('trips.date_col')} <ArrowUpDown size={12} />
+                      </div>
+                      <div 
+                        onClick={() => handleSort('description')} 
+                        style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
+                      >
+                        {t('trips.description_col')}
+                      </div>
+                      <div style={{ padding: '1rem 1.25rem' }}>{t('trips.category_col')}</div>
+                      <div style={{ padding: '1rem 1.25rem' }}>{t('trips.paid_by_col')}</div>
+                      <div style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>{t('trips.value_col')}</div>
+                      <div style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{t('trips.actions_col')}</div>
+                    </div>
+                  )}
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const exp = filteredExpenses[virtualRow.index];
+                    if (!exp) return null;
+                    const meta = getTripCategoryMeta(exp.trip_categories?.name);
+                    const Icon = meta.icon;
+
+                    if (isMobile) {
+                      return (
+                        <div 
+                          key={exp.id} 
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                            paddingBottom: '1rem',
+                          }}
+                        >
+                          <div className="expense-item-card" style={{ margin: 0 }}>
                             <div className="expense-card-top">
                               <div className="expense-card-info">
                                 <div className="expense-card-icon" style={{ 
@@ -760,76 +843,73 @@ export default function TripsList({
                                 <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title={t('trips.delete')}><Trash2 size={16} /></button>
                               </div>
                             </div>
-                          </Motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="desktop-only">
-                    <table className="orbit-table">
-                      <thead>
-                        <tr>
-                          <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{t('trips.date_col')} <ArrowUpDown size={12} /></div>
-                          </th>
-                          <th onClick={() => handleSort('description')} style={{ cursor: 'pointer' }}>{t('trips.description_col')}</th>
-                          <th>{t('trips.category_col')}</th>
-                          <th>{t('trips.paid_by_col')}</th>
-                          <th className="text-right">{t('trips.value_col')}</th>
-                          <th className="text-center">{t('trips.actions_col')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredExpenses.map((exp) => {
-                          const meta = getTripCategoryMeta(exp.trip_categories?.name);
-                          const Icon = meta.icon;
-                          return (
-                            <tr key={exp.id}>
-                              <td>{exp.date ? formatDate(exp.date, { day: '2-digit', month: '2-digit' }) : '--'}</td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                  <div style={{ 
-                                    width: '32px', height: '32px', borderRadius: '8px', 
-                                    background: `color-mix(in srgb, ${meta.color} 15%, transparent)`, 
-                                    color: meta.color, 
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`
-                                  }}>
-                                    <Icon size={16} />
-                                  </div>
-                                  <div style={{ fontWeight: '700' }}>{exp.description}</div>
-                                </div>
-                              </td>
-                              <td>
-                                <span className="orbit-category-badge">
-                                  {exp.trip_categories?.name || t('trips.general', 'Geral')}
-                                </span>
-                              </td>
-                              <td>{exp.paid_by}</td>
-                              <td className="text-right" style={{ fontWeight: '900' }}>
-                                {showValues ? (Number(exp.amount) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2 }) : '••••'} 
-                                <small style={{ fontSize: '0.65rem', opacity: 0.5, marginLeft: '0.25rem' }}>{exp.currency}</small>
-                              </td>
-                              <td>
-                                <div className="expense-card-actions">
-                                  {exp.receipt_url && (
-                                    <button onClick={async () => {
-                                      const signedUrl = await getSignedUrl('trip-documents', exp.receipt_url);
-                                      if (signedUrl) window.open(signedUrl, '_blank');
-                                    }} className="icon-btn" title={t('trips.view_receipt')}><FileText size={16} /></button>
-                                  )}
-                                  <button className="icon-btn" onClick={() => setEditingExpense(exp)} title={t('trips.edit')}><Edit2 size={16} /></button>
-                                  <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title={t('trips.delete')}><Trash2 size={16} /></button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div 
+                          key={exp.id}
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                            display: 'grid', 
+                            gridTemplateColumns: '100px 2fr 1fr 1fr 1fr 120px', 
+                            alignItems: 'center',
+                            borderBottom: '1px solid var(--glass-border)',
+                            fontSize: '0.9rem',
+                            background: 'var(--bg-card)',
+                          }}
+                        >
+                          <div style={{ padding: '1.25rem', color: 'var(--text-main)' }}>
+                            {exp.date ? formatDate(exp.date, { day: '2-digit', month: '2-digit' }) : '--'}
+                          </div>
+                          <div style={{ padding: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ 
+                                width: '32px', height: '32px', borderRadius: '8px', 
+                                background: `color-mix(in srgb, ${meta.color} 15%, transparent)`, 
+                                color: meta.color, 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                border: `1px solid color-mix(in srgb, ${meta.color} 25%, transparent)`
+                              }}>
+                                <Icon size={16} />
+                              </div>
+                              <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{exp.description}</div>
+                            </div>
+                          </div>
+                          <div style={{ padding: '1.25rem' }}>
+                            <span className="orbit-category-badge">
+                              {exp.trip_categories?.name || t('trips.general', 'Geral')}
+                            </span>
+                          </div>
+                          <div style={{ padding: '1.25rem', color: 'var(--text-main)' }}>{exp.paid_by}</div>
+                          <div className="text-right" style={{ padding: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                            {showValues ? (Number(exp.amount) || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2 }) : '••••'} 
+                            <small style={{ fontSize: '0.65rem', opacity: 0.5, marginLeft: '0.25rem' }}>{exp.currency}</small>
+                          </div>
+                          <div style={{ padding: '1.25rem' }}>
+                            <div className="expense-card-actions" style={{ justifyContent: 'center' }}>
+                              {exp.receipt_url && (
+                                <button onClick={async () => {
+                                  const signedUrl = await getSignedUrl('trip-documents', exp.receipt_url);
+                                  if (signedUrl) window.open(signedUrl, '_blank');
+                                }} className="icon-btn" title={t('trips.view_receipt')}><FileText size={16} /></button>
+                              )}
+                              <button className="icon-btn" onClick={() => setEditingExpense(exp)} title={t('trips.edit')}><Edit2 size={16} /></button>
+                              <button className="icon-btn danger" onClick={() => deleteExpense(exp.id)} title={t('trips.delete')}><Trash2 size={16} /></button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })}
+                </div>
               )}
             </div>
           </div>

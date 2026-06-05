@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { supabase } from '../../lib/supabase';
 import { confirmToast } from '../../lib/toast';
 import { 
@@ -227,6 +228,39 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     return Object.entries(groups).sort(([a], [b]) => sortConfig.direction === 'asc' ? a.localeCompare(b) : b.localeCompare(a));
   }, [filteredAndSortedFinances, sortConfig.direction]);
 
+  const flatItems = useMemo(() => {
+    const list = [];
+    groupedFinances.forEach(([dateStr, items]) => {
+      list.push({
+        type: 'header',
+        id: `header-${dateStr}`,
+        dateStr,
+      });
+      items.forEach((item) => {
+        list.push({
+          type: 'item',
+          id: item.id,
+          item,
+        });
+      });
+    });
+    return list;
+  }, [groupedFinances]);
+
+  const parentRef = useRef(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => {
+      const item = flatItems[index];
+      if (item?.type === 'header') return 70;
+      return isMobile ? 180 : 88;
+    },
+    overscan: 5,
+    initialRect: { width: 1000, height: 800 },
+  });
+
   const totalAmount = useMemo(() => {
     return filteredAndSortedFinances.reduce((acc, curr) => acc + Number(curr.amount), 0);
   }, [filteredAndSortedFinances]);
@@ -399,11 +433,25 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
             </div>
           </div>
 
-          {/* Transactions List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+          {/* Transactions List Container */}
+          <div 
+            ref={parentRef}
+            style={{ 
+              maxHeight: '68vh', 
+              overflowY: 'auto', 
+              position: 'relative',
+              borderRadius: '24px',
+              paddingRight: '6px'
+            }}
+            className="custom-scrollbar"
+          >
             {loading ? (
-              Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: '80px', borderRadius: '20px' }} />)
-            ) : groupedFinances.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="skeleton" style={{ height: '80px', borderRadius: '20px' }} />
+                ))}
+              </div>
+            ) : flatItems.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-action-bg)', borderRadius: '32px', border: '2px dashed var(--glass-border)' }}>
                 <div style={{ width: 80, height: 80, background: 'var(--tabs-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
                    <Package size={40} style={{ opacity: 0.2 }} />
@@ -412,195 +460,216 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 <p style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>{t('finances.adjust_filters', 'Tente ajustar seus filtros ou mude o período selecionado.')}</p>
               </div>
             ) : (
-              groupedFinances.map(([dateStr, items]) => (
-                <div key={dateStr} style={{ position: 'relative' }}>
-                  {/* Sticky Date Header */}
-                  <div style={{ 
-                    position: 'sticky', 
-                    top: '-1px', 
-                    zIndex: 10, 
-                    background: 'var(--bg-card)', 
-                    padding: '0.75rem 1.5rem', 
-                    marginBottom: '1.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    backdropFilter: 'blur(12px)',
-                    margin: isMobile ? '0 -1.25rem' : '0 -2.5rem',
-                    borderBottom: '1px solid var(--glass-border)',
-                    borderTopLeftRadius: isMobile ? '0' : '20px',
-                    borderTopRightRadius: isMobile ? '0' : '20px'
-                  }}>
-                    <div style={{ 
-                      width: '44px', 
-                      height: '44px', 
-                      borderRadius: '12px', 
-                      background: 'var(--stat-balance)', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      fontSize: '1.2rem', 
-                      fontWeight: 900, 
-                      color: 'var(--primary)', 
-                      border: '1px solid rgba(99, 102, 241, 0.2)',
-                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.1)'
-                    }}>
-                      {getDayShort(dateStr)}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'capitalize', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{formatDate(dateStr).split(',')[0]}</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{formatDate(dateStr).split(',').slice(1).join(',')}</span>
-                    </div>
-                    <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--glass-border), transparent)' }} />
-                  </div>
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const item = flatItems[virtualRow.index];
+                  if (!item) return null;
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {items.map((item) => {
-                      const meta = getCategoryMeta(item.category);
-                      const CategoryIcon = meta.icon;
-                      return (
-                        <Motion.div 
-                          layout
-                          key={item.id}
-                          data-testid={`finance-row-${item.description}`}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          whileHover={isMobile ? {} : { x: 6, background: 'var(--card-action-bg)', borderColor: 'var(--primary)' }}
-                          style={{ padding: 0, background: 'none', border: 'none' }}
-                        >
+                  if (item.type === 'header') {
+                    return (
+                      <div
+                        key={item.id}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                          zIndex: 10,
+                          background: 'var(--bg-card)',
+                          padding: '0.75rem 1.5rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '1rem',
+                          backdropFilter: 'blur(12px)',
+                          borderBottom: '1px solid var(--glass-border)',
+                          borderRadius: '20px',
+                          marginBottom: '0.75rem',
+                        }}
+                      >
+                        <div style={{ 
+                          width: '44px', 
+                          height: '44px', 
+                          borderRadius: '12px', 
+                          background: 'var(--stat-balance)', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontSize: '1.2rem', 
+                          fontWeight: 900, 
+                          color: 'var(--primary)', 
+                          border: '1px solid rgba(99, 102, 241, 0.2)',
+                          boxShadow: '0 4px 12px rgba(99, 102, 241, 0.1)'
+                        }}>
+                          {getDayShort(item.dateStr)}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'capitalize', color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{formatDate(item.dateStr).split(',')[0]}</span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{formatDate(item.dateStr).split(',').slice(1).join(',')}</span>
+                        </div>
+                        <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--glass-border), transparent)' }} />
+                      </div>
+                    );
+                  }
+
+                  const financeItem = item.item;
+                  const meta = getCategoryMeta(financeItem.category);
+                  const CategoryIcon = meta.icon;
+
+                  return (
+                    <div
+                      key={item.id}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      data-testid={`finance-row-${financeItem.description}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                        paddingBottom: '0.75rem',
+                      }}
+                    >
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: isMobile ? 'column' : 'row',
+                        alignItems: isMobile ? 'flex-start' : 'center', 
+                        gap: isMobile ? '1rem' : '1.5rem', 
+                        padding: isMobile ? '1.25rem' : '1.5rem 2rem', 
+                        borderRadius: '24px', 
+                        border: '1px solid var(--glass-border)',
+                        background: 'var(--card-action-bg)',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        cursor: 'pointer',
+                        position: 'relative'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
                           <div style={{ 
-                            display: 'flex', 
-                            flexDirection: isMobile ? 'column' : 'row',
-                            alignItems: isMobile ? 'flex-start' : 'center', 
-                            gap: isMobile ? '1rem' : '1.5rem', 
-                            padding: isMobile ? '1.25rem' : '1.5rem 2rem', 
-                            borderRadius: '24px', 
-                            border: '1px solid var(--glass-border)',
-                            background: 'var(--card-action-bg)',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            cursor: 'pointer',
-                            position: 'relative'
+                            width: isMobile ? '40px' : '48px', 
+                            height: isMobile ? '40px' : '48px', 
+                            borderRadius: '12px', 
+                            background: `color-mix(in srgb, ${meta.color} 12%, transparent)`, 
+                            color: meta.color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: `1px solid color-mix(in srgb, ${meta.color} 20%, transparent)`,
+                            flexShrink: 0
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
-                              <div style={{ 
-                                width: isMobile ? '40px' : '48px', 
-                                height: isMobile ? '40px' : '48px', 
-                                borderRadius: '12px', 
-                                background: `color-mix(in srgb, ${meta.color} 12%, transparent)`, 
-                                color: meta.color,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: `1px solid color-mix(in srgb, ${meta.color} 20%, transparent)`,
-                                flexShrink: 0
-                              }}>
-                                <CategoryIcon size={isMobile ? 20 : 24} />
-                               </div>
-                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                  <span style={{ fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem', color: 'var(--text-main)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>{item.description}</span>
-                                  {item.credit_card && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-                                      <CreditCard size={10} color="var(--primary)" />
-                                      <span style={{ fontSize: '9px', color: 'var(--primary)', fontWeight: 800 }}>CARD</span>
-                                    </div>
-                                  )}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                                  <div className="cat-chip" style={{ '--cat-color': meta.color, fontSize: '10px', padding: '2px 8px' }}>
-                                    {item.category}
-                                  </div>
-                                  {activeTab === 'DESPESA' && item.paid_by && (
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                                      <User size={12} style={{ opacity: 0.6 }} /> {item.paid_by}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {isMobile && (
-                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                  <div style={{ fontWeight: 900, fontSize: '1rem', color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--text-main)', letterSpacing: '-0.02em' }}>
-                                    {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} ${t('common.currency_symbol', 'R$')} ${Number(item.amount).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
-                                  </div>
-                                  <div className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} style={{ marginTop: '0.25rem', fontSize: '9px', padding: '2px 8px' }}>
-                                    {item.status === 'PAGO' ? t('finances.status_paid', 'PAGO') : t('finances.status_pending', 'PENDENTE')}
-                                  </div>
+                            <CategoryIcon size={isMobile ? 20 : 24} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 800, fontSize: isMobile ? '0.95rem' : '1rem', color: 'var(--text-main)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>{financeItem.description}</span>
+                              {financeItem.credit_card && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                                  <CreditCard size={10} color="var(--primary)" />
+                                  <span style={{ fontSize: '9px', color: 'var(--primary)', fontWeight: 800 }}>CARD</span>
                                 </div>
                               )}
                             </div>
-
-                            {!isMobile && (
-                              <>
-                                <div style={{ textAlign: 'right', minWidth: '130px' }}>
-                                  <div style={{ fontWeight: 900, fontSize: '1.25rem', color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--text-main)', letterSpacing: '-0.02em' }}>
-                                    {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} ${t('common.currency_symbol', 'R$')} ${Number(item.amount).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
-                                  </div>
-                                  <Motion.span 
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    className={`status-badge ${item.status === 'PAGO' ? 'paid' : 'pending'}`} 
-                                    onClick={(e) => { e.stopPropagation(); item.status === 'PENDENTE' && handleMarkAsPaid(item.id); }}
-                                    style={{ 
-                                      cursor: item.status === 'PENDENTE' ? 'pointer' : 'default', 
-                                      marginTop: '0.5rem', 
-                                      fontSize: '10px',
-                                      padding: '4px 10px',
-                                      fontWeight: 800,
-                                      letterSpacing: '0.02em'
-                                    }}
-                                  >
-                                    {item.status === 'PAGO' ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                                    {item.status === 'PAGO' ? t('finances.status_paid', 'PAGO') : t('finances.status_pending', 'PENDENTE')}
-                                  </Motion.span>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '0.5rem', paddingLeft: '1rem', borderLeft: '1px solid var(--glass-border)' }}>
-                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); handleSendEmail(item); }} title={t('finances.send_email', 'Enviar E-mail')} style={{ color: item.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}><Send size={18} /></button>
-                                  {item.status === 'PENDENTE' && (
-                                    <button className="action-btn success" onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item.id); }} title={t('finances.mark_as_paid', 'Marcar como Pago')} style={{ color: 'var(--success)' }}><CheckCircle size={18} /></button>
-                                  )}
-                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); onEdit(item); }} title={t('common.edit')}><Edit2 size={18} /></button>
-                                  <button className="action-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} title={t('common.delete')}><Trash2 size={18} /></button>
-                                </div>
-                              </>
-                            )}
-
-                            {isMobile && (
-                              <div style={{ display: 'flex', gap: '0.75rem', width: '100%', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); handleSendEmail(item); }} style={{ color: item.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}><Send size={16} /></button>
-                                  <button className="action-btn" onClick={(e) => { e.stopPropagation(); onEdit(item); }}><Edit2 size={16} /></button>
-                                  <button className="action-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}><Trash2 size={16} /></button>
-                                </div>
-                                {item.status === 'PENDENTE' && (
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item.id); }}
-                                    className="action-btn success"
-                                    style={{ 
-                                      background: 'var(--success)', 
-                                      color: 'white', 
-                                      borderRadius: '10px', 
-                                      padding: '8px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
-                                    }}
-                                    title={t('finances.pay_now', 'Pagar Agora')}
-                                  >
-                                    <CheckCircle size={20} />
-                                  </button>
-                                )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                              <div className="cat-chip" style={{ '--cat-color': meta.color, fontSize: '10px', padding: '2px 8px' }}>
+                                {financeItem.category}
                               </div>
+                              {activeTab === 'DESPESA' && financeItem.paid_by && (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                  <User size={12} style={{ opacity: 0.6 }} /> {financeItem.paid_by}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {isMobile && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 900, fontSize: '1rem', color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--text-main)', letterSpacing: '-0.02em' }}>
+                                {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} ${t('common.currency_symbol', 'R$')} ${Number(financeItem.amount).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
+                              </div>
+                              <div className={`status-badge ${financeItem.status === 'PAGO' ? 'paid' : 'pending'}`} style={{ marginTop: '0.25rem', fontSize: '9px', padding: '2px 8px' }}>
+                                {financeItem.status === 'PAGO' ? t('finances.status_paid', 'PAGO') : t('finances.status_pending', 'PENDENTE')}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {!isMobile && (
+                          <>
+                            <div style={{ textAlign: 'right', minWidth: '130px' }}>
+                              <div style={{ fontWeight: 900, fontSize: '1.25rem', color: activeTab === 'RECEITA' ? 'var(--success)' : 'var(--text-main)', letterSpacing: '-0.02em' }}>
+                                {showValues ? `${activeTab === 'RECEITA' ? '+' : '-'} ${t('common.currency_symbol', 'R$')} ${Number(financeItem.amount).toLocaleString(i18n.language, { minimumFractionDigits: 2 })}` : `${t('common.currency_symbol', 'R$')} ••••••`}
+                              </div>
+                              <Motion.span 
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className={`status-badge ${financeItem.status === 'PAGO' ? 'paid' : 'pending'}`} 
+                                onClick={(e) => { e.stopPropagation(); financeItem.status === 'PENDENTE' && handleMarkAsPaid(financeItem.id); }}
+                                style={{ 
+                                  cursor: financeItem.status === 'PENDENTE' ? 'pointer' : 'default', 
+                                  marginTop: '0.5rem', 
+                                  fontSize: '10px',
+                                  padding: '4px 10px',
+                                  fontWeight: 800,
+                                  letterSpacing: '0.02em'
+                                }}
+                              >
+                                {financeItem.status === 'PAGO' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                                {financeItem.status === 'PAGO' ? t('finances.status_paid', 'PAGO') : t('finances.status_pending', 'PENDENTE')}
+                              </Motion.span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '0.5rem', paddingLeft: '1rem', borderLeft: '1px solid var(--glass-border)', zIndex: 2 }}>
+                              <button className="action-btn" onClick={(e) => { e.stopPropagation(); handleSendEmail(financeItem); }} title={t('finances.send_email', 'Enviar E-mail')} style={{ color: financeItem.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}><Send size={18} /></button>
+                              {financeItem.status === 'PENDENTE' && (
+                                <button className="action-btn success" onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(financeItem.id); }} title={t('finances.mark_as_paid', 'Marcar como Pago')} style={{ color: 'var(--success)' }}><CheckCircle size={18} /></button>
+                              )}
+                              <button className="action-btn" onClick={(e) => { e.stopPropagation(); onEdit(financeItem); }} title={t('common.edit')}><Edit2 size={18} /></button>
+                              <button className="action-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(financeItem.id); }} title={t('common.delete')}><Trash2 size={18} /></button>
+                            </div>
+                          </>
+                        )}
+
+                        {isMobile && (
+                          <div style={{ display: 'flex', gap: '0.75rem', width: '100%', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)', justifyContent: 'space-between', alignItems: 'center', zIndex: 2 }}>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button className="action-btn" onClick={(e) => { e.stopPropagation(); handleSendEmail(financeItem); }} style={{ color: financeItem.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}><Send size={16} /></button>
+                              <button className="action-btn" onClick={(e) => { e.stopPropagation(); onEdit(financeItem); }}><Edit2 size={16} /></button>
+                              <button className="action-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(financeItem.id); }}><Trash2 size={16} /></button>
+                            </div>
+                            {financeItem.status === 'PENDENTE' && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(financeItem.id); }}
+                                className="action-btn success"
+                                style={{ 
+                                  background: 'var(--success)', 
+                                  color: 'white', 
+                                  borderRadius: '10px', 
+                                  padding: '8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                                }}
+                                title={t('finances.pay_now', 'Pagar Agora')}
+                              >
+                                <CheckCircle size={20} />
+                              </button>
                             )}
                           </div>
-                        </Motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </Motion.div>

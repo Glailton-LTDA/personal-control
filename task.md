@@ -9,9 +9,9 @@ Este checklist organiza as sugestões de melhorias arquiteturais, funcionais e n
   - [x] Implementar custom hooks para o módulo Finance (`useFinances`, `useFinanceCategories`)
   - [x] Refatorar os componentes `FinanceList` e `SummaryDashboard` para eliminar `refreshKey` e `useEffect` imperativos
   - [x] Adicionar suporte a Optimistic Updates na criação/edição de transações
-- [ ] Otimização e Virtualização de Listas
-  - [ ] Instalar `react-window` ou similar
-  - [ ] Implementar a virtualização de linhas em `FinanceList` para suportar grandes volumes de registros
+- [/] Otimização e Virtualização de Listas
+  - [x] Instalar `react-window` ou similar (Utilizado `@tanstack/react-virtual` para React 19)
+  - [x] Implementar a virtualização de linhas em `FinanceList` para suportar grandes volumes de registros
   - [ ] Replicar virtualização para `InvestmentList` e `TripsList`
 - [ ] Banco de Dados (Supabase/PostgreSQL)
   - [ ] Criar migrações/scripts SQL para índices compostos (ex: `user_id` + `payment_date` em `finances`)
@@ -36,6 +36,9 @@ Este checklist organiza as sugestões de melhorias arquiteturais, funcionais e n
   - [ ] Implementar funcionalidade de Rolagem Automática (Auto-Scroll) no visualizador de partituras e cifras
   - [ ] Desenvolver transpositor de tons dinâmico para acordes de texto cifrado
   - [ ] Permitir reposicionar anotações salvas (arrastar/mover) no visualizador de partituras (tanto realces quanto textos)
+- [ ] Listas Personalizadas (Custom Lists)
+  - [ ] Criar editor/leitor de anotações Markdown integrado ao módulo de listas (estilo Simplenote)
+
 
 ## 🌌 Novas Funcionalidades (Greenfield)
 
