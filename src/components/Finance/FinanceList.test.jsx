@@ -4,6 +4,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import FinanceList from './FinanceList';
 import { supabase } from '../../lib/supabase';
 
+// Mock TanStack Virtual useVirtualizer hook for unit tests
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options) => {
+    return {
+      getTotalSize: () => options.count * 100,
+      getVirtualItems: () => Array.from({ length: options.count }).map((_, index) => ({
+        index,
+        start: index * 100,
+        size: 100,
+        key: index,
+        measureElement: () => {},
+      })),
+      measureElement: () => {},
+    };
+  },
+}));
+
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
