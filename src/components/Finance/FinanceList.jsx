@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
@@ -58,6 +58,16 @@ const CATEGORY_META = [
   { keywords: ['fixo', 'recorr', 'mensalid'],                                    icon: Repeat,        color: '#94a3b8' },
 ];
 
+import { 
+  useFinances, 
+  useFinanceResponsibles, 
+  useNotificationSettings, 
+  useDeleteTransaction, 
+  useMarkAsPaid, 
+  useUpdateTransaction,
+  useCopyMonthTransactions
+} from '../../hooks/useFinance';
+
 function getCategoryMeta(category = '') {
   const lower = category.toLowerCase();
   const match = CATEGORY_META.find(m => m.keywords.some(k => lower.includes(k)));
@@ -66,16 +76,12 @@ function getCategoryMeta(category = '') {
 
 export default function FinanceList({ refreshKey, onEdit, user, showValues = true, onToggleValues }) {
   const { t, i18n } = useTranslation();
-  const [finances, setFinances] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState(() => localStorage.getItem('personal-control-finance-view') || 'lista');
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('personal-control-finance-tab') || 'DESPESA');
   const [searchTerm, setSearchTerm] = useState('');
-  const [responsibles, setResponsibles] = useState([]);
   const [isEmailModalOpen, setEmailModalOpen] = useState(false);
   const [selectedItemForEmail, setSelectedItemForEmail] = useState(null);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [notificationSettings, setNotificationSettings] = useState(null);
 
   const months = [
     t('common.months.jan'), t('common.months.feb'), t('common.months.mar'), t('common.months.apr'), 
@@ -102,70 +108,51 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    async function fetchNotificationSettings() {
-      const { data } = await supabase.from('notification_settings').select('*').maybeSingle();
-      if (data) setNotificationSettings(data);
-    }
-    fetchNotificationSettings();
-  }, [refreshKey]);
+  // React Query queries
+  const { data: finances = [], isLoading: loading } = useFinances({
+    userId: user?.id,
+    type: activeTab,
+    month: selectedMonth,
+    year: selectedYear,
+    isGeneral: false
+  });
 
+  const { data: responsibles = [] } = useFinanceResponsibles();
+  const { data: notificationSettings } = useNotificationSettings();
 
-
-  const fetchResponsibles = useCallback(async () => {
-    const { data } = await supabase.from('finance_responsibles').select('*').order('name');
-    if (data) setResponsibles(data);
-  }, []);
-
-  const fetchFinances = useCallback(async () => {
-    setLoading(true);
-    const monthStr = String(selectedMonth + 1).padStart(2, '0');
-    const lastDayDate = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-    const start = `${selectedYear}-${monthStr}-01`;
-    const end = `${selectedYear}-${monthStr}-${String(lastDayDate).padStart(2, '0')}`;
-
-    const { data } = await supabase
-      .from('finances')
-      .select('*')
-      .eq('type', activeTab)
-      .gte('payment_date', start)
-      .lte('payment_date', end);
-
-    if (data) {
-      setFinances(data);
-    }
-    setLoading(false);
-  }, [activeTab, selectedMonth, selectedYear]);
+  // React Query mutations
+  const deleteMutation = useDeleteTransaction();
+  const markAsPaidMutation = useMarkAsPaid();
+  const updateTransactionMutation = useUpdateTransaction();
+  const copyMonthMutation = useCopyMonthTransactions();
 
   useEffect(() => {
     localStorage.setItem('personal-control-selected-month', selectedMonth);
     localStorage.setItem('personal-control-selected-year', selectedYear);
     localStorage.setItem('personal-control-finance-tab', activeTab);
     localStorage.setItem('personal-control-finance-view', activeView);
-    fetchFinances();
-    fetchResponsibles();
-  }, [activeTab, activeView, selectedMonth, selectedYear, refreshKey, fetchFinances, fetchResponsibles]);
+  }, [activeTab, activeView, selectedMonth, selectedYear]);
 
   const handleDelete = async (id) => {
     confirmToast(t('finances.confirm_delete', 'Tem certeza que deseja excluir este registro?'), async () => {
-      const { error } = await supabase.from('finances').delete().eq('id', id);
-      if (!error) {
-        fetchFinances();
+      try {
+        await deleteMutation.mutateAsync(id);
         toast.success(t('common.deleted', 'Registro excluído'));
-      } else {
+      } catch (error) {
         toast.error(t('common.error_deleting', 'Erro ao excluir') + ': ' + error.message);
       }
     }, { danger: true });
   };
 
   const handleMarkAsPaid = async (id) => {
-    const { error } = await supabase.from('finances').update({ status: 'PAGO' }).eq('id', id);
-    if (!error) {
-      fetchFinances();
+    try {
+      await markAsPaidMutation.mutateAsync(id);
       if (notificationSettings?.auto_send_on_paid && notificationSettings?.recipient_email) {
         const item = finances.find(f => f.id === id);
         if (item) sendEmailToRecipient(notificationSettings.recipient_email, { ...item, status: 'PAGO' });
       }
+    } catch (error) {
+      toast.error('Erro ao marcar como pago: ' + error.message);
     }
   };
 
@@ -178,9 +165,9 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         body: { to: recipientEmail, subject: `${item.type === 'RECEITA' ? t('finances.revenue', 'Receita') : t('finances.expense', 'Despesa')} ${t('finances.registered', 'registrada')}: ${item.description}`, data: item, bcc: notificationSettings?.bcc_email }
       });
       if (fnError) throw fnError;
-      await supabase.from('finances').update({ email_sent: true }).eq('id', item.id);
+      
+      await updateTransactionMutation.mutateAsync({ id: item.id, email_sent: true });
       toast.success(t('finances.email_sent_to', 'E-mail enviado para {{email}}!', { email: recipientEmail }));
-      fetchFinances();
       setEmailModalOpen(false);
     } catch (err) {
       toast.error(`Erro ao enviar e-mail: ${err.message}`);
@@ -195,34 +182,21 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       currMonth: months[selectedMonth]
     }), async () => {
       try {
-        setLoading(true);
         const prevMonth = selectedMonth === 0 ? 11 : selectedMonth - 1;
         const prevYear = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
-        const start = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-01`;
-        const end = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-31`;
-        const { data: previousData } = await supabase.from('finances').select('*').gte('payment_date', start).lte('payment_date', end);
-        if (!previousData || previousData.length === 0) {
-          toast.error('Nenhuma transação encontrada no mês anterior.');
-          return;
-        }
-        const newEntries = previousData.map(item => {
-          const { id: _id, user_id: _user_id, created_at: _created_at, email_sent: _email_sent, payment_date, ...rest } = item;
-          const originalDate = new Date(payment_date);
-          const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-          const newDate = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(Math.min(originalDate.getDate(), lastDayOfMonth)).padStart(2, '0')}`;
-          return { ...rest, payment_date: newDate, status: 'PENDENTE' };
+        const count = await copyMonthMutation.mutateAsync({
+          prevMonth,
+          prevYear,
+          selectedMonth,
+          selectedYear
         });
-        const { error } = await supabase.from('finances').insert(newEntries);
-        if (error) throw error;
-        toast.success(t('finances.transactions_copied', '{{count}} transações copiadas!', { count: newEntries.length }));
-        fetchFinances();
+        toast.success(t('finances.transactions_copied', '{{count}} transações copiadas!', { count }));
       } catch (err) {
         toast.error(`Erro ao copiar: ${err.message}`);
-      } finally {
-        setLoading(false);
       }
     }, { confirmText: 'Sim, copiar tudo' });
   };
+
   const handleSort = (key) => {
     setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };

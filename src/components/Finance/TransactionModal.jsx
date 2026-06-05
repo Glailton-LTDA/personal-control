@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Calendar, Tag, DollarSign, User, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { 
+  useFinanceCategories, 
+  useFinanceResponsibles, 
+  useCreateTransaction, 
+  useUpdateTransaction 
+} from '../../hooks/useFinance';
 
-export default function TransactionModal({ isOpen, onClose, onRefresh, user, initialData = null }) {
+export default function TransactionModal({ isOpen, onClose, user, initialData = null }) {
   const { t } = useTranslation();
   const [formData, setFormData] = useState({
     description: '',
@@ -14,75 +19,52 @@ export default function TransactionModal({ isOpen, onClose, onRefresh, user, ini
     paid_by: '',
     status: 'PENDENTE'
   });
-  
-  const [categories, setCategories] = useState([]);
-  const [responsibles, setResponsibles] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  const { data: categories = [] } = useFinanceCategories();
+  const { data: responsibles = [] } = useFinanceResponsibles();
+  const createMutation = useCreateTransaction();
+  const updateMutation = useUpdateTransaction();
+
+  const loading = createMutation.isPending || updateMutation.isPending;
 
   useEffect(() => {
-    async function setup() {
-      if (initialData) {
-        setFormData({
-          ...initialData,
-          amount: (initialData.amount || 0).toFixed(2).replace('.', ','),
-          payment_date: initialData.payment_date
-        });
-      } else {
-        setFormData({
-          description: '',
-          amount: '',
-          payment_date: new Date().toLocaleDateString('en-CA'),
-          type: 'DESPESA',
-          category: '',
-          paid_by: '',
-          status: 'PENDENTE'
-        });
-      }
-      async function fetchOptions() {
-        const { data: catData } = await supabase.from('finance_categories').select('name, type');
-        const { data: respData } = await supabase.from('finance_responsibles').select('name');
-        
-        if (catData) {
-          setCategories(catData);
-        }
-        if (respData) {
-          setResponsibles(respData);
-        }
-      }
-      
-    fetchOptions();
+    if (initialData) {
+      setFormData({
+        ...initialData,
+        amount: (initialData.amount || 0).toFixed(2).replace('.', ','),
+        payment_date: initialData.payment_date
+      });
+    } else {
+      setFormData({
+        description: '',
+        amount: '',
+        payment_date: new Date().toLocaleDateString('en-CA'),
+        type: 'DESPESA',
+        category: '',
+        paid_by: '',
+        status: 'PENDENTE'
+      });
     }
-    setup();
   }, [initialData, isOpen]);
-
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
 
     const numericAmount = parseFloat(formData.amount.replace(',', '.'));
     const dataToSave = { ...formData, amount: numericAmount };
-    if (initialData?.id) {
-      // Edit
-      const { error } = await supabase.from('finances')
-        .update({ ...dataToSave })
-        .eq('id', initialData.id);
-      if (!error) {
-        onRefresh();
-        onClose();
+    
+    try {
+      if (initialData?.id) {
+        // Edit
+        await updateMutation.mutateAsync({ id: initialData.id, ...dataToSave });
+      } else {
+        // Create
+        await createMutation.mutateAsync({ ...dataToSave, user_id: user.id });
       }
-    } else {
-      // Create
-      const { error } = await supabase.from('finances').insert([
-        { ...dataToSave, user_id: user.id }
-      ]);
-      if (!error) {
-        onRefresh();
-        onClose();
-      }
+      onClose();
+    } catch (err) {
+      console.error("Erro ao salvar transação:", err);
     }
-    setLoading(false);
   };
 
   if (!isOpen) return null;
