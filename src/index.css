@@ -2612,3 +2612,79 @@ select.glass-input {
 }
 
 /* Removed duplicate trip-actions-dropdown */
+
+/* --- Music Dense Table --- */
+.dense-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.dense-table th {
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.dense-table td {
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.table-row-hover:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@media (max-width: 768px) {
+  .dense-table thead {
+    display: none;
+  }
+  .dense-table tr {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--glass-border);
+    background: var(--bg-card);
+    margin-bottom: 0.75rem;
+    border-radius: 12px;
+  }
+  .dense-table td {
+    display: block;
+    padding: 0.25rem 0.5rem !important;
+    border: none !important;
+  }
+  .dense-table td:nth-child(1) {
+    display: inline-block;
+    width: auto;
+  }
+  .dense-table td:nth-child(2) {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .dense-table td:nth-child(3),
+  .dense-table td:nth-child(4) {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: inline-block;
+  }
+  .dense-table td:nth-child(3)::after {
+    content: " • ";
+    margin: 0 4px;
+  }
+  .dense-table td:nth-child(5) {
+    display: inline-block;
+    width: auto;
+  }
+  .dense-table td:nth-child(6) {
+    display: block;
+    text-align: right;
+    margin-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04) !important;
+    padding-top: 0.5rem !important;
+  }
+}
+
