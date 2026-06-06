@@ -253,7 +253,17 @@ export default function MarkdownNotes({ user, refreshKey }) {
   }, []);
 
   const textareaRef = useRef(null);
+  const titleTextareaRef = useRef(null);
   const saveTimeoutRef = useRef(null);
+
+  // Auto-resize title textarea height
+  useEffect(() => {
+    const textarea = titleTextareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [editorTitle]);
 
   const handleIncreaseFont = () => {
     setFontSize(prev => {
@@ -766,7 +776,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
   };
 
   // Helper buttons inserts
-  const insertSyntax = (syntax, placeholderText = '') => {
+  const insertSyntax = (syntax) => {
     if (isCurrentNoteReadOnly) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -776,20 +786,47 @@ export default function MarkdownNotes({ user, refreshKey }) {
     const text = textarea.value;
     const before = text.substring(0, start);
     const after = text.substring(end, text.length);
-    const selected = text.substring(start, end) || placeholderText;
+    
+    const hasSelection = start !== end;
+    const selected = hasSelection ? text.substring(start, end) : '';
 
     let replacement = '';
-    if (syntax === 'bold') replacement = `**${selected}**`;
-    else if (syntax === 'italic') replacement = `*${selected}*`;
-    else if (syntax === 'code') replacement = `\`${selected}\``;
-    else if (syntax === 'codeblock') replacement = `\`\`\`\n${selected}\n\`\`\``;
-    else if (syntax === 'h1') replacement = `# ${selected}`;
-    else if (syntax === 'h2') replacement = `## ${selected}`;
-    else if (syntax === 'h3') replacement = `### ${selected}`;
-    else if (syntax === 'list') replacement = `- ${selected}`;
-    else if (syntax === 'checkbox') replacement = `- [ ] ${selected}`;
-    else if (syntax === 'link') replacement = `[${selected}](url)`;
-    else if (syntax === 'hr') replacement = `\n---\n`;
+    let cursorOffset = 0;
+
+    if (syntax === 'bold') {
+      replacement = `**${selected}**`;
+      cursorOffset = hasSelection ? replacement.length : 2;
+    } else if (syntax === 'italic') {
+      replacement = `*${selected}*`;
+      cursorOffset = hasSelection ? replacement.length : 1;
+    } else if (syntax === 'code') {
+      replacement = `\`${selected}\``;
+      cursorOffset = hasSelection ? replacement.length : 1;
+    } else if (syntax === 'codeblock') {
+      replacement = `\`\`\`\n${selected}\n\`\`\``;
+      cursorOffset = hasSelection ? replacement.length : 4;
+    } else if (syntax === 'h1') {
+      replacement = `# ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 2;
+    } else if (syntax === 'h2') {
+      replacement = `## ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 3;
+    } else if (syntax === 'h3') {
+      replacement = `### ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 4;
+    } else if (syntax === 'list') {
+      replacement = `- ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 2;
+    } else if (syntax === 'checkbox') {
+      replacement = `- [ ] ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 6;
+    } else if (syntax === 'link') {
+      replacement = `[${selected}](url)`;
+      cursorOffset = hasSelection ? replacement.length : 1;
+    } else if (syntax === 'hr') {
+      replacement = `\n---\n`;
+      cursorOffset = replacement.length;
+    }
 
     const newValue = before + replacement + after;
     setEditorContent(newValue);
@@ -799,7 +836,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
     setTimeout(() => {
       textarea.focus();
-      const newCursorPos = start + replacement.length;
+      const newCursorPos = start + cursorOffset;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };
@@ -1458,15 +1495,15 @@ export default function MarkdownNotes({ user, refreshKey }) {
             {/* Toolbar Actions */}
             {selectedNote && editorMode === 'edit' && (
               <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => insertSyntax('h1', 'Título 1')} style={toolbarButtonStyle} title="Título 1">H1</button>
-                <button type="button" onClick={() => insertSyntax('h2', 'Título 2')} style={toolbarButtonStyle} title="Título 2">H2</button>
-                <button type="button" onClick={() => insertSyntax('h3', 'Título 3')} style={toolbarButtonStyle} title="Título 3">H3</button>
-                <button type="button" onClick={() => insertSyntax('bold', 'negrito')} style={{ ...toolbarButtonStyle, fontWeight: 800 }} title="Negrito">B</button>
-                <button type="button" onClick={() => insertSyntax('italic', 'itálico')} style={{ ...toolbarButtonStyle, fontStyle: 'italic' }} title="Itálico">I</button>
-                <button type="button" onClick={() => insertSyntax('list', 'item')} style={toolbarButtonStyle} title="Lista">•</button>
-                <button type="button" onClick={() => insertSyntax('checkbox', 'tarefa')} style={toolbarButtonStyle} title="Checklist">[ ]</button>
-                <button type="button" onClick={() => insertSyntax('code', 'código')} style={toolbarButtonStyle} title="Código em linha">{`</>`}</button>
-                <button type="button" onClick={() => insertSyntax('link', 'link')} style={toolbarButtonStyle} title="Link">Link</button>
+                <button type="button" onClick={() => insertSyntax('h1')} style={toolbarButtonStyle} title="Título 1">H1</button>
+                <button type="button" onClick={() => insertSyntax('h2')} style={toolbarButtonStyle} title="Título 2">H2</button>
+                <button type="button" onClick={() => insertSyntax('h3')} style={toolbarButtonStyle} title="Título 3">H3</button>
+                <button type="button" onClick={() => insertSyntax('bold')} style={{ ...toolbarButtonStyle, fontWeight: 800 }} title="Negrito">B</button>
+                <button type="button" onClick={() => insertSyntax('italic')} style={{ ...toolbarButtonStyle, fontStyle: 'italic' }} title="Itálico">I</button>
+                <button type="button" onClick={() => insertSyntax('list')} style={toolbarButtonStyle} title="Lista">•</button>
+                <button type="button" onClick={() => insertSyntax('checkbox')} style={toolbarButtonStyle} title="Checklist">[ ]</button>
+                <button type="button" onClick={() => insertSyntax('code')} style={toolbarButtonStyle} title="Código em linha">{`</>`}</button>
+                <button type="button" onClick={() => insertSyntax('link')} style={toolbarButtonStyle} title="Link">Link</button>
                 <button type="button" onClick={() => insertSyntax('hr')} style={{ ...toolbarButtonStyle, fontSize: '0.7rem' }} title="Linha divisória">---</button>
               </div>
             )}
@@ -1575,13 +1612,20 @@ export default function MarkdownNotes({ user, refreshKey }) {
             }} className="custom-scrollbar">
               
               {/* Title input (Simplenote style: borderless, bold, large) */}
-              <input
-                type="text"
+              <textarea
+                ref={titleTextareaRef}
+                rows={1}
                 value={editorTitle}
                 onChange={handleTitleChange}
                 placeholder={t('lists.notes_view.title_placeholder')}
                 readOnly={isCurrentNoteReadOnly}
                 disabled={isCurrentNoteReadOnly}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    textareaRef.current?.focus();
+                  }
+                }}
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -1592,7 +1636,11 @@ export default function MarkdownNotes({ user, refreshKey }) {
                   color: 'var(--text-main)',
                   letterSpacing: '-0.02em',
                   marginBottom: '1.5rem',
-                  padding: 0
+                  padding: 0,
+                  resize: 'none',
+                  overflowY: 'hidden',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.2'
                 }}
               />
 
