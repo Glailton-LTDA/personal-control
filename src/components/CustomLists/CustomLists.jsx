@@ -284,7 +284,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
   const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
   const textareaRef = useRef(null);
 
-  const insertHelper = (syntax, placeholderText = '') => {
+  const insertHelper = (syntax) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -293,17 +293,38 @@ function MarkdownEditor({ value, onChange, placeholder }) {
     const text = textarea.value;
     const before = text.substring(0, start);
     const after = text.substring(end, text.length);
-    const selected = text.substring(start, end) || placeholderText;
+    
+    const hasSelection = start !== end;
+    const selected = hasSelection ? text.substring(start, end) : '';
 
     let replacement = '';
-    if (syntax === 'bold') replacement = `**${selected}**`;
-    else if (syntax === 'italic') replacement = `*${selected}*`;
-    else if (syntax === 'code') replacement = `\`${selected}\``;
-    else if (syntax === 'codeblock') replacement = `\`\`\`\n${selected}\n\`\`\``;
-    else if (syntax === 'h1') replacement = `# ${selected}`;
-    else if (syntax === 'h2') replacement = `## ${selected}`;
-    else if (syntax === 'list') replacement = `- ${selected}`;
-    else if (syntax === 'checkbox') replacement = `- [ ] ${selected}`;
+    let cursorOffset = 0;
+
+    if (syntax === 'bold') {
+      replacement = `**${selected}**`;
+      cursorOffset = hasSelection ? replacement.length : 2;
+    } else if (syntax === 'italic') {
+      replacement = `*${selected}*`;
+      cursorOffset = hasSelection ? replacement.length : 1;
+    } else if (syntax === 'code') {
+      replacement = `\`${selected}\``;
+      cursorOffset = hasSelection ? replacement.length : 1;
+    } else if (syntax === 'codeblock') {
+      replacement = `\`\`\`\n${selected}\n\`\`\``;
+      cursorOffset = hasSelection ? replacement.length : 4;
+    } else if (syntax === 'h1') {
+      replacement = `# ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 2;
+    } else if (syntax === 'h2') {
+      replacement = `## ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 3;
+    } else if (syntax === 'list') {
+      replacement = `- ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 2;
+    } else if (syntax === 'checkbox') {
+      replacement = `- [ ] ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 6;
+    }
 
     const newValue = before + replacement + after;
     
@@ -312,7 +333,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
     setTimeout(() => {
       if (textarea) {
         textarea.focus();
-        const newCursorPos = start + replacement.length;
+        const newCursorPos = start + cursorOffset;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
@@ -407,7 +428,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
           <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', maxWidth: '100%', paddingBottom: '2px' }}>
             <button
               type="button"
-              onClick={() => insertHelper('h1', 'Título')}
+              onClick={() => insertHelper('h1')}
               style={toolbarButtonStyle}
               title="Título 1"
             >
@@ -415,7 +436,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             </button>
             <button
               type="button"
-              onClick={() => insertHelper('h2', 'Subtítulo')}
+              onClick={() => insertHelper('h2')}
               style={toolbarButtonStyle}
               title="Título 2"
             >
@@ -423,7 +444,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             </button>
             <button
               type="button"
-              onClick={() => insertHelper('bold', 'negrito')}
+              onClick={() => insertHelper('bold')}
               style={{ ...toolbarButtonStyle, fontWeight: 800 }}
               title="Negrito"
             >
@@ -431,7 +452,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             </button>
             <button
               type="button"
-              onClick={() => insertHelper('italic', 'itálico')}
+              onClick={() => insertHelper('italic')}
               style={{ ...toolbarButtonStyle, fontStyle: 'italic' }}
               title="Itálico"
             >
@@ -439,7 +460,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             </button>
             <button
               type="button"
-              onClick={() => insertHelper('list', 'item')}
+              onClick={() => insertHelper('list')}
               style={toolbarButtonStyle}
               title="Lista"
             >
@@ -447,7 +468,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             </button>
             <button
               type="button"
-              onClick={() => insertHelper('checkbox', 'tarefa')}
+              onClick={() => insertHelper('checkbox')}
               style={toolbarButtonStyle}
               title="Checklist"
             >
@@ -455,7 +476,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             </button>
             <button
               type="button"
-              onClick={() => insertHelper('code', 'código')}
+              onClick={() => insertHelper('code')}
               style={toolbarButtonStyle}
               title="Código em linha"
             >
