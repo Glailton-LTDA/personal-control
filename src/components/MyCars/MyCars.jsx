@@ -782,7 +782,7 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
                                 status === 'DONE' ? 'var(--success)' :
                                 status === 'PENDING' ? 'var(--pending)' :
                                 status === 'SKIPPED' ? 'var(--danger)' :
-                                'rgba(255,255,255,0.1)',
+                                'var(--text-muted)',
                               border: '1px solid var(--glass-border)',
                               boxShadow: status !== 'NONE' ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
                             }}

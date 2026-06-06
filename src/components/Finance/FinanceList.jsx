@@ -50,7 +50,7 @@ const CATEGORY_META = [
   { keywords: ['educaç', 'educac', 'escola', 'curso', 'facul', 'livro'],         icon: GraduationCap, color: '#8b5cf6' },
   { keywords: ['viagem', 'viag', 'hotel', 'passag', 'hospedagem'],               icon: Plane,         color: '#0ea5e9' },
   { keywords: ['invest', 'poupan', 'ativo', 'fundo'],                            icon: TrendingUp,    color: '#10b981' },
-  { keywords: ['celular', 'telefon', 'internet', 'telecom', 'digital', 'assin'], icon: Smartphone,    color: '#a855f7' },
+  { keywords: ['celular', 'telefon', 'internet', 'telecom', 'digital', 'assin', 'claro'], icon: Smartphone,    color: '#a855f7' },
   { keywords: ['café', 'cafe', 'lazer', 'entretenimento', 'cinema', 'bar'],      icon: Coffee,        color: '#fb923c' },
   { keywords: ['compra', 'roupa', 'loja'],                                        icon: ShoppingCart,  color: '#ec4899' },
   { keywords: ['energia', 'luz', 'água', 'agua', 'gás', 'gas', 'utilid'],       icon: Zap,           color: '#eab308' },
@@ -108,6 +108,8 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+
 
   // React Query queries
   const { data: finances = [], isLoading: loading } = useFinances({
@@ -217,6 +219,103 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
 
     return result;
   }, [finances, searchTerm, sortConfig]);
+
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTab, selectedMonth, selectedYear]);
+
+  const toggleSelectItem = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const visibleItemIds = useMemo(() => {
+    return filteredAndSortedFinances.map(item => item.id);
+  }, [filteredAndSortedFinances]);
+
+  const allVisibleSelected = useMemo(() => {
+    if (visibleItemIds.length === 0) return false;
+    return visibleItemIds.every(id => selectedIds.has(id));
+  }, [visibleItemIds, selectedIds]);
+
+  const handleToggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        visibleItemIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        visibleItemIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleBatchDelete = () => {
+    const idsToDelete = Array.from(selectedIds).filter(id => visibleItemIds.includes(id));
+    if (idsToDelete.length === 0) return;
+    
+    confirmToast(t('finances.confirm_batch_delete', 'Tem certeza que deseja excluir {{count}} lançamentos selecionados?', { count: idsToDelete.length }), async () => {
+      try {
+        await Promise.all(idsToDelete.map(id => deleteMutation.mutateAsync(id)));
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          idsToDelete.forEach(id => next.delete(id));
+          return next;
+        });
+        toast.success(t('common.batch_deleted', '{{count}} registros excluídos', { count: idsToDelete.length }));
+      } catch (error) {
+        toast.error(t('common.error_deleting', 'Erro ao excluir') + ': ' + error.message);
+      }
+    }, { danger: true });
+  };
+
+  const handleBatchMarkAsPaid = async () => {
+    const idsToUpdate = Array.from(selectedIds).filter(id => visibleItemIds.includes(id));
+    if (idsToUpdate.length === 0) return;
+    
+    try {
+      await Promise.all(idsToUpdate.map(id => updateTransactionMutation.mutateAsync({ id, status: 'PAGO' })));
+      
+      // Auto-send emails if configured
+      if (notificationSettings?.auto_send_on_paid && notificationSettings?.recipient_email) {
+        const pendingTxs = finances.filter(f => idsToUpdate.includes(f.id) && f.status === 'PENDENTE');
+        for (const item of pendingTxs) {
+          sendEmailToRecipient(notificationSettings.recipient_email, { ...item, status: 'PAGO' });
+        }
+      }
+      
+      setSelectedIds(new Set());
+      toast.success(t('finances.batch_marked_paid', '{{count}} lançamentos marcados como pagos', { count: idsToUpdate.length }));
+    } catch (error) {
+      toast.error('Erro ao atualizar: ' + error.message);
+    }
+  };
+
+  const handleBatchMarkAsUnpaid = async () => {
+    const idsToUpdate = Array.from(selectedIds).filter(id => visibleItemIds.includes(id));
+    if (idsToUpdate.length === 0) return;
+    
+    try {
+      await Promise.all(idsToUpdate.map(id => updateTransactionMutation.mutateAsync({ id, status: 'PENDENTE' })));
+      setSelectedIds(new Set());
+      toast.success(t('finances.batch_marked_unpaid', '{{count}} lançamentos marcados como pendentes', { count: idsToUpdate.length }));
+    } catch (error) {
+      toast.error('Erro ao atualizar: ' + error.message);
+    }
+  };
 
   const groupedFinances = useMemo(() => {
     const groups = {};
@@ -385,6 +484,22 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
               </div>
               <button 
                 className="icon-btn" 
+                onClick={handleToggleSelectAll}
+                title={allVisibleSelected ? t('finances.deselect_all', 'Deselecionar todos') : t('finances.select_all', 'Selecionar todos')}
+                style={{ 
+                  height: '48px', 
+                  width: '48px', 
+                  border: '1px solid var(--glass-border)', 
+                  borderRadius: '14px', 
+                  flexShrink: 0,
+                  background: allVisibleSelected ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  color: allVisibleSelected ? 'var(--primary)' : 'inherit'
+                }}
+              >
+                <CheckCircle size={20} />
+              </button>
+              <button 
+                className="icon-btn" 
                 onClick={() => handleSort('amount')}
                 title={t('finances.sort_by_value', 'Ordenar por valor')}
                 style={{ height: '48px', width: '48px', border: '1px solid var(--glass-border)', borderRadius: '14px', flexShrink: 0 }}
@@ -539,20 +654,39 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                         paddingBottom: '0.75rem',
                       }}
                     >
-                      <div style={{ 
-                        display: 'flex', 
-                        flexDirection: isMobile ? 'column' : 'row',
-                        alignItems: isMobile ? 'flex-start' : 'center', 
-                        gap: isMobile ? '1rem' : '1.5rem', 
-                        padding: isMobile ? '1.25rem' : '1.5rem 2rem', 
-                        borderRadius: '24px', 
-                        border: '1px solid var(--glass-border)',
-                        background: 'var(--card-action-bg)',
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        cursor: 'pointer',
-                        position: 'relative'
-                      }}>
+                      <div 
+                        onClick={() => toggleSelectItem(financeItem.id)}
+                        style={{ 
+                          display: 'flex', 
+                          flexDirection: isMobile ? 'column' : 'row',
+                          alignItems: isMobile ? 'flex-start' : 'center', 
+                          gap: isMobile ? '1rem' : '1.5rem', 
+                          padding: isMobile ? '1.25rem' : '1.5rem 2rem', 
+                          borderRadius: '24px', 
+                          border: selectedIds.has(financeItem.id) ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
+                          background: selectedIds.has(financeItem.id) ? 'color-mix(in srgb, var(--primary) 8%, var(--card-action-bg))' : 'var(--card-action-bg)',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          cursor: 'pointer',
+                          position: 'relative'
+                        }}
+                      >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(financeItem.id)}
+                            onChange={() => {}}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectItem(financeItem.id);
+                            }}
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              accentColor: 'var(--primary)',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                          />
                           <div style={{ 
                             width: isMobile ? '40px' : '48px', 
                             height: isMobile ? '40px' : '48px', 
@@ -755,6 +889,113 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
                 </Motion.div>
               )}
             </Motion.div>
+          </Motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <Motion.div
+            initial={{ opacity: 0, y: 100, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 100, x: '-50%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            style={{
+              position: 'fixed',
+              bottom: '2rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1.5rem',
+              padding: '0.8rem 1.5rem',
+              borderRadius: '20px',
+              background: 'rgba(15, 23, 42, 0.85)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+              width: 'max-content',
+              maxWidth: '90vw',
+              flexDirection: isMobile ? 'column' : 'row',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
+              <span style={{ color: 'white', fontWeight: 800, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                {selectedIds.size} {selectedIds.size === 1 ? t('finances.item_selected', 'selecionado') : t('finances.items_selected', 'selecionados')}
+              </span>
+              <button 
+                onClick={() => setSelectedIds(new Set())}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  color: '#94a3b8',
+                  borderRadius: '50%',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button
+                onClick={handleBatchMarkAsPaid}
+                className="btn-primary"
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '10px',
+                  height: 'auto',
+                  background: 'var(--success)',
+                  borderColor: 'rgba(16, 185, 129, 0.2)',
+                  boxShadow: 'none',
+                  fontWeight: 800,
+                }}
+              >
+                {t('finances.mark_paid', 'Marcar Pago')}
+              </button>
+              <button
+                onClick={handleBatchMarkAsUnpaid}
+                className="btn-primary"
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '10px',
+                  height: 'auto',
+                  background: 'var(--pending)',
+                  borderColor: 'rgba(245, 158, 11, 0.2)',
+                  boxShadow: 'none',
+                  fontWeight: 800,
+                  color: 'white',
+                }}
+              >
+                {t('finances.mark_unpaid', 'Marcar Pendente')}
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                className="btn-primary"
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.8rem',
+                  borderRadius: '10px',
+                  height: 'auto',
+                  background: 'var(--danger)',
+                  borderColor: 'rgba(239, 68, 68, 0.2)',
+                  boxShadow: 'none',
+                  fontWeight: 800,
+                }}
+              >
+                {t('finances.delete_selected', 'Excluir Selecionados')}
+              </button>
+            </div>
           </Motion.div>
         )}
       </AnimatePresence>

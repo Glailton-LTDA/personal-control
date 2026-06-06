@@ -24,6 +24,9 @@ vi.mock('lucide-react', () => ({
   Bookmark: () => <div data-testid="bookmark" />,
   AlertCircle: () => <div data-testid="alert-circle" />,
   Upload: () => <div data-testid="upload" />,
+  Play: () => <div data-testid="play" />,
+  Pause: () => <div data-testid="pause" />,
+  X: () => <div data-testid="x" />,
 }));
 
 // Mock supabase
