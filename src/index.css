@@ -168,8 +168,8 @@ body {
 }
 
 .icon-btn {
-  background: var(--card-action-bg) !important;
-  border: 1px solid var(--glass-border) !important;
+  background: var(--card-action-bg);
+  border: 1px solid var(--glass-border);
   color: var(--text-main);
   padding: 10px;
   cursor: pointer;
@@ -723,7 +723,7 @@ select option {
   position: sticky;
   left: 0;
   z-index: 10;
-  background-color: #0f172a !important; /* Solid background to prevent transparency on scroll */
+  background-color: var(--bg-canvas) !important; /* Solid background to prevent transparency on scroll */
   width: 220px;
   min-width: 220px;
   border-right: 1px solid var(--glass-border);

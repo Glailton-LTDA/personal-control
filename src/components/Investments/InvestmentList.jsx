@@ -613,13 +613,7 @@ export default function InvestmentList({ user, showValues = true }) {
           ) : flatItems.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</div>
           ) : (
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
+            <>
               {!isMobile && (
                 <div style={{ 
                   display: 'grid', 
@@ -640,7 +634,14 @@ export default function InvestmentList({ user, showValues = true }) {
                   <div style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></div>
                 </div>
               )}
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const item = flatItems[virtualRow.index];
                 if (!item) return null;
 
@@ -802,6 +803,7 @@ export default function InvestmentList({ user, showValues = true }) {
                 }
               })}
             </div>
+          </>
           )}
         </div>
       </div>

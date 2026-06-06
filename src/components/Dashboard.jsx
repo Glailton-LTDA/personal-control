@@ -49,6 +49,7 @@ import MyCars from './MyCars/MyCars';
 import Investments from './Investments/Investments';
 import Trips from './Trips/Trips';
 import CustomLists from './CustomLists/CustomLists';
+import MarkdownNotes from './CustomLists/MarkdownNotes';
 import Music from './Music/Music';
 import Launchpad from './Launchpad';
 import Footer from './Footer';
@@ -87,6 +88,7 @@ const moduleSubItems = {
   ],
   lists: [
     { tab: 'lists-manager', icon: List, key: 'manage_lists' },
+    { tab: 'lists-notes', icon: FileText, key: 'notes' },
     { tab: 'lists-settings', icon: Settings, key: 'settings' }
   ],
   music: [
@@ -470,7 +472,11 @@ export default function Dashboard({ user }) {
               <Trips user={user} refreshKey={refreshKey} mode={activeTab.replace('trips-', '')} showValues={showValues} />
             )}
             {activeTab.startsWith('lists') && (
-              <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
+              activeTab === 'lists-notes' ? (
+                <MarkdownNotes user={user} refreshKey={refreshKey} />
+              ) : (
+                <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
+              )
             )}
             {activeTab.startsWith('music') && (
               <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} />

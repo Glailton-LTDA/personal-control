@@ -8,6 +8,16 @@ import {
   useUpdateTransaction 
 } from '../../hooks/useFinance';
 
+const DEFAULT_MAPPINGS = [
+  { keywords: ['uber'], category: 'Transporte', type: 'DESPESA' },
+  { keywords: ['mercado', 'supermercado'], category: 'Alimentação', type: 'DESPESA' },
+  { keywords: ['aluguel', 'condomínio', 'condominio'], category: 'Moradia', type: 'DESPESA' },
+  { keywords: ['luz', 'energia', 'água', 'agua', 'internet'], category: 'Serviços', type: 'DESPESA' },
+  { keywords: ['academia', 'médico', 'medico'], category: 'Saúde', type: 'DESPESA' },
+  { keywords: ['restaurante', 'ifood'], category: 'Alimentação', type: 'DESPESA' },
+  { keywords: ['salário', 'salario', 'recebimento'], category: 'Receitas', type: 'RECEITA' }
+];
+
 export default function TransactionModal({ isOpen, onClose, user, initialData = null }) {
   const { t } = useTranslation();
   const [formData, setFormData] = useState({
@@ -19,6 +29,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
     paid_by: '',
     status: 'PENDENTE'
   });
+  const [isCategoryManual, setIsCategoryManual] = useState(false);
 
   const { data: categories = [] } = useFinanceCategories();
   const { data: responsibles = [] } = useFinanceResponsibles();
@@ -34,6 +45,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
         amount: (initialData.amount || 0).toFixed(2).replace('.', ','),
         payment_date: initialData.payment_date
       });
+      setIsCategoryManual(!!initialData.category);
     } else {
       setFormData({
         description: '',
@@ -44,8 +56,32 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
         paid_by: '',
         status: 'PENDENTE'
       });
+      setIsCategoryManual(false);
     }
   }, [initialData, isOpen]);
+
+  const handleDescriptionChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => {
+      const updated = { ...prev, description: value };
+      if (!isCategoryManual || !prev.category) {
+        const descLower = value.toLowerCase();
+        const match = DEFAULT_MAPPINGS.find(m => 
+          m.keywords.some(kw => descLower.includes(kw))
+        );
+        if (match) {
+          const matchedCategory = categories.find(c => 
+            c.name.toLowerCase() === match.category.toLowerCase() && c.type === match.type
+          );
+          if (matchedCategory) {
+            updated.category = matchedCategory.name;
+            updated.type = match.type;
+          }
+        }
+      }
+      return updated;
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,7 +125,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
             <label><Tag size={14} style={{ marginRight: '4px' }}/> {t('finance.description', 'Descrição')}</label>
             <input 
               type="text" required value={formData.description}
-              onChange={e => setFormData({...formData, description: e.target.value})}
+              onChange={handleDescriptionChange}
               placeholder={t('finance.description_placeholder', 'Ex: Aluguel, Salário...')}
             />
           </div>
@@ -147,7 +183,10 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
               <label>{t('finance.category', 'Categoria')}</label>
               <select 
                 required value={formData.category} 
-                onChange={e => setFormData({...formData, category: e.target.value})}
+                onChange={e => {
+                  setFormData({...formData, category: e.target.value});
+                  setIsCategoryManual(!!e.target.value);
+                }}
               >
                 <option value="">{t('common.select_placeholder', 'Selecione...')}</option>
                 {filteredCategories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}

@@ -141,6 +141,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   const [instrument, setInstrument] = useState(() => localStorage.getItem('pc_active_instrument') || 'violao');
   const [transpose, setTranspose] = useState(0);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(0); // 0 = Pausado, 1-10 = Velocidade
+  const [savedSpeed, setSavedSpeed] = useState(3);
   const [fontSize, setFontSize] = useState(14); // Em pixels
   const scrollRef = useRef(null);
   const intervalRef = useRef(null);
@@ -274,13 +275,19 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   const getUniqueChords = () => {
     if (!song?.content) return [];
     
-    // Captura palavras em linhas identificadas como de acordes
     const chords = new Set();
     const chordRegex = /[A-G][b#]?(?:m|maj|min|dim|aug|sus|add)?\d*(?:\/[A-G][b#]?)?/g;
+    const bracketRegex = /\[([A-G][b#]?[^\]]*)\]/gi;
     
     processedLines.forEach(line => {
-      if (line.type === 'chords') {
-        const matches = line.content.match(chordRegex);
+      let match;
+      const content = line.content;
+      while ((match = bracketRegex.exec(content)) !== null) {
+        chords.add(match[1]);
+      }
+      
+      if (line.type === 'chords' && !/\[[A-G][b#]?[^\]]*\]/i.test(content)) {
+        const matches = content.match(chordRegex);
         if (matches) {
           matches.forEach(c => chords.add(c));
         }
@@ -310,10 +317,124 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
     return result;
   };
 
-  // Renderiza uma linha de acordes aplicando a transposição
-  const renderChordLine = (lineContent) => {
-    const html = transposeChordLine(lineContent);
-    return <div dangerouslySetInnerHTML={{ __html: html }} style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: `${fontSize}px`, lineHeight: 2 }} />;
+  // Transpõe e destaca acordes entre colchetes [C]
+  const transposeBracketedChords = (lineContent) => {
+    const bracketRegex = /\[([A-G][b#]?[^\]]*)\]/gi;
+    let result = '';
+    let lastIndex = 0;
+    let match;
+
+    while ((match = bracketRegex.exec(lineContent)) !== null) {
+      result += lineContent.substring(lastIndex, match.index);
+      const originalChord = match[1];
+      const transposed = transposeChord(originalChord, transpose);
+      result += `<span class="chord-highlight" style="color: var(--primary); font-weight: bold; background: rgba(99,102,241,0.08); padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(99,102,241,0.15); margin: 0 2px; font-family: monospace; cursor: pointer;">${transposed}</span>`;
+      lastIndex = bracketRegex.lastIndex;
+    }
+    
+    result += lineContent.substring(lastIndex);
+    return result;
+  };
+
+
+
+  const renderLine = (line, idx) => {
+    if (line.instrument && line.instrument !== instrument) {
+      return null;
+    }
+    if (line.type === 'tablature' && !line.instrument) {
+      const tabLinesCount = line.content.split('\n').filter(l => isTabLine(l)).length;
+      if (tabLinesCount === 6 && instrument !== 'violao') {
+        return null;
+      }
+      if (tabLinesCount === 4 && instrument === 'violao') {
+        return null;
+      }
+    }
+
+    const hasBrackets = /\[[A-G][b#]?[^\]]*\]/i.test(line.content);
+
+    if (line.type === 'chords') {
+      const html = hasBrackets ? transposeBracketedChords(line.content) : transposeChordLine(line.content);
+      return (
+        <div key={`line-${idx}`} style={{ marginBottom: '2px' }}>
+          <div dangerouslySetInnerHTML={{ __html: html }} style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: `${fontSize}px`, lineHeight: 2 }} />
+        </div>
+      );
+    } else if (line.type === 'tablature') {
+      return (
+        <pre
+          key={`line-${idx}`}
+          style={{
+            fontFamily: 'Courier New, Courier, Monaco, monospace',
+            background: 'rgba(255, 255, 255, 0.015)',
+            padding: '0.75rem 1rem',
+            borderRadius: '8px',
+            borderLeft: '3px solid var(--primary)',
+            borderTop: 'none',
+            borderRight: 'none',
+            borderBottom: 'none',
+            overflowX: 'auto',
+            margin: '1rem 0',
+            fontSize: `${fontSize - 1}px`,
+            lineHeight: 1.25,
+            color: 'var(--text-main)',
+            whiteSpace: 'pre'
+          }}
+        >
+          {line.content.split('\n').map((subLine, subIdx) => {
+            const subHasBrackets = /\[[A-G][b#]?[^\]]*\]/i.test(subLine);
+            if (isChordLine(subLine) || subHasBrackets) {
+              const html = subHasBrackets ? transposeBracketedChords(subLine) : transposeChordLine(subLine);
+              return (
+                <div
+                  key={subIdx}
+                  dangerouslySetInnerHTML={{ __html: html }}
+                  style={{ color: 'var(--primary)', fontWeight: 'bold', minHeight: '1.2em' }}
+                />
+              );
+            }
+            return (
+              <div key={subIdx} style={{ minHeight: '1.2em' }}>
+                {subLine}
+              </div>
+            );
+          })}
+        </pre>
+      );
+    } else {
+      if (hasBrackets) {
+        const html = transposeBracketedChords(line.content);
+        return (
+          <div
+            key={`line-${idx}`}
+            dangerouslySetInnerHTML={{ __html: html }}
+            style={{
+              fontSize: `${fontSize}px`,
+              fontFamily: 'sans-serif',
+              color: 'var(--text-muted)',
+              minHeight: '1.2em',
+              marginBottom: '1rem',
+              lineHeight: 1.8
+            }}
+          />
+        );
+      }
+      return (
+        <div
+          key={`line-${idx}`}
+          style={{
+            fontSize: `${fontSize}px`,
+            fontFamily: 'sans-serif',
+            color: 'var(--text-muted)',
+            minHeight: '1.2em',
+            marginBottom: '1rem'
+          }}
+        >
+          {line.content}
+        </div>
+      );
+    }
   };
 
   return (
@@ -419,7 +540,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
               className="btn-primary"
-              onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : 3)}
+              onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : savedSpeed)}
               style={{
                 padding: '0.4rem 1rem',
                 borderRadius: '8px',
@@ -434,20 +555,26 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
               <span>{autoScrollSpeed > 0 ? 'Pausar Rolagem' : 'Rolar Tela'}</span>
             </button>
             
-            {autoScrollSpeed > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>VEL:</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={autoScrollSpeed}
-                  onChange={e => setAutoScrollSpeed(parseInt(e.target.value))}
-                  style={{ width: '80px', accentColor: 'var(--primary)' }}
-                />
-                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', width: '20px' }}>{autoScrollSpeed}</span>
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>VEL:</span>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
+                onChange={e => {
+                  const val = parseInt(e.target.value);
+                  setSavedSpeed(val);
+                  if (autoScrollSpeed > 0) {
+                    setAutoScrollSpeed(val);
+                  }
+                }}
+                style={{ width: '80px', accentColor: 'var(--primary)' }}
+              />
+              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>
+                {autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
+              </span>
+            </div>
           </div>
 
         </div>
@@ -470,84 +597,10 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             overflowY: 'auto',
             maxHeight: '65vh',
             fontFamily: 'monospace',
-            scrollBehavior: 'smooth'
+            scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
           }}
         >
-          {processedLines.map((line, idx) => {
-            if (line.instrument && line.instrument !== instrument) {
-              return null;
-            }
-            if (line.type === 'tablature' && !line.instrument) {
-              const tabLinesCount = line.content.split('\n').filter(l => isTabLine(l)).length;
-              if (tabLinesCount === 6 && instrument !== 'violao') {
-                return null;
-              }
-              if (tabLinesCount === 4 && instrument === 'violao') {
-                return null;
-              }
-            }
-            if (line.type === 'chords') {
-              return (
-                <div key={`line-${idx}`} style={{ marginBottom: '2px' }}>
-                  {renderChordLine(line.content)}
-                </div>
-              );
-            } else if (line.type === 'tablature') {
-              return (
-                <pre
-                  key={`line-${idx}`}
-                  style={{
-                    fontFamily: 'Courier New, Courier, Monaco, monospace',
-                    background: 'rgba(255, 255, 255, 0.015)',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    borderLeft: '3px solid var(--primary)',
-                    borderTop: 'none',
-                    borderRight: 'none',
-                    borderBottom: 'none',
-                    overflowX: 'auto',
-                    margin: '1rem 0',
-                    fontSize: `${fontSize - 1}px`,
-                    lineHeight: 1.25,
-                    color: 'var(--text-main)',
-                    whiteSpace: 'pre'
-                  }}
-                >
-                  {line.content.split('\n').map((subLine, subIdx) => {
-                    if (isChordLine(subLine)) {
-                      return (
-                        <div
-                          key={subIdx}
-                          dangerouslySetInnerHTML={{ __html: transposeChordLine(subLine) }}
-                          style={{ color: 'var(--primary)', fontWeight: 'bold', minHeight: '1.2em' }}
-                        />
-                      );
-                    }
-                    return (
-                      <div key={subIdx} style={{ minHeight: '1.2em' }}>
-                        {subLine}
-                      </div>
-                    );
-                  })}
-                </pre>
-              );
-            } else {
-              return (
-                <div
-                  key={`line-${idx}`}
-                  style={{
-                    fontSize: `${fontSize}px`,
-                    fontFamily: 'sans-serif',
-                    color: 'var(--text-muted)',
-                    minHeight: '1.2em',
-                    marginBottom: '1rem'
-                  }}
-                >
-                  {line.content}
-                </div>
-              );
-            }
-          })}
+          {processedLines.map((line, idx) => renderLine(line, idx))}
         </div>
 
         {/* Right Sidebar Chord Diagrams */}
@@ -612,67 +665,66 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
       {/* ── Mobile Layout (Stacked) ── */}
       <div className="mobile-only" style={{ display: 'none', flexDirection: 'column', gap: '1rem' }}>
         <div className="glass-card" style={{ padding: '1.5rem', fontFamily: 'monospace', overflowX: 'auto' }}>
-          {processedLines.map((line, idx) => {
-            if (line.instrument && line.instrument !== instrument) {
-              return null;
-            }
-            if (line.type === 'tablature' && !line.instrument) {
-              const tabLinesCount = line.content.split('\n').filter(l => isTabLine(l)).length;
-              if (tabLinesCount === 6 && instrument !== 'violao') {
-                return null;
+          {processedLines.map((line, idx) => renderLine(line, idx))}
+        </div>
+      </div>
+
+      {/* Floating Scroll Controls */}
+      <div style={{
+        position: 'fixed',
+        bottom: '2rem',
+        right: '2rem',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        padding: '0.75rem 1rem',
+        background: 'rgba(30, 41, 59, 0.75)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
+        borderRadius: '9999px',
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
+      }}>
+        <button
+          onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : savedSpeed)}
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            border: 'none',
+            background: autoScrollSpeed > 0 ? 'var(--success, #10b981)' : 'var(--primary, #6366f1)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+            transition: 'background 0.2s'
+          }}
+          title={autoScrollSpeed > 0 ? 'Pausar Rolagem' : 'Iniciar Rolagem'}
+        >
+          {autoScrollSpeed > 0 ? <Pause size={18} /> : <Play size={18} />}
+        </button>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '0.75rem' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.6))' }}>VEL:</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            value={autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
+            onChange={e => {
+              const val = parseInt(e.target.value);
+              setSavedSpeed(val);
+              if (autoScrollSpeed > 0) {
+                setAutoScrollSpeed(val);
               }
-              if (tabLinesCount === 4 && instrument === 'violao') {
-                return null;
-              }
-            }
-            return (
-              <div key={`mob-line-${idx}`} style={{ marginBottom: line.type === 'lyrics' ? '1rem' : '2px' }}>
-                {line.type === 'chords' ? renderChordLine(line.content) : (
-                  line.type === 'tablature' ? (
-                    <pre
-                      style={{
-                        fontFamily: 'Courier New, Courier, Monaco, monospace',
-                        background: 'rgba(255, 255, 255, 0.015)',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '8px',
-                        borderLeft: '3px solid var(--primary)',
-                        borderTop: 'none',
-                        borderRight: 'none',
-                        borderBottom: 'none',
-                        overflowX: 'auto',
-                        margin: '1rem 0',
-                        fontSize: `${fontSize - 1}px`,
-                        lineHeight: 1.25,
-                        color: 'var(--text-main)',
-                        whiteSpace: 'pre'
-                      }}
-                    >
-                      {line.content.split('\n').map((subLine, subIdx) => {
-                        if (isChordLine(subLine)) {
-                          return (
-                            <div
-                              key={subIdx}
-                              dangerouslySetInnerHTML={{ __html: transposeChordLine(subLine) }}
-                              style={{ color: 'var(--primary)', fontWeight: 'bold', minHeight: '1.2em' }}
-                            />
-                          );
-                        }
-                        return (
-                          <div key={subIdx} style={{ minHeight: '1.2em' }}>
-                            {subLine}
-                          </div>
-                        );
-                      })}
-                    </pre>
-                  ) : (
-                    <div style={{ fontSize: `${fontSize}px`, color: 'var(--text-muted)' }}>
-                      {line.content}
-                    </div>
-                  )
-                )}
-              </div>
-            );
-          })}
+            }}
+            style={{ width: '80px', accentColor: 'var(--primary, #6366f1)', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main, white)', width: '15px', textAlign: 'center' }}>
+            {autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
+          </span>
         </div>
       </div>
 

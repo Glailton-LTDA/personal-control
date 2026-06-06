@@ -5,7 +5,8 @@ import {
   ChevronRight, Save, X, Loader2, Info, 
   CheckCircle, Circle, Calendar, Hash, Type, AlignLeft,
   MapPin, CheckSquare as CheckboxIcon, Box, ExternalLink,
-  Users, Share2, Mail, Lock, ChevronDown, ChevronUp
+  Users, Share2, Mail, Lock, ChevronDown, ChevronUp,
+  FileText, BookOpen
 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -15,6 +16,7 @@ import AddressInput from '../Trips/AddressInput';
 const FIELD_TYPES = [
   { id: 'text', icon: Type },
   { id: 'textarea', icon: AlignLeft },
+  { id: 'markdown', icon: FileText },
   { id: 'number', icon: Hash },
   { id: 'date', icon: Calendar },
   { id: 'checkbox', icon: CheckCircle },
@@ -123,6 +125,390 @@ function AutoResizeTextarea({ value, onChange, placeholder, className, style }) 
   );
 }
 
+// Custom Markdown Parser & Editor Components
+function parseMarkdown(md) {
+  if (!md) return '';
+  
+  const lines = md.split('\n');
+  let html = [];
+  let inCodeBlock = false;
+  let codeContent = [];
+  let inList = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    
+    // Code block toggle
+    if (line.trim().startsWith('```')) {
+      if (inCodeBlock) {
+        inCodeBlock = false;
+        const escapedCode = codeContent.join('\n')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        html.push(`<pre style="background: rgba(0,0,0,0.35); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--glass-border); font-family: monospace; font-size: 0.85rem; overflow-x: auto; color: #a5b4fc; margin: 0.5rem 0; line-height: 1.4;"><code>${escapedCode}</code></pre>`);
+        codeContent = [];
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+    
+    if (inCodeBlock) {
+      codeContent.push(line);
+      continue;
+    }
+    
+    // Escape HTML to prevent XSS
+    line = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+      
+    // Horizontal Rule: 3 or more dashes, asterisks, or underscores
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push('<hr style="border: none; border-top: 1px solid var(--text-muted); opacity: 0.25; margin: 1rem 0;" />');
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('# ')) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h1 style="font-size: 1.5rem; font-weight: 800; margin: 1rem 0 0.5rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(2))}</h1>`);
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h2 style="font-size: 1.25rem; font-weight: 800; margin: 0.85rem 0 0.4rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(3))}</h2>`);
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<h3 style="font-size: 1.1rem; font-weight: 800; margin: 0.75rem 0 0.3rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(4))}</h3>`);
+      continue;
+    }
+    
+    // Checkboxes: - [ ] or - [x]
+    const checkboxMatch = line.match(/^-\s+\[([ xX])\]\s+(.*)/);
+    if (checkboxMatch) {
+      if (!inList) {
+        html.push('<ul style="list-style: none; padding-left: 0; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.4rem;">');
+        inList = true;
+      }
+      const checked = checkboxMatch[1].toLowerCase() === 'x';
+      const text = checkboxMatch[2];
+      html.push(`
+        <li style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.95rem; line-height: 1.5; color: var(--text-main);">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid ${checked ? 'var(--success)' : 'var(--text-muted)'}; background: ${checked ? 'var(--success)' : 'transparent'}; margin-top: 3px; flex-shrink: 0;">
+            ${checked ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+          </span>
+          <span style="${checked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${inlineStyles(text)}</span>
+        </li>
+      `);
+      continue;
+    }
+    
+    // Unordered List item: - item or * item
+    const listMatch = line.match(/^[-*]\s+(.*)/);
+    if (listMatch) {
+      if (!inList) {
+        html.push('<ul style="list-style-type: disc; padding-left: 1.25rem; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.25rem;">');
+        inList = true;
+      }
+      html.push(`<li style="font-size: 0.95rem; line-height: 1.5; color: var(--text-main);">${inlineStyles(listMatch[1])}</li>`);
+      continue;
+    }
+    
+    // If we are in a list and the line is empty/plain, close list
+    if (inList && line.trim() === '') {
+      html.push('</ul>');
+      inList = false;
+      continue;
+    }
+    
+    // Normal paragraph or empty line
+    if (line.trim() === '') {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push('<div style="height: 0.5rem;"></div>');
+    } else {
+      if (inList) { html.push('</ul>'); inList = false; }
+      html.push(`<p style="font-size: 0.95rem; line-height: 1.6; margin: 0.5rem 0; color: var(--text-main);">${inlineStyles(line)}</p>`);
+    }
+  }
+  
+  if (inList) {
+    html.push('</ul>');
+  }
+  if (inCodeBlock) {
+    const escapedCode = codeContent.join('\n')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    html.push(`<pre style="background: rgba(0,0,0,0.35); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--glass-border); font-family: monospace; font-size: 0.85rem; overflow-x: auto; color: #a5b4fc; margin: 0.5rem 0; line-height: 1.4;"><code>${escapedCode}</code></pre>`);
+  }
+  
+  return html.join('\n');
+}
+
+function inlineStyles(text) {
+  // Bold: **text**
+  text = text.replace(/\*\*([\s\S]*?)\*\*/g, '<strong style="font-weight: 700; color: var(--text-main);">$1</strong>');
+  
+  // Italic: *text*
+  text = text.replace(/\*([\s\S]*?)\*/g, '<em style="font-style: italic; opacity: 0.9;">$1</em>');
+  
+  // Inline code: `code`
+  text = text.replace(/`([^`]+)`/g, '<code style="background: rgba(255,255,255,0.08); padding: 0.15rem 0.4rem; border-radius: 4px; font-family: monospace; font-size: 0.85rem; color: #f472b6;">$1</code>');
+  
+  return text;
+}
+
+function MarkdownRenderer({ content }) {
+  const html = parseMarkdown(content);
+  return (
+    <div 
+      className="markdown-body" 
+      style={{ 
+        color: 'var(--text-main)', 
+        fontSize: '0.95rem', 
+        lineHeight: 1.6,
+        wordBreak: 'break-word',
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+function MarkdownEditor({ value, onChange, placeholder }) {
+  const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
+  const textareaRef = useRef(null);
+
+  const insertHelper = (syntax, placeholderText = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const before = text.substring(0, start);
+    const after = text.substring(end, text.length);
+    const selected = text.substring(start, end) || placeholderText;
+
+    let replacement = '';
+    if (syntax === 'bold') replacement = `**${selected}**`;
+    else if (syntax === 'italic') replacement = `*${selected}*`;
+    else if (syntax === 'code') replacement = `\`${selected}\``;
+    else if (syntax === 'codeblock') replacement = `\`\`\`\n${selected}\n\`\`\``;
+    else if (syntax === 'h1') replacement = `# ${selected}`;
+    else if (syntax === 'h2') replacement = `## ${selected}`;
+    else if (syntax === 'list') replacement = `- ${selected}`;
+    else if (syntax === 'checkbox') replacement = `- [ ] ${selected}`;
+
+    const newValue = before + replacement + after;
+    
+    onChange({ target: { value: newValue } });
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const newCursorPos = start + replacement.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
+
+  const toolbarButtonStyle = {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid var(--glass-border)',
+    borderRadius: '6px',
+    color: 'var(--text-main)',
+    padding: '0.2rem 0.5rem',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+    minWidth: '24px',
+    textAlign: 'center',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '24px',
+    fontWeight: '600',
+    transition: 'background-color 0.2s'
+  };
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '0.75rem', 
+      width: '100%',
+      background: 'rgba(255, 255, 255, 0.02)',
+      border: '1px solid var(--glass-border)',
+      borderRadius: '16px',
+      overflow: 'hidden',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
+    }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '0.5rem 0.75rem', 
+        borderBottom: '1px solid var(--glass-border)',
+        background: 'rgba(0, 0, 0, 0.2)',
+        flexWrap: 'wrap',
+        gap: '0.5rem'
+      }}>
+        <div style={{ display: 'flex', gap: '0.35rem' }}>
+          <button
+            type="button"
+            onClick={() => setMode('edit')}
+            style={{
+              padding: '0.4rem 0.85rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: mode === 'edit' ? 'var(--primary)' : 'transparent',
+              color: mode === 'edit' ? 'white' : 'var(--text-muted)',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Edit2 size={12} />
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('preview')}
+            style={{
+              padding: '0.4rem 0.85rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: mode === 'preview' ? 'var(--primary)' : 'transparent',
+              color: mode === 'preview' ? 'white' : 'var(--text-muted)',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <BookOpen size={12} />
+            Visualizar
+          </button>
+        </div>
+        
+        {mode === 'edit' && (
+          <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', maxWidth: '100%', paddingBottom: '2px' }}>
+            <button
+              type="button"
+              onClick={() => insertHelper('h1', 'Título')}
+              style={toolbarButtonStyle}
+              title="Título 1"
+            >
+              H1
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('h2', 'Subtítulo')}
+              style={toolbarButtonStyle}
+              title="Título 2"
+            >
+              H2
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('bold', 'negrito')}
+              style={{ ...toolbarButtonStyle, fontWeight: 800 }}
+              title="Negrito"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('italic', 'itálico')}
+              style={{ ...toolbarButtonStyle, fontStyle: 'italic' }}
+              title="Itálico"
+            >
+              I
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('list', 'item')}
+              style={toolbarButtonStyle}
+              title="Lista"
+            >
+              •
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('checkbox', 'tarefa')}
+              style={toolbarButtonStyle}
+              title="Checklist"
+            >
+              [ ]
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('code', 'código')}
+              style={toolbarButtonStyle}
+              title="Código em linha"
+            >
+              {`</>`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '0.75rem', minHeight: '180px', display: 'flex', flexDirection: 'column', background: 'rgba(0, 0, 0, 0.1)' }}>
+        {mode === 'edit' ? (
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder || 'Escreva em Markdown...'}
+            style={{
+              width: '100%',
+              minHeight: '180px',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              resize: 'vertical',
+              color: 'var(--text-main)',
+              fontSize: '0.95rem',
+              lineHeight: 1.6,
+              fontFamily: 'inherit',
+              padding: '0.25rem'
+            }}
+          />
+        ) : (
+          <div 
+            style={{ 
+              width: '100%',
+              minHeight: '180px',
+              overflowY: 'auto',
+              padding: '0.25rem'
+            }}
+          >
+            {value.trim() ? (
+              <MarkdownRenderer content={value} />
+            ) : (
+              <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.95rem' }}>
+                Nada para visualizar ainda.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   const { t, i18n } = useTranslation();
   const [lists, setLists] = useState([]);
@@ -163,7 +549,8 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
         .order('created_at', { ascending: false });
 
       const allData = [...(ownedData || []), ...(sharedData || [])];
-      const uniqueData = Array.from(new Map(allData.map(item => [item.id, item])).values());
+      const filteredData = allData.filter(item => item.description !== '__markdown_notes__');
+      const uniqueData = Array.from(new Map(filteredData.map(item => [item.id, item])).values());
 
       if (uniqueData) {
         setLists(uniqueData);
@@ -482,6 +869,24 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
         </div>
       );
     }
+    if (field.type === 'markdown') {
+      const markdownValue = item.data[field.id] || '';
+      if (!markdownValue) return <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>-</span>;
+      return (
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.01)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: '12px',
+          padding: '0.75rem 1rem',
+          marginTop: '0.25rem',
+          maxHeight: '250px',
+          overflowY: 'auto',
+          boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.05)'
+        }}>
+          <MarkdownRenderer content={markdownValue} />
+        </div>
+      );
+    }
     if (field.type === 'textarea') {
       const textareaValue = item.data[field.id] || '-';
       return <ExpandableText text={textareaValue} />;
@@ -678,8 +1083,20 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('lists.collections')}</h3>
               <button 
                 onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
-                className="icon-btn" 
-                style={{ width: 36, height: 36, background: 'var(--primary)', color: 'white', border: 'none' }}
+                style={{ 
+                  width: 36, 
+                  height: 36, 
+                  background: 'var(--primary)', 
+                  color: 'white', 
+                  border: 'none',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)',
+                  flexShrink: 0
+                }}
                 data-testid="btn-add-collection"
               >
                 <Plus size={18} strokeWidth={3} />
@@ -1127,6 +1544,12 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
                 type="url" value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
                 className="glass-input" placeholder="https://exemplo.com"
+              />
+            ) : field.type === 'markdown' ? (
+              <MarkdownEditor 
+                value={formData[field.id] || ''} 
+                onChange={e => setFormData({...formData, [field.id]: e.target.value})}
+                placeholder="Escreva em Markdown..."
               />
             ) : field.type === 'textarea' ? (
               <textarea 
