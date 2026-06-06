@@ -1421,6 +1421,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
       const { error } = await supabase.from('custom_list_shares').insert([{
         list_id: list.id,
         shared_by: user.id,
+        shared_by_email: user.email?.toLowerCase().trim() || null,
         shared_with_email: email.toLowerCase().trim(),
         permission
       }]);

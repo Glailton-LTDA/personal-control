@@ -206,22 +206,45 @@ export default function MarkdownNotes({ user, refreshKey }) {
   const [sharePermission, setSharePermission] = useState('WRITE');
   const [sharingLoading, setSharingLoading] = useState(false);
 
+  // Note-level sharing states
+  const [isNoteShareModalOpen, setIsNoteShareModalOpen] = useState(false);
+  const [activeNoteShares, setActiveNoteShares] = useState([]);
+  const [noteShareEmail, setNoteShareEmail] = useState('');
+  const [noteSharePermission, setNoteSharePermission] = useState('WRITE');
+  const [noteSharingLoading, setNoteSharingLoading] = useState(false);
+
   // Compute permissions
-  const shareRelation = notesList?.custom_list_shares;
+  const shareRelation = notesList?.markdown_notebook_shares;
   const permission = notesList?.user_id === user.id 
     ? 'WRITE' 
     : (Array.isArray(shareRelation) 
         ? shareRelation[0]?.permission 
         : (shareRelation?.permission || 'READ'));
 
-  const isReadOnly = notesList?.user_id !== user.id && permission === 'READ';
+  const isCollectionReadOnly = notesList?.id?.startsWith('shared-by-email-') || (notesList?.user_id !== user.id && permission === 'READ');
+
+  const getNotePermission = useCallback((note) => {
+    if (!note) return 'READ';
+    if (note.user_id === user.id) return 'WRITE';
+    if (note.permission) return note.permission;
+    // Fallback to collection-level permission
+    const shareRelation = notesList?.markdown_notebook_shares;
+    const nbPermission = notesList?.user_id === user.id 
+      ? 'WRITE' 
+      : (Array.isArray(shareRelation) 
+          ? shareRelation[0]?.permission 
+          : (shareRelation?.permission || 'READ'));
+    return nbPermission;
+  }, [notesList, user?.id]);
+
+  const isCurrentNoteReadOnly = selectedNote ? (getNotePermission(selectedNote) === 'READ') : true;
 
   // Enforce preview-only mode if read-only
   useEffect(() => {
-    if (isReadOnly) {
+    if (isCurrentNoteReadOnly) {
       setEditorMode('preview');
     }
-  }, [isReadOnly]);
+  }, [isCurrentNoteReadOnly]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 900);
@@ -248,93 +271,106 @@ export default function MarkdownNotes({ user, refreshKey }) {
     });
   };
 
-  const fetchNotes = useCallback(async (listId) => {
+  const fetchNotes = useCallback(async (notebookId) => {
     try {
+      if (notebookId.startsWith('shared-by-email-')) {
+        const senderEmail = notebookId.replace('shared-by-email-', '');
+        const userEmail = user?.email?.toLowerCase().trim() || '';
+        
+        const { data: noteShares, error: noteSharesErr } = await supabase
+          .from('markdown_note_shares')
+          .select('note_id, permission, shared_by_email')
+          .eq('shared_with_email', userEmail)
+          .eq('shared_by_email', senderEmail);
+
+        if (noteSharesErr) throw noteSharesErr;
+
+        if (noteShares && noteShares.length > 0) {
+          const sharedNoteIds = noteShares.map(ns => ns.note_id);
+          const { data: sharedNotesData, error: sharedNotesErr } = await supabase
+            .from('markdown_notes')
+            .select('*')
+            .in('id', sharedNoteIds);
+
+          if (sharedNotesErr) throw sharedNotesErr;
+
+          if (sharedNotesData) {
+            const enriched = sharedNotesData.map(note => {
+              const share = noteShares.find(ns => ns.note_id === note.id);
+              return {
+                ...note,
+                permission: share?.permission || 'READ',
+                shared_by_email: share?.shared_by_email || ''
+              };
+            });
+            setNotes(enriched);
+          } else {
+            setNotes([]);
+          }
+        } else {
+          setNotes([]);
+        }
+        return;
+      }
+
       const { data, error } = await supabase
-        .from('custom_list_items')
+        .from('markdown_notes')
         .select('*')
-        .eq('list_id', listId)
+        .eq('notebook_id', notebookId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (data) {
-        const parsedNotes = data.map(item => {
-          let parsedData = { title: t('lists.notes_view.untitled'), content: '' };
-          try {
-            parsedData = JSON.parse(item.content);
-          } catch (e) {
-            console.error('Failed to parse item JSON:', e);
-          }
-          return {
-            id: item.id,
-            created_at: item.created_at,
-            updated_at: item.updated_at || item.created_at,
-            title: parsedData.title || t('lists.notes_view.untitled'),
-            content: parsedData.content || ''
-          };
-        });
-        
-        setNotes(parsedNotes);
+        setNotes(data);
       }
     } catch (err) {
       console.error('Error loading notes:', err);
       toast.error(t('lists.notes_view.error_load'));
     }
-  }, [t]);
+  }, [t, user?.email]);
 
-  // Setup/Fetch the special __markdown_notes__ lists (owned + shared)
+  // Setup/Fetch notebooks (owned + shared + virtual note shares)
   const initializeNotesCollection = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      // 1. Fetch owned collection
+      // 1. Fetch owned notebooks
       const { data: owned, error: fetchErr } = await supabase
-        .from('custom_lists')
+        .from('markdown_notebooks')
         .select('*')
         .eq('user_id', user.id)
-        .eq('description', '__markdown_notes__')
-        .limit(1);
+        .order('created_at', { ascending: true });
 
       if (fetchErr) throw fetchErr;
 
-      let notesCollection = owned && owned.length > 0 ? owned[0] : null;
+      let notebooksList = owned || [];
 
-      if (!notesCollection) {
-        // Create the notes collection if it doesn't exist yet
+      // Create a default notebook if none exists
+      if (notebooksList.length === 0) {
         const { data: created, error: createErr } = await supabase
-          .from('custom_lists')
+          .from('markdown_notebooks')
           .insert([{
             user_id: user.id,
-            name: t('nav.lists'),
-            description: '__markdown_notes__',
-            fields: [
-               { id: 'title', name: 'Título', type: 'text' },
-               { id: 'content', name: 'Conteúdo', type: 'markdown' }
-            ],
-            icon: 'FileText'
+            name: 'Minhas Notas'
           }])
           .select()
           .limit(1);
 
         if (createErr) throw createErr;
-        notesCollection = created && created.length > 0 ? created[0] : null;
-        
-        if (!notesCollection) {
-          throw new Error('Falha ao criar coleção de notas');
+        if (created && created.length > 0) {
+          notebooksList = [created[0]];
+        } else {
+          throw new Error('Falha ao criar caderno de notas padrão');
         }
       }
 
-      // 2. Fetch shared collections — two-step: first get share records (accessible via RLS),
-      //    then fetch the actual lists by ID (avoids RLS blocking cross-user reads via join)
+      // 2. Fetch shared notebooks
       const userEmail = user?.email?.toLowerCase().trim() || '';
-      console.log('[DEBUG-NOTES] userEmail:', userEmail);
       const { data: myShares, error: sharesErr } = await supabase
-        .from('custom_list_shares')
-        .select('list_id, id, permission, shared_with_email')
+        .from('markdown_notebook_shares')
+        .select('notebook_id, id, permission, shared_with_email, shared_by_email')
         .eq('shared_with_email', userEmail);
-
-      console.log('[DEBUG-NOTES] myShares result:', myShares, 'error:', sharesErr);
 
       if (sharesErr) {
         console.error('Error fetching share records:', sharesErr);
@@ -342,47 +378,67 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
       let shared = [];
       if (myShares && myShares.length > 0) {
-        const sharedListIds = myShares.map(s => s.list_id);
-        console.log('[DEBUG-NOTES] sharedListIds:', sharedListIds);
-        const { data: sharedLists, error: sharedListsErr } = await supabase
-          .from('custom_lists')
+        const sharedNotebookIds = myShares.map(s => s.notebook_id);
+        const { data: sharedNotebooks, error: sharedNotebooksErr } = await supabase
+          .from('markdown_notebooks')
           .select('*')
-          .in('id', sharedListIds)
-          .eq('description', '__markdown_notes__');
+          .in('id', sharedNotebookIds);
 
-        console.log('[DEBUG-NOTES] sharedLists result:', sharedLists, 'error:', sharedListsErr);
-
-        if (sharedListsErr) {
-          console.error('Error fetching shared lists:', sharedListsErr);
+        if (sharedNotebooksErr) {
+          console.error('Error fetching shared notebooks:', sharedNotebooksErr);
         }
 
-        if (sharedLists) {
-          // Attach share metadata (permission, etc.) to each list
-          shared = sharedLists.map(list => {
-            const shareRecord = myShares.find(s => s.list_id === list.id);
-            return { ...list, custom_list_shares: shareRecord ? [shareRecord] : [] };
+        if (sharedNotebooks) {
+          shared = sharedNotebooks.map(notebook => {
+            const shareRecord = myShares.find(s => s.notebook_id === notebook.id);
+            return {
+              ...notebook,
+              markdown_notebook_shares: shareRecord ? [shareRecord] : [],
+              shared_by_email: shareRecord?.shared_by_email || null
+            };
           });
         }
       }
 
-      const allCollections = [notesCollection, ...shared];
-      console.log('[DEBUG-NOTES] allCollections:', allCollections);
+      // 2.5 Fetch individually shared notes
+      const { data: noteShares, error: noteSharesErr } = await supabase
+        .from('markdown_note_shares')
+        .select('shared_by_email')
+        .eq('shared_with_email', userEmail);
 
-      const uniqueCollections = Array.from(new Map(allCollections.map(item => [item.id, item])).values());
-      console.log('[DEBUG-NOTES] uniqueCollections:', uniqueCollections);
-      setCollections(uniqueCollections);
-
-      // 3. Determine selected collection
-      let activeCollection = uniqueCollections[0];
-      const savedCollectionId = localStorage.getItem('notes_active_collection_id');
-      if (savedCollectionId) {
-        const found = uniqueCollections.find(c => c.id === savedCollectionId);
-        if (found) activeCollection = found;
+      if (noteSharesErr) {
+        console.error('Error fetching note shares metadata:', noteSharesErr);
       }
 
-      setNotesList(activeCollection);
-      setSelectedCollectionId(activeCollection.id);
-      localStorage.setItem('notes_active_collection_id', activeCollection.id);
+      let virtualNotebooks = [];
+      if (noteShares && noteShares.length > 0) {
+        const uniqueSenders = Array.from(new Set(noteShares.map(ns => ns.shared_by_email.toLowerCase().trim())));
+        uniqueSenders.forEach(senderEmail => {
+          virtualNotebooks.push({
+            id: `shared-by-email-${senderEmail}`,
+            name: `Notas Compartilhadas`,
+            user_id: 'shared-notes-sender',
+            shared_by_email: senderEmail,
+            isVirtual: true
+          });
+        });
+      }
+
+      const allNotebooks = [...notebooksList, ...shared, ...virtualNotebooks];
+      const uniqueNotebooks = Array.from(new Map(allNotebooks.map(item => [item.id, item])).values());
+      setCollections(uniqueNotebooks);
+
+      // 3. Determine selected notebook
+      let activeNotebook = uniqueNotebooks[0];
+      const savedNotebookId = localStorage.getItem('notes_active_collection_id');
+      if (savedNotebookId) {
+        const found = uniqueNotebooks.find(c => c.id === savedNotebookId);
+        if (found) activeNotebook = found;
+      }
+
+      setNotesList(activeNotebook);
+      setSelectedCollectionId(activeNotebook.id);
+      localStorage.setItem('notes_active_collection_id', activeNotebook.id);
 
       // 4. Fetch family members/responsibles mapping
       const { data: responsibles } = await supabase
@@ -393,12 +449,15 @@ export default function MarkdownNotes({ user, refreshKey }) {
       if (responsibles) {
         responsibles.forEach(r => {
           rMap[r.user_id] = r.name || r.email;
+          if (r.email) {
+            rMap[r.email.toLowerCase().trim()] = r.name || r.email;
+          }
         });
       }
       setResponsiblesMap(rMap);
 
-      // 5. Fetch notes for the active collection
-      await fetchNotes(activeCollection.id);
+      // 5. Fetch notes for the active notebook
+      await fetchNotes(activeNotebook.id);
     } catch (err) {
       console.error('Error initializing notes collection:', err);
       toast.error(t('lists.notes_view.error_init'));
@@ -445,7 +504,8 @@ export default function MarkdownNotes({ user, refreshKey }) {
     setSelectedNote(note);
     setEditorTitle(note.title);
     setEditorContent(note.content);
-    setEditorMode(isReadOnly ? 'preview' : 'edit');
+    const noteReadOnly = getNotePermission(note) === 'READ';
+    setEditorMode(noteReadOnly ? 'preview' : 'edit');
     setSaveStatus('saved');
     if (isMobile) {
       setShowSidebar(false);
@@ -454,34 +514,26 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
   // Create new note
   const handleCreateNote = async () => {
-    if (!notesList || isReadOnly) return;
+    if (!notesList || isCollectionReadOnly) return;
     try {
-      const defaultContent = JSON.stringify({ title: t('lists.notes_view.untitled'), content: '' });
       const { data, error } = await supabase
-        .from('custom_list_items')
+        .from('markdown_notes')
         .insert([{
-          list_id: notesList.id,
+          notebook_id: notesList.id,
           user_id: user.id,
-          content: defaultContent
+          title: t('lists.notes_view.untitled'),
+          content: ''
         }])
         .select()
         .limit(1);
 
       if (error) throw error;
 
-      const createdItem = data && data.length > 0 ? data[0] : null;
-      if (!createdItem) throw new Error('Falha ao criar nota no banco');
+      const createdNote = data && data.length > 0 ? data[0] : null;
+      if (!createdNote) throw new Error('Falha ao criar nota no banco');
 
-      const newNote = {
-        id: createdItem.id,
-        created_at: createdItem.created_at,
-        updated_at: createdItem.created_at,
-        title: t('lists.notes_view.untitled'),
-        content: ''
-      };
-
-      setNotes(prev => [newNote, ...prev]);
-      selectNote(newNote);
+      setNotes(prev => [createdNote, ...prev]);
+      selectNote(createdNote);
       toast.success(t('lists.notes_view.note_created'));
     } catch (err) {
       console.error('Error creating note:', err);
@@ -492,12 +544,13 @@ export default function MarkdownNotes({ user, refreshKey }) {
   // Delete note
   const handleDeleteNote = async (id, e) => {
     e.stopPropagation();
-    if (isReadOnly) return;
+    const noteToDelete = notes.find(n => n.id === id);
+    if (!noteToDelete || getNotePermission(noteToDelete) === 'READ') return;
     if (!confirm(t('lists.notes_view.confirm_delete'))) return;
     
     try {
       const { error } = await supabase
-        .from('custom_list_items')
+        .from('markdown_notes')
         .delete()
         .eq('id', id);
 
@@ -517,14 +570,130 @@ export default function MarkdownNotes({ user, refreshKey }) {
     }
   };
 
+  // Create New Notebook
+  const handleCreateNotebook = async () => {
+    const name = prompt(t('lists.notes_view.prompt_notebook_name', 'Digite o nome do novo Bloco de Notas:'));
+    if (!name || !name.trim()) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('markdown_notebooks')
+        .insert([{
+          user_id: user.id,
+          name: name.trim()
+        }])
+        .select()
+        .limit(1);
+
+      if (error) throw error;
+
+      const newNotebook = data && data.length > 0 ? data[0] : null;
+      if (!newNotebook) throw new Error('Erro ao criar bloco de notas');
+
+      toast.success(t('lists.notes_view.notebook_created', 'Bloco de Notas criado com sucesso!'));
+      
+      await initializeNotesCollection();
+      
+      setNotesList(newNotebook);
+      setSelectedCollectionId(newNotebook.id);
+      localStorage.setItem('notes_active_collection_id', newNotebook.id);
+      setSelectedNote(null);
+      setEditorTitle('');
+      setEditorContent('');
+      setSaveStatus('saved');
+      await fetchNotes(newNotebook.id);
+    } catch (err) {
+      console.error('Error creating notebook:', err);
+      toast.error(t('lists.notes_view.error_create_notebook', 'Erro ao criar bloco de notas'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete Notebook
+  const handleDeleteNotebook = async () => {
+    if (!notesList || notesList.user_id !== user.id) return;
+    
+    const ownedCount = collections.filter(c => c.user_id === user.id).length;
+    if (ownedCount <= 1) {
+      toast.error(t('lists.notes_view.cannot_delete_only_notebook', 'Você não pode excluir seu único bloco de notas'));
+      return;
+    }
+
+    if (!confirm(t('lists.notes_view.confirm_delete_notebook', 'Tem certeza que deseja excluir este Bloco de Notas? Todas as notas dentro dele serão excluídas permanentemente.'))) return;
+
+    try {
+      setLoading(true);
+      
+      const { error: sharesErr } = await supabase
+        .from('markdown_notebook_shares')
+        .delete()
+        .eq('notebook_id', notesList.id);
+
+      if (sharesErr) throw sharesErr;
+
+      const { error: notesErr } = await supabase
+        .from('markdown_notes')
+        .delete()
+        .eq('notebook_id', notesList.id);
+
+      if (notesErr) throw notesErr;
+
+      const { error: listErr } = await supabase
+        .from('markdown_notebooks')
+        .delete()
+        .eq('id', notesList.id);
+
+      if (listErr) throw listErr;
+
+      toast.success(t('lists.notes_view.notebook_deleted', 'Bloco de Notas excluído!'));
+      
+      localStorage.removeItem('notes_active_collection_id');
+      await initializeNotesCollection();
+    } catch (err) {
+      console.error('Error deleting notebook:', err);
+      toast.error(t('lists.notes_view.error_delete_notebook', 'Erro ao excluir bloco de notas'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Move note to another notebook
+  const handleMoveNote = async (targetCollectionId) => {
+    if (!selectedNote || selectedNote.user_id !== user.id) return;
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('markdown_notes')
+        .update({ notebook_id: targetCollectionId })
+        .eq('id', selectedNote.id);
+
+      if (error) throw error;
+
+      setNotes(prev => prev.filter(n => n.id !== selectedNote.id));
+      setSelectedNote(null);
+      setEditorTitle('');
+      setEditorContent('');
+      toast.success(t('lists.notes_view.note_moved', 'Nota movida com sucesso!'));
+    } catch (err) {
+      console.error('Error moving note:', err);
+      toast.error(t('lists.notes_view.error_move_note', 'Erro ao mover nota'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Immediate Save API Call
   const triggerSave = async (id, title, content) => {
-    if (isReadOnly) return;
+    if (isCurrentNoteReadOnly) return;
     try {
       const { error } = await supabase
-        .from('custom_list_items')
+        .from('markdown_notes')
         .update({
-          content: JSON.stringify({ title, content })
+          title,
+          content,
+          updated_at: new Date().toISOString()
         })
         .eq('id', id);
 
@@ -541,7 +710,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
   // Auto-save Debouncer
   const queueAutoSave = (noteId, newTitle, newContent) => {
-    if (isReadOnly) return;
+    if (isCurrentNoteReadOnly) return;
     setSaveStatus('saving');
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -553,7 +722,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
   // Handle inputs changes
   const handleTitleChange = (e) => {
-    if (isReadOnly) return;
+    if (isCurrentNoteReadOnly) return;
     const val = e.target.value;
     setEditorTitle(val);
     if (selectedNote) {
@@ -562,7 +731,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
   };
 
   const handleContentChange = (e) => {
-    if (isReadOnly) return;
+    if (isCurrentNoteReadOnly) return;
     const val = e.target.value;
     setEditorContent(val);
     if (selectedNote) {
@@ -571,7 +740,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
   };
 
   const handleToggleCheckbox = (lineIndex) => {
-    if (!selectedNote || isReadOnly) return;
+    if (!selectedNote || isCurrentNoteReadOnly) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -598,7 +767,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
   // Helper buttons inserts
   const insertSyntax = (syntax, placeholderText = '') => {
-    if (isReadOnly) return;
+    if (isCurrentNoteReadOnly) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -641,7 +810,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
       setActiveShares([]);
       return;
     }
-    const { data } = await supabase.from('custom_list_shares').select('*').eq('list_id', notesList.id);
+    const { data } = await supabase.from('markdown_notebook_shares').select('*').eq('notebook_id', notesList.id);
     if (data) setActiveShares(data);
   }, [notesList, user?.id]);
 
@@ -657,9 +826,10 @@ export default function MarkdownNotes({ user, refreshKey }) {
     setSharingLoading(true);
 
     try {
-      const { error } = await supabase.from('custom_list_shares').insert([{
-        list_id: notesList.id,
+      const { error } = await supabase.from('markdown_notebook_shares').insert([{
+        notebook_id: notesList.id,
         shared_by: user.id,
+        shared_by_email: user.email?.toLowerCase().trim() || null,
         shared_with_email: shareEmail.toLowerCase().trim(),
         permission: sharePermission
       }]);
@@ -678,10 +848,61 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
   const handleRevokeShare = async (shareId) => {
     if (!confirm('Revogar acesso?')) return;
-    const { error } = await supabase.from('custom_list_shares').delete().eq('id', shareId);
+    const { error } = await supabase.from('markdown_notebook_shares').delete().eq('id', shareId);
     if (!error) {
       toast.success('Acesso revogado');
       fetchShares();
+    }
+  };
+
+  // Note Share Management Handlers
+  const fetchNoteShares = useCallback(async () => {
+    if (!selectedNote || selectedNote.user_id !== user.id) {
+      setActiveNoteShares([]);
+      return;
+    }
+    const { data } = await supabase.from('markdown_note_shares').select('*').eq('note_id', selectedNote.id);
+    if (data) setActiveNoteShares(data);
+  }, [selectedNote, user?.id]);
+
+  useEffect(() => {
+    if (isNoteShareModalOpen) {
+      fetchNoteShares();
+    }
+  }, [isNoteShareModalOpen, fetchNoteShares]);
+
+  const handleShareNote = async (e) => {
+    e.preventDefault();
+    if (!noteShareEmail || !selectedNote) return;
+    setNoteSharingLoading(true);
+
+    try {
+      const { error } = await supabase.from('markdown_note_shares').insert([{
+        note_id: selectedNote.id,
+        shared_by: user.id,
+        shared_by_email: user.email?.toLowerCase().trim() || null,
+        shared_with_email: noteShareEmail.toLowerCase().trim(),
+        permission: noteSharePermission
+      }]);
+
+      if (error) throw error;
+
+      toast.success(t('lists.notes_view.note_shared_success', 'Nota compartilhada!'));
+      setNoteShareEmail('');
+      fetchNoteShares();
+    } catch (err) {
+      toast.error('Erro ao compartilhar nota: ' + err.message);
+    } finally {
+      setNoteSharingLoading(false);
+    }
+  };
+
+  const handleRevokeNoteShare = async (shareId) => {
+    if (!confirm(t('lists.notes_view.confirm_revoke_note_share', 'Revogar acesso a esta nota?'))) return;
+    const { error } = await supabase.from('markdown_note_shares').delete().eq('id', shareId);
+    if (!error) {
+      toast.success(t('lists.notes_view.note_share_revoked', 'Acesso revogado'));
+      fetchNoteShares();
     }
   };
 
@@ -737,6 +958,8 @@ export default function MarkdownNotes({ user, refreshKey }) {
           background: rgba(0,0,0,0.1);
           height: 100%;
           width: 100%;
+          min-height: 0;
+          overflow: hidden;
         }
         
         .notes-editor-pane {
@@ -745,6 +968,8 @@ export default function MarkdownNotes({ user, refreshKey }) {
           height: 100%;
           background: rgba(0,0,0,0.02);
           width: 100%;
+          min-height: 0;
+          overflow: hidden;
         }
         
         .notes-layout-container.sidebar-collapsed {
@@ -801,29 +1026,41 @@ export default function MarkdownNotes({ user, refreshKey }) {
         {/* LEFT SIDEBAR: Notes List */}
         <div className="notes-sidebar-pane">
           {/* Collection Selector */}
-          {collections.length > 1 && (
-            <div style={{ padding: '1.25rem 1.25rem 0 1.25rem' }}>
+          {collections.length > 0 && (
+            <div style={{ padding: '1.25rem 1.25rem 0 1.25rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <select
                 value={selectedCollectionId}
                 onChange={(e) => handleSwitchCollection(e.target.value)}
                 className="glass-input"
                 style={{
-                  width: '100%',
+                  flex: 1,
                   borderRadius: '10px',
                   fontSize: '0.85rem',
                   fontWeight: 800,
                   color: 'var(--text-main)',
                   background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid var(--glass-border)',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  height: '36px',
+                  padding: '0 0.5rem'
                 }}
               >
                 {collections.map(c => {
                   const isOwner = c.user_id === user.id;
-                  const ownerName = responsiblesMap[c.user_id] || c.user_id;
+                  let ownerName = null;
+                  if (!isOwner) {
+                    const emailKey = c.shared_by_email?.toLowerCase().trim();
+                    if (emailKey && responsiblesMap[emailKey]) {
+                      ownerName = responsiblesMap[emailKey];
+                    } else if (responsiblesMap[c.user_id]) {
+                      ownerName = responsiblesMap[c.user_id];
+                    } else {
+                      ownerName = c.shared_by_email || c.user_id;
+                    }
+                  }
                   const label = isOwner 
-                    ? t('lists.notes_view.my_notes', 'Minhas Notas') 
-                    : `${t('lists.notes_view.shared_notes', 'Notas Compartilhadas')} (${ownerName})`;
+                    ? (c.name === 'Minhas Notas' || c.name === 'Listas' || c.name === 'Notas Markdown' ? t('lists.notes_view.my_notes', 'Minhas Notas') : c.name)
+                    : `${c.name} (${ownerName})`;
                   return (
                     <option key={c.id} value={c.id} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
                       {label}
@@ -831,6 +1068,54 @@ export default function MarkdownNotes({ user, refreshKey }) {
                   );
                 })}
               </select>
+              
+              {!isCollectionReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleCreateNotebook}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: '10px',
+                    color: 'var(--text-main)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    flexShrink: 0
+                  }}
+                  title={t('lists.notes_view.new_notebook', 'Novo Bloco de Notas')}
+                >
+                  <Plus size={16} />
+                </button>
+              )}
+
+              {notesList && notesList.user_id === user.id && collections.filter(c => c.user_id === user.id).length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteNotebook}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '10px',
+                    color: 'var(--danger)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    flexShrink: 0
+                  }}
+                  title={t('lists.notes_view.delete_notebook', 'Excluir Bloco de Notas')}
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
           )}
 
@@ -855,7 +1140,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
               />
             </div>
             
-            {!isReadOnly && (
+            {!isCollectionReadOnly && (
               <button 
                 onClick={handleCreateNote}
                 style={{ 
@@ -901,7 +1186,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
           </div>
 
           {/* Notes List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }} className="custom-scrollbar">
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', WebkitOverflowScrolling: 'touch' }} className="custom-scrollbar">
             {filteredNotes.length === 0 ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 {t('lists.notes_view.no_notes')}
@@ -943,7 +1228,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                         {n.title}
                       </div>
                       
-                      {!isReadOnly && (
+                      {getNotePermission(n) === 'WRITE' && (
                         <button
                           onClick={(e) => handleDeleteNote(n.id, e)}
                           style={{
@@ -1044,7 +1329,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                 <ChevronLeft size={16} style={{ transform: showSidebar ? 'none' : 'rotate(180deg)', transition: 'transform 0.2s' }} />
               </button>
 
-              {selectedNote && !isReadOnly && (
+              {selectedNote && !isCurrentNoteReadOnly && (
                 <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '8px' }}>
                   <button
                     onClick={() => setEditorMode('edit')}
@@ -1110,6 +1395,63 @@ export default function MarkdownNotes({ user, refreshKey }) {
                 >
                   <Users size={16} />
                 </button>
+              )}
+
+              {selectedNote && selectedNote.user_id === user.id && (
+                <button
+                  onClick={() => setIsNoteShareModalOpen(true)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: '8px',
+                    color: 'var(--text-muted)',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    marginLeft: '0.5rem'
+                  }}
+                  title={t('lists.notes_view.share_note', 'Compartilhar Nota')}
+                >
+                  <Users size={16} style={{ color: 'var(--primary)' }} />
+                </button>
+              )}
+
+              {/* Move Note Dropdown */}
+              {selectedNote && selectedNote.user_id === user.id && collections.filter(c => c.user_id === user.id && c.id !== notesList?.id).length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', marginLeft: '0.5rem' }}>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleMoveNote(e.target.value);
+                        e.target.value = ''; // Reset selection
+                      }
+                    }}
+                    className="glass-input"
+                    style={{
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      height: '32px',
+                      padding: '0 0.5rem',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      maxWidth: '120px'
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>{t('lists.notes_view.move_to', 'Mover para...')}</option>
+                    {collections.filter(c => c.user_id === user.id && c.id !== notesList?.id).map(oc => (
+                      <option key={oc.id} value={oc.id} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+                        {oc.name === 'Minhas Notas' || oc.name === 'Listas' || oc.name === 'Notas Markdown' ? t('lists.notes_view.my_notes', 'Minhas Notas') : oc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
 
@@ -1224,10 +1566,12 @@ export default function MarkdownNotes({ user, refreshKey }) {
           ) : (
             <div style={{ 
               flex: 1, 
+              minHeight: 0,
               display: 'flex', 
               flexDirection: 'column', 
               padding: '2rem', 
-              overflowY: 'auto'
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch'
             }} className="custom-scrollbar">
               
               {/* Title input (Simplenote style: borderless, bold, large) */}
@@ -1236,8 +1580,8 @@ export default function MarkdownNotes({ user, refreshKey }) {
                 value={editorTitle}
                 onChange={handleTitleChange}
                 placeholder={t('lists.notes_view.title_placeholder')}
-                readOnly={isReadOnly}
-                disabled={isReadOnly}
+                readOnly={isCurrentNoteReadOnly}
+                disabled={isCurrentNoteReadOnly}
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -1259,8 +1603,8 @@ export default function MarkdownNotes({ user, refreshKey }) {
                   value={editorContent}
                   onChange={handleContentChange}
                   placeholder={t('lists.notes_view.content_placeholder')}
-                  readOnly={isReadOnly}
-                  disabled={isReadOnly}
+                  readOnly={isCurrentNoteReadOnly}
+                  disabled={isCurrentNoteReadOnly}
                   style={{
                     width: '100%',
                     flex: 1,
@@ -1272,19 +1616,19 @@ export default function MarkdownNotes({ user, refreshKey }) {
                     fontSize: `${fontSize}px`,
                     lineHeight: 1.6,
                     fontFamily: 'inherit',
-                    padding: 0
+                    padding: 0,
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch'
                   }}
                 />
               ) : (
-                <div style={{ flex: 1 }}>
-                  {editorContent.trim() ? (
-                    <MarkdownRenderer content={editorContent} onToggleCheckbox={handleToggleCheckbox} fontSize={fontSize} />
-                  ) : (
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '1rem' }}>
-                      {t('lists.notes_view.no_content')}
-                    </div>
-                  )}
-                </div>
+                editorContent.trim() ? (
+                  <MarkdownRenderer content={editorContent} onToggleCheckbox={handleToggleCheckbox} fontSize={fontSize} />
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '1rem' }}>
+                    {t('lists.notes_view.no_content')}
+                  </div>
+                )
               )}
             </div>
           )}
@@ -1382,6 +1726,93 @@ export default function MarkdownNotes({ user, refreshKey }) {
                           <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 800 }}>{s.permission === 'WRITE' ? t('lists.notes_view.read_write', 'Pode Editar').toUpperCase() : t('lists.notes_view.read_only', 'Apenas Visualizar').toUpperCase()}</span>
                         </div>
                         <button onClick={() => handleRevokeShare(s.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }} title="Revogar acesso"><Trash2 size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Share Note Modal Overlay */}
+      <AnimatePresence>
+        {isNoteShareModalOpen && (
+          <div style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            display: 'flex', 
+            alignItems: 'flex-start', 
+            justifyContent: 'center', 
+            zIndex: 1000, 
+            padding: '1.5rem 1rem',
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            overflowY: 'auto'
+          }}>
+            <Motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              style={{
+                width: '100%',
+                maxWidth: '450px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '24px',
+                padding: '2rem',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                position: 'relative',
+                margin: 'auto'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-main)', fontWeight: 800 }}>{t('lists.notes_view.share_note', 'Compartilhar Nota')}</h3>
+                <button onClick={() => setIsNoteShareModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+              </div>
+
+              <form onSubmit={handleShareNote} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('lists.notes_view.share_with_email', 'Compartilhar com E-mail')}</label>
+                  <input 
+                    type="email" 
+                    value={noteShareEmail} 
+                    onChange={e => setNoteShareEmail(e.target.value)} 
+                    className="glass-input" 
+                    required 
+                    placeholder="exemplo@email.com" 
+                    style={{ height: '40px', borderRadius: '10px' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('lists.notes_view.permission', 'Permissão')}</label>
+                  <select 
+                    value={noteSharePermission} 
+                    onChange={e => setNoteSharePermission(e.target.value)} 
+                    className="glass-input"
+                    style={{ borderRadius: '10px', cursor: 'pointer' }}
+                  >
+                    <option value="READ">{t('lists.notes_view.read_only', 'Apenas Visualizar')}</option>
+                    <option value="WRITE">{t('lists.notes_view.read_write', 'Pode Editar')}</option>
+                  </select>
+                </div>
+                <button type="submit" disabled={noteSharingLoading} className="btn-primary" style={{ padding: '0.75rem', borderRadius: '10px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {noteSharingLoading ? <Loader2 className="animate-spin" size={18} /> : t('lists.share', 'Compartilhar')}
+                </button>
+              </form>
+
+              {activeNoteShares.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, opacity: 0.5, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('lists.notes_view.active_shares', 'Acessos Ativos')}</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto' }} className="custom-scrollbar">
+                    {activeNoteShares.map(s => (
+                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: '0.15rem' }}>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{s.shared_with_email}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 800 }}>{s.permission === 'WRITE' ? t('lists.notes_view.read_write', 'Pode Editar').toUpperCase() : t('lists.notes_view.read_only', 'Apenas Visualizar').toUpperCase()}</span>
+                        </div>
+                        <button onClick={() => handleRevokeNoteShare(s.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }} title="Revogar acesso"><Trash2 size={14} /></button>
                       </div>
                     ))}
                   </div>
