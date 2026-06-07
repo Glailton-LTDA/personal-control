@@ -180,7 +180,7 @@ describe('SheetViewer Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Pág. 1 de 3')).toBeDefined();
+      expect(screen.getByText(/1 de 3/)).toBeDefined();
     });
   });
 

@@ -456,6 +456,13 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   return (
     <>
       <style>{`
+        .cifra-main-container {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          height: 100%;
+        }
+
         .cifra-fullscreen {
           position: fixed !important;
           top: 0 !important;
@@ -468,35 +475,147 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           overflow: hidden !important;
         }
 
+        .cifra-fullscreen .cifra-main-container {
+          height: 100% !important;
+          min-height: 0 !important;
+        }
+
+        .cifra-layout-grid {
+          display: grid;
+          grid-template-columns: 1fr 200px;
+          gap: 1.5rem;
+          align-items: start;
+        }
+
+        .cifra-fullscreen .cifra-layout-grid {
+          flex: 1 !important;
+          min-height: 0 !important;
+          height: 100% !important;
+          align-items: stretch !important;
+        }
+
+        .cifra-sheet-card {
+          padding: 2.5rem;
+          overflow-y: auto;
+          font-family: monospace;
+        }
+
+        .cifra-layout-grid:not(.cifra-fullscreen) .cifra-sheet-card {
+          max-height: 65vh !important;
+        }
+
+        .cifra-fullscreen .cifra-sheet-card {
+          height: 100% !important;
+          max-height: none !important;
+        }
+
+        .cifra-sidebar-card {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+
+        .cifra-layout-grid:not(.cifra-fullscreen) .cifra-sidebar-card {
+          max-height: 65vh !important;
+        }
+
+        .cifra-fullscreen .cifra-sidebar-card {
+          height: 100% !important;
+          max-height: none !important;
+        }
+
         @media (max-width: 768px) {
           .cifra-fullscreen {
             padding: 0.5rem !important;
-            gap: 0.75rem !important;
+            gap: 0.5rem !important;
+          }
+
+          .cifra-fullscreen .cifra-info-section {
+            display: none !important;
           }
           
           .cifra-fullscreen .cifra-control-bar {
-            padding: 0.5rem 0.75rem !important;
-            gap: 0.5rem !important;
-            border-radius: 12px !important;
+            padding: 0.35rem 0.5rem !important;
+            gap: 0.35rem !important;
+            border-radius: 8px !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            justify-content: flex-start !important;
+            -webkit-overflow-scrolling: touch;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
           }
 
-          .cifra-fullscreen .cifra-control-bar > div {
-            justify-content: center !important;
-            width: 100% !important;
+          .cifra-fullscreen .cifra-control-bar::-webkit-scrollbar {
+            display: none;
+          }
+
+          .cifra-fullscreen .cifra-controls-wrapper {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 0.25rem !important;
+            width: auto !important;
+          }
+
+          .cifra-fullscreen .cifra-control-bar button,
+          .cifra-fullscreen .cifra-control-bar select {
+            padding: 6px !important;
+            border-radius: 8px !important;
+            font-size: 0.75rem !important;
+            height: auto !important;
+          }
+
+          /* Fullscreen mobile layout container */
+          .cifra-fullscreen .mobile-only {
+            flex: 1 !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+
+          /* Fullscreen mobile scroll card */
+          .cifra-fullscreen .mobile-only > .glass-card {
+            flex: 1 !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            overflow-y: auto !important;
+            max-height: none !important;
+            padding: 1rem !important;
+          }
+
+          .cifra-fullscreen .cifra-floating-scroll {
+            bottom: 1rem !important;
+            right: 1rem !important;
+            padding: 0.5rem !important;
             gap: 0.5rem !important;
-            flex-wrap: wrap !important;
+          }
+
+          .cifra-fullscreen .cifra-floating-scroll input[type="range"] {
+            width: 60px !important;
+          }
+        }
+
+        @media (max-height: 500px) and (max-width: 950px) {
+          .cifra-fullscreen {
+            padding: 0.25rem !important;
+            gap: 0.25rem !important;
+          }
+          
+          .cifra-fullscreen .cifra-control-bar {
+            padding: 0.25rem 0.5rem !important;
+            gap: 0.25rem !important;
           }
         }
       `}</style>
 
       <div 
-        className={isFullScreen ? 'cifra-fullscreen' : ''}
-        style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '1.5rem', 
-          height: '100%'
-        }}
+        className={`cifra-main-container ${isFullScreen ? 'cifra-fullscreen' : ''}`}
       >
         
         {/* ── Control Bar ── */}
@@ -509,7 +628,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
         gap: '1rem'
       }}>
         {/* Info */}
-        <div>
+        <div className="cifra-info-section">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{song?.title}</h2>
             {onEdit && (
@@ -550,11 +669,11 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="cifra-controls-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           
           {/* Instrument select */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>INSTRUMENTO:</span>
+            <span className="hide-mobile" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>INSTRUMENTO:</span>
             <select
               className="select-filter"
               value={instrument}
@@ -570,7 +689,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
 
           {/* Transposição */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', borderRight: '1px solid var(--glass-border)', paddingRight: '1rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.25rem' }}>TOM:</span>
+            <span className="hide-mobile" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.25rem' }}>TOM:</span>
             <button className="icon-btn" onClick={() => setTranspose(prev => prev - 1)} style={{ padding: '6px' }} title="Diminuir Meio Tom">
               <ChevronDown size={14} />
             </button>
@@ -628,7 +747,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
               }}
             >
               {autoScrollSpeed > 0 ? <Pause size={14} /> : <Play size={14} />}
-              <span>{autoScrollSpeed > 0 ? 'Pausar Rolagem' : 'Rolar Tela'}</span>
+              <span className="hide-mobile">{autoScrollSpeed > 0 ? 'Pausar Rolagem' : 'Rolar Tela'}</span>
             </button>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -657,22 +776,13 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
       </div>
 
       {/* ── Main Sheet Body ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 200px',
-        gap: '1.5rem',
-        alignItems: 'start'
-      }} className="hide-mobile">
+      <div className="cifra-layout-grid hide-mobile">
         
         {/* Core Sheet Content */}
         <div
           ref={scrollRef}
-          className="glass-card"
+          className="glass-card cifra-sheet-card"
           style={{
-            padding: '2.5rem',
-            overflowY: 'auto',
-            maxHeight: isFullScreen ? 'calc(100vh - 160px)' : '65vh',
-            fontFamily: 'monospace',
             scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
           }}
         >
@@ -680,14 +790,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
         </div>
 
         {/* Right Sidebar Chord Diagrams */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          maxHeight: isFullScreen ? 'calc(100vh - 160px)' : '65vh',
-          overflowY: 'auto',
-          paddingRight: '4px'
-        }}>
+        <div className="cifra-sidebar-card">
           <h3 style={{
             fontSize: '0.8rem',
             fontWeight: 800,
@@ -747,8 +850,6 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             padding: '1.5rem', 
             fontFamily: 'monospace', 
             overflowX: 'auto',
-            maxHeight: isFullScreen ? 'calc(100vh - 160px)' : 'none',
-            overflowY: isFullScreen ? 'auto' : 'visible',
             scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
           }}
         >
@@ -757,21 +858,24 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
       </div>
 
       {/* Floating Scroll Controls */}
-      <div style={{
-        position: 'fixed',
-        bottom: '2rem',
-        right: '2rem',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        padding: '0.75rem 1rem',
-        background: 'rgba(30, 41, 59, 0.75)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
-        borderRadius: '9999px',
-        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
-      }}>
+      <div 
+        className="cifra-floating-scroll"
+        style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          padding: '0.75rem 1rem',
+          background: 'rgba(30, 41, 59, 0.75)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
+          borderRadius: '9999px',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
+        }}
+      >
         <button
           onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : savedSpeed)}
           style={{
