@@ -1239,6 +1239,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                   <div 
                     key={n.id}
                     onClick={() => selectNote(n)}
+                    className={`note-item-card ${isSelected ? 'selected' : ''}`}
                     style={{
                       padding: '1rem',
                       borderRadius: '16px',
@@ -1686,13 +1687,20 @@ export default function MarkdownNotes({ user, refreshKey }) {
         <style>{`
           .note-delete-btn {
             opacity: 0 !important;
+            transition: opacity 0.2s, transform 0.2s !important;
           }
-          div:hover > div > .note-delete-btn {
+          .note-item-card:hover .note-delete-btn,
+          .note-item-card.selected .note-delete-btn {
             opacity: 0.7 !important;
+          }
+          @media (max-width: 900px) {
+            .note-delete-btn {
+              opacity: 0.7 !important;
+            }
           }
           .note-delete-btn:hover {
             opacity: 1 !important;
-            transform: scale(1.1);
+            transform: scale(1.1) !important;
           }
         `}</style>
       </div>
