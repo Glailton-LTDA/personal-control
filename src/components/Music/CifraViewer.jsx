@@ -454,30 +454,57 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      gap: '1.5rem', 
-      height: '100%',
-      ...(isFullScreen ? {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: 1040,
-        background: 'var(--bg-canvas)',
-        padding: '1.5rem',
-        overflow: 'hidden'
-      } : {})
-    }}>
-      
-      {/* ── Control Bar ── */}
-      <div className="glass-card" style={{
-        padding: '1rem 1.5rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+    <>
+      <style>{`
+        .cifra-fullscreen {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 1040 !important;
+          background: var(--bg-canvas) !important;
+          padding: 1.5rem !important;
+          overflow: hidden !important;
+        }
+
+        @media (max-width: 768px) {
+          .cifra-fullscreen {
+            padding: 0.5rem !important;
+            gap: 0.75rem !important;
+          }
+          
+          .cifra-fullscreen .cifra-control-bar {
+            padding: 0.5rem 0.75rem !important;
+            gap: 0.5rem !important;
+            border-radius: 12px !important;
+          }
+
+          .cifra-fullscreen .cifra-control-bar > div {
+            justify-content: center !important;
+            width: 100% !important;
+            gap: 0.5rem !important;
+            flex-wrap: wrap !important;
+          }
+        }
+      `}</style>
+
+      <div 
+        className={isFullScreen ? 'cifra-fullscreen' : ''}
+        style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '1.5rem', 
+          height: '100%'
+        }}
+      >
+        
+        {/* ── Control Bar ── */}
+        <div className="glass-card cifra-control-bar" style={{
+          padding: '1rem 1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         flexWrap: 'wrap',
         gap: '1rem'
       }}>
@@ -789,5 +816,6 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
       </div>
 
     </div>
+    </>
   );
 }

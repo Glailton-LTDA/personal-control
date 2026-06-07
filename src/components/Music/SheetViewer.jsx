@@ -591,6 +591,53 @@ export default function SheetViewer({ song, user, onEdit = null }) {
           position: relative;
         }
 
+        .sheet-fullscreen {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 1040 !important;
+          background: var(--bg-canvas) !important;
+          padding: 1.5rem !important;
+          overflow: hidden !important;
+          display: grid !important;
+          grid-template-columns: showSidebar ? '1fr 280px' : '1fr';
+          gap: 1.5rem !important;
+        }
+
+        .sheet-fullscreen.sidebar-collapsed {
+          grid-template-columns: 1fr !important;
+        }
+
+        @media (max-width: 900px) {
+          .sheet-fullscreen {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .sheet-fullscreen {
+            padding: 0.5rem !important;
+            gap: 0.75rem !important;
+          }
+          
+          .sheet-fullscreen .sheet-toolbar {
+            padding: 0.5rem 0.75rem !important;
+            gap: 0.5rem !important;
+            border-radius: 12px !important;
+            flex-direction: column !important;
+            align-items: center !important;
+          }
+
+          .sheet-fullscreen .sheet-toolbar-nav,
+          .sheet-fullscreen .sheet-toolbar-buttons {
+            justify-content: center !important;
+            width: 100% !important;
+            flex-wrap: wrap !important;
+          }
+        }
+
         .sheet-sidebar-card {
           padding: 1.5rem;
           display: flex;
@@ -678,21 +725,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
       `}</style>
 
       <div 
-        className={`sheet-layout-container ${showSidebar ? 'sidebar-visible' : 'sidebar-collapsed'}`}
-        style={isFullScreen ? {
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          zIndex: 1040,
-          background: 'var(--bg-canvas)',
-          padding: '1.5rem',
-          overflow: 'hidden',
-          display: 'grid',
-          gridTemplateColumns: showSidebar ? '1fr 280px' : '1fr',
-          gap: '1.5rem'
-        } : {}}
+        className={`sheet-layout-container ${showSidebar ? 'sidebar-visible' : 'sidebar-collapsed'} ${isFullScreen ? 'sheet-fullscreen' : ''}`}
       >
         
         {/* Backdrop overlay for mobile */}
@@ -702,11 +735,11 @@ export default function SheetViewer({ song, user, onEdit = null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
           {/* Toolbar */}
-          <div className="glass-card" style={{ padding: '0.8rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div className="glass-card sheet-toolbar" style={{ padding: '0.8rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             
             {/* Zoom & Page Nav */}
             {pdfDoc && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="sheet-toolbar-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button disabled={currentPage <= 1} className="icon-btn" onClick={() => setCurrentPage(prev => prev - 1)} style={{ padding: '6px' }}><ChevronLeft size={16} /></button>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Pág. {currentPage} de {totalPages}</span>
                 <button disabled={currentPage >= totalPages} className="icon-btn" onClick={() => setCurrentPage(prev => prev + 1)} style={{ padding: '6px' }}><ChevronRight size={16} /></button>
@@ -721,7 +754,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
 
             {/* Annotations Tools */}
             {pdfDoc && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="sheet-toolbar-buttons" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <button
                   className="icon-btn"
                   onClick={() => setActiveTool(prev => prev === 'highlight' ? 'none' : 'highlight')}
@@ -919,11 +952,12 @@ export default function SheetViewer({ song, user, onEdit = null }) {
                     boxShadow: 'var(--shadow)',
                     borderRadius: '8px',
                     overflow: 'hidden',
-                    cursor: activeTool !== 'none' ? 'crosshair' : 'default'
+                    cursor: activeTool !== 'none' ? 'crosshair' : 'default',
+                    maxWidth: '100%'
                   }}
                   onClick={handlePageClick}
                 >
-                  <canvas ref={canvasRef} />
+                  <canvas ref={canvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block' }} />
 
                   {/* Camada SVG de anotações sobreposta */}
                   <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
