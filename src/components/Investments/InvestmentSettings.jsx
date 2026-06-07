@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Edit2, Save, X, Palette, Building2, Layers, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import CurrencySelector from '../Trips/CurrencySelector';
+import { CURRENCIES } from '../../constants/currencies';
 
 export default function InvestmentSettings({ user }) {
   const [activeTab, setActiveTab] = useState('accounts');
@@ -18,7 +20,8 @@ export default function InvestmentSettings({ user }) {
     name: '',
     institution_id: '',
     account_type_id: '',
-    color: '#6366f1'
+    color: '#6366f1',
+    currency: 'BRL'
   });
 
   const [instData, setInstData] = useState({
@@ -62,11 +65,34 @@ export default function InvestmentSettings({ user }) {
   }, [user, fetchData]);
 
   const resetForms = () => {
-    setFormData({ name: '', institution_id: '', account_type_id: '', color: '#6366f1' });
+    setFormData({ name: '', institution_id: '', account_type_id: '', color: '#6366f1', currency: 'BRL' });
     setInstData({ name: '', color: '#6366f1' });
     setTypeData({ name: '' });
     setEditingId(null);
     setIsAdding(false);
+  };
+  
+  const renderFlag = (code, size = '1.2rem') => {
+    const curr = CURRENCIES.find(c => c.code === code);
+    const flag = curr?.flag;
+    if (!flag) return null;
+    if (flag.startsWith('data:image')) {
+      return (
+        <img 
+          src={flag} 
+          alt={code} 
+          style={{ 
+            width: size, 
+            height: size, 
+            objectFit: 'contain',
+            borderRadius: '2px',
+            display: 'inline-block',
+            verticalAlign: 'middle'
+          }} 
+        />
+      );
+    }
+    return <span style={{ fontSize: size }}>{flag}</span>;
   };
 
   async function handleAccountSubmit(e) {
@@ -80,7 +106,8 @@ export default function InvestmentSettings({ user }) {
           name: encrypted.name,
           institution_id: formData.institution_id || null,
           account_type_id: formData.account_type_id || null,
-          color: formData.color
+          color: formData.color,
+          currency: formData.currency || 'BRL'
         })
         .eq('id', editingId);
       
@@ -93,9 +120,11 @@ export default function InvestmentSettings({ user }) {
       const { error } = await supabase
         .from('investment_accounts')
         .insert([{
-          ...encrypted,
+          name: encrypted.name,
           institution_id: formData.institution_id || null,
           account_type_id: formData.account_type_id || null,
+          color: formData.color,
+          currency: formData.currency || 'BRL',
           user_id: user.id
         }]);
       
@@ -226,6 +255,14 @@ export default function InvestmentSettings({ user }) {
                       <label>Cor do Gráfico</label>
                       <input type="color" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} style={{ height: '45px', padding: '4px' }} />
                     </div>
+                    <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                      <label>Moeda da Conta</label>
+                      <CurrencySelector 
+                        selectedCurrencies={formData.currency ? [formData.currency] : ['BRL']} 
+                        onSelectionChange={(newSelection) => setFormData({...formData, currency: newSelection[0] || 'BRL'})}
+                        single={true}
+                      />
+                    </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem' }}>
                     <button type="button" className="btn-cancel" onClick={resetForms}>Cancelar</button>
@@ -317,13 +354,19 @@ export default function InvestmentSettings({ user }) {
                             </p>
                             <h4 style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{acc.name}</h4>
                             
-                            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: acc.color }}></div>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Identificador Visual</span>
+                            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: acc.color }}></div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Identificador Visual</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {renderFlag(acc.currency || 'BRL')}
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{acc.currency || 'BRL'}</span>
+                              </div>
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="action-btn" onClick={() => { setEditingId(acc.id); setFormData({ name: acc.name, institution_id: acc.institution_id || '', account_type_id: acc.account_type_id || '', color: acc.color }); setIsAdding(true); }}><Edit2 size={18} /></button>
+                            <button className="action-btn" onClick={() => { setEditingId(acc.id); setFormData({ name: acc.name, institution_id: acc.institution_id || '', account_type_id: acc.account_type_id || '', color: acc.color, currency: acc.currency || 'BRL' }); setIsAdding(true); }}><Edit2 size={18} /></button>
                             <button className="action-btn danger" onClick={() => deleteItem('investment_accounts', acc.id, 'Conta')}><Trash2 size={18} /></button>
                           </div>
                         </div>

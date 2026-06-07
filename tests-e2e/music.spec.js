@@ -103,4 +103,46 @@ test.describe('Music Module', () => {
     await expect(page.getByRole('heading', { name: 'Nova Música' })).toBeVisible();
     await expect(page.locator('label', { hasText: /Título da Música/i })).toBeVisible();
   });
+
+  test('should open a song and toggle fullscreen mode in CifraViewer', async ({ page }) => {
+    const mockSongs = [
+      {
+        id: 'song-123',
+        title: 'Song Title',
+        artist: 'Song Artist',
+        type: 'cifra',
+        content: 'C                     F\nLyrics line',
+        custom_chords: null,
+      }
+    ];
+
+    await page.route('**/rest/v1/music_songs*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSongs),
+      });
+    });
+
+    await loginAndGoToMusic(page);
+
+    // Click on the song in the table to open CifraViewer
+    await page.getByText('Song Title').click();
+
+    // Verify CifraViewer loaded by checking title
+    await expect(page.getByRole('heading', { name: 'Song Title' })).toBeVisible();
+
+    // Check that Fullscreen button is present and click it
+    const fullscreenBtn = page.getByTitle('Tela Cheia');
+    await expect(fullscreenBtn).toBeVisible();
+    await fullscreenBtn.click();
+
+    // Verify that the title switches to "Sair de Tela Cheia"
+    const exitFullscreenBtn = page.getByTitle('Sair de Tela Cheia');
+    await expect(exitFullscreenBtn).toBeVisible();
+
+    // Exit fullscreen
+    await exitFullscreenBtn.click();
+    await expect(page.getByTitle('Tela Cheia')).toBeVisible();
+  });
 });
