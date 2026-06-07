@@ -148,4 +148,17 @@ Common Lyric Line`
     render(<CifraViewer song={mockSong} />);
     expect(screen.queryByText('Abrir Link de Referência')).toBeNull();
   });
+
+  it('toggles fullscreen mode when clicking the fullscreen button', () => {
+    render(<CifraViewer song={mockSong} />);
+    
+    const fullscreenBtn = screen.getByTitle('Tela Cheia');
+    expect(fullscreenBtn).toBeDefined();
+    
+    fireEvent.click(fullscreenBtn);
+    expect(screen.getByTitle('Sair de Tela Cheia')).toBeDefined();
+    
+    fireEvent.click(screen.getByTitle('Sair de Tela Cheia'));
+    expect(screen.getByTitle('Tela Cheia')).toBeDefined();
+  });
 });

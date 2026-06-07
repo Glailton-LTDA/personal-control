@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Upload, AlertCircle, Bookmark, Highlighter, Type, Save, Trash2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Edit, ExternalLink, Play, Pause, X } from 'lucide-react';
+import { Download, Upload, AlertCircle, Bookmark, Highlighter, Type, Save, Trash2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Edit, ExternalLink, Play, Pause, X, Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -70,6 +70,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
   const [zoom, setZoom] = useState(1.0);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   
   const pdfBlobUrlRef = useRef(null);
   
@@ -111,6 +112,17 @@ export default function SheetViewer({ song, user, onEdit = null }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [autoScrollSpeed]);
+
+  // Efeito para atalho Escape do teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullScreen) {
+        setIsFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   // Salva posição de uma única anotação no Supabase
   const saveSingleAnnotationPosition = async (ann, newX, newY) => {
@@ -665,7 +677,23 @@ export default function SheetViewer({ song, user, onEdit = null }) {
         }
       `}</style>
 
-      <div className={`sheet-layout-container ${showSidebar ? 'sidebar-visible' : 'sidebar-collapsed'}`}>
+      <div 
+        className={`sheet-layout-container ${showSidebar ? 'sidebar-visible' : 'sidebar-collapsed'}`}
+        style={isFullScreen ? {
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: 1040,
+          background: 'var(--bg-canvas)',
+          padding: '1.5rem',
+          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateColumns: showSidebar ? '1fr 280px' : '1fr',
+          gap: '1.5rem'
+        } : {}}
+      >
         
         {/* Backdrop overlay for mobile */}
         <div className="sheet-sidebar-overlay" onClick={() => setShowSidebar(false)} />
@@ -769,6 +797,24 @@ export default function SheetViewer({ song, user, onEdit = null }) {
                 >
                   <Bookmark size={16} />
                 </button>
+
+                <button
+                  className="icon-btn"
+                  onClick={() => setIsFullScreen(prev => !prev)}
+                  style={{
+                    background: isFullScreen ? 'var(--primary)' : 'var(--card-action-bg)',
+                    borderColor: isFullScreen ? 'var(--primary)' : 'var(--glass-border)',
+                    color: isFullScreen ? 'white' : 'var(--text-main)',
+                    padding: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  title={isFullScreen ? 'Sair de Tela Cheia' : 'Tela Cheia'}
+                >
+                  {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
               </div>
             )}
 
@@ -856,7 +902,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
               <div
                 ref={scrollRef}
                 style={{
-                  maxHeight: '72vh',
+                  maxHeight: isFullScreen ? 'calc(100vh - 160px)' : '72vh',
                   overflowY: 'auto',
                   width: '100%',
                   display: 'flex',
@@ -958,7 +1004,12 @@ export default function SheetViewer({ song, user, onEdit = null }) {
         </div>
 
         {/* ── Sidebar Annotations List ── */}
-        <div className="glass-card sheet-sidebar-card">
+        <div 
+          className="glass-card sheet-sidebar-card"
+          style={isFullScreen ? {
+            maxHeight: 'calc(100vh - 3rem)'
+          } : {}}
+        >
           <h3 style={{ 
             fontSize: '0.8rem', 
             fontWeight: 800, 

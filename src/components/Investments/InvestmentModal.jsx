@@ -1,7 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion as Motion } from 'framer-motion';
 import { X, Save, Calendar, Search, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+
+// Currency mask helper: formats a raw numeric string into "1.234,56" pattern
+const formatCurrency = (rawValue) => {
+  let val = String(rawValue).replace(/\D/g, '');
+  if (!val) return '';
+  val = (parseInt(val) / 100).toFixed(2);
+  return val.replace('.', ',');
+};
+
+const parseCurrencyToNumber = (maskedValue) => {
+  if (!maskedValue) return '';
+  return parseFloat(String(maskedValue).replace(',', '.')) || 0;
+};
 
 export default function InvestmentModal({ isOpen, onClose, onRefresh, user, initialData, accounts }) {
   const [formData, setFormData] = useState({
@@ -12,18 +25,56 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
     yield: ''
   });
 
-  // Currency mask helper: formats a raw numeric string into "1.234,56" pattern
-  const formatCurrency = (rawValue) => {
-    let val = String(rawValue).replace(/\D/g, '');
-    if (!val) return '';
-    val = (parseInt(val) / 100).toFixed(2);
-    return val.replace('.', ',');
-  };
+  const fetchPreviousMonthBalance = useCallback(async (accountId, recordDate) => {
+    if (!accountId || !recordDate) return;
+    
+    try {
+      const date = new Date(recordDate + 'T00:00:00');
+      let prevMonth = date.getMonth();
+      let prevYear = date.getFullYear();
+      if (prevMonth === 0) {
+        prevMonth = 12;
+        prevYear -= 1;
+      }
+      
+      const startOfPrev = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+      const lastDayPrev = new Date(prevYear, prevMonth, 0).getDate();
+      const endOfPrev = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(lastDayPrev).padStart(2, '0')}`;
+      
+      const { data, error } = await supabase
+        .from('investment_records')
+        .select('final_balance')
+        .eq('account_id', accountId)
+        .gte('record_date', startOfPrev)
+        .lte('record_date', endOfPrev)
+        .order('record_date', { ascending: false })
+        .limit(1);
+        
+      if (!error && data && data.length > 0) {
+        const prevBalance = data[0].final_balance;
+        if (prevBalance != null) {
+          const formatted = formatCurrency(Math.round(prevBalance * 100).toString());
+          setFormData(prev => ({
+            ...prev,
+            initial_balance: formatted
+          }));
+        }
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          initial_balance: ''
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching previous month balance:', err);
+    }
+  }, []);
 
-  const parseCurrencyToNumber = (maskedValue) => {
-    if (!maskedValue) return '';
-    return parseFloat(String(maskedValue).replace(',', '.')) || 0;
-  };
+  useEffect(() => {
+    if (!initialData && isOpen && formData.account_id && formData.record_date) {
+      fetchPreviousMonthBalance(formData.account_id, formData.record_date);
+    }
+  }, [formData.account_id, formData.record_date, initialData, isOpen, fetchPreviousMonthBalance]);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,6 +137,9 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
   }
 
   if (!isOpen) return null;
+
+  const activeAccount = accounts.find(a => a.id === formData.account_id);
+  const activeCurrency = activeAccount?.currency || 'BRL';
 
   return (
     <div className="modal-overlay" style={{ zIndex: 1050 }}>
@@ -273,10 +327,10 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-              <div className="input-group">
-                  <label>Saldo Inicial (R$)</label>
-                  <input 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="input-group">
+                    <label>Saldo Inicial ({activeCurrency})</label>
+                    <input 
                     type="text" 
                     value={formData.initial_balance}
                     onChange={e => {
@@ -288,7 +342,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                   />
                 </div>
                 <div className="input-group">
-                  <label>Saldo Final (R$)</label>
+                  <label>Saldo Final ({activeCurrency})</label>
                   <input 
                     type="text" 
                     value={formData.final_balance}
@@ -321,7 +375,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Rendimento</span>
                 </div>
                 <span style={{ fontSize: '1.5rem', fontWeight: 800, color: formData.yield >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.yield)}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: activeCurrency }).format(formData.yield)}
                 </span>
               </Motion.div>
 

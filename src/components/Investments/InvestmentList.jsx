@@ -13,6 +13,7 @@ import InvestmentModal from './InvestmentModal';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { motion as Motion } from 'framer-motion';
+import { CURRENCIES } from '../../constants/currencies';
 
 const GRADIENTS = {
   income: 'var(--stat-income)',
@@ -22,7 +23,7 @@ const GRADIENTS = {
   purple: 'rgba(139, 92, 246, 0.1)',
 };
 
-function StatCard({ title, value, icon, color, gradient, loading, showValues, testId }) {
+function StatCard({ title, value, icon, color, gradient, loading, showValues, testId, currency = 'BRL' }) {
   return (
     <div 
       className="glass-card" 
@@ -90,7 +91,7 @@ function StatCard({ title, value, icon, color, gradient, loading, showValues, te
           {loading ? (
             <div className="skeleton" style={{ height: '2rem', width: '80%' }} />
           ) : (
-            <>{showValues ? `R$ ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ ••••••'}</>
+            <>{showValues ? `${currency} ${(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${currency} ••••••`}</>
           )}
         </div>
         {!loading && (
@@ -120,11 +121,15 @@ export default function InvestmentList({ user, showValues = true }) {
     const saved = localStorage.getItem('investment_filter_month');
     return saved ? Number(saved) : new Date().getMonth() + 1;
   });
+  const [activeCurrency, setActiveCurrency] = useState(() => {
+    return localStorage.getItem('investment_active_currency') || 'BRL';
+  });
 
   useEffect(() => {
     localStorage.setItem('investment_filter_year', filterYear);
     localStorage.setItem('investment_filter_month', filterMonth);
-  }, [filterYear, filterMonth]);
+    localStorage.setItem('investment_active_currency', activeCurrency);
+  }, [filterYear, filterMonth, activeCurrency]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
@@ -250,7 +255,10 @@ export default function InvestmentList({ user, showValues = true }) {
       const existingAccountIds = records.map(r => r.account_id);
       
       const recordsToInsert = prevRecords
-        .filter(r => !existingAccountIds.includes(r.account_id))
+        .filter(r => {
+          const acc = accounts.find(a => a.id === r.account_id);
+          return (acc?.currency || 'BRL') === activeCurrency && !existingAccountIds.includes(r.account_id);
+        })
         .map(r => ({
           user_id: user.id,
           account_id: r.account_id,
@@ -293,22 +301,33 @@ export default function InvestmentList({ user, showValues = true }) {
   }
 
   const formatCurrency = (val) => {
-    if (!showValues) return 'R$ ••••••';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    if (!showValues) return `${activeCurrency} ••••••`;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: activeCurrency }).format(val);
   };
 
+  const availableCurrencies = useMemo(() => {
+    const currs = new Set(accounts.map(a => a.currency || 'BRL'));
+    currs.add('BRL');
+    if (activeCurrency) currs.add(activeCurrency);
+    return Array.from(currs);
+  }, [accounts, activeCurrency]);
+
+  const filteredRecords = useMemo(() => {
+    return records.filter(r => (r.investment_accounts?.currency || 'BRL') === activeCurrency);
+  }, [records, activeCurrency]);
+
   // Prepare chart data: Yield per Institution for the selected period
-  const chartData = Object.values(records.reduce((acc, curr) => {
+  const chartData = Object.values(filteredRecords.reduce((acc, curr) => {
     const instName = curr.investment_accounts?.institution?.name || 'Desconhecido';
     if (!acc[instName]) acc[instName] = { name: instName, yield: 0, color: curr.investment_accounts?.color || '#6366f1' };
     acc[instName].yield += Number(curr.yield);
     return acc;
   }, {})).sort((a, b) => b.yield - a.yield);
 
-  const totalYield = records.reduce((sum, r) => sum + Number(r.yield), 0);
+  const totalYield = filteredRecords.reduce((sum, r) => sum + Number(r.yield), 0);
   
   // Fix: Sum only the latest balance for each account in the filtered set
-  const latestBalancesByAccount = records.reduce((acc, r) => {
+  const latestBalancesByAccount = filteredRecords.reduce((acc, r) => {
     const existing = acc[r.account_id];
     if (!existing || new Date(r.record_date) > new Date(existing.record_date)) {
       acc[r.account_id] = r;
@@ -320,14 +339,14 @@ export default function InvestmentList({ user, showValues = true }) {
   // Group records by Institution for the table view
   const groupedRecords = useMemo(() => {
     // First, find latest record per account to get correct balances
-    const latestByAccount = records.reduce((acc, r) => {
+    const latestByAccount = filteredRecords.reduce((acc, r) => {
       if (!acc[r.account_id] || new Date(r.record_date) > new Date(acc[r.account_id].record_date)) {
         acc[r.account_id] = r;
       }
       return acc;
     }, {});
 
-    const groups = records.reduce((acc, record) => {
+    const groups = filteredRecords.reduce((acc, record) => {
       const inst = record.investment_accounts?.institution?.name || 'Outros';
       if (!acc[inst]) {
         acc[inst] = { 
@@ -353,7 +372,7 @@ export default function InvestmentList({ user, showValues = true }) {
     });
     
     return Object.values(groups).sort((a, b) => b.balance - a.balance);
-  }, [records]);
+  }, [filteredRecords]);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -411,7 +430,46 @@ export default function InvestmentList({ user, showValues = true }) {
           <span style={{ fontWeight: 600 }}>Planilha de Investimentos</span>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Moeda Toggle */}
+          {availableCurrencies.length > 1 && (
+            <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--card-action-bg)', padding: '4px', borderRadius: '12px', border: '1px solid var(--glass-border)', marginRight: '0.5rem' }}>
+              {availableCurrencies.map(currCode => {
+                const currData = CURRENCIES.find(c => c.code === currCode);
+                const isSelected = activeCurrency === currCode;
+                return (
+                  <button 
+                    key={currCode}
+                    onClick={() => setActiveCurrency(currCode)} 
+                    style={{
+                      background: isSelected ? 'var(--primary)' : 'transparent',
+                      border: 'none',
+                      color: isSelected ? 'white' : 'var(--text-muted)',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      transition: '0.2s'
+                    }}
+                  >
+                    {currData?.flag && (
+                      <span style={{ fontSize: '1rem', display: 'inline-flex', alignItems: 'center' }}>
+                        {currData.flag.startsWith('data:image') ? (
+                          <img src={currData.flag} alt={currCode} style={{ width: '14px', height: '14px', borderRadius: '2px', objectFit: 'contain' }} />
+                        ) : currData.flag}
+                      </span>
+                    )}
+                    {currCode}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-action-bg)', padding: '4px', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
             <Calendar size={16} style={{ marginLeft: '8px', color: 'var(--text-muted)' }} />
             <select 
@@ -486,6 +544,7 @@ export default function InvestmentList({ user, showValues = true }) {
           color="#10b981" 
           gradient={GRADIENTS.income}
           showValues={showValues} 
+          currency={activeCurrency}
         />
         <StatCard 
           title="Saldo Final Total" 
@@ -495,6 +554,7 @@ export default function InvestmentList({ user, showValues = true }) {
           gradient={GRADIENTS.balance}
           showValues={showValues} 
           testId="summary-card-total-balance-list"
+          currency={activeCurrency}
         />
       </Motion.div>
 

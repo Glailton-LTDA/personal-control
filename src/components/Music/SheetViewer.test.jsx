@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import SheetViewer from './SheetViewer';
 
@@ -27,6 +27,8 @@ vi.mock('lucide-react', () => ({
   Play: () => <div data-testid="play" />,
   Pause: () => <div data-testid="pause" />,
   X: () => <div data-testid="x" />,
+  Maximize2: () => <div data-testid="maximize" />,
+  Minimize2: () => <div data-testid="minimize" />,
 }));
 
 // Mock supabase
@@ -189,5 +191,21 @@ describe('SheetViewer Component', () => {
       expect(screen.getByText('Partitura Local Pendente')).toBeDefined();
       expect(screen.getByText(/Arraste ou clique para selecionar o arquivo PDF original/)).toBeDefined();
     });
+  });
+
+  it('toggles fullscreen mode when clicking the fullscreen button', async () => {
+    render(<SheetViewer song={mockSongCloud} user={{ id: 'user-123' }} />);
+    
+    await waitFor(() => {
+      expect(screen.getByTitle('Tela Cheia')).toBeDefined();
+    });
+    
+    const fullscreenBtn = screen.getByTitle('Tela Cheia');
+    fireEvent.click(fullscreenBtn);
+    
+    expect(screen.getByTitle('Sair de Tela Cheia')).toBeDefined();
+    
+    fireEvent.click(screen.getByTitle('Sair de Tela Cheia'));
+    expect(screen.getByTitle('Tela Cheia')).toBeDefined();
   });
 });

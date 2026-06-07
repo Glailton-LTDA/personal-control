@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, ChevronUp, ChevronDown, Music, RotateCcw, Volume2, Type, Edit, ExternalLink } from 'lucide-react';
+import { Play, Pause, ChevronUp, ChevronDown, Music, RotateCcw, Volume2, Type, Edit, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import ChordDiagram from './ChordDiagram';
 
 // Escala de notas cromáticas para transposição
@@ -143,7 +143,9 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(0); // 0 = Pausado, 1-10 = Velocidade
   const [savedSpeed, setSavedSpeed] = useState(3);
   const [fontSize, setFontSize] = useState(14); // Em pixels
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const scrollRef = useRef(null);
+  const mobileScrollRef = useRef(null);
   const intervalRef = useRef(null);
 
   useEffect(() => {
@@ -164,12 +166,26 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
       if (scrollRef.current) {
         scrollRef.current.scrollTop += 1;
       }
+      if (mobileScrollRef.current) {
+        mobileScrollRef.current.scrollTop += 1;
+      }
     }, delay);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [autoScrollSpeed]);
+
+  // Efeito para atalho Escape do teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullScreen) {
+        setIsFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreen]);
 
   // Transpõe o texto inteiro da cifra e gerencia tags de instrumentos
   const processContent = () => {
@@ -438,7 +454,23 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '1.5rem', 
+      height: '100%',
+      ...(isFullScreen ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 1040,
+        background: 'var(--bg-canvas)',
+        padding: '1.5rem',
+        overflow: 'hidden'
+      } : {})
+    }}>
       
       {/* ── Control Bar ── */}
       <div className="glass-card" style={{
@@ -536,6 +568,23 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             <button className="icon-btn" onClick={() => setFontSize(prev => Math.min(24, prev + 1))} style={{ padding: '6px' }}>+</button>
           </div>
 
+          {/* Tela Cheia */}
+          <div style={{ display: 'flex', alignItems: 'center', borderRight: '1px solid var(--glass-border)', paddingRight: '1rem' }}>
+            <button
+              className="icon-btn"
+              onClick={() => setIsFullScreen(prev => !prev)}
+              style={{
+                padding: '6px',
+                color: isFullScreen ? 'var(--primary)' : 'var(--text-main)',
+                background: isFullScreen ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                borderColor: isFullScreen ? 'var(--primary)' : 'var(--glass-border)'
+              }}
+              title={isFullScreen ? 'Sair de Tela Cheia' : 'Tela Cheia'}
+            >
+              {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </div>
+
           {/* Auto-Scroll */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
@@ -595,7 +644,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           style={{
             padding: '2.5rem',
             overflowY: 'auto',
-            maxHeight: '65vh',
+            maxHeight: isFullScreen ? 'calc(100vh - 160px)' : '65vh',
             fontFamily: 'monospace',
             scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
           }}
@@ -608,7 +657,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           display: 'flex',
           flexDirection: 'column',
           gap: '1rem',
-          maxHeight: '65vh',
+          maxHeight: isFullScreen ? 'calc(100vh - 160px)' : '65vh',
           overflowY: 'auto',
           paddingRight: '4px'
         }}>
@@ -664,7 +713,18 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
 
       {/* ── Mobile Layout (Stacked) ── */}
       <div className="mobile-only" style={{ display: 'none', flexDirection: 'column', gap: '1rem' }}>
-        <div className="glass-card" style={{ padding: '1.5rem', fontFamily: 'monospace', overflowX: 'auto' }}>
+        <div 
+          ref={mobileScrollRef}
+          className="glass-card" 
+          style={{ 
+            padding: '1.5rem', 
+            fontFamily: 'monospace', 
+            overflowX: 'auto',
+            maxHeight: isFullScreen ? 'calc(100vh - 160px)' : 'none',
+            overflowY: isFullScreen ? 'auto' : 'visible',
+            scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
+          }}
+        >
           {processedLines.map((line, idx) => renderLine(line, idx))}
         </div>
       </div>
