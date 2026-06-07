@@ -591,6 +591,139 @@ export default function SheetViewer({ song, user, onEdit = null }) {
           position: relative;
         }
 
+        .sheet-fullscreen {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 1040 !important;
+          background: var(--bg-canvas) !important;
+          padding: 1.5rem !important;
+          overflow: hidden !important;
+          display: grid !important;
+          grid-template-columns: 1fr 280px !important;
+          gap: 1.5rem !important;
+        }
+
+        .sheet-fullscreen.sidebar-collapsed {
+          grid-template-columns: 1fr !important;
+        }
+
+        @media (max-width: 900px) {
+          .sheet-fullscreen {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .sheet-fullscreen {
+            padding: 0.5rem !important;
+            gap: 0.5rem !important;
+          }
+          
+          .sheet-fullscreen .sheet-toolbar {
+            padding: 0.35rem 0.5rem !important;
+            gap: 0.35rem !important;
+            border-radius: 8px !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            justify-content: flex-start !important;
+            -webkit-overflow-scrolling: touch;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+
+          .sheet-fullscreen .sheet-toolbar::-webkit-scrollbar {
+            display: none;
+          }
+
+          .sheet-fullscreen .sheet-toolbar-nav,
+          .sheet-fullscreen .sheet-toolbar-buttons {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            width: auto !important;
+            gap: 0.25rem !important;
+          }
+
+          .sheet-fullscreen .sheet-toolbar button {
+            padding: 6px !important;
+            border-radius: 8px !important;
+            font-size: 0.75rem !important;
+          }
+          
+          .sheet-fullscreen .sheet-floating-scroll {
+            bottom: 1rem !important;
+            right: 1rem !important;
+            padding: 0.5rem !important;
+            gap: 0.5rem !important;
+          }
+
+          .sheet-fullscreen .sheet-floating-scroll input[type="range"] {
+            width: 60px !important;
+          }
+        }
+
+        @media (max-height: 500px) and (max-width: 950px) {
+          .sheet-fullscreen {
+            padding: 0.25rem !important;
+            gap: 0.25rem !important;
+          }
+          
+          .sheet-fullscreen .sheet-toolbar {
+            padding: 0.25rem 0.5rem !important;
+            gap: 0.25rem !important;
+          }
+        }
+
+        /* Flexbox structure to handle height in fullscreen */
+        .sheet-main-view {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          height: 100%;
+          min-height: 0;
+        }
+
+        .sheet-fullscreen .sheet-main-view {
+          height: 100% !important;
+          flex: 1 !important;
+          min-height: 0 !important;
+        }
+
+        .sheet-pdf-wrapper {
+          display: flex;
+          justify-content: center;
+          min-height: 0;
+        }
+
+        .sheet-fullscreen .sheet-pdf-wrapper {
+          flex: 1 !important;
+          min-height: 0 !important;
+          height: 100% !important;
+        }
+
+        .sheet-scroll-container {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: flex-start;
+          overflow-y: auto;
+        }
+
+        .sheet-layout-container:not(.sheet-fullscreen) .sheet-scroll-container {
+          max-height: 72vh !important;
+        }
+
+        .sheet-fullscreen .sheet-scroll-container {
+          height: 100% !important;
+          flex: 1 !important;
+          min-height: 0 !important;
+        }
+
         .sheet-sidebar-card {
           padding: 1.5rem;
           display: flex;
@@ -678,40 +811,26 @@ export default function SheetViewer({ song, user, onEdit = null }) {
       `}</style>
 
       <div 
-        className={`sheet-layout-container ${showSidebar ? 'sidebar-visible' : 'sidebar-collapsed'}`}
-        style={isFullScreen ? {
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          zIndex: 1040,
-          background: 'var(--bg-canvas)',
-          padding: '1.5rem',
-          overflow: 'hidden',
-          display: 'grid',
-          gridTemplateColumns: showSidebar ? '1fr 280px' : '1fr',
-          gap: '1.5rem'
-        } : {}}
+        className={`sheet-layout-container ${showSidebar ? 'sidebar-visible' : 'sidebar-collapsed'} ${isFullScreen ? 'sheet-fullscreen' : ''}`}
       >
         
         {/* Backdrop overlay for mobile */}
         <div className="sheet-sidebar-overlay" onClick={() => setShowSidebar(false)} />
         
         {/* ── Main Canvas View ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="sheet-main-view">
           
           {/* Toolbar */}
-          <div className="glass-card" style={{ padding: '0.8rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div className="glass-card sheet-toolbar" style={{ padding: '0.8rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             
             {/* Zoom & Page Nav */}
             {pdfDoc && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="sheet-toolbar-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button disabled={currentPage <= 1} className="icon-btn" onClick={() => setCurrentPage(prev => prev - 1)} style={{ padding: '6px' }}><ChevronLeft size={16} /></button>
-                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Pág. {currentPage} de {totalPages}</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}><span className="hide-mobile">Pág. </span>{currentPage} de {totalPages}</span>
                 <button disabled={currentPage >= totalPages} className="icon-btn" onClick={() => setCurrentPage(prev => prev + 1)} style={{ padding: '6px' }}><ChevronRight size={16} /></button>
                 
-                <div style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 0.5rem' }} />
+                <div className="hide-mobile" style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 0.5rem' }} />
                 
                 <button className="icon-btn" onClick={() => setZoom(prev => Math.max(0.6, prev - 0.1))} style={{ padding: '6px' }} title="Afastar"><ZoomOut size={16} /></button>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', minWidth: '40px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
@@ -721,7 +840,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
 
             {/* Annotations Tools */}
             {pdfDoc && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="sheet-toolbar-buttons" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <button
                   className="icon-btn"
                   onClick={() => setActiveTool(prev => prev === 'highlight' ? 'none' : 'highlight')}
@@ -769,15 +888,16 @@ export default function SheetViewer({ song, user, onEdit = null }) {
                   <Type size={16} />
                 </button>
 
-                <div style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 0.5rem' }} />
+                <div className="hide-mobile" style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 0.5rem' }} />
 
                 <button
                   className="btn-primary"
                   onClick={handleSaveAnnotations}
                   style={{ padding: '0.4rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
+                  title="Salvar Notas"
                 >
                   <Save size={14} />
-                  <span>Salvar Notas</span>
+                  <span className="hide-mobile">Salvar Notas</span>
                 </button>
 
                 <button
@@ -840,7 +960,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
           </div>
 
           {/* PDF Container & Canvas */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div className="sheet-pdf-wrapper">
             
             {loading && (
               <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', width: '100%' }}>
@@ -901,13 +1021,8 @@ export default function SheetViewer({ song, user, onEdit = null }) {
             {pdfDoc && (
               <div
                 ref={scrollRef}
+                className="sheet-scroll-container"
                 style={{
-                  maxHeight: isFullScreen ? 'calc(100vh - 160px)' : '72vh',
-                  overflowY: 'auto',
-                  width: '100%',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'flex-start',
                   scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
                 }}
               >
@@ -919,11 +1034,12 @@ export default function SheetViewer({ song, user, onEdit = null }) {
                     boxShadow: 'var(--shadow)',
                     borderRadius: '8px',
                     overflow: 'hidden',
-                    cursor: activeTool !== 'none' ? 'crosshair' : 'default'
+                    cursor: activeTool !== 'none' ? 'crosshair' : 'default',
+                    maxWidth: '100%'
                   }}
                   onClick={handlePageClick}
                 >
-                  <canvas ref={canvasRef} />
+                  <canvas ref={canvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block' }} />
 
                   {/* Camada SVG de anotações sobreposta */}
                   <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -1129,21 +1245,24 @@ export default function SheetViewer({ song, user, onEdit = null }) {
       </div>
 
       {/* Floating Scroll Controls */}
-      <div style={{
-        position: 'fixed',
-        bottom: '2rem',
-        right: '2rem',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        padding: '0.75rem 1rem',
-        background: 'rgba(30, 41, 59, 0.75)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
-        borderRadius: '9999px',
-        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
-      }}>
+      <div 
+        className="sheet-floating-scroll"
+        style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          padding: '0.75rem 1rem',
+          background: 'rgba(30, 41, 59, 0.75)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
+          borderRadius: '9999px',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
+        }}
+      >
         <button
           onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : savedSpeed)}
           style={{
