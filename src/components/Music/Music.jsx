@@ -279,30 +279,36 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   const songRouteId = mode.startsWith('song-') ? mode.replace('song-', '') : null;
 
+  // Efeito 1: Carregar música pelo ID da URL — só dispara quando o songRouteId muda
   useEffect(() => {
-    if (songRouteId && user?.id) {
-      if (!selectedSong || selectedSong.id !== songRouteId) {
-        const songInMemory = songs.find(s => s.id === songRouteId);
-        if (songInMemory) {
-          setSelectedSong(songInMemory);
+    if (!songRouteId || !user?.id) return;
+    setSelectedSong(prev => {
+      if (prev && prev.id === songRouteId) return prev; // já está carregada, não re-fetcha
+      // tenta resolver a partir do cache em memória primeiro (sem acessar songs no closure)
+      return prev;
+    });
+    supabase
+      .from('music_songs')
+      .select('*, music_genres(id, name)')
+      .eq('id', songRouteId)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const songObj = Array.isArray(data) ? data[0] : data;
+          setSelectedSong(songObj);
         } else {
-          supabase
-            .from('music_songs')
-            .select('*, music_genres(id, name)')
-            .eq('id', songRouteId)
-            .single()
-            .then(({ data, error }) => {
-              if (!error && data) {
-                const songObj = Array.isArray(data) ? data[0] : data;
-                setSelectedSong(songObj);
-              } else {
-                toast.error('Música não encontrada.');
-                if (navigate) navigate('music-repertoire');
-              }
-            });
+          toast.error('Música não encontrada.');
+          if (navigate) navigate('music-repertoire');
         }
-      }
-    } else if (mode.startsWith('repertoire-letter-')) {
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songRouteId, user?.id]);
+
+  // Efeito 2: Sincronizar os estados de navegação (letra/artista/repertório) com a URL
+  // Depende APENAS de `mode` — não roda novamente quando fetchSongs atualiza songs
+  useEffect(() => {
+    if (songRouteId) return; // modo de música — tratado pelo Efeito 1
+    if (mode.startsWith('repertoire-letter-')) {
       const charCode = mode.replace('repertoire-letter-', '');
       const char = charCode === 'num' ? '#' : charCode.toUpperCase();
       setActiveLetter(char);
@@ -320,7 +326,8 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
       setSelectedArtist('all');
       setSelectedSong(null);
     }
-  }, [mode, songRouteId, user?.id, navigate, selectedSong, songs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const fetchGenres = async () => {
     try {
