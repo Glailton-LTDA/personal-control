@@ -1321,68 +1321,69 @@ export default function SheetViewer({ song, user, onEdit = null }) {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Floating Scroll Controls */}
-      <div 
-        className="sheet-floating-scroll"
-        style={{
-          position: 'fixed',
-          bottom: '2rem',
-          right: '2rem',
-          zIndex: 100,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          padding: '0.75rem 1rem',
-          background: 'rgba(30, 41, 59, 0.75)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
-          borderRadius: '9999px',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
-        }}
-      >
-        <button
-          onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : savedSpeed)}
+        {/* Floating Scroll Controls */}
+        <div 
+          className="sheet-floating-scroll"
           style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            border: 'none',
-            background: autoScrollSpeed > 0 ? 'var(--success, #10b981)' : 'var(--primary, #6366f1)',
-            color: 'white',
+            position: 'fixed',
+            bottom: '2rem',
+            right: '2rem',
+            zIndex: 1090,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-            transition: 'background 0.2s'
+            gap: '0.75rem',
+            padding: '0.75rem 1rem',
+            background: 'rgba(30, 41, 59, 0.75)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.1))',
+            borderRadius: '9999px',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
           }}
-          title={autoScrollSpeed > 0 ? 'Pausar Rolagem' : 'Iniciar Rolagem'}
         >
-          {autoScrollSpeed > 0 ? <Pause size={18} /> : <Play size={18} />}
-        </button>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '0.75rem' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.6))' }}>VEL:</span>
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
-            onChange={e => {
-              const val = parseInt(e.target.value);
-              setSavedSpeed(val);
-              if (autoScrollSpeed > 0) {
-                setAutoScrollSpeed(val);
-              }
+          <button
+            onClick={() => setAutoScrollSpeed(prev => prev > 0 ? 0 : savedSpeed)}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              border: 'none',
+              background: autoScrollSpeed > 0 ? 'var(--success, #10b981)' : 'var(--primary, #6366f1)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+              transition: 'background 0.2s'
             }}
-            style={{ width: '80px', accentColor: 'var(--primary, #6366f1)', cursor: 'pointer' }}
-          />
-          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main, white)', width: '15px', textAlign: 'center' }}>
-            {autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
-          </span>
+            title={autoScrollSpeed > 0 ? 'Pausar Rolagem' : 'Iniciar Rolagem'}
+          >
+            {autoScrollSpeed > 0 ? <Pause size={18} /> : <Play size={18} />}
+          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.6))' }}>VEL:</span>
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
+              onChange={e => {
+                const val = parseInt(e.target.value);
+                setSavedSpeed(val);
+                if (autoScrollSpeed > 0) {
+                  setAutoScrollSpeed(val);
+                }
+              }}
+              style={{ width: '80px', accentColor: 'var(--primary, #6366f1)', cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main, white)', width: '15px', textAlign: 'center' }}>
+              {autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
+            </span>
+          </div>
         </div>
+
       </div>
 
     </>

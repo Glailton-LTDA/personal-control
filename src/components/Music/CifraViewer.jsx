@@ -861,6 +861,57 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
         >
           {processedLines.map((line, idx) => renderLine(line, idx))}
         </div>
+
+        {/* Mobile Chord Diagrams */}
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <h3 style={{
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            margin: 0
+          }}>
+            Acordes da Música
+          </h3>
+          <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+            {uniqueChords.length === 0 ? (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhum acorde detectado.</span>
+            ) : (
+              uniqueChords.map(c => {
+                const chordKey = c.toUpperCase();
+                const chordDetails = customChords[instrument]?.[chordKey] || DEFAULT_CHORDS[instrument]?.[chordKey];
+
+                return (
+                  <div key={`mobile-diagram-${c}`} style={{ flexShrink: 0 }}>
+                    {chordDetails ? (
+                      <ChordDiagram
+                        name={c}
+                        stringsCount={instrument === 'violao' ? 6 : 4}
+                        frets={chordDetails.frets}
+                        fingers={chordDetails.fingers}
+                        startFret={chordDetails.startFret || 1}
+                      />
+                    ) : (
+                      <div style={{
+                        padding: '1rem',
+                        border: '1px dashed var(--glass-border)',
+                        borderRadius: '12px',
+                        textAlign: 'center',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-muted)',
+                        minWidth: '120px'
+                      }}>
+                        <Music size={16} style={{ margin: '0 auto 0.5rem' }} />
+                        <b>{c}</b>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Floating Scroll Controls */}
@@ -870,7 +921,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           position: 'fixed',
           bottom: '2rem',
           right: '2rem',
-          zIndex: 100,
+          zIndex: 1090,
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
