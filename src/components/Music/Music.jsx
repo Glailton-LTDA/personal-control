@@ -18,7 +18,12 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   // Sub-aba
   const [subTab, setSubTab] = useState('repertoire'); // 'repertoire' | 'setlists'
-  const [selectedArtist, setSelectedArtist] = useState('all');
+  const [selectedArtist, setSelectedArtist] = useState(() => {
+    if (mode && mode.startsWith('repertoire-artist-')) {
+      return decodeURIComponent(mode.replace('repertoire-artist-', ''));
+    }
+    return 'all';
+  });
   const [selectedGenre, setSelectedGenre] = useState('all');
   const [genres, setGenres] = useState([]);
 
@@ -40,7 +45,13 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   const [pageInput, setPageInput] = useState('');
 
   // Estados de navegação hierárquica A-Z
-  const [activeLetter, setActiveLetter] = useState(null);
+  const [activeLetter, setActiveLetter] = useState(() => {
+    if (mode && mode.startsWith('repertoire-letter-')) {
+      const charCode = mode.replace('repertoire-letter-', '');
+      return charCode === 'num' ? '#' : charCode.toUpperCase();
+    }
+    return null;
+  });
   const [artistsList, setArtistsList] = useState([]);
   const [artistsLoading, setArtistsLoading] = useState(false);
 
@@ -185,7 +196,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   useEffect(() => {
     fetchSongs();
-  }, [fetchSongs, refreshKey, mode]);
+  }, [fetchSongs, refreshKey]);
 
   const fetchArtistsByLetter = useCallback(async (letter) => {
     if (!user?.id || !letter) return;
