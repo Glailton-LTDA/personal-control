@@ -53,6 +53,7 @@ import MarkdownNotes from './CustomLists/MarkdownNotes';
 import Music from './Music/Music';
 import Launchpad from './Launchpad';
 import Footer from './Footer';
+import { useRouter } from '../hooks/useRouter';
 
 const defaultMenuItems = [
   { id: 'launchpad', icon: LayoutGrid, key: 'launchpad' },
@@ -101,11 +102,21 @@ const moduleSubItems = {
   ]
 };
 
+const getModuleInitialTab = (id) => {
+  if (id === 'launchpad') return 'launchpad';
+  if (id === 'finances') return 'finances-dashboard';
+  if (id === 'cars') return 'cars-list';
+  if (id === 'investments') return 'investments-dashboard';
+  if (id === 'trips') return 'trips-list';
+  if (id === 'lists') return 'lists-manager';
+  if (id === 'music') return 'music-repertoire';
+  if (id === 'settings') return 'settings-general';
+  return id;
+};
+
 export default function Dashboard({ user }) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('personal-control-active-tab') || 'launchpad';
-  });
+  const { currentPath: activeTab, navigate: routerNavigate } = useRouter('launchpad');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -148,6 +159,18 @@ export default function Dashboard({ user }) {
   const drawerRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1100);
 
+  const navigate = useCallback((tab) => {
+    routerNavigate(tab);
+    setDrawerOpen(false);
+  }, [routerNavigate]);
+
+  const handleNavClick = useCallback((e, tab) => {
+    if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      navigate(tab);
+    }
+  }, [navigate]);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1100);
     window.addEventListener('resize', handleResize);
@@ -159,10 +182,6 @@ export default function Dashboard({ user }) {
   useEffect(() => {
     localStorage.setItem('personal-control-menu-order', JSON.stringify(menuOrder));
   }, [menuOrder]);
-
-  useEffect(() => {
-    localStorage.setItem('personal-control-active-tab', activeTab);
-  }, [activeTab]);
 
   useEffect(() => {
     localStorage.setItem('personal-control-show-values', showValues);
@@ -247,12 +266,7 @@ export default function Dashboard({ user }) {
       window.removeEventListener('navigate-to-itinerary', handleNavigate);
       window.removeEventListener('set-active-tab', handleSetTab);
     };
-  }, []);
-
-  const navigate = (tab) => {
-    setActiveTab(tab);
-    setDrawerOpen(false);
-  };
+  }, [navigate]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
@@ -274,7 +288,11 @@ export default function Dashboard({ user }) {
         zIndex: 100
       }}>
         {/* Brand/Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onClick={() => navigate('launchpad')}>
+        <a
+          href="/launchpad"
+          onClick={(e) => handleNavClick(e, 'launchpad')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', textDecoration: 'none' }}
+        >
           <div style={{ width: 38, height: 38, background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px var(--primary)' }}>
             <LayoutGrid color="white" size={24} />
           </div>
@@ -283,26 +301,19 @@ export default function Dashboard({ user }) {
               Personal Control
             </span>
           )}
-        </div>
+        </a>
 
         {/* Primary Nav */}
         <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
           {menuItems.map(item => {
             const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+            const targetTab = getModuleInitialTab(item.id);
             return (
-              <button
+              <a
                 key={item.id}
+                href={`/${targetTab}`}
                 data-testid={`sidebar-group-${item.id}`}
-                onClick={() => {
-                  if (item.id === 'launchpad') navigate('launchpad');
-                  else if (item.id === 'finances') navigate('finances-dashboard');
-                  else if (item.id === 'cars') navigate('cars-list');
-                  else if (item.id === 'investments') navigate('investments-dashboard');
-                  else if (item.id === 'trips') navigate('trips-list');
-                  else if (item.id === 'lists') navigate('lists-manager');
-                  else if (item.id === 'music') navigate('music-repertoire');
-                  else if (item.id === 'settings') navigate('settings-general');
-                }}
+                onClick={(e) => handleNavClick(e, targetTab)}
                 style={{
                   padding: '0.5rem 1rem',
                   background: isActive ? 'var(--primary)' : 'transparent',
@@ -316,12 +327,13 @@ export default function Dashboard({ user }) {
                   alignItems: 'center',
                   gap: '0.6rem',
                   transition: 'all 0.2s',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  textDecoration: 'none'
                 }}
               >
                 <item.icon size={18} />
                 <span className="hide-mobile">{t(`nav.${item.id}`)}</span>
-              </button>
+              </a>
             );
           })}
         </nav>
@@ -392,10 +404,11 @@ export default function Dashboard({ user }) {
             return (
               <div style={{ display: 'flex', gap: '2rem' }}>
                 {subItems.map(item => (
-                  <button
+                  <a
                     key={item.tab}
+                    href={`/${item.tab}`}
                     data-testid={`sidebar-sub-item-${item.tab}`}
-                    onClick={() => setActiveTab(item.tab)}
+                    onClick={(e) => handleNavClick(e, item.tab)}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -409,12 +422,13 @@ export default function Dashboard({ user }) {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      textDecoration: 'none'
                     }}
                   >
                     <item.icon size={16} strokeWidth={activeTab === item.tab ? 2.5 : 2} />
                     {t(`nav.sub.${currentModule}.${item.key}`)}
-                  </button>
+                  </a>
                 ))}
               </div>
             );
@@ -479,7 +493,7 @@ export default function Dashboard({ user }) {
               )
             )}
             {activeTab.startsWith('music') && (
-              <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} />
+              <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} navigate={navigate} />
             )}
 
             {/* Fallback for development */}

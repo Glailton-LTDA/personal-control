@@ -24,6 +24,18 @@ const moduleData = {
   settings: { color: '#94a3b8', icon: Settings },
 };
 
+const getModuleInitialTab = (id) => {
+  if (id === 'launchpad') return 'launchpad';
+  if (id === 'finances') return 'finances-dashboard';
+  if (id === 'cars') return 'cars-list';
+  if (id === 'investments') return 'investments-dashboard';
+  if (id === 'trips') return 'trips-list';
+  if (id === 'lists') return 'lists-manager';
+  if (id === 'music') return 'music-repertoire';
+  if (id === 'settings') return 'settings-general';
+  return id;
+};
+
 export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
   const { t, i18n } = useTranslation();
   const container = {
@@ -85,10 +97,12 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
         {menuItems.map((menuItem) => {
           const details = moduleData[menuItem.id] || { color: 'var(--primary)', icon: menuItem.icon };
           const Icon = details.icon;
+          const targetTab = getModuleInitialTab(menuItem.id);
 
           return (
-            <Motion.button
+            <Motion.a
               key={menuItem.id}
+              href={`/${targetTab}`}
               data-testid={`launchpad-item-${menuItem.id}`}
               variants={item}
               whileHover={{ 
@@ -97,15 +111,11 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
                 borderColor: details.color 
               }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                if (menuItem.id === 'finances') onNavigate('finances-dashboard');
-                else if (menuItem.id === 'cars') onNavigate('cars-list');
-                else if (menuItem.id === 'investments') onNavigate('investments-dashboard');
-                else if (menuItem.id === 'trips') onNavigate('trips-list');
-                else if (menuItem.id === 'lists') onNavigate('lists-manager');
-                else if (menuItem.id === 'music') onNavigate('music-repertoire');
-                else if (menuItem.id === 'settings') onNavigate('settings-general');
-                else onNavigate(menuItem.id);
+              onClick={(e) => {
+                if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                  e.preventDefault();
+                  onNavigate(targetTab);
+                }
               }}
               className="glass-card"
               style={{ 
@@ -161,7 +171,7 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
                   {t(`nav.${menuItem.id}_desc`)}
                 </p>
               </div>
-            </Motion.button>
+            </Motion.a>
           );
         })}
 

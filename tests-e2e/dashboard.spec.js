@@ -117,7 +117,7 @@ test.describe('Autenticação e Dashboard', () => {
     await page.waitForLoadState('networkidle');
 
     // Alterna para o submenu de Transações
-    await page.click('button:has-text("Transações")');
+    await page.click('a:has-text("Transações")');
     await page.waitForLoadState('networkidle');
 
     // Por padrão a aba DESPESA está ativa.

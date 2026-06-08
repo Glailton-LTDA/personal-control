@@ -10,7 +10,7 @@ import SongModal from './SongModal';
 import ChordSettings from './ChordSettings';
 import Setlists from './Setlists';
 
-export default function Music({ user, refreshKey, mode = 'repertoire' }) {
+export default function Music({ user, refreshKey, mode = 'repertoire', navigate }) {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -212,33 +212,104 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
   }, [activeLetter, refreshKey, fetchArtistsByLetter]);
 
   const handleLetterClick = (letter) => {
-    setActiveLetter(letter);
-    setSelectedArtist('all');
-    setPage(0);
-    setSearch('');
+    const charCode = letter === '#' ? 'num' : letter.toLowerCase();
+    if (navigate) {
+      navigate(`music-repertoire-letter-${charCode}`);
+    } else {
+      setActiveLetter(letter);
+      setSelectedArtist('all');
+      setPage(0);
+      setSearch('');
+    }
   };
 
   const handleArtistClick = (artist) => {
-    setSelectedArtist(artist);
-    setPage(0);
+    if (navigate) {
+      navigate(`music-repertoire-artist-${encodeURIComponent(artist)}`);
+    } else {
+      setSelectedArtist(artist);
+      setPage(0);
+    }
   };
 
   const clearLetterFilter = () => {
-    setActiveLetter(null);
-    setSelectedArtist('all');
-    setPage(0);
+    if (navigate) {
+      navigate('music-repertoire');
+    } else {
+      setActiveLetter(null);
+      setSelectedArtist('all');
+      setPage(0);
+    }
   };
 
   const goBackToArtists = () => {
-    setSelectedArtist('all');
-    setPage(0);
+    if (navigate) {
+      if (activeLetter) {
+        const charCode = activeLetter === '#' ? 'num' : activeLetter.toLowerCase();
+        navigate(`music-repertoire-letter-${charCode}`);
+      } else {
+        navigate('music-repertoire');
+      }
+    } else {
+      setSelectedArtist('all');
+      setPage(0);
+    }
   };
 
   const resetNavigation = () => {
-    setActiveLetter(null);
-    setSelectedArtist('all');
-    setPage(0);
+    if (navigate) {
+      navigate('music-repertoire');
+    } else {
+      setActiveLetter(null);
+      setSelectedArtist('all');
+      setPage(0);
+    }
   };
+
+  const songRouteId = mode.startsWith('song-') ? mode.replace('song-', '') : null;
+
+  useEffect(() => {
+    if (songRouteId && user?.id) {
+      if (!selectedSong || selectedSong.id !== songRouteId) {
+        const songInMemory = songs.find(s => s.id === songRouteId);
+        if (songInMemory) {
+          setSelectedSong(songInMemory);
+        } else {
+          supabase
+            .from('music_songs')
+            .select('*, music_genres(id, name)')
+            .eq('id', songRouteId)
+            .single()
+            .then(({ data, error }) => {
+              if (!error && data) {
+                const songObj = Array.isArray(data) ? data[0] : data;
+                setSelectedSong(songObj);
+              } else {
+                toast.error('Música não encontrada.');
+                if (navigate) navigate('music-repertoire');
+              }
+            });
+        }
+      }
+    } else if (mode.startsWith('repertoire-letter-')) {
+      const charCode = mode.replace('repertoire-letter-', '');
+      const char = charCode === 'num' ? '#' : charCode.toUpperCase();
+      setActiveLetter(char);
+      setSelectedArtist('all');
+      setPage(0);
+      setSearch('');
+      setSelectedSong(null);
+    } else if (mode.startsWith('repertoire-artist-')) {
+      const artist = decodeURIComponent(mode.replace('repertoire-artist-', ''));
+      setSelectedArtist(artist);
+      setPage(0);
+      setSelectedSong(null);
+    } else if (mode === 'repertoire') {
+      setActiveLetter(null);
+      setSelectedArtist('all');
+      setSelectedSong(null);
+    }
+  }, [mode, songRouteId, user?.id, navigate, selectedSong, songs]);
 
   const fetchGenres = async () => {
     try {
@@ -391,14 +462,19 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
         {/* Back header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
+          <a
+            href="/music-repertoire"
             className="icon-btn"
-            onClick={() => setSelectedSong(null)}
-            style={{ padding: '8px' }}
+            onClick={(e) => {
+              e.preventDefault();
+              if (navigate) navigate('music-repertoire');
+              else setSelectedSong(null);
+            }}
+            style={{ padding: '8px', display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}
             title="Voltar ao Repertório"
           >
             <ChevronLeft size={18} />
-          </button>
+          </a>
           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>
             REPERTÓRIO / {selectedSong.type.toUpperCase()}
           </span>
@@ -470,7 +546,13 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
       </div>
 
       {subTab === 'setlists' ? (
-        <Setlists user={user} onSelectSong={setSelectedSong} />
+        <Setlists
+          user={user}
+          onSelectSong={(song) => {
+            if (navigate) navigate(`music-song-${song.id}`);
+            else setSelectedSong(song);
+          }}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
           
@@ -531,32 +613,42 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
 
           {/* Barra de Filtro Alfabético */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', background: 'rgba(255, 255, 255, 0.01)', padding: '0.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '#'].map((char) => (
-              <button
-                key={char}
-                onClick={() => handleLetterClick(char)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  background: activeLetter === char ? 'var(--primary)' : 'transparent',
-                  color: activeLetter === char ? '#ffffff' : 'var(--text-muted)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                className="alphabet-btn"
-                onMouseEnter={e => { if (activeLetter !== char) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
-                onMouseLeave={e => { if (activeLetter !== char) e.currentTarget.style.background = 'transparent'; }}
-              >
-                {char}
-              </button>
-            ))}
+            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '#'].map((char) => {
+              const targetPath = `music-repertoire-letter-${char === '#' ? 'num' : char.toLowerCase()}`;
+              return (
+                <a
+                  key={char}
+                  href={`/${targetPath}`}
+                  onClick={(e) => {
+                    if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                      e.preventDefault();
+                      handleLetterClick(char);
+                    }
+                  }}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    background: activeLetter === char ? 'var(--primary)' : 'transparent',
+                    color: activeLetter === char ? '#ffffff' : 'var(--text-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textDecoration: 'none'
+                  }}
+                  className="alphabet-btn"
+                  onMouseEnter={e => { if (activeLetter !== char) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
+                  onMouseLeave={e => { if (activeLetter !== char) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {char}
+                </a>
+              );
+            })}
             {activeLetter && (
               <button
                 onClick={clearLetterFilter}
@@ -794,9 +886,15 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem' }}>
                 {artistsList.map(({ artist, song_count }) => (
-                  <div
+                  <a
                     key={artist}
-                    onClick={() => handleArtistClick(artist)}
+                    href={`/music-repertoire-artist-${encodeURIComponent(artist)}`}
+                    onClick={(e) => {
+                      if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                        e.preventDefault();
+                        handleArtistClick(artist);
+                      }
+                    }}
                     className="glass-card"
                     style={{
                       padding: '1.5rem',
@@ -807,7 +905,9 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
                       textAlign: 'center',
                       cursor: 'pointer',
                       border: '1px solid var(--glass-border)',
-                      transition: 'all 0.2s'
+                      transition: 'all 0.2s',
+                      textDecoration: 'none',
+                      color: 'inherit'
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.transform = 'translateY(-3px)';
@@ -839,7 +939,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
                       {song_count} {song_count === 1 ? 'música' : 'músicas'}
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             )
@@ -890,7 +990,14 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
                         return (
                           <tr
                             key={song.id}
-                            onClick={() => setSelectedSong(song)}
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey) {
+                                return;
+                              }
+                              e.preventDefault();
+                              if (navigate) navigate(`music-song-${song.id}`);
+                              else setSelectedSong(song);
+                            }}
                             className="table-row-hover"
                             style={{ cursor: 'pointer' }}
                           >
@@ -917,7 +1024,19 @@ export default function Music({ user, refreshKey, mode = 'repertoire' }) {
                                 <span style={{ color: isSheet ? 'var(--success)' : 'var(--primary)', display: 'flex', alignItems: 'center' }}>
                                   {isSheet ? <FileText size={16} /> : <MusicIcon size={16} />}
                                 </span>
-                                <span>{song.title}</span>
+                                <a
+                                  href={`/music-song-${song.id}`}
+                                  onClick={(e) => {
+                                    if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                                      e.preventDefault();
+                                      if (navigate) navigate(`music-song-${song.id}`);
+                                      else setSelectedSong(song);
+                                    }
+                                  }}
+                                  style={{ color: 'inherit', textDecoration: 'none' }}
+                                >
+                                  {song.title}
+                                </a>
                               </div>
                             </td>
                             <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
