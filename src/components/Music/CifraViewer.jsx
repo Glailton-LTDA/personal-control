@@ -461,6 +461,8 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           flex-direction: column;
           gap: 1.5rem;
           height: 100%;
+          min-width: 0;
+          width: 100%;
         }
 
         .cifra-fullscreen {
@@ -532,11 +534,11 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             gap: 0.5rem !important;
           }
 
-          .cifra-fullscreen .cifra-info-section {
+          .cifra-info-section {
             display: none !important;
           }
           
-          .cifra-fullscreen .cifra-control-bar {
+          .cifra-control-bar {
             padding: 0.35rem 0.5rem !important;
             gap: 0.35rem !important;
             border-radius: 8px !important;
@@ -544,16 +546,19 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
             justify-content: flex-start !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
             -webkit-overflow-scrolling: touch;
             -ms-overflow-style: none;
             scrollbar-width: none;
           }
 
-          .cifra-fullscreen .cifra-control-bar::-webkit-scrollbar {
+          .cifra-control-bar::-webkit-scrollbar {
             display: none;
           }
 
-          .cifra-fullscreen .cifra-controls-wrapper {
+          .cifra-controls-wrapper {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -562,12 +567,13 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             width: auto !important;
           }
 
-          .cifra-fullscreen .cifra-control-bar button,
-          .cifra-fullscreen .cifra-control-bar select {
+          .cifra-control-bar button,
+          .cifra-control-bar select {
             padding: 6px !important;
             border-radius: 8px !important;
             font-size: 0.75rem !important;
             height: auto !important;
+            flex-shrink: 0 !important;
           }
 
           /* Fullscreen mobile layout container */
