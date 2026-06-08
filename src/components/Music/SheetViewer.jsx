@@ -68,6 +68,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [zoom, setZoom] = useState(1.0);
+  const [isAutoZoom, setIsAutoZoom] = useState(true);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -325,6 +326,47 @@ export default function SheetViewer({ song, user, onEdit = null }) {
       setLoading(false);
     }
   }, [song, loadPDFFromUrl]);
+
+  const adjustZoomToFit = useCallback(() => {
+    if (!pdfDoc || !scrollRef.current) return;
+    
+    pdfDoc.getPage(currentPage).then((page) => {
+      const viewport = page.getViewport({ scale: 1.0 });
+      const pageWidth = viewport.width;
+      const availableWidth = scrollRef.current.clientWidth - 24;
+      
+      if (availableWidth > 0 && pageWidth > 0) {
+        const fitZoom = availableWidth / pageWidth;
+        const boundedZoom = Math.max(0.5, Math.min(2.5, fitZoom));
+        setZoom(Number(boundedZoom.toFixed(2)));
+      }
+    });
+  }, [pdfDoc, currentPage]);
+
+  // Reset isAutoZoom to true when song changes
+  useEffect(() => {
+    setIsAutoZoom(true);
+  }, [song.id]);
+
+  // Reset isAutoZoom to true when fullscreen toggles
+  useEffect(() => {
+    setIsAutoZoom(true);
+  }, [isFullScreen]);
+
+  // Auto-ajusta o zoom para caber na largura da tela ao carregar o PDF, alternar tela cheia ou redimensionar a janela
+  useEffect(() => {
+    if (!pdfDoc || !isAutoZoom) return;
+    
+    const timer = setTimeout(() => {
+      adjustZoomToFit();
+    }, 100);
+
+    window.addEventListener('resize', adjustZoomToFit);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', adjustZoomToFit);
+    };
+  }, [pdfDoc, isFullScreen, isAutoZoom, adjustZoomToFit]);
 
   // Carrega a biblioteca PDF.js dinamicamente do CDN unpkg
   useEffect(() => {
@@ -622,7 +664,7 @@ export default function SheetViewer({ song, user, onEdit = null }) {
             gap: 0.5rem !important;
           }
           
-          .sheet-fullscreen .sheet-toolbar {
+          .sheet-toolbar {
             padding: 0.35rem 0.5rem !important;
             gap: 0.35rem !important;
             border-radius: 8px !important;
@@ -630,17 +672,20 @@ export default function SheetViewer({ song, user, onEdit = null }) {
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
             justify-content: flex-start !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
             -webkit-overflow-scrolling: touch;
             -ms-overflow-style: none;
             scrollbar-width: none;
           }
 
-          .sheet-fullscreen .sheet-toolbar::-webkit-scrollbar {
+          .sheet-toolbar::-webkit-scrollbar {
             display: none;
           }
 
-          .sheet-fullscreen .sheet-toolbar-nav,
-          .sheet-fullscreen .sheet-toolbar-buttons {
+          .sheet-toolbar-nav,
+          .sheet-toolbar-buttons {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -649,10 +694,16 @@ export default function SheetViewer({ song, user, onEdit = null }) {
             gap: 0.25rem !important;
           }
 
-          .sheet-fullscreen .sheet-toolbar button {
+          .sheet-toolbar button {
             padding: 6px !important;
             border-radius: 8px !important;
             font-size: 0.75rem !important;
+            flex-shrink: 0 !important;
+          }
+
+          .sheet-toolbar-nav span,
+          .sheet-toolbar-buttons span {
+            white-space: nowrap !important;
           }
           
           .sheet-fullscreen .sheet-floating-scroll {
@@ -686,6 +737,8 @@ export default function SheetViewer({ song, user, onEdit = null }) {
           gap: 1rem;
           height: 100%;
           min-height: 0;
+          min-width: 0;
+          width: 100%;
         }
 
         .sheet-fullscreen .sheet-main-view {
@@ -698,20 +751,26 @@ export default function SheetViewer({ song, user, onEdit = null }) {
           display: flex;
           justify-content: center;
           min-height: 0;
+          width: 100%;
+          max-width: 100%;
         }
 
         .sheet-fullscreen .sheet-pdf-wrapper {
           flex: 1 !important;
           min-height: 0 !important;
           height: 100% !important;
+          width: 100% !important;
+          max-width: 100% !important;
         }
 
         .sheet-scroll-container {
           width: 100%;
+          max-width: 100%;
           display: flex;
           justify-content: center;
           align-items: flex-start;
           overflow-y: auto;
+          overflow-x: auto;
         }
 
         .sheet-layout-container:not(.sheet-fullscreen) .sheet-scroll-container {
@@ -832,9 +891,29 @@ export default function SheetViewer({ song, user, onEdit = null }) {
                 
                 <div className="hide-mobile" style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 0.5rem' }} />
                 
-                <button className="icon-btn" onClick={() => setZoom(prev => Math.max(0.6, prev - 0.1))} style={{ padding: '6px' }} title="Afastar"><ZoomOut size={16} /></button>
+                <button
+                  className="icon-btn"
+                  onClick={() => {
+                    setIsAutoZoom(false);
+                    setZoom(prev => Math.max(0.6, prev - 0.1));
+                  }}
+                  style={{ padding: '6px' }}
+                  title="Afastar"
+                >
+                  <ZoomOut size={16} />
+                </button>
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', minWidth: '40px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-                <button className="icon-btn" onClick={() => setZoom(prev => Math.min(2.0, prev + 0.1))} style={{ padding: '6px' }} title="Aproximar"><ZoomIn size={16} /></button>
+                <button
+                  className="icon-btn"
+                  onClick={() => {
+                    setIsAutoZoom(false);
+                    setZoom(prev => Math.min(2.0, prev + 0.1));
+                  }}
+                  style={{ padding: '6px' }}
+                  title="Aproximar"
+                >
+                  <ZoomIn size={16} />
+                </button>
               </div>
             )}
 
@@ -1035,11 +1114,11 @@ export default function SheetViewer({ song, user, onEdit = null }) {
                     borderRadius: '8px',
                     overflow: 'hidden',
                     cursor: activeTool !== 'none' ? 'crosshair' : 'default',
-                    maxWidth: '100%'
+                    maxWidth: isAutoZoom ? '100%' : 'none'
                   }}
                   onClick={handlePageClick}
                 >
-                  <canvas ref={canvasRef} style={{ maxWidth: '100%', height: 'auto', display: 'block' }} />
+                  <canvas ref={canvasRef} style={{ maxWidth: isAutoZoom ? '100%' : 'none', height: 'auto', display: 'block' }} />
 
                   {/* Camada SVG de anotações sobreposta */}
                   <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
