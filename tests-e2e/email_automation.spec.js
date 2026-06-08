@@ -107,12 +107,12 @@ test.describe('Configurações - Automação de E-mail', () => {
     
     // Força o clique no item "Transações" via evaluate para evitar problemas de visibilidade no glassmorphism
     await page.evaluate(() => {
-      const btn = document.querySelector('[data-testid="sidebar-sub-item-finances-list"]');
+      const btn = document.querySelector('[data-testid="sidebar-sub-item-finances-transactions"]');
       if (btn) btn.click();
       else {
         // Fallback por texto
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const target = buttons.find(b => b.textContent.includes('Transações'));
+        const elements = Array.from(document.querySelectorAll('a, button'));
+        const target = elements.find(el => el.textContent.includes('Transações'));
         if (target) target.click();
       }
     });

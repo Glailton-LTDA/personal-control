@@ -24,6 +24,9 @@ function App() {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovering(true);
       }
+      if (event === 'SIGNED_OUT') {
+        window.history.pushState(null, '', '/');
+      }
       setSession(session);
     });
 
