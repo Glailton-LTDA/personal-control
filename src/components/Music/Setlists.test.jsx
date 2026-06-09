@@ -22,6 +22,7 @@ vi.mock('lucide-react', () => ({
   X: () => <div data-testid="x" />,
   Loader2: () => <div data-testid="loader" />,
   ListPlus: () => <div data-testid="list-plus" />,
+  Search: () => <div data-testid="search" />,
 }));
 
 const mockInsertSetlist = vi.fn().mockResolvedValue({ error: null });
@@ -82,6 +83,17 @@ vi.mock('../../lib/supabase', () => ({
           }))
         };
       }
+      if (table === 'music_songs') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => ({
+                range: vi.fn(() => Promise.resolve({ data: [], error: null, count: 0 }))
+              }))
+            }))
+          }))
+        };
+      }
       return {
         select: vi.fn(() => ({
           order: vi.fn(() => Promise.resolve({ data: [], error: null }))
@@ -128,6 +140,25 @@ describe('Setlists Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Bohemian Rhapsody')).toBeDefined();
       expect(screen.getByText('Queen')).toBeDefined();
+    });
+  });
+
+  it('modal de adicionar musicas exibe filtros de busca e tipo', async () => {
+    render(<Setlists user={{ id: 'user-123' }} onSelectSong={vi.fn()} />);
+
+    // Navega para o setlist
+    await waitFor(() => fireEvent.click(screen.getByText('Show Rock')));
+
+    // Abre o modal de adicionar
+    await waitFor(() => screen.getByText('Adicionar Música'));
+    fireEvent.click(screen.getAllByText('Adicionar Música')[0]);
+
+    // Verifica filtros do modal
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Buscar título ou artista...')).toBeDefined();
+      expect(screen.getByText('Todos os tipos')).toBeDefined();
+      expect(screen.getByText('Cifra')).toBeDefined();
+      expect(screen.getByText('Partitura')).toBeDefined();
     });
   });
 });

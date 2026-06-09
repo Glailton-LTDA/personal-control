@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, ChevronLeft, ChevronUp, ChevronDown, Play, X, Loader2, ListPlus } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Trash2, ChevronLeft, ChevronUp, ChevronDown, Play, X, Loader2, ListPlus, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+
+const MODAL_PAGE_SIZE = 30;
 
 export default function Setlists({ user, onSelectSong }) {
   const [setlists, setSetlists] = useState([]);
@@ -16,10 +18,16 @@ export default function Setlists({ user, onSelectSong }) {
   const [formDesc, setFormDesc] = useState('');
   const [editingId, setEditingId] = useState(null);
 
-  // Add Songs Modal
+  // Add Songs Modal — busca server-side com filtros e load-more
   const [isAddSongsOpen, setIsAddSongsOpen] = useState(false);
-  const [allSongs, setAllSongs] = useState([]);
-  const [allSongsLoading, setAllSongsLoading] = useState(false);
+  const [modalSongs, setModalSongs] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalSearch, setModalSearch] = useState('');
+  const [modalType, setModalType] = useState('all'); // 'all' | 'cifra' | 'partitura'
+  const [modalOffset, setModalOffset] = useState(0);
+  const [modalHasMore, setModalHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const debounceRef = useRef(null);
 
   const fetchSetlists = useCallback(async () => {
     setLoading(true);
@@ -194,28 +202,70 @@ export default function Setlists({ user, onSelectSong }) {
     }
   };
 
-  const openAddSongsModal = async () => {
-    setIsAddSongsOpen(true);
-    setAllSongsLoading(true);
+  // Busca server-side no modal com filtros e paginacao load-more
+  const fetchModalSongs = useCallback(async ({ search, type, offset, append = false }) => {
+    if (append) setLoadingMore(true);
+    else setModalLoading(true);
+
     try {
-      // Fetch all songs
-      const { data: songsData, error: songsErr } = await supabase
-        .from('music_songs')
-        .select('*')
-        .order('title', { ascending: true });
-
-      if (songsErr) throw songsErr;
-
-      // Filter out songs already in the setlist
       const existingIds = new Set(setlistSongs.map(s => s.song_id));
-      const filtered = (songsData || []).filter(s => !existingIds.has(s.id));
-      setAllSongs(filtered);
+
+      let query = supabase
+        .from('music_songs')
+        .select('id, title, artist, type', { count: 'exact' })
+        .eq('user_id', user.id)
+        .order('title', { ascending: true })
+        .range(offset, offset + MODAL_PAGE_SIZE - 1);
+
+      if (search.trim()) {
+        query = query.or(`title.ilike.%${search.trim()}%,artist.ilike.%${search.trim()}%`);
+      }
+      if (type !== 'all') {
+        query = query.eq('type', type);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      const filtered = (data || []).filter(s => !existingIds.has(s.id));
+      setModalSongs(prev => append ? [...prev, ...filtered] : filtered);
+      setModalHasMore((offset + MODAL_PAGE_SIZE) < (count || 0));
+      setModalOffset(offset + MODAL_PAGE_SIZE);
     } catch (err) {
       console.error(err);
       toast.error('Erro ao carregar repertório.');
     } finally {
-      setAllSongsLoading(false);
+      setModalLoading(false);
+      setLoadingMore(false);
     }
+  }, [user.id, setlistSongs]);
+
+  const openAddSongsModal = () => {
+    setModalSearch('');
+    setModalType('all');
+    setModalOffset(0);
+    setModalSongs([]);
+    setIsAddSongsOpen(true);
+    fetchModalSongs({ search: '', type: 'all', offset: 0 });
+  };
+
+  const handleModalSearchChange = (value) => {
+    setModalSearch(value);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setModalOffset(0);
+      fetchModalSongs({ search: value, type: modalType, offset: 0 });
+    }, 300);
+  };
+
+  const handleModalTypeChange = (value) => {
+    setModalType(value);
+    setModalOffset(0);
+    fetchModalSongs({ search: modalSearch, type: value, offset: 0 });
+  };
+
+  const handleLoadMore = () => {
+    fetchModalSongs({ search: modalSearch, type: modalType, offset: modalOffset, append: true });
   };
 
   const handleAddSongToSetlist = async (song) => {
@@ -231,8 +281,8 @@ export default function Setlists({ user, onSelectSong }) {
 
       if (error) throw error;
       toast.success(`${song.title} adicionada!`);
-      // Remove from select list immediately
-      setAllSongs(prev => prev.filter(s => s.id !== song.id));
+      // Remove imediatamente da lista do modal
+      setModalSongs(prev => prev.filter(s => s.id !== song.id));
       fetchSetlistSongs(activeSetlist.id);
     } catch (err) {
       console.error(err);
@@ -387,53 +437,135 @@ export default function Setlists({ user, onSelectSong }) {
           </div>
         )}
 
-        {/* Modal: Add Songs Selection */}
+        {/* Modal: Add Songs com filtros */}
         {isAddSongsOpen && (
           <div className="modal-overlay">
-            <div className="modal-content glass-card" style={{ maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div className="modal-content glass-card" style={{ maxWidth: '620px', maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0 }}>Vincular Músicas</h3>
                 <button className="icon-btn" onClick={() => setIsAddSongsOpen(false)} style={{ padding: '6px' }}><X size={18} /></button>
               </div>
 
-              {allSongsLoading ? (
-                <div style={{ textAlign: 'center', padding: '3rem' }}>Carregando repertório...</div>
-              ) : allSongs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                  Todas as músicas do repertório já estão neste setlist ou não há músicas cadastradas.
+              {/* Filtros */}
+              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar título ou artista..."
+                    value={modalSearch}
+                    onChange={e => handleModalSearchChange(e.target.value)}
+                    style={{
+                      width: '100%',
+                      paddingLeft: '34px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '8px',
+                      padding: '8px 12px 8px 34px',
+                      color: 'var(--text-main)',
+                      outline: 'none',
+                      fontSize: '0.875rem'
+                    }}
+                  />
                 </div>
-              ) : (
-                <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {allSongs.map(song => (
-                    <div
-                      key={song.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '0.75rem 1rem',
-                        background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid var(--glass-border)',
-                        borderRadius: '8px'
-                      }}
-                    >
-                      <div>
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{song.title}</h4>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{song.artist || 'Artista Desconhecido'}</span>
-                      </div>
-                      <button
-                        className="btn-primary"
-                        onClick={() => handleAddSongToSetlist(song)}
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
-                      >
-                        Vincular
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                <select
+                  className="select-filter"
+                  value={modalType}
+                  onChange={e => handleModalTypeChange(e.target.value)}
+                  style={{ minWidth: '130px', fontSize: '0.875rem' }}
+                >
+                  <option value="all">Todos os tipos</option>
+                  <option value="cifra">Cifra</option>
+                  <option value="partitura">Partitura</option>
+                </select>
+              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+              {/* Lista */}
+              <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {modalLoading ? (
+                  <div style={{ textAlign: 'center', padding: '3rem' }}>
+                    <Loader2 className="animate-spin" style={{ margin: '0 auto 0.75rem', color: 'var(--primary)' }} />
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Carregando repertório...</span>
+                  </div>
+                ) : modalSongs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                    {modalSearch || modalType !== 'all'
+                      ? 'Nenhuma música encontrada para os filtros aplicados.'
+                      : 'Todas as músicas já estão neste setlist ou não há músicas cadastradas.'}
+                  </div>
+                ) : (
+                  <>
+                    {modalSongs.map(song => (
+                      <div
+                        key={song.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.65rem 1rem',
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid var(--glass-border)',
+                          borderRadius: '8px',
+                          gap: '0.75rem'
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</h4>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{song.artist || 'Artista desconhecido'}</span>
+                        </div>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          flexShrink: 0,
+                          background: song.type === 'partitura' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                          color: song.type === 'partitura' ? '#34d399' : '#818cf8'
+                        }}>
+                          {song.type}
+                        </span>
+                        <button
+                          className="btn-primary"
+                          onClick={() => handleAddSongToSetlist(song)}
+                          style={{ padding: '0.35rem 0.85rem', fontSize: '0.75rem', flexShrink: 0 }}
+                        >
+                          Vincular
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Load more */}
+                    {modalHasMore && (
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem',
+                          background: 'transparent',
+                          border: '1px dashed var(--glass-border)',
+                          borderRadius: '8px',
+                          color: 'var(--primary)',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: loadingMore ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        {loadingMore ? <><Loader2 size={14} className="animate-spin" /> Carregando...</> : 'Carregar mais'}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
                 <button className="btn-secondary" onClick={() => setIsAddSongsOpen(false)} style={{ padding: '0.5rem 1rem' }}>
                   Fechar
                 </button>
@@ -441,6 +573,7 @@ export default function Setlists({ user, onSelectSong }) {
             </div>
           </div>
         )}
+
       </div>
     );
   }
