@@ -16,8 +16,8 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all' | 'cifra' | 'partitura'
 
-  // Sub-aba
-  const [subTab, setSubTab] = useState('repertoire'); // 'repertoire' | 'setlists'
+  // Sub-aba — inicializada a partir do mode para suportar rota /music-setlists
+  const [subTab, setSubTab] = useState(() => mode === 'setlists' ? 'setlists' : 'repertoire');
   const [selectedArtist, setSelectedArtist] = useState(() => {
     if (mode && mode.startsWith('repertoire-artist-')) {
       return decodeURIComponent(mode.replace('repertoire-artist-', ''));
@@ -62,6 +62,18 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   const artistButtonRef = useRef(null);
   const artistPanelRef = useRef(null);
 
+  // Bug 1: ref para evitar fetch desnecessário quando música já está em memória
+  const selectedSongRef = useRef(null);
+  useEffect(() => { selectedSongRef.current = selectedSong; }, [selectedSong]);
+
+  // Bug 2: ref para ler selectedArtist em fetchUniqueArtists sem colocá-lo nas deps
+  const selectedArtistRef = useRef(selectedArtist);
+  useEffect(() => { selectedArtistRef.current = selectedArtist; }, [selectedArtist]);
+
+  // Bug 3: flag para Efeito 2 não resetar estados já inicializados pelo useState lazy
+  const isFirstModeMount = useRef(true);
+
+  // Bug 2: selectedArtist lido via ref — evita recriar o callback e disparar efeitos encadeados
   const fetchUniqueArtists = useCallback(async (searchQuery = '') => {
     if (!user?.id) return;
     try {
@@ -80,15 +92,16 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
       if (!error && data) {
         const artists = data.map(d => d.artist);
-        if (selectedArtist !== 'all' && !artists.includes(selectedArtist) && (!searchQuery.trim() || selectedArtist.toLowerCase().includes(searchQuery.toLowerCase()))) {
-          artists.unshift(selectedArtist);
+        const current = selectedArtistRef.current;
+        if (current !== 'all' && !artists.includes(current) && (!searchQuery.trim() || current.toLowerCase().includes(searchQuery.toLowerCase()))) {
+          artists.unshift(current);
         }
         setUniqueArtists(artists);
       }
     } catch (e) {
       console.error('Erro ao buscar artistas únicos:', e);
     }
-  }, [user?.id, selectedArtist]);
+  }, [user?.id]); // sem selectedArtist — lido via ref
 
   // Abre o dropdown calculando a posição absoluta do botão no viewport
   const handleOpenArtistDropdown = () => {
@@ -117,11 +130,13 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Bug 6: mode removido das deps — chords e genres são estáticos durante a sessão
   useEffect(() => {
     fetchCustomChords();
     fetchGenres();
     fetchUniqueArtists();
-  }, [refreshKey, mode, user?.id, fetchUniqueArtists]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, user?.id, fetchUniqueArtists]);
 
   useEffect(() => {
     if (artistDropdownOpen) {
@@ -135,6 +150,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   }, [artistSearch, artistDropdownOpen, fetchUniqueArtists]);
 
   const fetchSongs = useCallback(async () => {
+    if (!user?.id) return;
     if (activeLetter && selectedArtist === 'all') {
       setLoading(false);
       return;
@@ -149,7 +165,8 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             id,
             name
           )
-        `, { count: 'exact' });
+        `, { count: 'exact' })
+        .eq('user_id', user.id); // Bug 4: filtro explícito de usuário (defesa além do RLS)
 
       // Filtro de pesquisa
       if (search.trim()) {
@@ -192,7 +209,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
     } finally {
       setLoading(false);
     }
-  }, [page, search, filterType, selectedArtist, selectedGenre, pageSize, activeLetter]);
+  }, [page, search, filterType, selectedArtist, selectedGenre, pageSize, activeLetter, user?.id]);
 
   useEffect(() => {
     fetchSongs();
@@ -279,14 +296,11 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   const songRouteId = mode.startsWith('song-') ? mode.replace('song-', '') : null;
 
-  // Efeito 1: Carregar música pelo ID da URL — só dispara quando o songRouteId muda
+  // Efeito 1: Carregar música pelo ID da URL
+  // Bug 1: usa selectedSongRef para evitar fetch quando a música já está em memória
   useEffect(() => {
     if (!songRouteId || !user?.id) return;
-    setSelectedSong(prev => {
-      if (prev && prev.id === songRouteId) return prev; // já está carregada, não re-fetcha
-      // tenta resolver a partir do cache em memória primeiro (sem acessar songs no closure)
-      return prev;
-    });
+    if (selectedSongRef.current?.id === songRouteId) return; // cache hit — sem fetch
     supabase
       .from('music_songs')
       .select('*, music_genres(id, name)')
@@ -304,9 +318,19 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songRouteId, user?.id]);
 
-  // Efeito 2: Sincronizar os estados de navegação (letra/artista/repertório) com a URL
-  // Depende APENAS de `mode` — não roda novamente quando fetchSongs atualiza songs
+  // Efeito 2: Sincronizar estados de navegação com a URL
+  // Bug 3: pula o mount inicial — estados já inicializados pelo useState lazy
+  // Bug 5: inclui mode 'setlists' para subTab ser roteável
   useEffect(() => {
+    if (isFirstModeMount.current) {
+      isFirstModeMount.current = false;
+      return;
+    }
+    if (mode === 'setlists') {
+      setSubTab('setlists');
+      return;
+    }
+    setSubTab('repertoire');
     if (songRouteId) return; // modo de música — tratado pelo Efeito 1
     if (mode.startsWith('repertoire-letter-')) {
       const charCode = mode.replace('repertoire-letter-', '');
@@ -527,10 +551,17 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
-      {/* ── Sub-Tab Switcher ── */}
+      {/* ── Sub-Tab Switcher — Bug 5: links semânticos para suportar abertura em nova aba ── */}
       <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem' }}>
-        <button
-          onClick={() => setSubTab('repertoire')}
+        <a
+          href="/music-repertoire"
+          onClick={(e) => {
+            if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+              e.preventDefault();
+              if (navigate) navigate('music-repertoire');
+              else setSubTab('repertoire');
+            }
+          }}
           style={{
             background: 'transparent',
             border: 'none',
@@ -540,13 +571,21 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             cursor: 'pointer',
             paddingBottom: '0.5rem',
             borderBottom: subTab === 'repertoire' ? '2px solid var(--primary)' : '2px solid transparent',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            textDecoration: 'none'
           }}
         >
           Repertório
-        </button>
-        <button
-          onClick={() => setSubTab('setlists')}
+        </a>
+        <a
+          href="/music-setlists"
+          onClick={(e) => {
+            if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+              e.preventDefault();
+              if (navigate) navigate('music-setlists');
+              else setSubTab('setlists');
+            }
+          }}
           style={{
             background: 'transparent',
             border: 'none',
@@ -556,11 +595,12 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             cursor: 'pointer',
             paddingBottom: '0.5rem',
             borderBottom: subTab === 'setlists' ? '2px solid var(--primary)' : '2px solid transparent',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            textDecoration: 'none'
           }}
         >
           Setlists
-        </button>
+        </a>
       </div>
 
       {subTab === 'setlists' ? (
