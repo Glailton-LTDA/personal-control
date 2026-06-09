@@ -135,8 +135,8 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
     fetchCustomChords();
     fetchGenres();
     fetchUniqueArtists();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey, user?.id, fetchUniqueArtists]);
+
 
   useEffect(() => {
     if (artistDropdownOpen) {

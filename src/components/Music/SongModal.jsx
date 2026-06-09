@@ -21,6 +21,11 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
   const [genres, setGenres] = useState([]);
   const [genreId, setGenreId] = useState('');
 
+  // Setlists — só no modo edição (initialData existente)
+  const [availableSetlists, setAvailableSetlists] = useState([]);
+  const [selectedSetlistIds, setSelectedSetlistIds] = useState(new Set());
+  const [originalSetlistIds, setOriginalSetlistIds] = useState(new Set());
+
   // Carrega gêneros pré-definidos
   const fetchGenres = async () => {
     try {
@@ -37,10 +42,26 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
   };
 
   useEffect(() => {
-    if (isOpen) {
-      fetchGenres();
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    fetchGenres();
+    // Setlists só no modo edição
+    if (!initialData?.id || !user?.id) return;
+    const fetchSetlistData = async () => {
+      try {
+        const [{ data: setlistsData }, { data: linkedData }] = await Promise.all([
+          supabase.from('music_setlists').select('id, name').eq('user_id', user.id).order('name'),
+          supabase.from('music_setlist_songs').select('setlist_id').eq('song_id', initialData.id)
+        ]);
+        const linked = new Set((linkedData || []).map(r => r.setlist_id));
+        setAvailableSetlists(setlistsData || []);
+        setSelectedSetlistIds(new Set(linked));
+        setOriginalSetlistIds(new Set(linked));
+      } catch (err) {
+        console.error('Erro ao buscar setlists:', err);
+      }
+    };
+    fetchSetlistData();
+  }, [isOpen, initialData?.id, user?.id]);
 
   // Preenche dados ao editar
   useEffect(() => {
@@ -125,6 +146,23 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
           .select(`*, music_genres(id, name)`);
 
         if (error) throw error;
+
+        // Sync de setlists: diff entre seleção e original
+        const toAdd = [...selectedSetlistIds].filter(id => !originalSetlistIds.has(id));
+        const toRemove = [...originalSetlistIds].filter(id => !selectedSetlistIds.has(id));
+
+        if (toAdd.length > 0) {
+          await supabase.from('music_setlist_songs').insert(
+            toAdd.map((setlist_id, i) => ({ setlist_id, song_id: initialData.id, order_index: i + 1 }))
+          );
+        }
+        if (toRemove.length > 0) {
+          await supabase.from('music_setlist_songs')
+            .delete()
+            .eq('song_id', initialData.id)
+            .in('setlist_id', toRemove);
+        }
+
         toast.success('Música atualizada com sucesso!');
         if (onSaved && updatedRows?.[0]) onSaved(updatedRows[0]);
       } else {
@@ -214,6 +252,50 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
               ))}
             </select>
           </div>
+
+          {/* Setlists — visível apenas no modo edição com setlists disponíveis */}
+          {initialData?.id && availableSetlists.length > 0 && (
+            <div className="input-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                Adicionar a Setlists
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>(opcional)</span>
+              </label>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.35rem',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '8px',
+                padding: '0.75rem',
+                maxHeight: '160px',
+                overflowY: 'auto'
+              }}>
+                {availableSetlists.map(sl => (
+                  <label
+                    key={sl.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-main)' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSetlistIds.has(sl.id)}
+                      onChange={() => {
+                        setSelectedSetlistIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(sl.id)) next.delete(sl.id);
+                          else next.add(sl.id);
+                          return next;
+                        });
+                      }}
+                      style={{ accentColor: 'var(--primary)', width: '15px', height: '15px', cursor: 'pointer' }}
+                    />
+                    {sl.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
 
           <div className="input-group">
             <label>Tipo de Documento</label>
