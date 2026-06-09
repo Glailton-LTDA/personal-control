@@ -94,6 +94,7 @@ const moduleSubItems = {
   ],
   music: [
     { tab: 'music-repertoire', icon: MusicIcon, key: 'repertoire' },
+    { tab: 'music-setlists', icon: List, key: 'setlists' },
     { tab: 'music-settings', icon: Settings, key: 'settings' }
   ],
   settings: [
