@@ -341,10 +341,10 @@ export default function Dashboard({ user }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? "Ocultar Valores" : "Mostrar Valores"}>
+            <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? t('dashboard.hide_values') : t('dashboard.show_values')}>
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
-            <button className="icon-btn" onClick={toggleTheme} title="Alternar Tema">
+            <button className="icon-btn" onClick={toggleTheme} title={t('dashboard.toggle_theme')}>
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
@@ -509,7 +509,7 @@ export default function Dashboard({ user }) {
               !activeTab.startsWith('music') &&
               !activeTab.startsWith('investments') && (
                 <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
-                  <p style={{ color: 'var(--text-muted)' }}>Módulo {activeTab} em desenvolvimento...</p>
+                  <p style={{ color: 'var(--text-muted)' }}>{t('dashboard.module_development', { module: activeTab })}</p>
                 </div>
               )}
           </Motion.div>
@@ -533,7 +533,7 @@ export default function Dashboard({ user }) {
                 window.dispatchEvent(new CustomEvent('open-add-car-modal'));
               }
             }}
-            title={activeTab.includes('finance') ? "Nova Transação" : "Novo Carro"}
+            title={activeTab.includes('finance') ? t('dashboard.new_transaction') : t('dashboard.new_car')}
           >
             <Plus size={32} />
           </Motion.button>

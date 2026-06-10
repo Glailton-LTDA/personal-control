@@ -37,7 +37,7 @@ const getModuleInitialTab = (id) => {
 };
 
 export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -208,7 +208,7 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
           </div>
           <div style={{ textAlign: 'left' }}>
             <span style={{ fontWeight: 700, fontSize: '1.1rem', display: 'block' }}>{t('common.logout')}</span>
-            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{i18n.language === 'pt' ? 'Encerrar sua sessão atual com segurança.' : i18n.language === 'en' ? 'Securely end your current session.' : 'Cierra tu sesión actual de forma segura.'}</span>
+            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{t('settings.logout_desc')}</span>
           </div>
         </Motion.button>
       </div>

@@ -101,7 +101,7 @@ function LoginForm({ onLogin, onForgot }) {
             id="login-email"
             className="glass-input"
             type="email" 
-            placeholder="seu@email.com" 
+            placeholder={t('login.email_placeholder')} 
             value={email} 
             onChange={e => setEmail(e.target.value)} 
             required 
@@ -260,7 +260,7 @@ function ForgotPasswordForm({ onBack }) {
               id="reset-email"
               className="glass-input"
               type="email" 
-              placeholder="seu@email.com" 
+              placeholder={t('login.email_placeholder')} 
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               required 
@@ -391,6 +391,7 @@ function ResetPasswordForm({ onDone }) {
 
 // ── Componente raiz ───────────────────────────────────────────
 export default function Login({ onLogin, recoveryMode, onRecoveryComplete }) {
+  const { t } = useTranslation();
   const [view, setView] = useState('login'); // 'login' | 'forgot'
 
   return (
@@ -451,7 +452,7 @@ export default function Login({ onLogin, recoveryMode, onRecoveryComplete }) {
           textTransform: 'uppercase', 
           letterSpacing: '0.15em' 
         }}>
-          Personal Control &bull; v1.2.5
+          {t('login.version')}
         </span>
       </div>
 

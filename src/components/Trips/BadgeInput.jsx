@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function BadgeInput({ label, icon: Icon, values, onValuesChange, placeholder, readOnly = false }) {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
 
   const addValue = () => {
@@ -121,7 +123,7 @@ export default function BadgeInput({ label, icon: Icon, values, onValuesChange, 
           </>
         )}
         {readOnly && values.length === 0 && (
-          <span style={{ fontSize: '0.85rem', opacity: 0.5, color: 'var(--text-muted)' }}>Nenhum informado</span>
+          <span style={{ fontSize: '0.85rem', opacity: 0.5, color: 'var(--text-muted)' }}>{t('trips.badge_none')}</span>
         )}
       </div>
 

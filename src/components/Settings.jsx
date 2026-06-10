@@ -84,13 +84,13 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
 
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
-    toast.success(lng === 'pt' ? 'Idioma alterado!' : 'Language changed!');
+    toast.success(t('settings.language_changed'));
   };
 
   async function handleChangePassword(e) {
     e.preventDefault();
     if (pwForm.next !== pwForm.confirm) {
-      setPwMessage({ type: 'error', text: i18n.language === 'pt' ? 'As senhas não coincidem.' : 'Passwords do not match.' });
+      setPwMessage({ type: 'error', text: t('settings.password_mismatch') });
       return;
     }
     if (pwForm.next.length < 6) {
@@ -105,7 +105,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
       password: pwForm.current,
     });
     if (signInErr) {
-      setPwMessage({ type: 'error', text: i18n.language === 'pt' ? 'Senha atual incorreta.' : 'Current password incorrect.' });
+      setPwMessage({ type: 'error', text: t('settings.incorrect_password') });
       setPwSaving(false);
       return;
     }
@@ -114,7 +114,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
     if (updateErr) {
       setPwMessage({ type: 'error', text: updateErr.message });
     } else {
-      setPwMessage({ type: 'success', text: i18n.language === 'pt' ? 'Senha alterada!' : 'Password changed!' });
+      setPwMessage({ type: 'success', text: t('settings.password_changed') });
       setPwForm({ current: '', next: '', confirm: '' });
       setTimeout(() => setPwMessage(null), 4000);
     }
@@ -174,7 +174,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                     type="text" 
                     value={displayName} 
                     onChange={e => setDisplayName(e.target.value)}
-                    placeholder="Seu nome"
+                    placeholder={t('settings.name_placeholder')}
                     style={{ borderRadius: '12px', flex: 1, minWidth: '200px' }}
                   />
                   <button 
@@ -400,7 +400,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div className="input-group">
-                  <label><Mail size={14} style={{ marginRight: '6px' }} /> {i18n.language === 'pt' ? 'Destinatário' : 'Recipient'}</label>
+                  <label><Mail size={14} style={{ marginRight: '6px' }} /> {t('settings.recipient')}</label>
                   <input 
                     type="email" 
                     data-testid="recipient-email-input"
@@ -410,7 +410,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                   />
                 </div>
                 <div className="input-group">
-                  <label><ShieldCheck size={14} style={{ marginRight: '6px' }} /> {i18n.language === 'pt' ? 'Cópia Oculta (BCC)' : 'BCC'}</label>
+                  <label><ShieldCheck size={14} style={{ marginRight: '6px' }} /> {t('settings.bcc')}</label>
                   <input 
                     type="email" 
                     data-testid="bcc-email-input"
@@ -456,8 +456,8 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                 <Info size={24} />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{i18n.language === 'pt' ? 'Sobre o Sistema' : 'About System'}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{i18n.language === 'pt' ? 'Informações da plataforma' : 'Platform information'}</p>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.about_system')}</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{t('settings.about_desc')}</p>
               </div>
             </div>
 
@@ -518,7 +518,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             </div>
 
             <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {[{ key: 'current', label: i18n.language === 'pt' ? 'Senha atual' : 'Current password' }, { key: 'next', label: i18n.language === 'pt' ? 'Nova senha' : 'New password' }, { key: 'confirm', label: i18n.language === 'pt' ? 'Confirmar nova senha' : 'Confirm new password' }].map(({ key, label }) => (
+              {[{ key: 'current', label: t('settings.current_password') }, { key: 'next', label: t('settings.new_password') }, { key: 'confirm', label: t('settings.confirm_password') }].map(({ key, label }) => (
                 <div key={key} className="input-group" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{label}</label>
                   <div style={{ position: 'relative' }}>
@@ -549,7 +549,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
               )}
 
               <button disabled={pwSaving} className="btn-primary" type="submit" style={{ width: '100%', padding: '1rem', borderRadius: '14px' }}>
-                {pwSaving ? '...' : <><Lock size={18} /> {i18n.language === 'pt' ? 'ALTERAR SENHA' : 'CHANGE PASSWORD'}</>}
+                {pwSaving ? '...' : <><Lock size={18} /> {t('settings.change_password_btn')}</>}
               </button>
             </form>
           </Motion.div>

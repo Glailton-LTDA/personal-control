@@ -95,31 +95,31 @@ export default function ServiceTemplatesManager({ user }) {
                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>{desc}</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {grouped[desc].map(t => (
-                    <div key={t.id} className="status-badge" style={{
+                  {grouped[desc].map(tmpl => (
+                    <div key={tmpl.id} className="status-badge" style={{
                       padding: '4px 10px',
                       borderRadius: '8px',
                       fontSize: '0.75rem',
                       fontWeight: 700,
-                      background: t.user_id ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-                      color: t.user_id ? 'var(--primary)' : 'var(--text-muted)',
-                      border: `1px solid ${t.user_id ? 'rgba(99, 102, 241, 0.2)' : 'var(--glass-border)'}`,
+                      background: tmpl.user_id ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                      color: tmpl.user_id ? 'var(--primary)' : 'var(--text-muted)',
+                      border: `1px solid ${tmpl.user_id ? 'rgba(99, 102, 241, 0.2)' : 'var(--glass-border)'}`,
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem'
                     }}>
                       <Calendar size={12} />
-                      {t.km_milestone.toLocaleString()} km
-                      {(t.interval_km || t.interval_months) && (
+                      {tmpl.km_milestone.toLocaleString()} {t('cars.km_unit')}
+                      {(tmpl.interval_km || tmpl.interval_months) && (
                         <span style={{ opacity: 0.6, fontSize: '0.65rem', marginLeft: '4px' }}>
-                          ({t.interval_km ? `${t.interval_km/1000}k km` : ''} 
-                           {t.interval_km && t.interval_months ? ' / ' : ''}
-                           {t.interval_months ? `${t.interval_months}m` : ''})
+                          ({tmpl.interval_km ? `${tmpl.interval_km/1000}k km` : ''} 
+                           {tmpl.interval_km && tmpl.interval_months ? ' / ' : ''}
+                           {tmpl.interval_months ? `${tmpl.interval_months}m` : ''})
                         </span>
                       )}
-                      {t.user_id && (
+                      {tmpl.user_id && (
                         <button 
-                          onClick={() => deleteTemplate(t.id)} 
+                          onClick={() => deleteTemplate(tmpl.id)} 
                           style={{ 
                             background: 'none', border: 'none', cursor: 'pointer', 
                             color: 'var(--danger)', padding: 0, display: 'flex', 
@@ -147,7 +147,7 @@ export default function ServiceTemplatesManager({ user }) {
               type="text" list="template-names-mgr"
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}
-              placeholder="Ex: Correia Dentada"
+              placeholder={t('cars.template_placeholder')}
             />
             <datalist id="template-names-mgr">
               {existingNames.map(n => <option key={n} value={n} />)}
@@ -157,7 +157,7 @@ export default function ServiceTemplatesManager({ user }) {
             <label>{t('cars.checkpoint_km', 'Checkpoint (KM)')}</label>
             <select value={form.km_milestone} onChange={e => setForm({ ...form, km_milestone: parseInt(e.target.value) })}>
               {[5000,10000,15000,20000,25000,30000,40000,50000,60000,70000,80000,90000,100000,120000,150000].map(k => (
-                <option key={k} value={k}>{k.toLocaleString()} km</option>
+                <option key={k} value={k}>{k.toLocaleString()} {t('cars.km_unit')}</option>
               ))}
             </select>
           </div>

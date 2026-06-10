@@ -357,7 +357,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 ) : (
                   <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                     <FileText size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                    <p>{t('cars.empty_notes') || 'Nenhuma observação encontrada para este serviço.'}</p>
+                    <p>{t('cars.empty_notes') || t('cars.no_observation')}</p>
                   </div>
                 )}
               </div>

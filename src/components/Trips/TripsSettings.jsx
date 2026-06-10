@@ -90,11 +90,11 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
       const { error } = await supabase.from(table).delete().eq('id', id);
       if (!error) {
         callback();
-        toast.success(t('common.success_delete') || 'Excluído com sucesso!');
+        toast.success(t('trips.settings_delete_success'));
       } else {
         toast.error(t('trips.save_error') + error.message);
       }
-    }, { danger: true, confirmText: t('common.yes') || 'Sim, excluir' });
+    }, { danger: true, confirmText: t('trips.settings_confirm_delete') });
   }
 
   async function cancelMyShare(tripId) {

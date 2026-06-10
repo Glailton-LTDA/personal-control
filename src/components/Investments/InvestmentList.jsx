@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useTranslation } from 'react-i18next';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
@@ -110,6 +111,7 @@ function StatCard({ title, value, icon, color, gradient, loading, showValues, te
 }
 
 export default function InvestmentList({ user, showValues = true }) {
+  const { t } = useTranslation();
   const [records, setRecords] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -147,19 +149,19 @@ export default function InvestmentList({ user, showValues = true }) {
   
   const years = [2024, 2025, 2026];
   const months = [
-    { value: 0, label: 'Todos' },
-    { value: 1, label: 'Janeiro' },
-    { value: 2, label: 'Fevereiro' },
-    { value: 3, label: 'Março' },
-    { value: 4, label: 'Abril' },
-    { value: 5, label: 'Maio' },
-    { value: 6, label: 'Junho' },
-    { value: 7, label: 'Julho' },
-    { value: 8, label: 'Agosto' },
-    { value: 9, label: 'Setembro' },
-    { value: 10, label: 'Outubro' },
-    { value: 11, label: 'Novembro' },
-    { value: 12, label: 'Dezembro' }
+    { value: 0, label: t('investments.all_months') },
+    { value: 1, label: t('common.months.jan') },
+    { value: 2, label: t('common.months.feb') },
+    { value: 3, label: t('common.months.mar') },
+    { value: 4, label: t('common.months.apr') },
+    { value: 5, label: t('common.months.may') },
+    { value: 6, label: t('common.months.jun') },
+    { value: 7, label: t('common.months.jul') },
+    { value: 8, label: t('common.months.aug') },
+    { value: 9, label: t('common.months.sep') },
+    { value: 10, label: t('common.months.oct') },
+    { value: 11, label: t('common.months.nov') },
+    { value: 12, label: t('common.months.dec') }
   ];
 
   const fetchData = useCallback(async () => {
@@ -202,11 +204,11 @@ export default function InvestmentList({ user, showValues = true }) {
     if (!error && data) {
       setRecords(data);
       // Expand all groups by default
-      const allInstitutions = new Set(data.map(r => r.investment_accounts?.institution?.name || 'Outros'));
+      const allInstitutions = new Set(data.map(r => r.investment_accounts?.institution?.name || t('investments.other_institution')));
       setExpandedGroups(allInstitutions);
     }
     setLoading(false);
-  }, [filterYear, filterMonth]);
+  }, [filterYear, filterMonth, t]);
 
   useEffect(() => {
     fetchData();
@@ -214,7 +216,7 @@ export default function InvestmentList({ user, showValues = true }) {
 
   async function handleCopyFromPreviousMonth() {
     if (filterMonth === 0) {
-      toast.error('Selecione um mês específico para copiar dados.');
+      toast.error(t('investments.error_copy'));
       return;
     }
 
@@ -225,9 +227,10 @@ export default function InvestmentList({ user, showValues = true }) {
       prevYear = filterYear - 1;
     }
 
-    confirmToast(`Copiar os registros de ${months.find(m => m.value === prevMonth).label}/${prevYear} para este mês?`, async () => {
+    const prevLabel = months.find(m => m.value === prevMonth).label;
+    confirmToast(t('investments.confirm_copy', { month: prevLabel, year: prevYear }), async () => {
       await performCopy(prevMonth, prevYear);
-    }, { confirmText: 'Sim, copiar tudo' });
+    }, { confirmText: t('investments.confirm_copy_btn') });
   }
 
   async function performCopy(prevMonth, prevYear) {
@@ -247,7 +250,7 @@ export default function InvestmentList({ user, showValues = true }) {
 
       if (fetchError) throw fetchError;
       if (!prevRecords || prevRecords.length === 0) {
-        toast.error('Nenhum registro encontrado no mês anterior.');
+        toast.error(t('investments.error_no_previous'));
         return;
       }
 
@@ -268,7 +271,7 @@ export default function InvestmentList({ user, showValues = true }) {
         }));
 
       if (recordsToInsert.length === 0) {
-        toast.error('Todos os registros do mês anterior já existem neste mês.');
+        toast.error(t('investments.error_already_exists'));
         return;
       }
 
@@ -279,23 +282,23 @@ export default function InvestmentList({ user, showValues = true }) {
       if (insertError) throw insertError;
       
       fetchData();
-      toast.success(`${recordsToInsert.length} registros copiados!`);
+      toast.success(t('investments.records_copied', { count: recordsToInsert.length }));
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao copiar registros.');
+      toast.error(t('investments.error_copy_records'));
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(id) {
-    confirmToast('Deseja excluir este registro?', async () => {
+    confirmToast(t('investments.confirm_delete_record'), async () => {
       const { error } = await supabase.from('investment_records').delete().eq('id', id);
       if (!error) {
         fetchData();
-        toast.success('Registro excluído');
+        toast.success(t('investments.record_deleted'));
       } else {
-        toast.error('Erro ao excluir: ' + error.message);
+        toast.error(t('investments.error_delete_record', { error: error.message }));
       }
     }, { danger: true });
   }
@@ -318,7 +321,7 @@ export default function InvestmentList({ user, showValues = true }) {
 
   // Prepare chart data: Yield per Institution for the selected period
   const chartData = Object.values(filteredRecords.reduce((acc, curr) => {
-    const instName = curr.investment_accounts?.institution?.name || 'Desconhecido';
+    const instName = curr.investment_accounts?.institution?.name || t('investments.unknown_institution');
     if (!acc[instName]) acc[instName] = { name: instName, yield: 0, color: curr.investment_accounts?.color || '#6366f1' };
     acc[instName].yield += Number(curr.yield);
     return acc;
@@ -347,7 +350,7 @@ export default function InvestmentList({ user, showValues = true }) {
     }, {});
 
     const groups = filteredRecords.reduce((acc, record) => {
-      const inst = record.investment_accounts?.institution?.name || 'Outros';
+      const inst = record.investment_accounts?.institution?.name || t('investments.other_institution');
       if (!acc[inst]) {
         acc[inst] = { 
           name: inst, 
@@ -365,14 +368,14 @@ export default function InvestmentList({ user, showValues = true }) {
 
     // Now set the correct balances using only the latest records
     Object.values(latestByAccount).forEach(record => {
-      const inst = record.investment_accounts?.institution?.name || 'Outros';
+      const inst = record.investment_accounts?.institution?.name || t('investments.other_institution');
       if (groups[inst]) {
         groups[inst].balance += Number(record.final_balance);
       }
     });
     
     return Object.values(groups).sort((a, b) => b.balance - a.balance);
-  }, [filteredRecords]);
+  }, [filteredRecords, t]);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -427,7 +430,7 @@ export default function InvestmentList({ user, showValues = true }) {
       <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <TrendingUp size={18} color="var(--primary)" />
-          <span style={{ fontWeight: 600 }}>Planilha de Investimentos</span>
+          <span style={{ fontWeight: 600 }}>{t('investments.investment_sheet')}</span>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -497,7 +500,7 @@ export default function InvestmentList({ user, showValues = true }) {
             <button 
               onClick={handleCopyFromPreviousMonth}
               className="icon-btn"
-              title="Copiar do Mês Anterior"
+              title={t('investments.copy_previous')}
               style={{ 
                 height: '40px', 
                 width: '40px', 
@@ -517,7 +520,7 @@ export default function InvestmentList({ user, showValues = true }) {
       <button 
         className="btn-primary contextual-fab" 
         onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
-        title="Novo Registro"
+        title={t('investments.new_register')}
         style={{
           position: 'fixed',
           bottom: '2rem',
@@ -538,7 +541,7 @@ export default function InvestmentList({ user, showValues = true }) {
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}
       >
         <StatCard 
-          title="Rendimento no Período" 
+          title={t('investments.yield_period')} 
           value={totalYield} 
           icon={<TrendingUp size={22}/>} 
           color="#10b981" 
@@ -547,7 +550,7 @@ export default function InvestmentList({ user, showValues = true }) {
           currency={activeCurrency}
         />
         <StatCard 
-          title="Saldo Final Total" 
+          title={t('investments.total_final_balance')} 
           value={totalBalance} 
           icon={<Wallet size={22}/>} 
           color="#6366f1" 
@@ -565,7 +568,7 @@ export default function InvestmentList({ user, showValues = true }) {
         {chartData.length > 0 && (
           <div className="glass-card" style={{ padding: '2rem' }}>
             <h4 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TrendingUp size={18} /> Rendimentos por Instituição
+              <TrendingUp size={18} /> {t('investments.yield_by_institution')}
             </h4>
             
             <div className="responsive-grid" style={{ 
@@ -615,7 +618,7 @@ export default function InvestmentList({ user, showValues = true }) {
                   textAlign: 'center',
                   pointerEvents: 'none'
                 }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{t('investments.total')}</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 800, color: totalYield >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                     {showValues ? formatCurrency(totalYield) : 'R$ ••••••'}
                   </div>
@@ -652,9 +655,9 @@ export default function InvestmentList({ user, showValues = true }) {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
-          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>Detalhamento</h4>
+          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{t('investments.details')}</h4>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-            {records.length} {records.length === 1 ? 'registro' : 'registros'}
+            {records.length} {records.length === 1 ? t('investments.record_label') : t('investments.records_label')}
           </span>
         </div>
         <div 
@@ -669,9 +672,9 @@ export default function InvestmentList({ user, showValues = true }) {
           className="custom-scrollbar"
         >
           {loading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Buscando registros...</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('investments.loading_records')}</div>
           ) : flatItems.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('investments.no_records')}</div>
           ) : (
             <>
               {!isMobile && (
@@ -687,10 +690,10 @@ export default function InvestmentList({ user, showValues = true }) {
                   backdropFilter: 'blur(12px)',
                   fontWeight: 700,
                 }}>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Data</div>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Conta</div>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Saldo Final</div>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Rendimento</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_date')}</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_account')}</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_final_balance')}</div>
+                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_yield')}</div>
                   <div style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></div>
                 </div>
               )}
@@ -769,7 +772,7 @@ export default function InvestmentList({ user, showValues = true }) {
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Saldo: <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</span>
+                          {t('investments.balance_label')}: <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{formatCurrency(record.final_balance)}</span>
                         </div>
                         <div style={{ fontSize: '0.85rem', color: record.yield >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
                           {record.yield >= 0 ? '+' : ''}{formatCurrency(record.yield)}
@@ -804,7 +807,7 @@ export default function InvestmentList({ user, showValues = true }) {
                         <div style={{ padding: '1.25rem 1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 800 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            SUMÁRIO
+                            {t('investments.summary')}
                           </div>
                         </div>
                         <div style={{ padding: '1.25rem 1rem' }}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, Save, Calendar, Search, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -17,6 +18,7 @@ const parseCurrencyToNumber = (maskedValue) => {
 };
 
 export default function InvestmentModal({ isOpen, onClose, onRefresh, user, initialData, accounts }) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     account_id: '',
     record_date: new Date().toISOString().split('T')[0],
@@ -168,10 +170,10 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
           }}>
             <div>
               <h3 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                {initialData ? 'Editar Registro' : 'Novo Registro'}
+                {t(initialData ? 'investments.edit_record' : 'investments.new_record')}
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Informe os saldos para cálculo de rendimento.
+                {t('investments.modal_desc')}
               </p>
             </div>
             <button className="action-btn" onClick={onClose}>
@@ -183,7 +185,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
               
               <div className="input-group" style={{ position: 'relative' }}>
-                <label>Conta de Investimento</label>
+                <label>{t('investments.investment_account')}</label>
                 <div 
                   className="glass-input" 
                   style={{ 
@@ -201,9 +203,9 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                     {formData.account_id 
                       ? (() => {
                           const acc = accounts.find(a => a.id === formData.account_id);
-                           return acc ? `${acc.institution?.name ? `${acc.institution.name} - ` : ''}${acc.name}` : 'Selecione uma conta...';
-                        })()
-                      : 'Selecione uma conta...'}
+                           return acc ? `${acc.institution?.name ? `${acc.institution.name} - ` : ''}${acc.name}` : t('investments.no_account_selected');
+                         })()
+                       : t('investments.no_account_selected')}
                   </span>
                   <ChevronDown size={18} style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
                 </div>
@@ -234,7 +236,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                           <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
                           <input 
                             type="text"
-                            placeholder="Buscar conta..."
+                            placeholder={t('investments.search_account')}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
@@ -291,7 +293,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
               </div>
 
               <div className="input-group">
-                <label>Mês de Referência</label>
+                <label>{t('investments.reference_month')}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
                   <select 
                     value={new Date(formData.record_date + 'T00:00:00').getMonth()}
@@ -304,10 +306,10 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                     style={{ width: '100%', padding: '0.75rem 1rem' }}
                   >
                     {[
-                      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-                      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-                    ].map((month, idx) => (
-                      <option key={idx} value={idx}>{month}</option>
+                      'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                      'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+                    ].map((key, idx) => (
+                      <option key={idx} value={idx}>{t('common.months.' + key)}</option>
                     ))}
                   </select>
                   <select 
@@ -329,7 +331,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                 <div className="input-group">
-                    <label>Saldo Inicial ({activeCurrency})</label>
+                    <label>{t('investments.initial_balance')} ({activeCurrency})</label>
                     <input 
                     type="text" 
                     value={formData.initial_balance}
@@ -337,12 +339,12 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                       const masked = formatCurrency(e.target.value);
                       setFormData({...formData, initial_balance: masked});
                     }}
-                    placeholder="0,00"
+                    placeholder={t('investments.amount_placeholder')}
                     required
                   />
                 </div>
                 <div className="input-group">
-                  <label>Saldo Final ({activeCurrency})</label>
+                  <label>{t('investments.final_balance')} ({activeCurrency})</label>
                   <input 
                     type="text" 
                     value={formData.final_balance}
@@ -350,7 +352,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                       const masked = formatCurrency(e.target.value);
                       setFormData({...formData, final_balance: masked});
                     }}
-                    placeholder="0,00"
+                    placeholder={t('investments.amount_placeholder')}
                     required
                   />
                 </div>
@@ -372,7 +374,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 }}
               >
                 <div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Rendimento</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{t('investments.yield_amount')}</span>
                 </div>
                 <span style={{ fontSize: '1.5rem', fontWeight: 800, color: formData.yield >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: activeCurrency }).format(formData.yield)}
@@ -380,9 +382,9 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
               </Motion.div>
 
               <div style={{ display: 'flex', gap: '1.25rem', marginTop: '1rem' }}>
-                <button type="button" className="btn-cancel" onClick={onClose} style={{ flex: 1, padding: '1rem' }}>Cancelar</button>
+                <button type="button" className="btn-cancel" onClick={onClose} style={{ flex: 1, padding: '1rem' }}>{t('investments.cancel')}</button>
                 <button type="submit" className="btn-primary" style={{ flex: 2, padding: '1rem', justifyContent: 'center' }}>
-                  <Save size={20} /> {initialData ? 'Salvar Alterações' : 'Cadastrar Registro'}
+                  <Save size={20} /> {t(initialData ? 'investments.save_changes' : 'investments.create_record')}
                 </button>
               </div>
             </div>

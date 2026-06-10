@@ -64,7 +64,7 @@ export default function FinanceSettings() {
     try {
       await setMainResponsibleMutation.mutateAsync(id);
     } catch {
-      toast.error('Erro ao definir responsável principal');
+      toast.error(t('finance.error_set_main_responsible'));
     }
   }
 
