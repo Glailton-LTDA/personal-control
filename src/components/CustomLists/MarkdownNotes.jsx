@@ -1506,7 +1506,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                     transition: 'all 0.2s',
                     marginLeft: '0.5rem'
                   }}
-                  title={t('lists.notes_view.share_note', 'Compartilhar Nota')}
+                  title={t('lists.notes_view.share_note_title')}
                 >
                   <Users size={16} style={{ color: 'var(--primary)' }} />
                 </button>
@@ -1880,7 +1880,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-main)', fontWeight: 800 }}>{t('lists.notes_view.share_note', 'Compartilhar Nota')}</h3>
+                <h3 style={{ margin: 0, color: 'var(--text-main)', fontWeight: 800 }}>{t('lists.notes_view.share_note_title')}</h3>
                 <button onClick={() => setIsNoteShareModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
               </div>
 
