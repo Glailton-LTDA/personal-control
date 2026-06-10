@@ -125,6 +125,31 @@ function AutoResizeTextarea({ value, onChange, placeholder, className, style }) 
   );
 }
 
+function parseTableLines(tableLines) {
+  if (tableLines.length < 1) return '';
+  const headerCells = tableLines[0].split('|').slice(1, -1).map(c => inlineStyles(c.trim()));
+  let dataStart = 1;
+  if (tableLines.length > 1 && /^[\s:|]-+[\s:|]-+/.test(tableLines[1])) {
+    dataStart = 2;
+  }
+  let tbl = '<table style="width:100%;border-collapse:collapse;margin:0.5rem 0;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;">';
+  tbl += '<thead><tr>';
+  headerCells.forEach(c => {
+    tbl += `<th style="border:1px solid var(--glass-border);padding:0.5rem 0.75rem;background:rgba(255,255,255,0.03);font-weight:700;text-align:left;color:var(--text-main);font-size:0.9em;">${c}</th>`;
+  });
+  tbl += '</tr></thead><tbody>';
+  for (let r = dataStart; r < tableLines.length; r++) {
+    const cells = tableLines[r].split('|').slice(1, -1).map(c => inlineStyles(c.trim()));
+    tbl += '<tr>';
+    cells.forEach(c => {
+      tbl += `<td style="border:1px solid var(--glass-border);padding:0.4rem 0.75rem;color:var(--text-main);font-size:0.9em;">${c || '&nbsp;'}</td>`;
+    });
+    tbl += '</tr>';
+  }
+  tbl += '</tbody></table>';
+  return tbl;
+}
+
 // Custom Markdown Parser & Editor Components
 function parseMarkdown(md) {
   if (!md) return '';
@@ -133,13 +158,24 @@ function parseMarkdown(md) {
   let html = [];
   let inCodeBlock = false;
   let codeContent = [];
-  let inList = false;
+  let listStack = [];
+  
+  function closeListToLevel(target) {
+    while (listStack.length > target) {
+      html.push(`</${listStack.pop()}>`);
+    }
+  }
+  
+  function getIndent(line) {
+    const trimmed = line.trimStart();
+    return line.length - trimmed.length;
+  }
   
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     
-    // Code block toggle
     if (line.trim().startsWith('```')) {
+      closeListToLevel(0);
       if (inCodeBlock) {
         inCodeBlock = false;
         const escapedCode = codeContent.join('\n')
@@ -159,42 +195,54 @@ function parseMarkdown(md) {
       continue;
     }
     
-    // Escape HTML to prevent XSS
     line = line
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-      
-    // Horizontal Rule: 3 or more dashes, asterisks, or underscores
-    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-      if (inList) { html.push('</ul>'); inList = false; }
+    
+    const trimmed = line.trim();
+    const indent = getIndent(line);
+    const listLevel = Math.floor(indent / 2);
+    
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      closeListToLevel(0);
       html.push('<hr style="border: none; border-top: 1px solid var(--text-muted); opacity: 0.25; margin: 1rem 0;" />');
       continue;
     }
-
-    // Headers
-    if (line.startsWith('# ')) {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<h1 style="font-size: 1.5rem; font-weight: 800; margin: 1rem 0 0.5rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(2))}</h1>`);
+    
+    if (trimmed.startsWith('# ')) {
+      closeListToLevel(0);
+      html.push(`<h1 style="font-size: 1.5rem; font-weight: 800; margin: 1rem 0 0.5rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(trimmed.substring(2))}</h1>`);
       continue;
     }
-    if (line.startsWith('## ')) {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<h2 style="font-size: 1.25rem; font-weight: 800; margin: 0.85rem 0 0.4rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(3))}</h2>`);
+    if (trimmed.startsWith('## ')) {
+      closeListToLevel(0);
+      html.push(`<h2 style="font-size: 1.25rem; font-weight: 800; margin: 0.85rem 0 0.4rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(trimmed.substring(3))}</h2>`);
       continue;
     }
-    if (line.startsWith('### ')) {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<h3 style="font-size: 1.1rem; font-weight: 800; margin: 0.75rem 0 0.3rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(4))}</h3>`);
+    if (trimmed.startsWith('### ')) {
+      closeListToLevel(0);
+      html.push(`<h3 style="font-size: 1.1rem; font-weight: 800; margin: 0.75rem 0 0.3rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(trimmed.substring(4))}</h3>`);
       continue;
     }
     
-    // Checkboxes: - [ ] or - [x]
-    const checkboxMatch = line.match(/^-\s+\[([ xX])\]\s+(.*)/);
+    if (trimmed.startsWith('|')) {
+      closeListToLevel(0);
+      let tableLines = [trimmed];
+      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|')) {
+        i++;
+        tableLines.push(lines[i].trim());
+      }
+      html.push(parseTableLines(tableLines));
+      continue;
+    }
+    
+    const checkboxMatch = trimmed.match(/^-\s+\[([ xX])\]\s+(.*)/);
     if (checkboxMatch) {
-      if (!inList) {
+      closeListToLevel(listLevel);
+      if (listStack.length <= listLevel) {
         html.push('<ul style="list-style: none; padding-left: 0; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.4rem;">');
-        inList = true;
+        listStack.push('ul');
       }
       const checked = checkboxMatch[1].toLowerCase() === 'x';
       const text = checkboxMatch[2];
@@ -209,37 +257,38 @@ function parseMarkdown(md) {
       continue;
     }
     
-    // Unordered List item: - item or * item
-    const listMatch = line.match(/^[-*]\s+(.*)/);
+    const orderedMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (orderedMatch) {
+      closeListToLevel(listLevel);
+      if (listStack.length <= listLevel) {
+        html.push('<ol style="padding-left: 1.5rem; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.25rem; list-style-type: decimal;">');
+        listStack.push('ol');
+      }
+      html.push(`<li style="font-size: 0.95rem; line-height: 1.5; color: var(--text-main);">${inlineStyles(orderedMatch[2])}</li>`);
+      continue;
+    }
+    
+    const listMatch = trimmed.match(/^[-*]\s+(.*)/);
     if (listMatch) {
-      if (!inList) {
+      closeListToLevel(listLevel);
+      if (listStack.length <= listLevel) {
         html.push('<ul style="list-style-type: disc; padding-left: 1.25rem; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.25rem;">');
-        inList = true;
+        listStack.push('ul');
       }
       html.push(`<li style="font-size: 0.95rem; line-height: 1.5; color: var(--text-main);">${inlineStyles(listMatch[1])}</li>`);
       continue;
     }
     
-    // If we are in a list and the line is empty/plain, close list
-    if (inList && line.trim() === '') {
-      html.push('</ul>');
-      inList = false;
-      continue;
-    }
-    
-    // Normal paragraph or empty line
-    if (line.trim() === '') {
-      if (inList) { html.push('</ul>'); inList = false; }
+    if (trimmed === '') {
+      closeListToLevel(0);
       html.push('<div style="height: 0.5rem;"></div>');
     } else {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<p style="font-size: 0.95rem; line-height: 1.6; margin: 0.5rem 0; color: var(--text-main);">${inlineStyles(line)}</p>`);
+      closeListToLevel(0);
+      html.push(`<p style="font-size: 0.95rem; line-height: 1.6; margin: 0.5rem 0; color: var(--text-main);">${inlineStyles(trimmed)}</p>`);
     }
   }
   
-  if (inList) {
-    html.push('</ul>');
-  }
+  closeListToLevel(0);
   if (inCodeBlock) {
     const escapedCode = codeContent.join('\n')
       .replace(/&/g, '&amp;')
@@ -281,7 +330,8 @@ function MarkdownRenderer({ content }) {
 }
 
 function MarkdownEditor({ value, onChange, placeholder }) {
-  const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
+  const { t } = useTranslation();
+  const [mode, setMode] = useState('edit');
   const textareaRef = useRef(null);
 
   const insertHelper = (syntax) => {
@@ -324,6 +374,12 @@ function MarkdownEditor({ value, onChange, placeholder }) {
     } else if (syntax === 'checkbox') {
       replacement = `- [ ] ${selected}`;
       cursorOffset = hasSelection ? replacement.length : 6;
+    } else if (syntax === 'ordered-list') {
+      replacement = `1. ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 3;
+    } else if (syntax === 'table') {
+      replacement = `| Coluna 1 | Coluna 2 |\n|----------|----------|\n|  |  |`;
+      cursorOffset = 0;
     }
 
     const newValue = before + replacement + after;
@@ -399,7 +455,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             }}
           >
             <Edit2 size={12} />
-            Editar
+            {t('lists.edit_mode')}
           </button>
           <button
             type="button"
@@ -420,7 +476,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             }}
           >
             <BookOpen size={12} />
-            Visualizar
+            {t('lists.preview_mode')}
           </button>
         </div>
         
@@ -430,7 +486,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               type="button"
               onClick={() => insertHelper('h1')}
               style={toolbarButtonStyle}
-              title="Título 1"
+              title={t('lists.notes_view.h1')}
             >
               H1
             </button>
@@ -438,7 +494,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               type="button"
               onClick={() => insertHelper('h2')}
               style={toolbarButtonStyle}
-              title="Título 2"
+              title={t('lists.notes_view.h2')}
             >
               H2
             </button>
@@ -446,7 +502,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               type="button"
               onClick={() => insertHelper('bold')}
               style={{ ...toolbarButtonStyle, fontWeight: 800 }}
-              title="Negrito"
+              title={t('lists.notes_view.bold')}
             >
               B
             </button>
@@ -454,7 +510,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               type="button"
               onClick={() => insertHelper('italic')}
               style={{ ...toolbarButtonStyle, fontStyle: 'italic' }}
-              title="Itálico"
+              title={t('lists.notes_view.italic')}
             >
               I
             </button>
@@ -462,15 +518,31 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               type="button"
               onClick={() => insertHelper('list')}
               style={toolbarButtonStyle}
-              title="Lista"
+              title={t('lists.notes_view.unordered_list')}
             >
               •
             </button>
             <button
               type="button"
+              onClick={() => insertHelper('ordered-list')}
+              style={toolbarButtonStyle}
+              title={t('lists.notes_view.ordered_list')}
+            >
+              1.
+            </button>
+            <button
+              type="button"
+              onClick={() => insertHelper('table')}
+              style={toolbarButtonStyle}
+              title={t('lists.notes_view.table_tool')}
+            >
+              ▤
+            </button>
+            <button
+              type="button"
               onClick={() => insertHelper('checkbox')}
               style={toolbarButtonStyle}
-              title="Checklist"
+              title={t('lists.notes_view.checklist_tool')}
             >
               [ ]
             </button>
@@ -478,7 +550,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               type="button"
               onClick={() => insertHelper('code')}
               style={toolbarButtonStyle}
-              title="Código em linha"
+              title={t('lists.notes_view.code_tool')}
             >
               {`</>`}
             </button>
@@ -492,7 +564,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
             ref={textareaRef}
             value={value}
             onChange={onChange}
-            placeholder={placeholder || 'Escreva em Markdown...'}
+            placeholder={placeholder || t('lists.markdown_placeholder')}
             style={{
               width: '100%',
               minHeight: '180px',
@@ -520,7 +592,7 @@ function MarkdownEditor({ value, onChange, placeholder }) {
               <MarkdownRenderer content={value} />
             ) : (
               <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.95rem' }}>
-                Nada para visualizar ainda.
+                {t('lists.empty_preview')}
               </div>
             )}
           </div>
@@ -547,7 +619,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     name: '',
     icon: 'List',
     description: '',
-    fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }]
+    fields: [{ id: Math.random().toString(36).substr(2, 9), name: t('lists.item_default'), type: 'text' }]
   });
 
   const [editingListId, setEditingListId] = useState(null);
@@ -693,7 +765,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       
       setIsModalOpen(false);
       setEditingListId(null);
-      setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] });
+      setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: t('lists.item_default'), type: 'text' }] });
       fetchLists();
     } catch (err) {
       console.error('Error saving list:', err);
@@ -949,7 +1021,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
               <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 500 }}>{t('lists.settings_desc')}</p>
             </div>
             <button 
-              onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
+              onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: t('lists.item_default'), type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
               className="btn-primary" 
               style={{ 
                 display: 'flex', 
@@ -1103,7 +1175,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem' }}>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('lists.collections')}</h3>
               <button 
-                onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: 'Item', type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
+                onClick={() => { setEditingListId(null); setNewList({ name: '', icon: 'List', description: '', fields: [{ id: Math.random().toString(36).substr(2, 9), name: t('lists.item_default'), type: 'text' }] }); setModalType('list'); setIsModalOpen(true); }} 
                 style={{ 
                   width: 36, 
                   height: 36, 
@@ -1183,7 +1255,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                   value={selectedList?.id || ''} 
                   onChange={(e) => setSelectedList(lists.find(l => l.id === e.target.value))}
                 >
-                  <option value="" disabled>Escolha uma lista...</option>
+                  <option value="" disabled>{t('lists.select_list')}</option>
                   {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
                 <button 
@@ -1449,21 +1521,21 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
 
       if (error) throw error;
 
-      toast.success('Lista compartilhada!');
+      toast.success(t('lists.share_success'));
       setEmail('');
       onRefresh();
     } catch (error) {
-      toast.error('Erro ao compartilhar: ' + error.message);
+      toast.error(t('lists.share_error', { error: error.message }));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRevoke = async (shareId) => {
-    if (!confirm('Revogar acesso?')) return;
+    if (!confirm(t('lists.confirm_revoke_share'))) return;
     const { error } = await supabase.from('custom_list_shares').delete().eq('id', shareId);
     if (!error) {
-      toast.success('Acesso revogado');
+      toast.success(t('lists.share_revoked'));
       onRefresh();
     }
   };
@@ -1476,14 +1548,14 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
       </div>
       <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div className="glass-input-container">
-          <label style={{ color: 'var(--text-muted)' }}>E-mail</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="glass-input" required placeholder="exemplo@email.com" />
+          <label style={{ color: 'var(--text-muted)' }}>{t('lists.email_label')}</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="glass-input" required placeholder={t('lists.email_placeholder')} />
         </div>
         <div className="glass-input-container">
-          <label style={{ color: 'var(--text-muted)' }}>Permissão</label>
+          <label style={{ color: 'var(--text-muted)' }}>{t('lists.permission_label')}</label>
           <select value={permission} onChange={e => setPermission(e.target.value)} className="glass-input">
-            <option value="READ">Apenas Visualizar</option>
-            <option value="WRITE">Pode Editar</option>
+            <option value="READ">{t('lists.read_only')}</option>
+            <option value="WRITE">{t('lists.read_write')}</option>
           </select>
         </div>
         <button type="submit" disabled={isLoading} className="btn-primary" style={{ padding: '0.75rem' }}>
@@ -1492,7 +1564,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
       </form>
       {activeShares.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <label style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.5, color: 'var(--text-main)' }}>Acessos Ativos</label>
+          <label style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.5, color: 'var(--text-main)' }}>{t('lists.active_shares')}</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
             {activeShares.map(s => (
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px' }}>
@@ -1511,6 +1583,7 @@ function ShareListModal({ user, list, activeShares, onClose, onRefresh }) {
 }
 
 function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMobile }) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState(() => {
     if (editingItem) return editingItem.data;
     const initial = {};
@@ -1524,7 +1597,7 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '1.5rem' : '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingItem ? 'Editar Item' : 'Novo Item'}</h3>
+        <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{t(editingItem ? 'lists.edit_item' : 'lists.new_item')}</h3>
         <button onClick={onCancel} className="icon-btn"><X size={20} /></button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1547,7 +1620,7 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
               <AddressInput 
                 value={formData[field.id] || ''}
                 onChange={(val) => setFormData({...formData, [field.id]: val})}
-                placeholder="Digite o endereço ou local..."
+                placeholder={t('lists.address_placeholder')}
               />
             ) : field.type === 'date' ? (
               <input 
@@ -1559,26 +1632,26 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
               <input 
                 type="number" value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
-                className="glass-input" placeholder="0"
+                className="glass-input" placeholder={t('lists.number_placeholder')}
               />
             ) : field.type === 'link' ? (
               <input 
                 type="url" value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
-                className="glass-input" placeholder="https://exemplo.com"
+                className="glass-input" placeholder={t('lists.url_placeholder')}
               />
             ) : field.type === 'markdown' ? (
               <MarkdownEditor 
                 value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
-                placeholder="Escreva em Markdown..."
+                placeholder={t('lists.markdown_placeholder_item')}
               />
             ) : field.type === 'textarea' ? (
               <textarea 
                 value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
                 className="glass-input" 
-                placeholder="Digite o texto..."
+                placeholder={t('lists.text_placeholder')}
                 rows={3}
                 style={{ resize: 'vertical', minHeight: '80px', lineHeight: 1.6 }}
               />
@@ -1586,7 +1659,7 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
               <AutoResizeTextarea 
                 value={formData[field.id] || ''} 
                 onChange={e => setFormData({...formData, [field.id]: e.target.value})}
-                className="glass-input" placeholder="..."
+                className="glass-input" placeholder={t('lists.default_placeholder')}
               />
             )}
           </div>
@@ -1603,9 +1676,9 @@ function ItemForm({ selectedList, editingItem, onSave, onCancel, isSaving, isMob
         marginTop: 'auto',
         flexShrink: 0
       }}>
-        {!isMobile && <button onClick={onCancel} className="btn-secondary" style={{ flex: 1 }}>Cancelar</button>}
+        {!isMobile && <button onClick={onCancel} className="btn-secondary" style={{ flex: 1 }}>{t('lists.cancel_item')}</button>}
         <button onClick={() => onSave(formData)} disabled={isSaving} className="btn-primary" style={{ flex: 1, padding: '1rem' }}>
-          {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Item'}
+          {isSaving ? <Loader2 size={18} className="animate-spin" /> : t('lists.save_item')}
         </button>
       </div>
     </div>

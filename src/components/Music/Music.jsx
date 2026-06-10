@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Plus, Edit, Trash2, ChevronLeft, Music as MusicIcon, FileText, Settings, ShieldAlert, Loader2, Star, ChevronDown, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -11,6 +12,7 @@ import ChordSettings from './ChordSettings';
 import Setlists from './Setlists';
 
 export default function Music({ user, refreshKey, mode = 'repertoire', navigate }) {
+  const { t } = useTranslation();
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -205,7 +207,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
       setTotalCount(count || 0);
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao buscar repertório.');
+      toast.error(t('music.error_fetch_songs'));
     } finally {
       setLoading(false);
     }
@@ -227,7 +229,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
       setArtistsList(data || []);
     } catch (err) {
       console.error('Erro ao buscar artistas por letra:', err);
-      toast.error('Erro ao carregar artistas.');
+      toast.error(t('music.error_fetch_artists'));
     } finally {
       setArtistsLoading(false);
     }
@@ -311,7 +313,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
           const songObj = Array.isArray(data) ? data[0] : data;
           setSelectedSong(songObj);
         } else {
-          toast.error('Música não encontrada.');
+          toast.error(t('music.song_not_found'));
           if (navigate) navigate('music-repertoire');
         }
       });
@@ -409,7 +411,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   const handleDeleteSong = async (e, id) => {
     e.stopPropagation(); // Evita abrir a música
-    if (!window.confirm('Tem certeza que deseja excluir esta música do seu repertório? Todos os arquivos e anotações vinculados serão removidos.')) {
+    if (!window.confirm(t('music.confirm_delete_song'))) {
       return;
     }
 
@@ -429,7 +431,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
       if (error) throw error;
       
-      toast.success('Música removida do repertório!');
+      toast.success(t('music.song_deleted'));
       if (selectedSong?.id === id) {
         setSelectedSong(null);
       }
@@ -437,7 +439,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
       fetchUniqueArtists();
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao excluir música.');
+      toast.error(t('music.error_delete_song'));
     }
   };
 
@@ -459,7 +461,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
       fetchSongs();
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao atualizar favorito.');
+      toast.error(t('music.error_favorite'));
     }
   };
 
@@ -513,7 +515,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
               else setSelectedSong(null);
             }}
             style={{ padding: '8px', display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}
-            title="Voltar ao Repertório"
+            title={t('music.back_to_repertoire')}
           >
             <ChevronLeft size={18} />
           </a>
@@ -575,7 +577,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             textDecoration: 'none'
           }}
         >
-          Repertório
+          {t('music.repertoire')}
         </a>
         <a
           href="/music-setlists"
@@ -599,7 +601,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             textDecoration: 'none'
           }}
         >
-          Setlists
+          {t('music.setlists')}
         </a>
       </div>
 
@@ -627,7 +629,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                   }
                 }}
                 style={{ padding: '6px' }}
-                title="Voltar"
+                title={t('music.back')}
               >
                 <ChevronLeft size={16} />
               </button>
@@ -641,7 +643,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                   fontWeight: activeLetter ? 500 : 700
                 }}
               >
-                Repertório Geral
+                {t('music.general_repertoire')}
               </span>
               {activeLetter && (
                 <>
@@ -654,7 +656,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                       fontWeight: selectedArtist !== 'all' ? 500 : 700
                     }}
                   >
-                    Letra {activeLetter}
+                    {t('music.letter', { letter: activeLetter })}
                   </span>
                 </>
               )}
@@ -724,7 +726,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                   gap: '0.2rem'
                 }}
               >
-                <X size={14} /> Limpar
+                <X size={14} /> {t('music.clear')}
               </button>
             )}
           </div>
@@ -744,7 +746,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
               <input
                 type="text"
                 className="glass-input"
-                placeholder="Pesquisar por título, artista ou banda..."
+                placeholder={t('music.search_placeholder')}
                 value={search}
                 onChange={e => handleSearchChange(e.target.value)}
                 style={{ paddingLeft: '2.5rem' }}
@@ -759,9 +761,9 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                 value={filterType}
                 onChange={e => handleFilterTypeChange(e.target.value)}
               >
-                <option value="all">Todas Músicas</option>
-                <option value="cifra">Cifras & Tablaturas (TXT)</option>
-                <option value="partitura">Partituras (PDF)</option>
+                <option value="all">{t('music.all_songs')}</option>
+                <option value="cifra">{t('music.chords_tabs')}</option>
+                <option value="partitura">{t('music.sheet_music')}</option>
               </select>
 
               {/* Filtro Artista – Dropdown Pesquisável via Portal */}
@@ -790,7 +792,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                   }}
                 >
                   <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {selectedArtist === 'all' ? 'Todos Artistas' : selectedArtist}
+                    {selectedArtist === 'all' ? t('music.all_artists') : selectedArtist}
                   </span>
                   {selectedArtist !== 'all' ? (
                     <X
@@ -830,7 +832,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                         <input
                           autoFocus
                           type="text"
-                          placeholder="Buscar artista..."
+                          placeholder={t('music.search_artist')}
                           value={artistSearch}
                           onChange={e => setArtistSearch(e.target.value)}
                           style={{
@@ -864,7 +866,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                         onMouseLeave={e => e.currentTarget.style.background = selectedArtist === 'all' ? 'rgba(99,102,241,0.08)' : 'transparent'}
                       >
-                        Todos os Artistas
+                        {t('music.all_artists')}
                       </div>
 
                       {uniqueArtists
@@ -894,7 +896,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
                       {uniqueArtists.filter(a => a.toLowerCase().includes(artistSearch.toLowerCase())).length === 0 && (
                         <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Nenhum artista encontrado
+                          {t('music.no_artist_found_dropdown')}
                         </div>
                       )}
                     </div>
@@ -909,7 +911,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                 value={selectedGenre}
                 onChange={e => handleSelectedGenreChange(e.target.value)}
               >
-                <option value="all">Todos Gêneros</option>
+                <option value="all">{t('music.all_genres')}</option>
                 {genres.map(g => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
@@ -922,7 +924,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                 style={{ padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Plus size={14} />
-                <span>Nova Música</span>
+                <span>{t('music.new_song')}</span>
               </button>
             </div>
           </div>
@@ -933,16 +935,22 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             artistsLoading ? (
               <div style={{ textAlign: 'center', padding: '4rem' }}>
                 <Loader2 className="animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
-                <span>Carregando artistas...</span>
+                <span>{t('music.loading_artists')}</span>
               </div>
             ) : artistsList.length === 0 ? (
               <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
                 <MusicIcon size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
-                <h4 style={{ margin: 0 }}>Nenhum artista encontrado</h4>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0' }}>Não há artistas cadastrados que começam com a letra "{activeLetter}".</p>
+                <h4 style={{ margin: 0 }}>{t('music.no_artist_found_dropdown')}</h4>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0' }}>{t('music.no_artists_letter', { letter: activeLetter })}</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem' }}>
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    {t('music.artists_found', { count: artistsList.length })}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem' }}>
                 {artistsList.map(({ artist, song_count }) => (
                   <a
                     key={artist}
@@ -1000,46 +1008,52 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                   </a>
                 ))}
               </div>
+              </>
             )
           ) : (
             /* ── TELA 2: Tabela Densa de Músicas (Geral ou Artista Selecionado) ── */
             loading ? (
               <div style={{ textAlign: 'center', padding: '4rem' }}>
                 <Loader2 className="animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
-                <span>Carregando repertório...</span>
+                <span>{t('music.loading_songs')}</span>
               </div>
             ) : songs.length === 0 ? (
               isFiltered ? (
                 <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
                   <MusicIcon size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
-                  <h4 style={{ margin: 0 }}>Nenhuma música encontrada</h4>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 1.25rem 0' }}>Tente ajustar os termos de pesquisa ou remover alguns filtros.</p>
-                  <button className="btn-secondary" onClick={() => { setSearch(''); setFilterType('all'); setSelectedArtist('all'); setSelectedGenre('all'); setPage(0); }} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Limpar Filtros</button>
+                  <h4 style={{ margin: 0 }}>{t('music.no_songs_found')}</h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 1.25rem 0' }}>{t('music.no_songs_hint')}</p>
+                  <button className="btn-secondary" onClick={() => { setSearch(''); setFilterType('all'); setSelectedArtist('all'); setSelectedGenre('all'); setPage(0); }} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>{t('music.clear_filters')}</button>
                 </div>
               ) : (
                 <div className="glass-card" style={{ padding: '5rem 2rem', textAlign: 'center', border: '1px dashed var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
                   <MusicIcon size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 1.5rem' }} />
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>Seu repertório está vazio</h3>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>{t('music.empty_title')}</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0.5rem auto 1.5rem', lineHeight: 1.5 }}>
-                    Cadastre novas cifras manualmente ou use o script de importação para carregar seus arquivos locais de partitura.
+                    {t('music.empty_desc')}
                   </p>
                   <button className="btn-primary" onClick={() => { setEditingSong(null); setIsModalOpen(true); }} style={{ padding: '0.6rem 1.5rem' }}>
-                    Cadastrar Primeira Música
+                    {t('music.register_first_song')}
                   </button>
                 </div>
               )
             ) : (
               <>
+                {isFiltered && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    {t('music.songs_found', { count: totalCount })}
+                  </div>
+                )}
                 <div className="table-responsive" style={{ overflowX: 'auto', width: '100%' }}>
                   <table className="dense-table">
                     <thead>
                       <tr>
                         <th style={{ width: '40px', padding: '0.75rem 0.5rem' }}></th>
-                        <th>Título</th>
-                        <th>Artista</th>
-                        <th>Gênero</th>
-                        <th style={{ width: '120px' }}>Tipo</th>
-                        <th style={{ width: '100px', textAlign: 'right' }}>Ações</th>
+                        <th>{t('music.song_table_title')}</th>
+                        <th>{t('music.song_table_artist')}</th>
+                        <th>{t('music.song_table_genre')}</th>
+                        <th style={{ width: '120px' }}>{t('music.song_table_type')}</th>
+                        <th style={{ width: '100px', textAlign: 'right' }}>{t('music.song_table_actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1072,7 +1086,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                                   alignItems: 'center',
                                   justifyContent: 'center'
                                 }}
-                                title={song.is_favorite ? "Remover dos favoritos" : "Marcar como favorito"}
+                                title={song.is_favorite ? t('music.remove_favorite') : t('music.mark_favorite')}
                               >
                                 <Star size={16} fill={song.is_favorite ? "#fbbf24" : "transparent"} />
                               </button>
@@ -1098,7 +1112,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                               </div>
                             </td>
                             <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                              {song.artist || 'Artista Desconhecido'}
+                              {song.artist || t('music.unknown_artist')}
                             </td>
                             <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                               {song.music_genres?.name ? (
@@ -1133,7 +1147,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                                   className="icon-btn"
                                   onClick={(e) => handleEditSong(e, song)}
                                   style={{ padding: '6px' }}
-                                  title="Editar Música"
+                                  title={t('music.edit_song_action')}
                                 >
                                   <Edit size={14} />
                                 </button>
@@ -1141,7 +1155,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                                   className="icon-btn"
                                   onClick={(e) => handleDeleteSong(e, song.id)}
                                   style={{ padding: '6px', color: 'var(--danger)' }}
-                                  title="Excluir Música"
+                                  title={t('music.delete_song_action')}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -1168,7 +1182,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                   }}>
                     {/* Items por Página */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <span>Itens por página:</span>
+                      <span>{t('music.items_per_page')}</span>
                       <select
                         value={pageSize}
                         onChange={(e) => {
@@ -1192,7 +1206,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                         onClick={() => setPage(0)}
                         disabled={page === 0}
                         style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
-                        title="Primeira Página"
+                        title={t('music.first_page')}
                       >
                         &lt;&lt;
                       </button>
@@ -1202,10 +1216,10 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                         disabled={page === 0}
                         style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
                       >
-                        Anterior
+                        {t('music.previous')}
                       </button>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0.5rem' }}>
-                        Página <b>{page + 1}</b> de <b>{totalPages}</b> ({totalCount} músicas)
+                        {t('music.page_info', { page: page + 1, totalPages, count: totalCount })}
                       </span>
                       <button
                         className="btn-secondary"
@@ -1213,14 +1227,14 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                         disabled={page >= totalPages - 1}
                         style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
                       >
-                        Próxima
+                        {t('music.next')}
                       </button>
                       <button
                         className="btn-secondary"
                         onClick={() => setPage(totalPages - 1)}
                         disabled={page >= totalPages - 1}
                         style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
-                        title="Última Página"
+                        title={t('music.last_page')}
                       >
                         &gt;&gt;
                       </button>
@@ -1228,7 +1242,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
                     {/* Ir Para Página */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <span>Ir para:</span>
+                      <span>{t('music.go_to')}</span>
                       <input
                         type="number"
                         value={pageInput}
@@ -1240,11 +1254,11 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
                               setPage(val - 1);
                               setPageInput('');
                             } else {
-                              toast.error(`Página inválida. Escolha entre 1 e ${totalPages}.`);
+                              toast.error(t('music.invalid_page', { totalPages }));
                             }
                           }
                         }}
-                        placeholder="Nº"
+                        placeholder={t('music.page_placeholder')}
                         className="glass-input"
                         style={{ width: '60px', padding: '0.25rem 0.5rem', textAlign: 'center', fontSize: '0.85rem' }}
                       />
