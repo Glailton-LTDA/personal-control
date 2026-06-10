@@ -405,6 +405,13 @@ i18n
           },
           trips: {
             title: 'Minha Jornada',
+            manage_trips: 'Gerenciar Viagens',
+            manage_trips_desc: 'Crie, edite e organize suas viagens com configurações personalizadas.',
+            tabs: {
+              trips: 'Viagens',
+              categories: 'Categorias',
+              shares: 'Compartilhamentos'
+            },
             expenses: 'Nova Despesa de Viagem',
             trip_menu_label: 'Menu da Viagem',
             selected_trip_label: 'VIAGEM SELECIONADA',
@@ -1377,6 +1384,13 @@ i18n
           },
           trips: {
             title: 'My Journey',
+            manage_trips: 'Manage Trips',
+            manage_trips_desc: 'Create, edit and organize your trips with custom settings.',
+            tabs: {
+              trips: 'Trips',
+              categories: 'Categories',
+              shares: 'Shares'
+            },
             expenses: 'New Trip Expense',
             trip_menu_label: 'Trip Menu',
             selected_trip_label: 'SELECTED TRIP',
