@@ -3,6 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import Music from './Music';
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 // Mock react-hot-toast
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -112,11 +117,11 @@ describe('Music Component', () => {
   it('renders correctly showing list table and page controls', async () => {
     render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
 
-    expect(screen.getByText('Repertório')).toBeDefined();
-    expect(screen.getByText('Setlists')).toBeDefined();
+    expect(screen.getByText('music.repertoire')).toBeDefined();
+    expect(screen.getByText('music.setlists')).toBeDefined();
 
     // Check breadcrumb
-    expect(screen.getByText('Repertório Geral')).toBeDefined();
+    expect(screen.getByText('music.general_repertoire')).toBeDefined();
 
     // Check alphabet filter buttons are rendered
     expect(screen.getByText('A')).toBeDefined();
@@ -132,8 +137,8 @@ describe('Music Component', () => {
     });
 
     // Check dense table column headers
-    expect(screen.getByText('Título')).toBeDefined();
-    expect(screen.getByText('Gênero')).toBeDefined();
+    expect(screen.getByText('music.song_table_title')).toBeDefined();
+    expect(screen.getByText('music.song_table_genre')).toBeDefined();
   });
 
   it('transitions to list of artists when alphabet letter is clicked', async () => {
@@ -155,7 +160,7 @@ describe('Music Component', () => {
 
     // Should display breadcrumbs update and artist grid
     await waitFor(() => {
-      expect(screen.getByText('Letra R')).toBeDefined();
+      expect(screen.getByText('music.letter')).toBeDefined();
       expect(screen.getByText('Roberto Carlos')).toBeDefined();
       expect(screen.getByText('5 músicas')).toBeDefined();
     });
@@ -193,8 +198,8 @@ describe('Music Component', () => {
 
     // Breadcrumbs should contain the artist name
     await waitFor(() => {
-      expect(screen.getByText('Repertório Geral')).toBeDefined();
-      expect(screen.getByText('Letra R')).toBeDefined();
+      expect(screen.getByText('music.general_repertoire')).toBeDefined();
+      expect(screen.getByText('music.letter')).toBeDefined();
       // Wait, there might be multiple 'Roberto Carlos' (breadcrumb and song row)
       const matches = screen.getAllByText('Roberto Carlos');
       expect(matches.length).toBeGreaterThanOrEqual(1);
@@ -217,17 +222,17 @@ describe('Music Component', () => {
     fireEvent.click(screen.getByText('Roberto Carlos'));
 
     // Click back button
-    const backBtn = screen.getByTitle('Voltar');
+    const backBtn = screen.getByTitle('music.back');
     fireEvent.click(backBtn);
 
     // Should be back to letter 'R' view showing Roberto Carlos artist list
     await waitFor(() => {
-      expect(screen.getByText('Letra R')).toBeDefined();
+      expect(screen.getByText('music.letter')).toBeDefined();
       expect(screen.getByText('5 músicas')).toBeDefined();
     });
 
     // Click "Repertório Geral" in breadcrumbs
-    const repGeralLink = screen.getByText('Repertório Geral');
+    const repGeralLink = screen.getByText('music.general_repertoire');
     fireEvent.click(repGeralLink);
 
     // Should be back to general songs view
@@ -254,9 +259,9 @@ describe('Music Component', () => {
 
     // Wait for loading to finish and verify pagination is shown
     await waitFor(() => {
-      expect(screen.getByText('Itens por página:')).toBeDefined();
-      expect(screen.getByText(/Página/)).toBeDefined();
-      expect(screen.getByText('Ir para:')).toBeDefined();
+      expect(screen.getByText('music.items_per_page')).toBeDefined();
+      expect(screen.getByText('music.page_info')).toBeDefined();
+      expect(screen.getByText('music.go_to')).toBeDefined();
     });
 
     // Dropdown for page limit selection
@@ -269,7 +274,7 @@ describe('Music Component', () => {
     });
 
     // Direct page navigation input
-    const pageInput = screen.getByPlaceholderText('Nº');
+    const pageInput = screen.getByPlaceholderText('music.page_placeholder');
     fireEvent.change(pageInput, { target: { value: '2' } });
     fireEvent.keyDown(pageInput, { key: 'Enter', code: 'Enter' });
 
@@ -287,15 +292,15 @@ describe('Music Component', () => {
 
     // Apply Letter S
     fireEvent.click(screen.getByText('S'));
-    await waitFor(() => expect(screen.getByText('Letra S')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('music.letter')).toBeDefined());
 
     // Type in global search input
-    const searchInput = screen.getByPlaceholderText('Pesquisar por título, artista ou banda...');
+    const searchInput = screen.getByPlaceholderText('music.search_placeholder');
     fireEvent.change(searchInput, { target: { value: 'Amor' } });
 
     // Should clear letter and switch back to loading songs
     await waitFor(() => {
-      expect(screen.queryByText('Letra S')).toBeNull();
+      expect(screen.queryByText('music.letter')).toBeNull();
       expect(mockSongsQuery.or).toHaveBeenCalledWith(expect.stringContaining('title.ilike.%Amor%'));
     });
   });

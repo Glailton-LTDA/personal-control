@@ -8,7 +8,31 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
-// Re-use Markdown parsing logic with horizontal rule support
+function parseTableLines(tableLines) {
+  if (tableLines.length < 1) return '';
+  const headerCells = tableLines[0].split('|').slice(1, -1).map(c => inlineStyles(c.trim()));
+  let dataStart = 1;
+  if (tableLines.length > 1 && /^[\s:|]-+[\s:|]-+/.test(tableLines[1])) {
+    dataStart = 2;
+  }
+  let tbl = '<table style="width:100%;border-collapse:collapse;margin:0.5rem 0;border:1px solid var(--glass-border);border-radius:8px;overflow:hidden;">';
+  tbl += '<thead><tr>';
+  headerCells.forEach(c => {
+    tbl += `<th style="border:1px solid var(--glass-border);padding:0.5rem 0.75rem;background:rgba(255,255,255,0.03);font-weight:700;text-align:left;color:var(--text-main);font-size:0.9em;">${c}</th>`;
+  });
+  tbl += '</tr></thead><tbody>';
+  for (let r = dataStart; r < tableLines.length; r++) {
+    const cells = tableLines[r].split('|').slice(1, -1).map(c => inlineStyles(c.trim()));
+    tbl += '<tr>';
+    cells.forEach(c => {
+      tbl += `<td style="border:1px solid var(--glass-border);padding:0.4rem 0.75rem;color:var(--text-main);font-size:0.9em;">${c || '&nbsp;'}</td>`;
+    });
+    tbl += '</tr>';
+  }
+  tbl += '</tbody></table>';
+  return tbl;
+}
+
 function parseMarkdown(md) {
   if (!md) return '';
   
@@ -16,13 +40,24 @@ function parseMarkdown(md) {
   let html = [];
   let inCodeBlock = false;
   let codeContent = [];
-  let inList = false;
+  let listStack = [];
+  
+  function closeListToLevel(target) {
+    while (listStack.length > target) {
+      html.push(`</${listStack.pop()}>`);
+    }
+  }
+  
+  function getIndent(line) {
+    const trimmed = line.trimStart();
+    return line.length - trimmed.length;
+  }
   
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     
-    // Code block toggle
     if (line.trim().startsWith('```')) {
+      closeListToLevel(0);
       if (inCodeBlock) {
         inCodeBlock = false;
         const escapedCode = codeContent.join('\n')
@@ -42,42 +77,54 @@ function parseMarkdown(md) {
       continue;
     }
     
-    // Escape HTML to prevent XSS
     line = line
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-      
-    // Horizontal Rule: 3 or more dashes, asterisks, or underscores
-    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-      if (inList) { html.push('</ul>'); inList = false; }
+    
+    const trimmed = line.trim();
+    const indent = getIndent(line);
+    const listLevel = Math.floor(indent / 2);
+    
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      closeListToLevel(0);
       html.push('<hr style="border: none; border-top: 1px solid var(--text-muted); opacity: 0.25; margin: 1.5rem 0;" />');
       continue;
     }
-
-    // Headers
-    if (line.startsWith('# ')) {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<h1 style="font-size: 1.5em; font-weight: 800; margin: 1rem 0 0.5rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(2))}</h1>`);
+    
+    if (trimmed.startsWith('# ')) {
+      closeListToLevel(0);
+      html.push(`<h1 style="font-size: 1.5em; font-weight: 800; margin: 1rem 0 0.5rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(trimmed.substring(2))}</h1>`);
       continue;
     }
-    if (line.startsWith('## ')) {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<h2 style="font-size: 1.25em; font-weight: 800; margin: 0.85rem 0 0.4rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(3))}</h2>`);
+    if (trimmed.startsWith('## ')) {
+      closeListToLevel(0);
+      html.push(`<h2 style="font-size: 1.25em; font-weight: 800; margin: 0.85rem 0 0.4rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(trimmed.substring(3))}</h2>`);
       continue;
     }
-    if (line.startsWith('### ')) {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<h3 style="font-size: 1.1em; font-weight: 800; margin: 0.75rem 0 0.3rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(line.substring(4))}</h3>`);
+    if (trimmed.startsWith('### ')) {
+      closeListToLevel(0);
+      html.push(`<h3 style="font-size: 1.1em; font-weight: 800; margin: 0.75rem 0 0.3rem; color: var(--text-main); line-height: 1.3;">${inlineStyles(trimmed.substring(4))}</h3>`);
       continue;
     }
     
-    // Checkboxes: - [ ] or - [x]
-    const checkboxMatch = line.match(/^-\s+\[([ xX])\]\s+(.*)/);
+    if (trimmed.startsWith('|')) {
+      closeListToLevel(0);
+      let tableLines = [trimmed];
+      while (i + 1 < lines.length && lines[i + 1].trim().startsWith('|')) {
+        i++;
+        tableLines.push(lines[i].trim());
+      }
+      html.push(parseTableLines(tableLines));
+      continue;
+    }
+    
+    const checkboxMatch = trimmed.match(/^-\s+\[([ xX])\]\s+(.*)/);
     if (checkboxMatch) {
-      if (!inList) {
+      closeListToLevel(listLevel);
+      if (listStack.length <= listLevel) {
         html.push('<ul style="list-style: none; padding-left: 0; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.4rem;">');
-        inList = true;
+        listStack.push('ul');
       }
       const checked = checkboxMatch[1].toLowerCase() === 'x';
       const text = checkboxMatch[2];
@@ -96,37 +143,38 @@ function parseMarkdown(md) {
       continue;
     }
     
-    // Unordered List item: - item or * item
-    const listMatch = line.match(/^[-*]\s+(.*)/);
+    const orderedMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (orderedMatch) {
+      closeListToLevel(listLevel);
+      if (listStack.length <= listLevel) {
+        html.push('<ol style="padding-left: 1.5rem; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.25rem; list-style-type: decimal;">');
+        listStack.push('ol');
+      }
+      html.push(`<li style="font-size: 0.95em; line-height: 1.5; color: var(--text-main);">${inlineStyles(orderedMatch[2])}</li>`);
+      continue;
+    }
+    
+    const listMatch = trimmed.match(/^[-*]\s+(.*)/);
     if (listMatch) {
-      if (!inList) {
+      closeListToLevel(listLevel);
+      if (listStack.length <= listLevel) {
         html.push('<ul style="list-style-type: disc; padding-left: 1.25rem; margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.25rem;">');
-        inList = true;
+        listStack.push('ul');
       }
       html.push(`<li style="font-size: 0.95em; line-height: 1.5; color: var(--text-main);">${inlineStyles(listMatch[1])}</li>`);
       continue;
     }
     
-    // If we are in a list and the line is empty/plain, close list
-    if (inList && line.trim() === '') {
-      html.push('</ul>');
-      inList = false;
-      continue;
-    }
-    
-    // Normal paragraph or empty line
-    if (line.trim() === '') {
-      if (inList) { html.push('</ul>'); inList = false; }
+    if (trimmed === '') {
+      closeListToLevel(0);
       html.push('<div style="height: 0.5rem;"></div>');
     } else {
-      if (inList) { html.push('</ul>'); inList = false; }
-      html.push(`<p style="font-size: 0.95em; line-height: 1.6; margin: 0.5rem 0; color: var(--text-main);">${inlineStyles(line)}</p>`);
+      closeListToLevel(0);
+      html.push(`<p style="font-size: 0.95em; line-height: 1.6; margin: 0.5rem 0; color: var(--text-main);">${inlineStyles(trimmed)}</p>`);
     }
   }
   
-  if (inList) {
-    html.push('</ul>');
-  }
+  closeListToLevel(0);
   if (inCodeBlock) {
     const escapedCode = codeContent.join('\n')
       .replace(/&/g, '&amp;')
@@ -826,6 +874,12 @@ export default function MarkdownNotes({ user, refreshKey }) {
     } else if (syntax === 'hr') {
       replacement = `\n---\n`;
       cursorOffset = replacement.length;
+    } else if (syntax === 'ordered-list') {
+      replacement = `1. ${selected}`;
+      cursorOffset = hasSelection ? replacement.length : 3;
+    } else if (syntax === 'table') {
+      replacement = `| Coluna 1 | Coluna 2 |\n|----------|----------|\n|  |  |`;
+      cursorOffset = 0;
     }
 
     const newValue = before + replacement + after;
@@ -873,21 +927,21 @@ export default function MarkdownNotes({ user, refreshKey }) {
 
       if (error) throw error;
 
-      toast.success('Bloco de Notas compartilhado!');
+      toast.success(t('lists.notes_view.notebook_shared'));
       setShareEmail('');
       fetchShares();
     } catch (err) {
-      toast.error('Erro ao compartilhar: ' + err.message);
+      toast.error(t('lists.notes_view.error_sharing_notebook', { error: err.message }));
     } finally {
       setSharingLoading(false);
     }
   };
 
   const handleRevokeShare = async (shareId) => {
-    if (!confirm('Revogar acesso?')) return;
+    if (!confirm(t('lists.notes_view.confirm_revoke_notebook'))) return;
     const { error } = await supabase.from('markdown_notebook_shares').delete().eq('id', shareId);
     if (!error) {
-      toast.success('Acesso revogado');
+      toast.success(t('lists.notes_view.access_revoked'));
       fetchShares();
     }
   };
@@ -928,7 +982,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
       setNoteShareEmail('');
       fetchNoteShares();
     } catch (err) {
-      toast.error('Erro ao compartilhar nota: ' + err.message);
+      toast.error(t('lists.notes_view.error_sharing_note', { error: err.message }));
     } finally {
       setNoteSharingLoading(false);
     }
@@ -1452,7 +1506,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                     transition: 'all 0.2s',
                     marginLeft: '0.5rem'
                   }}
-                  title={t('lists.notes_view.share_note', 'Compartilhar Nota')}
+                  title={t('lists.notes_view.share_note_title')}
                 >
                   <Users size={16} style={{ color: 'var(--primary)' }} />
                 </button>
@@ -1496,16 +1550,18 @@ export default function MarkdownNotes({ user, refreshKey }) {
             {/* Toolbar Actions */}
             {selectedNote && editorMode === 'edit' && (
               <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => insertSyntax('h1')} style={toolbarButtonStyle} title="Título 1">H1</button>
-                <button type="button" onClick={() => insertSyntax('h2')} style={toolbarButtonStyle} title="Título 2">H2</button>
-                <button type="button" onClick={() => insertSyntax('h3')} style={toolbarButtonStyle} title="Título 3">H3</button>
-                <button type="button" onClick={() => insertSyntax('bold')} style={{ ...toolbarButtonStyle, fontWeight: 800 }} title="Negrito">B</button>
-                <button type="button" onClick={() => insertSyntax('italic')} style={{ ...toolbarButtonStyle, fontStyle: 'italic' }} title="Itálico">I</button>
-                <button type="button" onClick={() => insertSyntax('list')} style={toolbarButtonStyle} title="Lista">•</button>
-                <button type="button" onClick={() => insertSyntax('checkbox')} style={toolbarButtonStyle} title="Checklist">[ ]</button>
-                <button type="button" onClick={() => insertSyntax('code')} style={toolbarButtonStyle} title="Código em linha">{`</>`}</button>
-                <button type="button" onClick={() => insertSyntax('link')} style={toolbarButtonStyle} title="Link">Link</button>
-                <button type="button" onClick={() => insertSyntax('hr')} style={{ ...toolbarButtonStyle, fontSize: '0.7rem' }} title="Linha divisória">---</button>
+                <button type="button" onClick={() => insertSyntax('h1')} style={toolbarButtonStyle} title={t('lists.notes_view.h1')}>H1</button>
+                <button type="button" onClick={() => insertSyntax('h2')} style={toolbarButtonStyle} title={t('lists.notes_view.h2')}>H2</button>
+                <button type="button" onClick={() => insertSyntax('h3')} style={toolbarButtonStyle} title={t('lists.notes_view.h3')}>H3</button>
+                <button type="button" onClick={() => insertSyntax('bold')} style={{ ...toolbarButtonStyle, fontWeight: 800 }} title={t('lists.notes_view.bold')}>B</button>
+                <button type="button" onClick={() => insertSyntax('italic')} style={{ ...toolbarButtonStyle, fontStyle: 'italic' }} title={t('lists.notes_view.italic')}>I</button>
+                <button type="button" onClick={() => insertSyntax('list')} style={toolbarButtonStyle} title={t('lists.notes_view.unordered_list')}>•</button>
+                <button type="button" onClick={() => insertSyntax('checkbox')} style={toolbarButtonStyle} title={t('lists.notes_view.checklist_tool')}>[ ]</button>
+                <button type="button" onClick={() => insertSyntax('ordered-list')} style={toolbarButtonStyle} title={t('lists.notes_view.ordered_list')}>1.</button>
+                <button type="button" onClick={() => insertSyntax('table')} style={toolbarButtonStyle} title={t('lists.notes_view.table_tool')}>▤</button>
+                <button type="button" onClick={() => insertSyntax('code')} style={toolbarButtonStyle} title={t('lists.notes_view.code_tool')}>{`</>`}</button>
+                <button type="button" onClick={() => insertSyntax('link')} style={toolbarButtonStyle} title={t('lists.notes_view.link_tool')}>Link</button>
+                <button type="button" onClick={() => insertSyntax('hr')} style={{ ...toolbarButtonStyle, fontSize: '0.7rem' }} title={t('lists.notes_view.hr_tool')}>---</button>
               </div>
             )}
 
@@ -1750,7 +1806,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                     onChange={e => setShareEmail(e.target.value)} 
                     className="glass-input" 
                     required 
-                    placeholder="exemplo@email.com" 
+                    placeholder={t('lists.notes_view.email_placeholder')} 
                     style={{ height: '40px', borderRadius: '10px' }}
                   />
                 </div>
@@ -1781,7 +1837,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{s.shared_with_email}</span>
                           <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 800 }}>{s.permission === 'WRITE' ? t('lists.notes_view.read_write', 'Pode Editar').toUpperCase() : t('lists.notes_view.read_only', 'Apenas Visualizar').toUpperCase()}</span>
                         </div>
-                        <button onClick={() => handleRevokeShare(s.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }} title="Revogar acesso"><Trash2 size={14} /></button>
+                        <button onClick={() => handleRevokeShare(s.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }} title={t('lists.notes_view.revoke_access')}><Trash2 size={14} /></button>
                       </div>
                     ))}
                   </div>
@@ -1824,7 +1880,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-main)', fontWeight: 800 }}>{t('lists.notes_view.share_note', 'Compartilhar Nota')}</h3>
+                <h3 style={{ margin: 0, color: 'var(--text-main)', fontWeight: 800 }}>{t('lists.notes_view.share_note_title')}</h3>
                 <button onClick={() => setIsNoteShareModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
               </div>
 
@@ -1837,7 +1893,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                     onChange={e => setNoteShareEmail(e.target.value)} 
                     className="glass-input" 
                     required 
-                    placeholder="exemplo@email.com" 
+                    placeholder={t('lists.notes_view.email_placeholder')} 
                     style={{ height: '40px', borderRadius: '10px' }}
                   />
                 </div>
@@ -1868,7 +1924,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{s.shared_with_email}</span>
                           <span style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 800 }}>{s.permission === 'WRITE' ? t('lists.notes_view.read_write', 'Pode Editar').toUpperCase() : t('lists.notes_view.read_only', 'Apenas Visualizar').toUpperCase()}</span>
                         </div>
-                        <button onClick={() => handleRevokeNoteShare(s.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }} title="Revogar acesso"><Trash2 size={14} /></button>
+                        <button onClick={() => handleRevokeNoteShare(s.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }} title={t('lists.notes_view.revoke_access')}><Trash2 size={14} /></button>
                       </div>
                     ))}
                   </div>
