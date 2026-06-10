@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, FileText, Upload, Link, ExternalLink, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import MultiSelect from '../ui/MultiSelect';
 
 export default function SongModal({ isOpen, onClose, onRefresh, user, initialData = null, onSaved = null }) {
   const [title, setTitle] = useState('');
@@ -253,46 +254,20 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
             </select>
           </div>
 
-          {/* Setlists — visível apenas no modo edição com setlists disponíveis */}
-          {initialData?.id && availableSetlists.length > 0 && (
+          {/* Setlists — visível apenas no modo edição */}
+          {initialData?.id && (
             <div className="input-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                 Adicionar a Setlists
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>(opcional)</span>
               </label>
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem',
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid var(--glass-border)',
-                borderRadius: '8px',
-                padding: '0.75rem',
-                maxHeight: '160px',
-                overflowY: 'auto'
-              }}>
-                {availableSetlists.map(sl => (
-                  <label
-                    key={sl.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-main)' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSetlistIds.has(sl.id)}
-                      onChange={() => {
-                        setSelectedSetlistIds(prev => {
-                          const next = new Set(prev);
-                          if (next.has(sl.id)) next.delete(sl.id);
-                          else next.add(sl.id);
-                          return next;
-                        });
-                      }}
-                      style={{ accentColor: 'var(--primary)', width: '15px', height: '15px', cursor: 'pointer' }}
-                    />
-                    {sl.name}
-                  </label>
-                ))}
-              </div>
+              <MultiSelect
+                options={availableSetlists.map(sl => ({ value: sl.id, label: sl.name }))}
+                selected={[...selectedSetlistIds]}
+                onChange={(ids) => setSelectedSetlistIds(new Set(ids))}
+                placeholder="Selecionar setlists..."
+                searchPlaceholder="Buscar setlist..."
+              />
             </div>
           )}
 
