@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Search, X, Check } from 'lucide-react';
 import { CURRENCIES } from '../../constants/currencies';
+import { useTranslation } from 'react-i18next';
 
 const CurrencySelector = ({ selectedCurrencies = [], onSelectionChange, single = false }) => {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredCurrencies = CURRENCIES.filter(curr => 
@@ -50,7 +52,7 @@ const CurrencySelector = ({ selectedCurrencies = [], onSelectionChange, single =
         <input 
           className="glass-input" 
           style={{ background: 'transparent', border: 'none', padding: 0, fontSize: '0.9rem', width: '100%', outline: 'none', color: 'var(--text-main)' }}
-          placeholder="Buscar moeda (USD, Euro, Brasil...)"
+          placeholder={t('trips.currency_search')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -63,7 +65,7 @@ const CurrencySelector = ({ selectedCurrencies = [], onSelectionChange, single =
 
       <div className="scrollbar-thin" style={{ maxHeight: '250px', overflowY: 'auto', padding: '0.5rem' }}>
         {filteredCurrencies.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5, fontSize: '0.9rem', color: 'var(--text-main)' }}>Nenhuma moeda encontrada</div>
+          <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5, fontSize: '0.9rem', color: 'var(--text-main)' }}>{t('trips.currency_not_found')}</div>
         ) : (
           filteredCurrencies.map(curr => {
             const isSelected = selectedCurrencies.includes(curr.code);

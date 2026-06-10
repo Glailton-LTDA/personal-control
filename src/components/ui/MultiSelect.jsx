@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, Check, ChevronDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-export default function MultiSelect({ options = [], selected = [], onChange, placeholder = 'Selecionar...', searchPlaceholder = 'Buscar...', maxHeight = '220px' }) {
+export default function MultiSelect({ options = [], selected = [], onChange, placeholder: placeholderProp, searchPlaceholder: searchPlaceholderProp, maxHeight = '220px' }) {
+  const { t } = useTranslation();
+  const placeholder = placeholderProp || t('common.select');
+  const searchPlaceholder = searchPlaceholderProp || t('common.search');
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef(null);
@@ -140,7 +144,7 @@ export default function MultiSelect({ options = [], selected = [], onChange, pla
           <div style={{ maxHeight, overflowY: 'auto', padding: '0.35rem' }}>
             {filtered.length === 0 ? (
               <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                Nenhum resultado
+                {t('common.no_results')}
               </div>
             ) : (
               filtered.map(opt => {

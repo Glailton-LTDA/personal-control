@@ -225,7 +225,7 @@ export default function TripsStats({ trips, onBack }) {
           if (item.coordinates && Array.isArray(item.coordinates) && item.coordinates.length === 2) {
             mapPoints.push({
               coordinates: [Number(item.coordinates[0]), Number(item.coordinates[1])],
-              name: item.location || item.activity || 'Destino'
+              name: item.location || item.activity || t('trips.stats_destination')
             });
           }
         });

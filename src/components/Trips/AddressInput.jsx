@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, MapPin, X, Loader2, Hash } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
-export default function AddressInput({ value, onChange, placeholder = "Digite o endereço...", disabled = false }) {
+export default function AddressInput({ value, onChange, placeholder, disabled = false }) {
+  const { t } = useTranslation();
   // baseAddress: the raw Nominatim address (never contains number/complement)
   const [baseAddress, setBaseAddress] = useState('');
   const [inputValue, setInputValue] = useState('');
@@ -211,7 +213,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
           onChange={(e) => { setShowNumberField(false); handleSearch(e.target.value); }}
           onFocus={() => !disabled && suggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-          placeholder={placeholder}
+          placeholder={placeholder || t('trips.address_placeholder')}
           className="glass-input"
           style={{ 
             paddingLeft: '3rem', 
@@ -249,7 +251,7 @@ export default function AddressInput({ value, onChange, placeholder = "Digite o 
             value={numberValue}
             disabled={disabled}
             onChange={(e) => handleNumberChange(e.target.value)}
-            placeholder="Nº / Complemento (Ex: 1234, Apt 5B)"
+            placeholder={t('trips.address_complement')}
             className="glass-input"
             style={{ 
               flex: 1,

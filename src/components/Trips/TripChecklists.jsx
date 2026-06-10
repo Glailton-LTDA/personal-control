@@ -273,7 +273,7 @@ export default function TripChecklists({ user, trip, onBack }) {
       .single();
 
     if (!originalChecklist || !originalChecklist.title) {
-      toast.error('Erro ao ler título original');
+      toast.error(t('trips.checklist_import_error'));
       return;
     }
 
@@ -282,7 +282,7 @@ export default function TripChecklists({ user, trip, onBack }) {
       .insert({
         trip_id: trip.id,
         user_id: user.id,
-        title: `${originalChecklist.title} (Importado)`
+        title: `${originalChecklist.title} ${t('trips.checklist_imported_suffix')}`
       })
       .select()
       .single();
@@ -659,8 +659,8 @@ export default function TripChecklists({ user, trip, onBack }) {
                               <div style={{ display: 'flex', gap: '0.4rem', opacity: 0 }} className="item-actions">
                                 {editingItemId !== item.id && (
                                   <>
-                                    <button onClick={() => startEditingItem(item)} className="icon-btn" title="Editar"><Edit2 size={14} /></button>
-                                    <button onClick={() => removeItem(checklist.id, item.id)} className="icon-btn" style={{ color: 'var(--danger)' }} title="Remover"><X size={16} /></button>
+                                    <button onClick={() => startEditingItem(item)} className="icon-btn" title={t('trips.checklist_edit')}><Edit2 size={14} /></button>
+                                    <button onClick={() => removeItem(checklist.id, item.id)} className="icon-btn" style={{ color: 'var(--danger)' }} title={t('trips.checklist_remove')}><X size={16} /></button>
                                   </>
                                 )}
                               </div>
@@ -801,7 +801,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                   {otherTrips.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '4rem 2rem', opacity: 0.3 }}>
                       <ClipboardList size={48} style={{ marginBottom: '1rem' }} />
-                      <p>Nenhuma lista disponível para importação.</p>
+                      <p>{t('trips.checklist_no_import')}</p>
                     </div>
                   )}
                 </div>

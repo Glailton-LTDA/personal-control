@@ -137,7 +137,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
                 type="text" 
                 required 
                 value={formData.amount}
-                placeholder="0,00"
+                placeholder={t('finance.amount_placeholder')}
                 onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
                   if (!val) {

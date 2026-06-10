@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trash2, Edit2, Save, X, Palette, Building2, Layers, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -8,6 +9,7 @@ import CurrencySelector from '../Trips/CurrencySelector';
 import { CURRENCIES } from '../../constants/currencies';
 
 export default function InvestmentSettings({ user }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('accounts');
   const [accounts, setAccounts] = useState([]);
   const [institutions, setInstitutions] = useState([]);
@@ -112,7 +114,7 @@ export default function InvestmentSettings({ user }) {
         .eq('id', editingId);
       
       if (!error) {
-        toast.success('Conta atualizada');
+        toast.success(t('investments.account_updated'));
         resetForms();
         fetchData();
       }
@@ -129,7 +131,7 @@ export default function InvestmentSettings({ user }) {
         }]);
       
       if (!error) {
-        toast.success('Conta criada');
+        toast.success(t('investments.account_created'));
         resetForms();
         fetchData();
       }
@@ -143,12 +145,12 @@ export default function InvestmentSettings({ user }) {
         .from('investment_institutions')
         .update(instData)
         .eq('id', editingId);
-      if (!error) { toast.success('Instituição atualizada'); resetForms(); fetchData(); }
+      if (!error) { toast.success(t('investments.institution_updated')); resetForms(); fetchData(); }
     } else {
       const { error } = await supabase
         .from('investment_institutions')
         .insert([{ ...instData, user_id: user.id }]);
-      if (!error) { toast.success('Instituição criada'); resetForms(); fetchData(); }
+      if (!error) { toast.success(t('investments.institution_created')); resetForms(); fetchData(); }
     }
   }
 
@@ -159,20 +161,20 @@ export default function InvestmentSettings({ user }) {
         .from('investment_account_types')
         .update(typeData)
         .eq('id', editingId);
-      if (!error) { toast.success('Tipo atualizado'); resetForms(); fetchData(); }
+      if (!error) { toast.success(t('investments.type_updated')); resetForms(); fetchData(); }
     } else {
       const { error } = await supabase
         .from('investment_account_types')
         .insert([{ ...typeData, user_id: user.id }]);
-      if (!error) { toast.success('Tipo criado'); resetForms(); fetchData(); }
+      if (!error) { toast.success(t('investments.type_created')); resetForms(); fetchData(); }
     }
   }
 
   const deleteItem = async (table, id, label) => {
-    confirmToast(`Tem certeza que deseja excluir este ${label}?`, async () => {
+    confirmToast(t('investments.confirm_delete', { label }), async () => {
       const { error } = await supabase.from(table).delete().eq('id', id);
-      if (!error) { toast.success(`${label} excluído`); fetchData(); }
-      else { toast.error('Erro ao excluir item. Verifique se existem dependências.'); }
+      if (!error) { toast.success(t('investments.item_deleted', { label })); fetchData(); }
+      else { toast.error(t('investments.error_delete_deps')); }
     }, { danger: true });
   };
   
@@ -196,20 +198,20 @@ export default function InvestmentSettings({ user }) {
     <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '5rem' }}>
       <div style={{ marginBottom: '2.5rem' }}>
         <h3 style={{ fontSize: '1.75rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.75rem', letterSpacing: '-0.02em' }}>
-          <Palette size={28} color="var(--primary)" /> Configurações de Investimentos
+          <Palette size={28} color="var(--primary)" /> {t('investments.settings_title')}
         </h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.5rem', fontWeight: 500 }}>Personalize suas contas, instituições e tipos de ativos para uma gestão impecável.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.5rem', fontWeight: 500 }}>{t('investments.settings_desc')}</p>
       </div>
 
       <div className="tabs-container" style={{ marginBottom: '2rem' }}>
         <button className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`} onClick={() => setActiveTab('accounts')}>
-          <CreditCard size={18} /> Contas
+          <CreditCard size={18} /> {t('investments.accounts_tab')}
         </button>
         <button className={`tab-btn ${activeTab === 'institutions' ? 'active' : ''}`} onClick={() => setActiveTab('institutions')}>
-          <Building2 size={18} /> Instituições
+          <Building2 size={18} /> {t('investments.institutions_tab')}
         </button>
         <button className={`tab-btn ${activeTab === 'types' ? 'active' : ''}`} onClick={() => setActiveTab('types')}>
-          <Layers size={18} /> Tipos de Conta
+          <Layers size={18} /> {t('investments.account_types_tab')}
         </button>
       </div>
 
@@ -225,7 +227,7 @@ export default function InvestmentSettings({ user }) {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>
-                  {editingId ? 'Editar' : 'Novo(a)'} {activeTab === 'accounts' ? 'Conta' : activeTab === 'institutions' ? 'Instituição' : 'Tipo'}
+                  {t(editingId ? 'investments.edit_' + (activeTab === 'accounts' ? 'account' : activeTab === 'institutions' ? 'institution' : 'type') : 'investments.new_' + (activeTab === 'accounts' ? 'account' : activeTab === 'institutions' ? 'institution' : 'type'))}
                 </h3>
                 <button onClick={resetForms} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
               </div>
@@ -234,29 +236,29 @@ export default function InvestmentSettings({ user }) {
                 <form onSubmit={handleAccountSubmit}>
                   <div className="form-grid">
                     <div className="input-group">
-                      <label>Nome da Conta</label>
+                      <label>{t('investments.account_name')}</label>
                       <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
                     </div>
                     <div className="input-group">
-                      <label>Instituição</label>
+                      <label>{t('investments.select_institution')}</label>
                       <select className="glass-input" value={formData.institution_id} onChange={e => setFormData({...formData, institution_id: e.target.value})}>
-                        <option value="">Selecione...</option>
+                        <option value="">{t('investments.select_default')}</option>
                         {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                       </select>
                     </div>
                     <div className="input-group">
-                      <label>Tipo de Conta</label>
+                      <label>{t('investments.select_account_type')}</label>
                       <select className="glass-input" value={formData.account_type_id} onChange={e => setFormData({...formData, account_type_id: e.target.value})}>
-                        <option value="">Selecione...</option>
+                        <option value="">{t('investments.select_default')}</option>
                         {accountTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
                     </div>
                     <div className="input-group">
-                      <label>Cor do Gráfico</label>
+                      <label>{t('investments.chart_color')}</label>
                       <input type="color" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} style={{ height: '45px', padding: '4px' }} />
                     </div>
                     <div className="input-group" style={{ gridColumn: 'span 2' }}>
-                      <label>Moeda da Conta</label>
+                      <label>{t('investments.account_currency')}</label>
                       <CurrencySelector 
                         selectedCurrencies={formData.currency ? [formData.currency] : ['BRL']} 
                         onSelectionChange={(newSelection) => setFormData({...formData, currency: newSelection[0] || 'BRL'})}
@@ -265,8 +267,8 @@ export default function InvestmentSettings({ user }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem' }}>
-                    <button type="button" className="btn-cancel" onClick={resetForms}>Cancelar</button>
-                    <button type="submit" className="btn-primary"><Save size={18} /> Salvar</button>
+                    <button type="button" className="btn-cancel" onClick={resetForms}>{t('investments.cancel')}</button>
+                    <button type="submit" className="btn-primary"><Save size={18} /> {t('investments.save')}</button>
                   </div>
                 </form>
               )}
@@ -274,16 +276,16 @@ export default function InvestmentSettings({ user }) {
               {activeTab === 'institutions' && (
                 <form onSubmit={handleInstitutionSubmit}>
                   <div className="input-group">
-                    <label>Nome da Instituição</label>
+                    <label>{t('investments.institution_name')}</label>
                     <input type="text" value={instData.name} onChange={e => setInstData({...instData, name: e.target.value})} required />
                   </div>
                   <div className="input-group">
-                    <label>Cor de Identificação</label>
+                    <label>{t('investments.institution_color')}</label>
                     <input type="color" value={instData.color} onChange={e => setInstData({...instData, color: e.target.value})} style={{ height: '45px', padding: '4px' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem' }}>
-                    <button type="button" className="btn-cancel" onClick={resetForms}>Cancelar</button>
-                    <button type="submit" className="btn-primary"><Save size={18} /> Salvar</button>
+                    <button type="button" className="btn-cancel" onClick={resetForms}>{t('investments.cancel')}</button>
+                    <button type="submit" className="btn-primary"><Save size={18} /> {t('investments.save')}</button>
                   </div>
                 </form>
               )}
@@ -291,12 +293,12 @@ export default function InvestmentSettings({ user }) {
               {activeTab === 'types' && (
                 <form onSubmit={handleTypeSubmit}>
                   <div className="input-group">
-                    <label>Nome do Tipo de Conta</label>
-                    <input type="text" value={typeData.name} onChange={e => setTypeData({...typeData, name: e.target.value})} required placeholder="Ex: CDB, FII, Ações..." />
+                    <label>{t('investments.type_name')}</label>
+                    <input type="text" value={typeData.name} onChange={e => setTypeData({...typeData, name: e.target.value})} required placeholder={t('investments.type_placeholder')} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem' }}>
-                    <button type="button" className="btn-cancel" onClick={resetForms}>Cancelar</button>
-                    <button type="submit" className="btn-primary"><Save size={18} /> Salvar</button>
+                    <button type="button" className="btn-cancel" onClick={resetForms}>{t('investments.cancel')}</button>
+                    <button type="submit" className="btn-primary"><Save size={18} /> {t('investments.save')}</button>
                   </div>
                 </form>
               )}
@@ -312,11 +314,11 @@ export default function InvestmentSettings({ user }) {
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}
       >
         {loading ? (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem' }}>Carregando...</div>
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem' }}>{t('investments.loading')}</div>
         ) : (
           <>
             {activeTab === 'accounts' && (
-              accounts.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Nenhuma conta cadastrada.</p> :
+              accounts.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>{t('investments.no_accounts')}</p> :
               groupedAccounts.map(group => (
                 <div key={group.name} style={{ gridColumn: '1/-1', marginBottom: '2rem' }}>
                   <div style={{ 
@@ -335,7 +337,7 @@ export default function InvestmentSettings({ user }) {
                       {group.name}
                     </h5>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginLeft: '0.5rem' }}>
-                      {group.items.length} {group.items.length === 1 ? 'conta' : 'contas'}
+                      {group.items.length} {group.items.length === 1 ? t('investments.account_label') : t('investments.accounts_label')}
                     </span>
                   </div>
                   
@@ -350,14 +352,14 @@ export default function InvestmentSettings({ user }) {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div style={{ flex: 1 }}>
                             <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
-                              {acc.type?.name || 'Sem Tipo'}
+                              {acc.type?.name || t('investments.without_type')}
                             </p>
                             <h4 style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>{acc.name}</h4>
                             
                             <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: acc.color }}></div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Identificador Visual</span>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{t('investments.visual_id')}</span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 {renderFlag(acc.currency || 'BRL')}
@@ -367,7 +369,7 @@ export default function InvestmentSettings({ user }) {
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button className="action-btn" onClick={() => { setEditingId(acc.id); setFormData({ name: acc.name, institution_id: acc.institution_id || '', account_type_id: acc.account_type_id || '', color: acc.color, currency: acc.currency || 'BRL' }); setIsAdding(true); }}><Edit2 size={18} /></button>
-                            <button className="action-btn danger" onClick={() => deleteItem('investment_accounts', acc.id, 'Conta')}><Trash2 size={18} /></button>
+                            <button className="action-btn danger" onClick={() => deleteItem('investment_accounts', acc.id, t('investments.account_label'))}><Trash2 size={18} /></button>
                           </div>
                         </div>
                       </div>
@@ -378,7 +380,7 @@ export default function InvestmentSettings({ user }) {
             )}
 
             {activeTab === 'institutions' && (
-              institutions.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Nenhuma instituição cadastrada.</p> :
+              institutions.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>{t('investments.no_institutions')}</p> :
               institutions.map(i => (
                 <div key={i.id} className="glass-card" style={{ 
                   padding: '1.5rem', 
@@ -395,14 +397,14 @@ export default function InvestmentSettings({ user }) {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button className="action-btn" onClick={() => { setEditingId(i.id); setInstData({ name: i.name, color: i.color }); setIsAdding(true); }}><Edit2 size={18} /></button>
-                    <button className="action-btn danger" onClick={() => deleteItem('investment_institutions', i.id, 'Instituição')}><Trash2 size={18} /></button>
+                    <button className="action-btn danger" onClick={() => deleteItem('investment_institutions', i.id, t('investments.institution_label'))}><Trash2 size={18} /></button>
                   </div>
                 </div>
               ))
             )}
 
             {activeTab === 'types' && (
-              accountTypes.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Nenhum tipo cadastrado.</p> :
+              accountTypes.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>{t('investments.no_types')}</p> :
               accountTypes.map(t => (
                 <div key={t.id} className="glass-card" style={{ 
                   padding: '1.5rem', 
@@ -418,7 +420,7 @@ export default function InvestmentSettings({ user }) {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button className="action-btn" onClick={() => { setEditingId(t.id); setTypeData({ name: t.name }); setIsAdding(true); }}><Edit2 size={18} /></button>
-                    <button className="action-btn danger" onClick={() => deleteItem('investment_account_types', t.id, 'Tipo')}><Trash2 size={18} /></button>
+                    <button className="action-btn danger" onClick={() => deleteItem('investment_account_types', t.id, t('investments.type_label'))}><Trash2 size={18} /></button>
                   </div>
                 </div>
               ))

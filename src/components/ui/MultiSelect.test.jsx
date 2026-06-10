@@ -3,6 +3,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import MultiSelect from './MultiSelect';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 vi.mock('lucide-react', () => ({
   Search: (props) => <div data-testid="search-icon" {...props} />,
   X: (props) => <div data-testid="x-icon" {...props} />,
@@ -19,7 +23,7 @@ const options = [
 describe('MultiSelect Component', () => {
   it('renders placeholder when no items selected', () => {
     render(<MultiSelect options={options} selected={[]} onChange={() => {}} />);
-    expect(screen.getByText('Selecionar...')).toBeDefined();
+    expect(screen.getByText('common.select')).toBeDefined();
   });
 
   it('shows selected items as chips', () => {
@@ -31,8 +35,8 @@ describe('MultiSelect Component', () => {
 
   it('opens dropdown on click', () => {
     render(<MultiSelect options={options} selected={[]} onChange={() => {}} />);
-    fireEvent.click(screen.getByText('Selecionar...'));
-    expect(screen.getByPlaceholderText('Buscar...')).toBeDefined();
+    fireEvent.click(screen.getByText('common.select'));
+    expect(screen.getByPlaceholderText('common.search')).toBeDefined();
     expect(screen.getByText('Rock Nacional')).toBeDefined();
     expect(screen.getByText('Rock Internacional')).toBeDefined();
     expect(screen.getByText('MPB')).toBeDefined();
@@ -41,7 +45,7 @@ describe('MultiSelect Component', () => {
   it('calls onChange with selected value when option is clicked', () => {
     const onChange = vi.fn();
     render(<MultiSelect options={options} selected={[]} onChange={onChange} />);
-    fireEvent.click(screen.getByText('Selecionar...'));
+    fireEvent.click(screen.getByText('common.select'));
     fireEvent.click(screen.getByText('Rock Nacional'));
     expect(onChange).toHaveBeenCalledWith(['s1']);
   });
@@ -57,8 +61,8 @@ describe('MultiSelect Component', () => {
 
   it('filters options by search term', () => {
     render(<MultiSelect options={options} selected={[]} onChange={() => {}} />);
-    fireEvent.click(screen.getByText('Selecionar...'));
-    const searchInput = screen.getByPlaceholderText('Buscar...');
+    fireEvent.click(screen.getByText('common.select'));
+    const searchInput = screen.getByPlaceholderText('common.search');
     fireEvent.change(searchInput, { target: { value: 'MPB' } });
     expect(screen.getByText('MPB')).toBeDefined();
     expect(screen.queryByText('Rock Nacional')).toBeNull();
@@ -67,10 +71,10 @@ describe('MultiSelect Component', () => {
 
   it('shows empty state when no options match search', () => {
     render(<MultiSelect options={options} selected={[]} onChange={() => {}} />);
-    fireEvent.click(screen.getByText('Selecionar...'));
-    const searchInput = screen.getByPlaceholderText('Buscar...');
+    fireEvent.click(screen.getByText('common.select'));
+    const searchInput = screen.getByPlaceholderText('common.search');
     fireEvent.change(searchInput, { target: { value: 'ZZZ' } });
-    expect(screen.getByText('Nenhum resultado')).toBeDefined();
+    expect(screen.getByText('common.no_results')).toBeDefined();
   });
 
   it('removes item when chip X is clicked', () => {

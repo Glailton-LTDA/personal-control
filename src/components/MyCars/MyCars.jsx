@@ -559,7 +559,7 @@ function CarSummary({ car, maintenance, insights, onEdit, onDelete, onShare, onA
                 <div style={{ width: 1, height: 12, background: 'var(--glass-border)' }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                   <Wrench size={16} /> 
-                  <span data-testid="car-km">{(car.current_km || 0).toLocaleString()}</span> KM
+                  <span data-testid="car-km">{(car.current_km || 0).toLocaleString()}</span> {t('cars.km_unit')}
                 </div>
               </div>
             </div>
@@ -567,7 +567,7 @@ function CarSummary({ car, maintenance, insights, onEdit, onDelete, onShare, onA
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               {isOwner && (
                 <>
-                  <button className="action-btn" onClick={onEdit} title="Editar"><Edit2 size={18} /></button>
+                  <button className="action-btn" onClick={onEdit} title={t('cars.edit_action')}><Edit2 size={18} /></button>
                   <button className="action-btn" onClick={onShare} title={t('common.share', 'Compartilhar')}><Share2 size={18} /></button>
                   <button className="action-btn" onClick={onArchive} title={car.is_hidden ? t('cars.admin.restore') : t('common.archive', 'Arquivar')}>
                     {car.is_hidden ? <Eye size={18} /> : <EyeOff size={18} />}
@@ -581,7 +581,7 @@ function CarSummary({ car, maintenance, insights, onEdit, onDelete, onShare, onA
           <div style={{ background: 'var(--card-action-bg)', padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
               <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('cars.summary.next_checkpoint', 'Próximo Checkpoint')}</span>
-              <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} KM</span>
+              <span style={{ fontWeight: 800, color: 'var(--primary)' }}>{nextMilestone.toLocaleString()} {t('cars.km_unit')}</span>
             </div>
             <div style={{ height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '5px', overflow: 'hidden', marginBottom: '0.75rem' }}>
               <Motion.div 
