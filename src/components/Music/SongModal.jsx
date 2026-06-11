@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, FileText, Upload, Link, ExternalLink, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
+import { useOfflineGenres, useOfflineSetlists } from '../../hooks/useOfflineMusic';
 import toast from 'react-hot-toast';
 import MultiSelect from '../ui/MultiSelect';
 
@@ -19,51 +21,34 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
   const [uploadFile, setUploadFile] = useState(null);
   
   const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   // Gêneros
-  const [genres, setGenres] = useState([]);
   const [genreId, setGenreId] = useState('');
 
   // Setlists — só no modo edição (initialData existente)
-  const [availableSetlists, setAvailableSetlists] = useState([]);
   const [selectedSetlistIds, setSelectedSetlistIds] = useState(new Set());
   const [originalSetlistIds, setOriginalSetlistIds] = useState(new Set());
 
-  // Carrega gêneros pré-definidos
-  const fetchGenres = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('music_genres')
-        .select('*')
-        .order('name', { ascending: true });
-      if (!error && data) {
-        setGenres(data);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar gêneros:', err);
-    }
-  };
+  const { data: genres = [] } = useOfflineGenres();
+  const { data: availableSetlists = [] } = useOfflineSetlists(user?.id);
 
   useEffect(() => {
     if (!isOpen) return;
-    fetchGenres();
     // Setlists só no modo edição
     if (!initialData?.id || !user?.id) return;
-    const fetchSetlistData = async () => {
+    const fetchLinkedSetlists = async () => {
       try {
-        const [{ data: setlistsData }, { data: linkedData }] = await Promise.all([
-          supabase.from('music_setlists').select('id, name').eq('user_id', user.id).order('name'),
-          supabase.from('music_setlist_songs').select('setlist_id').eq('song_id', initialData.id)
-        ]);
+        const { db } = await import('../../lib/offline/db');
+        const linkedData = await db.music_setlist_songs.where('song_id').equals(initialData.id).toArray();
         const linked = new Set((linkedData || []).map(r => r.setlist_id));
-        setAvailableSetlists(setlistsData || []);
         setSelectedSetlistIds(new Set(linked));
         setOriginalSetlistIds(new Set(linked));
       } catch (err) {
-        console.error('Erro ao buscar setlists:', err);
+        console.error('Erro ao buscar setlists vinculadas:', err);
       }
     };
-    fetchSetlistData();
+    fetchLinkedSetlists();
   }, [isOpen, initialData?.id, user?.id]);
 
   // Preenche dados ao editar
@@ -108,7 +93,6 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
     let filePath = initialData?.file_path || '';
 
     try {
-      // Se for partitura em nuvem e tiver arquivo novo para subir
       if (type === 'partitura' && storageType === 'cloud' && uploadFile) {
         const fileExt = uploadFile.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}_sheet.${fileExt}`;
@@ -129,7 +113,6 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
       }
 
       const songPayload = {
-        user_id: user.id,
         title: title.trim(),
         artist: artist.trim(),
         type,
@@ -140,44 +123,84 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
         file_path: type === 'partitura' ? filePath : null
       };
 
+      const { getMusicSong, putMusicSong } = await import('../../lib/offline/db');
+      const { SyncEngine } = await import('../../lib/offline/SyncEngine');
+
       if (initialData?.id) {
-        // Modo Edição
-        const { data: updatedRows, error } = await supabase
-          .from('music_songs')
-          .update(songPayload)
-          .eq('id', initialData.id)
-          .select(`*, music_genres(id, name)`);
+        const existing = await getMusicSong(initialData.id);
+        const updated = { ...existing, ...songPayload, updated_at: new Date().toISOString() };
+        await putMusicSong(updated);
 
-        if (error) throw error;
+        const engine = new SyncEngine(user.id);
+        if (engine.isOnline) {
+          const { data, error } = await supabase
+            .from('music_songs')
+            .update(songPayload)
+            .eq('id', initialData.id)
+            .select()
+            .single();
+          if (!error && data) {
+            await putMusicSong({ ...data, updated_at: new Date().toISOString() });
+          }
+        } else {
+          await engine.enqueue('music_songs', initialData.id, 'update', songPayload);
+        }
+        engine.destroy();
 
-        // Sync de setlists: diff entre seleção e original
         const toAdd = [...selectedSetlistIds].filter(id => !originalSetlistIds.has(id));
         const toRemove = [...originalSetlistIds].filter(id => !selectedSetlistIds.has(id));
 
-        if (toAdd.length > 0) {
-          await supabase.from('music_setlist_songs').insert(
-            toAdd.map((setlist_id, i) => ({ setlist_id, song_id: initialData.id, order_index: i + 1 }))
-          );
+        const { putMusicSetlistSong, removeMusicSetlistSong } = await import('../../lib/offline/db');
+        for (let i = 0; i < toAdd.length; i++) {
+          await putMusicSetlistSong({ setlist_id: toAdd[i], song_id: initialData.id, order_index: i + 1 });
         }
-        if (toRemove.length > 0) {
-          await supabase.from('music_setlist_songs')
-            .delete()
-            .eq('song_id', initialData.id)
-            .in('setlist_id', toRemove);
+        for (const slId of toRemove) {
+          await removeMusicSetlistSong(slId, initialData.id);
         }
 
         toast.success(t('music.song_updated'));
-        if (onSaved && updatedRows?.[0]) onSaved(updatedRows[0]);
+        if (onSaved) onSaved(updated);
       } else {
-        // Modo Criação
-        const { error } = await supabase
-          .from('music_songs')
-          .insert(songPayload);
+        const tempId = 'local_' + Date.now();
+        const newSong = {
+          id: tempId,
+          user_id: user.id,
+          ...songPayload,
+          is_favorite: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await putMusicSong(newSong);
 
-        if (error) throw error;
+        const engine = new SyncEngine(user.id);
+        if (engine.isOnline) {
+          const { data, error } = await supabase
+            .from('music_songs')
+            .insert({
+              user_id: user.id,
+              ...songPayload,
+              content: songPayload.content || null,
+              music_link: songPayload.music_link || null,
+              storage_type: songPayload.storage_type || 'local',
+              file_path: songPayload.file_path || null,
+            })
+            .select()
+            .single();
+          if (!error && data) {
+            const { removeMusicSong } = await import('../../lib/offline/db');
+            await removeMusicSong(tempId);
+            await putMusicSong({ ...data, updated_at: new Date().toISOString() });
+          }
+        } else {
+          await engine.enqueue('music_songs', tempId, 'insert', { user_id: user.id, ...songPayload });
+        }
+        engine.destroy();
+
         toast.success(t('music.song_created'));
       }
 
+      queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['offline_setlists', user?.id] });
       onRefresh();
       onClose();
     } catch (err) {
