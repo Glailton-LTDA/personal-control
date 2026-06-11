@@ -1,7 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Trips from './Trips';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
+function Wrapper({ children }) {
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
+
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key) => key,
+  }),
+}));
 
 // Mock child components to keep tests focused on orchestration
 vi.mock('./TripsList', () => ({
@@ -33,32 +54,51 @@ vi.mock('./TripForm', () => ({
   )
 }));
 
+// Mock offline hooks
+const mockUseOfflineTrips = vi.fn();
+const mockUseOfflineCategories = vi.fn();
+
+vi.mock('../../hooks/useOfflineTrips', () => ({
+  useOfflineTrips: () => mockUseOfflineTrips(),
+  useOfflineCategories: () => mockUseOfflineCategories(),
+}));
+
 describe('Trips Component', () => {
   const mockUser = { id: 'user-123' };
 
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    queryClient.clear();
+
+    mockUseOfflineTrips.mockReturnValue({
+      data: [{ id: 'trip-1', title: 'Trip 1' }],
+      refetch: vi.fn(),
+    });
+
+    mockUseOfflineCategories.mockReturnValue({
+      data: [{ id: 'cat-1', name: 'Food' }],
+    });
   });
 
   it('renders TripsList by default (mode="list")', async () => {
-    render(<Trips user={mockUser} mode="list" />);
+    render(<Trips user={mockUser} mode="list" />, { wrapper: Wrapper });
     expect(await screen.findByTestId('trips-list')).toBeInTheDocument();
   });
 
   it('switches to itinerary view when mode="itinerary"', async () => {
-    render(<Trips user={mockUser} mode="itinerary" />);
+    render(<Trips user={mockUser} mode="itinerary" />, { wrapper: Wrapper });
     expect(await screen.findByTestId('trips-itinerary')).toBeInTheDocument();
   });
 
   it('switches to settings view when mode="settings"', async () => {
-    render(<Trips user={mockUser} mode="settings" />);
+    render(<Trips user={mockUser} mode="settings" />, { wrapper: Wrapper });
     expect(await screen.findByTestId('trips-settings')).toBeInTheDocument();
   });
 
   it('switches to form view internally when onEditTrip is called', async () => {
     const user = userEvent.setup();
-    render(<Trips user={mockUser} mode="list" />);
+    render(<Trips user={mockUser} mode="list" />, { wrapper: Wrapper });
     
     const editBtn = await screen.findByText('Edit Trip');
     await user.click(editBtn);
@@ -69,7 +109,7 @@ describe('Trips Component', () => {
   it('dispatches set-active-tab event when backing out of itinerary', async () => {
     const user = userEvent.setup();
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-    render(<Trips user={mockUser} mode="itinerary" />);
+    render(<Trips user={mockUser} mode="itinerary" />, { wrapper: Wrapper });
     
     const backBtn = await screen.findByText('Back to List');
     await user.click(backBtn);

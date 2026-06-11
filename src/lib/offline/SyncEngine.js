@@ -1,16 +1,149 @@
 import { supabase } from '../supabase';
 import { db } from './db';
 
+export class MusicSyncProvider {
+  constructor(userId) {
+    this.userId = userId;
+  }
+
+  async pull(syncEngine) {
+    const results = {};
+
+    // 1. Sincronização incremental e paginada de music_songs para evitar timeouts e payloads gigantescos (68k+ músicas)
+    const songs = await db.music_songs
+      .where('user_id')
+      .equals(this.userId)
+      .toArray();
+
+    let lastUpdatedAt = null;
+    if (songs.length > 0) {
+      let maxTime = 0;
+      for (const s of songs) {
+        const t = s.updated_at ? new Date(s.updated_at).getTime() : 0;
+        if (t > maxTime) {
+          maxTime = t;
+          lastUpdatedAt = s.updated_at;
+        }
+      }
+    }
+
+    let offset = 0;
+    const limit = 1000;
+    let hasMore = true;
+    const allPulledSongs = [];
+
+    while (hasMore) {
+      let query = supabase
+        .from('music_songs')
+        .select('*')
+        .eq('user_id', this.userId)
+        .order('updated_at', { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      if (lastUpdatedAt) {
+        query = query.gt('updated_at', lastUpdatedAt);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        await syncEngine.saveBatch('music_songs', data);
+        allPulledSongs.push(...data);
+        offset += limit;
+        if (data.length < limit) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+    results.music_songs = allPulledSongs;
+
+    // 2. Outras tabelas do módulo de música (dados compactos)
+    results.music_setlists = await syncEngine.pull(
+      'music_setlists',
+      supabase.from('music_setlists').select('*').eq('user_id', this.userId)
+    );
+    results.music_genres = await syncEngine.pull(
+      'music_genres',
+      supabase.from('music_genres').select('*')
+    );
+    results.music_setlist_songs = await syncEngine.pull(
+      'music_setlist_songs',
+      supabase.from('music_setlist_songs').select('*'),
+      (item) => ({ ...item, id: `${item.setlist_id}_${item.song_id}` })
+    );
+    results.music_chords = await syncEngine.pull(
+      'music_chords',
+      supabase.from('music_chords').select('*')
+    );
+    return results;
+  }
+}
+
+export class TripsSyncProvider {
+  constructor(userId) {
+    this.userId = userId;
+  }
+
+  async pull(syncEngine) {
+    const results = {};
+    results.trips = await syncEngine.pull(
+      'trips',
+      supabase.from('trips').select('*').order('start_date', { ascending: false })
+    );
+    results.trip_expenses = await syncEngine.pull(
+      'trip_expenses',
+      supabase.from('trip_expenses').select('*')
+    );
+    results.trip_itinerary = await syncEngine.pull(
+      'trip_itinerary',
+      supabase.from('trip_itinerary').select('*')
+    );
+    results.trip_checklists = await syncEngine.pull(
+      'trip_checklists',
+      supabase.from('trip_checklists').select('*')
+    );
+    results.trip_checklist_items = await syncEngine.pull(
+      'trip_checklist_items',
+      supabase.from('trip_checklist_items').select('*')
+    );
+    results.trip_categories = await syncEngine.pull(
+      'trip_categories',
+      supabase.from('trip_categories').select('*')
+    );
+    results.trip_shares = await syncEngine.pull(
+      'trip_shares',
+      supabase.from('trip_shares').select('*')
+    );
+    return results;
+  }
+}
+
 export class SyncEngine {
   constructor(userId) {
     this.userId = userId;
+    this.providers = [];
     this.onStatusChange = null;
     this._pullTimer = null;
-    this._isOnline = navigator.onLine;
+    this._isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     this._boundOnline = this._handleOnline.bind(this);
     this._boundOffline = this._handleOffline.bind(this);
-    window.addEventListener('online', this._boundOnline);
-    window.addEventListener('offline', this._boundOffline);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this._boundOnline);
+      window.addEventListener('offline', this._boundOffline);
+    }
+
+    if (userId) {
+      this.registerProvider(new MusicSyncProvider(userId));
+      this.registerProvider(new TripsSyncProvider(userId));
+    }
+  }
+
+  registerProvider(provider) {
+    this.providers.push(provider);
   }
 
   get isOnline() {
@@ -51,26 +184,28 @@ export class SyncEngine {
     return items;
   }
 
+  async saveBatch(table, items, mapper = null) {
+    const tableDb = db[table];
+    if (!tableDb) throw new Error(`Unknown table: ${table}`);
+    await db.transaction('rw', tableDb, async () => {
+      for (const raw of items) {
+        const item = mapper ? mapper(raw) : raw;
+        await tableDb.put({ ...item, updated_at: item.updated_at || item.created_at || new Date().toISOString() });
+      }
+    });
+  }
+
   async pullAll() {
-    if (!this._isOnline || !this.userId) return;
+    if (!this._isOnline || !this.userId) return {};
     const results = {};
-    results.music_setlists = await this.pull(
-      'music_setlists',
-      supabase.from('music_setlists').select('*').eq('user_id', this.userId)
-    );
-    results.music_genres = await this.pull(
-      'music_genres',
-      supabase.from('music_genres').select('*')
-    );
-    results.music_setlist_songs = await this.pull(
-      'music_setlist_songs',
-      supabase.from('music_setlist_songs').select('*'),
-      (item) => ({ ...item, id: `${item.setlist_id}_${item.song_id}` })
-    );
-    results.music_chords = await this.pull(
-      'music_chords',
-      supabase.from('music_chords').select('*')
-    );
+    for (const provider of this.providers) {
+      try {
+        const res = await provider.pull(this);
+        Object.assign(results, res);
+      } catch (err) {
+        console.error(`SyncEngine: failed to pull from provider ${provider.constructor.name}`, err);
+      }
+    }
     return results;
   }
 
@@ -126,6 +261,11 @@ export class SyncEngine {
     const queueSize = await db.sync_queue.count();
     await this.drainQueue();
     const pulled = await this.pullAll();
+    
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('database-synced', { detail: { pulled } }));
+    }
+    
     return { pushed: queueSize, pulled: Object.values(pulled || {}).reduce((a, b) => a + (b?.length || 0), 0) };
   }
 
@@ -143,8 +283,10 @@ export class SyncEngine {
 
   destroy() {
     this.stopPeriodicSync();
-    window.removeEventListener('online', this._boundOnline);
-    window.removeEventListener('offline', this._boundOffline);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', this._boundOnline);
+      window.removeEventListener('offline', this._boundOffline);
+    }
     this.onStatusChange = null;
   }
 }

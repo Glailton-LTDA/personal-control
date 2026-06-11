@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getSignedUrl } from '../../lib/supabase';
+import { useOfflineCategories, useOfflineCreateExpense, useOfflineUpdateExpense } from '../../hooks/useOfflineTrips';
 import { X, Save, DollarSign, Calendar, Tag, Users, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +8,10 @@ import { useTranslation } from 'react-i18next';
 
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const { t } = useTranslation();
-  const [categories, setCategories] = useState(initialCategories || []);
+  const { data: offlineCategories = [] } = useOfflineCategories(user.id);
+  const categories = initialCategories || offlineCategories;
+  const createExpenseMutation = useOfflineCreateExpense(user.id, trip.id);
+  const updateExpenseMutation = useOfflineUpdateExpense(user.id, trip.id);
   const formatDateToDisplay = (dateStr) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
@@ -69,18 +73,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     ? trip.participants 
     : ['Glailton', 'Deisianne'];
 
-  useEffect(() => {
-    async function fetchCategories() {
-      const { data } = await supabase.from('trip_categories').select('*').eq('user_id', user.id).order('name', { ascending: true });
-      if (data) {
-        setCategories(data);
-      }
-    }
-
-    if (!initialCategories || initialCategories.length === 0) {
-      fetchCategories();
-    }
-  }, [initialCategories, user.id]);
+  // Categories fetched offline via React Query hook instead of local state + useEffect
 
   const handleDateChange = (e) => {
     const val = e.target.value.replace(/\D/g, '');
@@ -158,20 +151,18 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
       receipt_url: formData.receipt_url
     };
 
-    let result;
-    if (expense?.id) {
-      result = await supabase.from('trip_expenses').update(payload).eq('id', expense.id);
-    } else {
-      result = await supabase.from('trip_expenses').insert([payload]);
-    }
-
-    const { error } = result;
-
-    if (!error) {
-      toast.success(expense?.id ? t('trips.expense_updated') : t('trips.expense_saved'));
+    try {
+      if (expense?.id) {
+        await updateExpenseMutation.mutateAsync({ id: expense.id, ...payload });
+        toast.success(t('trips.expense_updated'));
+      } else {
+        await createExpenseMutation.mutateAsync(payload);
+        toast.success(t('trips.expense_saved'));
+      }
       onSave();
+    } catch (err) {
+      toast.error(t('trips.save_error') + err.message);
     }
-    else toast.error(t('trips.save_error') + error.message);
   }
 
   return (

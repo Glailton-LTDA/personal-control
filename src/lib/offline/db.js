@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 
 // Nome novo para abandonar o banco corrompido pela tentativa de upgrade v3
 const DB_NAME = 'PersonalControlOffline_v4';
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 
 export const db = new Dexie(DB_NAME);
 
@@ -32,14 +32,34 @@ db.version(3).stores({
   sync_queue: '++id, table_name, action, created_at, attempts',
 });
 
+db.version(4).stores({
+  music_songs: 'id, user_id, title, artist, type, genre_id, is_favorite, updated_at',
+  music_setlists: 'id, user_id, updated_at',
+  music_setlist_songs: 'id, setlist_id, song_id',
+  music_genres: 'id, name',
+  music_chords: 'id, chord_name',
+  sync_queue: '++id, table_name, action, created_at, attempts',
+  
+  trips: 'id, user_id, start_date, updated_at',
+  trip_expenses: 'id, trip_id, user_id, category_id, date, updated_at',
+  trip_itinerary: 'id, trip_id, day, time, updated_at',
+  trip_checklists: 'id, trip_id, updated_at',
+  trip_checklist_items: 'id, checklist_id, updated_at',
+  trip_categories: 'id, user_id, name',
+  trip_shares: 'id, trip_id, shared_with_email',
+});
+
 db.open().catch(async (err) => {
   if (/UpgradeError/i.test(err.message) || err.name === 'DatabaseClosedError') {
     console.warn('Dexie upgrade failed, deleting database and reloading', err);
-    await db.delete();
-    window.location.reload();
+    if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function' && !(typeof globalThis.process !== 'undefined' && globalThis.process.env?.VITEST)) {
+      await db.delete();
+      window.location.reload();
+    }
   }
 });
 
+// Helpers - Music
 export function getMusicSongs(userId) {
   return db.music_songs.where('user_id').equals(userId).toArray();
 }
@@ -107,6 +127,120 @@ export function putMusicChord(chord) {
   return db.music_chords.put(chord);
 }
 
+// Helpers - Trips
+export async function getTripsFromDexie() {
+  const trips = await db.trips.toArray();
+  // Sort by start_date DESC
+  return trips.sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+}
+
+export function getTripFromDexie(id) {
+  return db.trips.get(id);
+}
+
+export function putTripInDexie(trip) {
+  return db.trips.put({
+    ...trip,
+    updated_at: trip.updated_at || new Date().toISOString(),
+  });
+}
+
+export function removeTripFromDexie(id) {
+  return db.trips.delete(id);
+}
+
+export async function getTripExpensesFromDexie(tripId) {
+  const expenses = await db.trip_expenses.where('trip_id').equals(tripId).toArray();
+  // Sort by date DESC
+  return expenses.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+export function putTripExpenseInDexie(expense) {
+  return db.trip_expenses.put({
+    ...expense,
+    updated_at: expense.updated_at || new Date().toISOString(),
+  });
+}
+
+export function removeTripExpenseFromDexie(id) {
+  return db.trip_expenses.delete(id);
+}
+
+export async function getTripItineraryFromDexie(tripId) {
+  const itinerary = await db.trip_itinerary.where('trip_id').equals(tripId).toArray();
+  // Sort by day ASC, then time ASC
+  return itinerary.sort((a, b) => {
+    if (a.day !== b.day) return (a.day || 0) - (b.day || 0);
+    return (a.time || '').localeCompare(b.time || '');
+  });
+}
+
+export function putTripItineraryInDexie(item) {
+  return db.trip_itinerary.put({
+    ...item,
+    updated_at: item.updated_at || new Date().toISOString(),
+  });
+}
+
+export function removeTripItineraryFromDexie(id) {
+  return db.trip_itinerary.delete(id);
+}
+
+export function getTripChecklistsFromDexie(tripId) {
+  return db.trip_checklists.where('trip_id').equals(tripId).toArray();
+}
+
+export function putTripChecklistInDexie(checklist) {
+  return db.trip_checklists.put({
+    ...checklist,
+    updated_at: checklist.updated_at || new Date().toISOString(),
+  });
+}
+
+export function removeTripChecklistFromDexie(id) {
+  return db.trip_checklists.delete(id);
+}
+
+export function getTripChecklistItemsFromDexie(checklistId) {
+  return db.trip_checklist_items.where('checklist_id').equals(checklistId).toArray();
+}
+
+export function putTripChecklistItemInDexie(item) {
+  return db.trip_checklist_items.put({
+    ...item,
+    updated_at: item.updated_at || new Date().toISOString(),
+  });
+}
+
+export function removeTripChecklistItemFromDexie(id) {
+  return db.trip_checklist_items.delete(id);
+}
+
+export function getTripCategoriesFromDexie(userId) {
+  return db.trip_categories.where('user_id').equals(userId).toArray();
+}
+
+export function putTripCategoryInDexie(category) {
+  return db.trip_categories.put(category);
+}
+
+export function removeTripCategoryFromDexie(id) {
+  return db.trip_categories.delete(id);
+}
+
+export function getTripSharesFromDexie(tripId) {
+  return db.trip_shares.where('trip_id').equals(tripId).toArray();
+}
+
+export function putTripShareInDexie(share) {
+  return db.trip_shares.put(share);
+}
+
+export function removeTripShareFromDexie(id) {
+  return db.trip_shares.delete(id);
+}
+
+// Helpers - Cache management
 export function clearMusicCache() {
   return Promise.all([
     db.music_songs.clear(),
@@ -114,6 +248,18 @@ export function clearMusicCache() {
     db.music_setlist_songs.clear(),
     db.music_genres.clear(),
     db.music_chords.clear(),
+  ]);
+}
+
+export function clearTripsCache() {
+  return Promise.all([
+    db.trips.clear(),
+    db.trip_expenses.clear(),
+    db.trip_itinerary.clear(),
+    db.trip_checklists.clear(),
+    db.trip_checklist_items.clear(),
+    db.trip_categories.clear(),
+    db.trip_shares.clear(),
   ]);
 }
 

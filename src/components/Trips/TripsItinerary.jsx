@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
 import { 
   Calendar, MapPin, ChevronLeft, Save, Loader2, 
   Search, Info, Plane
@@ -10,70 +9,49 @@ import ItineraryManager from './ItineraryManager';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
+import {
+  useOfflineTrips,
+  useOfflineItinerary,
+  useOfflineCreateItineraryItem,
+  useOfflineUpdateItineraryItem,
+  useOfflineDeleteItineraryItem,
+  useOfflineUpdateTrip
+} from '../../hooks/useOfflineTrips';
 
 export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   const { t, i18n } = useTranslation();
-  const [trips, setTrips] = useState([]);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [itinerary, setItinerary] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
   const initialTripProcessed = useRef(false);
 
-  const fetchTrips = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const { data } = await supabase.from('trips').select('*').order('start_date', { ascending: false });
-      if (data) {
-        setTrips(data);
-      }
-    } catch (error) {
-      console.error('Error fetching trips:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { data: trips = [], isLoading } = useOfflineTrips(user?.id);
+  const { data: dbItinerary = [], refetch: refetchItinerary } = useOfflineItinerary(selectedTrip?.id);
 
-  const fetchItinerary = useCallback(async (tripId) => {
-    if (!tripId) return;
-    try {
-      const { data, error } = await supabase
-        .from('trip_itinerary')
-        .select('*')
-        .eq('trip_id', tripId)
-        .order('day', { ascending: true })
-        .order('order_index', { ascending: true }); // Order by index
-      
-      if (error) throw error;
-      
-      if (data) {
-        setItinerary(data);
-      }
-    } catch (err) {
-      console.error('Error fetching itinerary:', err);
-      toast.error(t('trips.error_loading_itinerary'));
+  const createItineraryItemMutation = useOfflineCreateItineraryItem(user.id, selectedTrip?.id);
+  const updateItineraryItemMutation = useOfflineUpdateItineraryItem(user.id, selectedTrip?.id);
+  const deleteItineraryItemMutation = useOfflineDeleteItineraryItem(user.id, selectedTrip?.id);
+  const updateTripMutation = useOfflineUpdateTrip(user.id);
+
+  useEffect(() => {
+    if (dbItinerary) {
+      setItinerary(dbItinerary);
     }
-  }, [t]);
+  }, [dbItinerary]);
 
   const handleSelectTrip = useCallback((trip) => {
     setSelectedTrip(trip);
-    fetchItinerary(trip.id);
     if (trip.id) localStorage.setItem('pc_selected_trip_v1', trip.id);
-  }, [fetchItinerary]);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  useEffect(() => {
-    fetchTrips();
-  }, [fetchTrips]);
 
   useEffect(() => {
     if (trips.length > 0) {
@@ -92,7 +70,6 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         if (trip) handleSelectTrip(trip);
         initialTripProcessed.current = true;
       } else if (selectedTrip) {
-        // Sync selected trip with updated data (e.g. after decryption)
         const updated = trips.find(t => t.id === selectedTrip.id);
         if (updated) {
           setSelectedTrip(updated);
@@ -106,40 +83,40 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
     if (!selectedTrip) return;
     setIsSaving(true);
     try {
-      // 2. Prepare data (assign order_index based on position)
-      const sanitizedItinerary = itinerary.map((item, index) => ({
-        trip_id: selectedTrip.id,
-        user_id: user.id,
-        day: item.day,
-        time: item.time || null,
-        activity: item.activity || '',
-        location: item.location || '',
-        notes: item.notes || '',
-        completed: !!item.completed,
-        needs_booking: !!item.needs_booking,
-        is_booked: !!item.is_booked,
-        coordinates: item.coordinates || null,
-        order_index: index // Save the order!
-      }));
-
-      // 3. Clear existing itinerary for this trip and insert new one
-      // We use a transaction-like approach (delete then insert)
-      const { error: deleteError } = await supabase
-        .from('trip_itinerary')
-        .delete()
-        .eq('trip_id', selectedTrip.id);
-      
-      if (deleteError) throw deleteError;
-
-      if (sanitizedItinerary.length > 0) {
-        const { error: insertError } = await supabase
-          .from('trip_itinerary')
-          .insert(sanitizedItinerary);
-        
-        if (insertError) throw insertError;
+      // Find and delete removed items
+      const deleted = dbItinerary.filter(oldItem => !itinerary.some(newItem => newItem.id === oldItem.id));
+      for (const item of deleted) {
+        await deleteItineraryItemMutation.mutateAsync(item.id);
       }
-      
+
+      // Upsert current items
+      for (let index = 0; index < itinerary.length; index++) {
+        const item = itinerary[index];
+        const payload = {
+          trip_id: selectedTrip.id,
+          user_id: user.id,
+          day: item.day,
+          time: item.time || null,
+          activity: item.activity || '',
+          location: item.location || '',
+          notes: item.notes || '',
+          completed: !!item.completed,
+          needs_booking: !!item.needs_booking,
+          is_booked: !!item.is_booked,
+          coordinates: item.coordinates || null,
+          order_index: index
+        };
+
+        const exists = dbItinerary.some(oldItem => oldItem.id === item.id);
+        if (exists) {
+          await updateItineraryItemMutation.mutateAsync({ id: item.id, ...payload });
+        } else {
+          await createItineraryItemMutation.mutateAsync(payload);
+        }
+      }
+
       toast.success(t('trips.itinerary_saved_success'));
+      refetchItinerary();
     } catch (error) {
       console.error('Save error:', error);
       toast.error(t('trips.error_saving_itinerary'));
@@ -291,7 +268,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
           {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {isMobile ? t('common.save') : t('common.save_changes')}
         </button>
-
+ 
         {selectedTrip && itinerary.length > 0 && (
           <button 
             onClick={handleExportPDF} 
@@ -312,7 +289,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         )}
         </div>
       </div>
-
+ 
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: isMobile ? '100%' : '300px 1fr', 
@@ -335,7 +312,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                 style={{ width: '100%', paddingLeft: '2.5rem', borderRadius: '12px', color: 'var(--text-main)', boxSizing: 'border-box' }}
               />
             </div>
-
+ 
             <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: isMobile ? '300px' : 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '0.5rem' }}>
               {filteredTrips.map(trip => (
                 <button
@@ -360,13 +337,13 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                   </div>
                   <div style={{ overflow: 'hidden' }}>
                     <div style={{ 
-                      fontWeight: '700', 
-                      fontSize: '0.85rem', 
-                      color: 'var(--text-main)', 
-                      whiteSpace: 'nowrap', 
-                      textOverflow: 'ellipsis', 
-                      overflow: 'hidden' 
-                    }}>
+                       fontWeight: '700', 
+                       fontSize: '0.85rem', 
+                       color: 'var(--text-main)', 
+                       whiteSpace: 'nowrap', 
+                       textOverflow: 'ellipsis', 
+                       overflow: 'hidden' 
+                     }}>
                       {trip.title}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
@@ -378,7 +355,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
             </div>
           </div>
         )}
-
+ 
         {/* Main Content: Itinerary Manager */}
           <div 
             className="glass-card" 
@@ -400,7 +377,7 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
               ← {t('trips.switch_trip')}
             </button>
           )}
-
+ 
           {selectedTrip ? (
             <ItineraryManager 
               trip={selectedTrip}
@@ -418,15 +395,9 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
                   
                   const updatedTickets = [...(selectedTrip.tickets || []), newTicket];
                   
-                  const { error } = await supabase
-                    .from('trips')
-                    .update({ tickets: updatedTickets })
-                    .eq('id', selectedTrip.id);
-                  
-                  if (error) throw error;
+                  await updateTripMutation.mutateAsync({ id: selectedTrip.id, tickets: updatedTickets });
                   
                   setSelectedTrip({ ...selectedTrip, tickets: updatedTickets });
-                  setTrips(trips.map(t => t.id === selectedTrip.id ? { ...t, tickets: updatedTickets } : t));
                   toast.success(t('trips.added_to_tickets_success'));
                 } catch (err) {
                   console.error('Error adding ticket:', err);

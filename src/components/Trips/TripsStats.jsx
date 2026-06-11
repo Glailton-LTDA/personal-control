@@ -14,6 +14,7 @@ import {
 import { getContinent } from '../../data/continents';
 import { estimateItineraryDistance } from '../../lib/geo';
 import { supabase } from '../../lib/supabase';
+import { db } from '../../lib/offline/db';
 import { countryToCode } from '../../data/countries';
 import { geoCentroid, geoBounds } from "d3-geo";
 import './TripsStats.css';
@@ -122,14 +123,26 @@ export default function TripsStats({ trips, onBack }) {
 
       try {
         const tripIds = trips.map(t => t.id);
-        const { data, error } = await supabase
-          .from('trip_itinerary')
-          .select('*')
-          .in('trip_id', tripIds);
+        let data;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          data = await db.trip_itinerary.where('trip_id').anyOf(tripIds).toArray();
+        } else {
+          try {
+            const { data: remoteData, error } = await supabase
+              .from('trip_itinerary')
+              .select('*')
+              .in('trip_id', tripIds);
+            if (error) throw error;
+            data = remoteData;
+            if (data) {
+              await Promise.all(data.map(item => db.trip_itinerary.put(item)));
+            }
+          } catch (err) {
+            console.warn('Failed to load itineraries from Supabase for stats, falling back to Dexie:', err);
+            data = await db.trip_itinerary.where('trip_id').anyOf(tripIds).toArray();
+          }
+        }
 
-        if (error) throw error;
-
-        // Decrypt the data item by item with its respective trip key
         const decryptedData = data || [];
 
         const grouped = {};
