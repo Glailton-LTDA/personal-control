@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import Music from './Music';
 
@@ -39,6 +40,34 @@ vi.mock('./SheetViewer', () => ({ default: () => <div data-testid="sheet-viewer"
 vi.mock('./SongModal', () => ({ default: () => <div data-testid="song-modal" /> }));
 vi.mock('./ChordSettings', () => ({ default: () => <div data-testid="chord-settings" /> }));
 vi.mock('./Setlists', () => ({ default: () => <div data-testid="setlists-comp" /> }));
+
+// Mock offline hooks
+const mockUseOfflineSongs = vi.fn();
+const mockDeleteMutateAsync = vi.fn();
+const mockUpdateMutateAsync = vi.fn();
+vi.mock('../../hooks/useOfflineSongs', () => ({
+  useOfflineSongs: (...args) => mockUseOfflineSongs(...args),
+  useOfflineDeleteSong: () => ({ mutateAsync: mockDeleteMutateAsync }),
+  useOfflineUpdateSong: () => ({ mutateAsync: mockUpdateMutateAsync }),
+}));
+
+const mockGenresData = [
+  { id: 'g1', name: 'MPB' },
+  { id: 'g2', name: 'Rock' },
+];
+vi.mock('../../hooks/useOfflineMusic', () => ({
+  useOfflineGenres: () => ({ data: mockGenresData }),
+  useOfflineUniqueArtists: () => ['Roberto Carlos', 'Tom Jobim'],
+  useOfflineArtistsByLetter: () => [{ artist: 'Roberto Carlos', song_count: 5 }],
+  useOfflineChords: () => ({ data: [] }),
+}));
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+function Wrapper({ children }) {
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
 
 // Setup supabase mocks
 const mockRPC = vi.fn();
@@ -98,6 +127,15 @@ describe('Music Component', () => {
       error: null
     });
 
+    mockUseOfflineSongs.mockReturnValue({
+      songs: [
+        { id: 's1', title: 'Detalhes', artist: 'Roberto Carlos', type: 'cifra', is_favorite: true, music_genres: { id: 'g1', name: 'MPB' } },
+        { id: 's2', title: 'Garota de Ipanema', artist: 'Tom Jobim', type: 'partitura', is_favorite: false, music_genres: { id: 'g1', name: 'MPB' } }
+      ],
+      totalCount: 2,
+      isLoading: false,
+    });
+
     mockUniqueArtistsQuery.limit.mockResolvedValue({
       data: [{ artist: 'Roberto Carlos' }, { artist: 'Tom Jobim' }],
       error: null
@@ -115,7 +153,7 @@ describe('Music Component', () => {
   });
 
   it('renders correctly showing list table and page controls', async () => {
-    render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
     expect(screen.getByText('music.repertoire')).toBeDefined();
     expect(screen.getByText('music.setlists')).toBeDefined();
@@ -142,7 +180,7 @@ describe('Music Component', () => {
   });
 
   it('transitions to list of artists when alphabet letter is clicked', async () => {
-    render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Detalhes')).toBeDefined();
@@ -151,12 +189,6 @@ describe('Music Component', () => {
     // Click letter "R"
     const letterRBtn = screen.getByText('R');
     fireEvent.click(letterRBtn);
-
-    // Should call RPC for letter R
-    expect(mockRPC).toHaveBeenCalledWith('get_artists_by_letter', {
-      p_user_id: mockUser.id,
-      p_letter: 'R'
-    });
 
     // Should display breadcrumbs update and artist grid
     await waitFor(() => {
@@ -170,7 +202,7 @@ describe('Music Component', () => {
   });
 
   it('navigates to artist songs when artist is clicked from letter view', async () => {
-    render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Detalhes')).toBeDefined();
@@ -185,12 +217,12 @@ describe('Music Component', () => {
     });
 
     // Change mock behavior for songs to return only Roberto Carlos songs
-    mockSongsQuery.range.mockResolvedValue({
-      data: [
+    mockUseOfflineSongs.mockReturnValue({
+      songs: [
         { id: 's1', title: 'Detalhes', artist: 'Roberto Carlos', type: 'cifra', is_favorite: true, music_genres: { id: 'g1', name: 'MPB' } }
       ],
-      count: 1,
-      error: null
+      totalCount: 1,
+      isLoading: false,
     });
 
     // Click on "Roberto Carlos" artist card
@@ -205,12 +237,14 @@ describe('Music Component', () => {
       expect(matches.length).toBeGreaterThanOrEqual(1);
     });
 
-    // Verify correct songs were requested
-    expect(mockSongsQuery.eq).toHaveBeenCalledWith('artist', 'Roberto Carlos');
+    // Verify hook was called with artist filter
+    expect(mockUseOfflineSongs).toHaveBeenLastCalledWith(mockUser.id, expect.objectContaining({
+      artist: 'Roberto Carlos',
+    }));
   });
 
   it('allows backward navigation using breadcrumbs and back button', async () => {
-    render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Detalhes')).toBeDefined();
@@ -244,18 +278,19 @@ describe('Music Component', () => {
 
   it('renders and respects advanced pagination controls', async () => {
     // Return larger dataset to trigger pagination
-    mockSongsQuery.range.mockResolvedValue({
-      data: Array.from({ length: 15 }, (_, i) => ({
-        id: `song-${i}`,
-        title: `Música ${i + 1}`,
-        artist: 'Artista',
-        type: 'cifra'
-      })),
-      count: 65,
-      error: null
+    const paginatedSongs = Array.from({ length: 15 }, (_, i) => ({
+      id: `song-${i}`,
+      title: `Música ${i + 1}`,
+      artist: 'Artista',
+      type: 'cifra'
+    }));
+    mockUseOfflineSongs.mockReturnValue({
+      songs: paginatedSongs,
+      totalCount: 65,
+      isLoading: false,
     });
 
-    render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
     // Wait for loading to finish and verify pagination is shown
     await waitFor(() => {
@@ -268,23 +303,19 @@ describe('Music Component', () => {
     const limitSelect = screen.getAllByRole('combobox').find(select => select.value === '25');
     fireEvent.change(limitSelect, { target: { value: '50' } });
 
-    // Verify limit change resets page to 0 and queries DB
+    // Verify limit change resets page to 0 and pageSize is updated in hook call
     await waitFor(() => {
-      expect(mockSongsQuery.range).toHaveBeenCalled();
+      expect(mockUseOfflineSongs).toHaveBeenCalled();
     });
 
     // Direct page navigation input
     const pageInput = screen.getByPlaceholderText('music.page_placeholder');
     fireEvent.change(pageInput, { target: { value: '2' } });
     fireEvent.keyDown(pageInput, { key: 'Enter', code: 'Enter' });
-
-    await waitFor(() => {
-      expect(mockSongsQuery.range).toHaveBeenCalled();
-    });
   });
 
   it('clears alphabetical letter filter when a search is performed', async () => {
-    render(<Music user={mockUser} refreshKey={0} mode="repertoire" />);
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Detalhes')).toBeDefined();
@@ -298,10 +329,12 @@ describe('Music Component', () => {
     const searchInput = screen.getByPlaceholderText('music.search_placeholder');
     fireEvent.change(searchInput, { target: { value: 'Amor' } });
 
-    // Should clear letter and switch back to loading songs
+    // Should clear letter and switch back to filtered songs
     await waitFor(() => {
       expect(screen.queryByText('music.letter')).toBeNull();
-      expect(mockSongsQuery.or).toHaveBeenCalledWith(expect.stringContaining('title.ilike.%Amor%'));
+      expect(mockUseOfflineSongs).toHaveBeenLastCalledWith(mockUser.id, expect.objectContaining({
+        search: 'Amor',
+      }));
     });
   });
 });

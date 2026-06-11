@@ -6,6 +6,9 @@ import React from 'react';
 // Extends Vitest's expect with React Testing Library matchers
 expect.extend(matchers);
 
+// Polyfill IndexedDB for Dexie tests (happy-dom doesn't ship it)
+import 'fake-indexeddb/auto';
+
 // Runs cleanup after each test case
 afterEach(() => {
   cleanup();

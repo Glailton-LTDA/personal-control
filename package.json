@@ -1,7 +1,7 @@
 {
   "name": "personalcontrol",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-virtual": "^3.14.2",
     "d3-geo": "^3.1.1",
+    "dexie": "^4.4.3",
     "framer-motion": "^12.38.0",
     "i18next": "^26.0.10",
     "i18next-browser-languagedetector": "^8.2.1",
@@ -45,6 +46,7 @@
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^15.14.0",
     "happy-dom": "^20.9.0",
     "jsdom": "^29.0.2",

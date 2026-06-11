@@ -1,8 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Plus, Edit, Trash2, ChevronLeft, Music as MusicIcon, FileText, Settings, ShieldAlert, Loader2, Star, ChevronDown, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
+import { useOfflineSongs, useOfflineDeleteSong, useOfflineUpdateSong } from '../../hooks/useOfflineSongs';
+import {
+  useOfflineGenres,
+  useOfflineUniqueArtists,
+  useOfflineArtistsByLetter,
+  useOfflineChords,
+} from '../../hooks/useOfflineMusic';
 import toast from 'react-hot-toast';
 
 import CifraViewer from './CifraViewer';
@@ -11,10 +19,9 @@ import SongModal from './SongModal';
 import ChordSettings from './ChordSettings';
 import Setlists from './Setlists';
 
-export default function Music({ user, refreshKey, mode = 'repertoire', navigate }) {
+export default function Music({ user, mode = 'repertoire', navigate }) {
   const { t } = useTranslation();
-  const [songs, setSongs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all' | 'cifra' | 'partitura'
 
@@ -27,7 +34,6 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
     return 'all';
   });
   const [selectedGenre, setSelectedGenre] = useState('all');
-  const [genres, setGenres] = useState([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,15 +42,14 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   // Leitor Ativo
   const [selectedSong, setSelectedSong] = useState(null);
 
-  // Map de acordes personalizados do usuário
-  const [customChords, setCustomChords] = useState({});
-
   // Paginação e filtros
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  const [uniqueArtists, setUniqueArtists] = useState([]);
   const [pageSize, setPageSize] = useState(25);
   const [pageInput, setPageInput] = useState('');
+
+  // Dropdown de artista pesquisável
+  const [artistSearch, setArtistSearch] = useState('');
+  const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
 
   // Estados de navegação hierárquica A-Z
   const [activeLetter, setActiveLetter] = useState(() => {
@@ -54,12 +59,43 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
     }
     return null;
   });
-  const [artistsList, setArtistsList] = useState([]);
-  const [artistsLoading, setArtistsLoading] = useState(false);
 
-  // Dropdown de artista pesquisável
-  const [artistSearch, setArtistSearch] = useState('');
-  const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
+  // ── Offline-first hooks ──
+  const { songs, totalCount, isLoading } = useOfflineSongs(user?.id, {
+    search,
+    type: filterType,
+    artist: selectedArtist !== 'all' ? selectedArtist : undefined,
+    genre_id: selectedGenre !== 'all' ? selectedGenre : undefined,
+    page,
+    pageSize,
+  });
+  const deleteSongMutation = useOfflineDeleteSong(user?.id);
+  const updateSongMutation = useOfflineUpdateSong(user?.id);
+
+  // Offline music data
+  const { data: genres = [] } = useOfflineGenres();
+  const uniqueArtists = useOfflineUniqueArtists(user?.id, artistDropdownOpen ? artistSearch : '');
+  const { data: rawChords = [] } = useOfflineChords();
+  const artistsList = useOfflineArtistsByLetter(user?.id, activeLetter);
+  const artistsLoading = false;
+
+  const customChords = useMemo(() => {
+    const chordMap = {};
+    rawChords.forEach(chord => {
+      const instName = chord.music_instruments?.name;
+      const name = chord.chord_name?.toUpperCase();
+      const variation = chord.music_chord_variations?.[0];
+      if (instName && name && variation) {
+        if (!chordMap[instName]) chordMap[instName] = {};
+        chordMap[instName][name] = {
+          frets: variation.frets,
+          fingers: variation.fingers,
+          startFret: variation.start_fret
+        };
+      }
+    });
+    return chordMap;
+  }, [rawChords]);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const artistButtonRef = useRef(null);
   const artistPanelRef = useRef(null);
@@ -68,42 +104,8 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   const selectedSongRef = useRef(null);
   useEffect(() => { selectedSongRef.current = selectedSong; }, [selectedSong]);
 
-  // Bug 2: ref para ler selectedArtist em fetchUniqueArtists sem colocá-lo nas deps
-  const selectedArtistRef = useRef(selectedArtist);
-  useEffect(() => { selectedArtistRef.current = selectedArtist; }, [selectedArtist]);
-
   // Bug 3: flag para Efeito 2 não resetar estados já inicializados pelo useState lazy
   const isFirstModeMount = useRef(true);
-
-  // Bug 2: selectedArtist lido via ref — evita recriar o callback e disparar efeitos encadeados
-  const fetchUniqueArtists = useCallback(async (searchQuery = '') => {
-    if (!user?.id) return;
-    try {
-      let query = supabase
-        .from('music_unique_artists')
-        .select('artist')
-        .eq('user_id', user.id)
-        .order('artist', { ascending: true })
-        .limit(100);
-
-      if (searchQuery.trim()) {
-        query = query.ilike('artist', `%${searchQuery.trim()}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (!error && data) {
-        const artists = data.map(d => d.artist);
-        const current = selectedArtistRef.current;
-        if (current !== 'all' && !artists.includes(current) && (!searchQuery.trim() || current.toLowerCase().includes(searchQuery.toLowerCase()))) {
-          artists.unshift(current);
-        }
-        setUniqueArtists(artists);
-      }
-    } catch (e) {
-      console.error('Erro ao buscar artistas únicos:', e);
-    }
-  }, [user?.id]); // sem selectedArtist — lido via ref
 
   // Abre o dropdown calculando a posição absoluta do botão no viewport
   const handleOpenArtistDropdown = () => {
@@ -131,115 +133,6 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Bug 6: mode removido das deps — chords e genres são estáticos durante a sessão
-  useEffect(() => {
-    fetchCustomChords();
-    fetchGenres();
-    fetchUniqueArtists();
-  }, [refreshKey, user?.id, fetchUniqueArtists]);
-
-
-  useEffect(() => {
-    if (artistDropdownOpen) {
-      const delayDebounceFn = setTimeout(() => {
-        fetchUniqueArtists(artistSearch);
-      }, 300);
-      return () => clearTimeout(delayDebounceFn);
-    } else {
-      fetchUniqueArtists('');
-    }
-  }, [artistSearch, artistDropdownOpen, fetchUniqueArtists]);
-
-  const fetchSongs = useCallback(async () => {
-    if (!user?.id) return;
-    if (activeLetter && selectedArtist === 'all') {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      let query = supabase
-        .from('music_songs')
-        .select(`
-          *,
-          music_genres (
-            id,
-            name
-          )
-        `, { count: 'exact' })
-        .eq('user_id', user.id); // Bug 4: filtro explícito de usuário (defesa além do RLS)
-
-      // Filtro de pesquisa
-      if (search.trim()) {
-        query = query.or(`title.ilike.%${search.trim()}%,artist.ilike.%${search.trim()}%`);
-      }
-
-      // Filtro por tipo de documento
-      if (filterType !== 'all') {
-        query = query.eq('type', filterType);
-      }
-
-      // Filtro por artista
-      if (selectedArtist !== 'all') {
-        query = query.eq('artist', selectedArtist);
-      }
-
-      // Filtro por gênero
-      if (selectedGenre !== 'all') {
-        query = query.eq('genre_id', selectedGenre);
-      }
-
-      // Ordenação: favoritos primeiro, depois título ascendente
-      query = query
-        .order('is_favorite', { ascending: false })
-        .order('title', { ascending: true });
-
-      // Paginação
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-      setSongs(data || []);
-      setTotalCount(count || 0);
-    } catch (err) {
-      console.error(err);
-      toast.error(t('music.error_fetch_songs'));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search, filterType, selectedArtist, selectedGenre, pageSize, activeLetter, user?.id]);
-
-  useEffect(() => {
-    fetchSongs();
-  }, [fetchSongs, refreshKey]);
-
-  const fetchArtistsByLetter = useCallback(async (letter) => {
-    if (!user?.id || !letter) return;
-    setArtistsLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_artists_by_letter', {
-        p_user_id: user.id,
-        p_letter: letter
-      });
-      if (error) throw error;
-      setArtistsList(data || []);
-    } catch (err) {
-      console.error('Erro ao buscar artistas por letra:', err);
-      toast.error(t('music.error_fetch_artists'));
-    } finally {
-      setArtistsLoading(false);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (activeLetter) {
-      fetchArtistsByLetter(activeLetter);
-    }
-  }, [activeLetter, refreshKey, fetchArtistsByLetter]);
 
   const handleLetterClick = (letter) => {
     const charCode = letter === '#' ? 'num' : letter.toLowerCase();
@@ -298,25 +191,20 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
   const songRouteId = mode.startsWith('song-') ? mode.replace('song-', '') : null;
 
-  // Efeito 1: Carregar música pelo ID da URL
-  // Bug 1: usa selectedSongRef para evitar fetch quando a música já está em memória
+  // Efeito 1: Carregar música pelo ID da URL (do Dexie)
   useEffect(() => {
     if (!songRouteId || !user?.id) return;
-    if (selectedSongRef.current?.id === songRouteId) return; // cache hit — sem fetch
-    supabase
-      .from('music_songs')
-      .select('*, music_genres(id, name)')
-      .eq('id', songRouteId)
-      .single()
-      .then(({ data, error }) => {
-        if (!error && data) {
-          const songObj = Array.isArray(data) ? data[0] : data;
-          setSelectedSong(songObj);
+    if (selectedSongRef.current?.id === songRouteId) return;
+    import('../../lib/offline/db').then(({ getMusicSong }) => {
+      getMusicSong(songRouteId).then(song => {
+        if (song) {
+          setSelectedSong(song);
         } else {
           toast.error(t('music.song_not_found'));
           if (navigate) navigate('music-repertoire');
         }
       });
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songRouteId, user?.id]);
 
@@ -355,68 +243,13 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const fetchGenres = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('music_genres')
-        .select('id, name')
-        .order('name', { ascending: true });
-      if (!error && data) {
-        setGenres(data);
-      }
-    } catch (e) {
-      console.error('Erro ao carregar gêneros:', e);
-    }
-  };
-
-
-
-  // Carrega acordes cadastrados e monta o mapeamento
-  const fetchCustomChords = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('music_chords')
-        .select(`
-          chord_name,
-          music_instruments ( name ),
-          music_chord_variations (
-            frets,
-            fingers,
-            start_fret
-          )
-        `);
-
-      if (!error && data) {
-        const chordMap = {};
-        data.forEach(chord => {
-          const instName = chord.music_instruments?.name;
-          const name = chord.chord_name.toUpperCase();
-          const variation = chord.music_chord_variations?.[0];
-
-          if (instName && variation) {
-            if (!chordMap[instName]) chordMap[instName] = {};
-            chordMap[instName][name] = {
-              frets: variation.frets,
-              fingers: variation.fingers,
-              startFret: variation.start_fret
-            };
-          }
-        });
-        setCustomChords(chordMap);
-      }
-    } catch (e) {
-      console.error('Erro ao mapear acordes customizados:', e);
-    }
-  };
-
   const handleDeleteSong = async (e, id) => {
-    e.stopPropagation(); // Evita abrir a música
+    e.stopPropagation();
     if (!window.confirm(t('music.confirm_delete_song'))) {
       return;
     }
 
     try {
-      // Se for partitura em nuvem, remove do Supabase Storage também
       const songToDelete = songs.find(s => s.id === id);
       if (songToDelete?.type === 'partitura' && songToDelete.storage_type === 'cloud') {
         await supabase.storage
@@ -424,19 +257,13 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
           .remove([songToDelete.file_path]);
       }
 
-      const { error } = await supabase
-        .from('music_songs')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await deleteSongMutation.mutateAsync(id);
       
       toast.success(t('music.song_deleted'));
       if (selectedSong?.id === id) {
         setSelectedSong(null);
       }
-      fetchSongs();
-      fetchUniqueArtists();
+      queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] });
     } catch (err) {
       console.error(err);
       toast.error(t('music.error_delete_song'));
@@ -452,13 +279,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
   const toggleFavorite = async (e, song) => {
     e.stopPropagation();
     try {
-      const { error } = await supabase
-        .from('music_songs')
-        .update({ is_favorite: !song.is_favorite })
-        .eq('id', song.id);
-
-      if (error) throw error;
-      fetchSongs();
+      await updateSongMutation.mutateAsync({ id: song.id, is_favorite: !song.is_favorite });
     } catch (err) {
       console.error(err);
       toast.error(t('music.error_favorite'));
@@ -499,7 +320,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
 
     const handleSavedFromViewer = (updatedSong) => {
       setSelectedSong(updatedSong);
-      fetchSongs();
+      queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] });
     };
 
     return (
@@ -1012,7 +833,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
             )
           ) : (
             /* ── TELA 2: Tabela Densa de Músicas (Geral ou Artista Selecionado) ── */
-            loading ? (
+            isLoading ? (
               <div style={{ textAlign: 'center', padding: '4rem' }}>
                 <Loader2 className="animate-spin" style={{ margin: '0 auto 1rem', color: 'var(--primary)' }} />
                 <span>{t('music.loading_songs')}</span>
@@ -1273,7 +1094,7 @@ export default function Music({ user, refreshKey, mode = 'repertoire', navigate 
           <SongModal
             isOpen={isModalOpen}
             onClose={() => { setIsModalOpen(false); setEditingSong(null); }}
-            onRefresh={() => { fetchSongs(); fetchUniqueArtists(); if (activeLetter) fetchArtistsByLetter(activeLetter); }}
+            onRefresh={() => { queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] }) }}
             user={user}
             initialData={editingSong}
           />

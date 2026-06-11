@@ -2,6 +2,16 @@
 
 Este arquivo registra todas as alterações notáveis feitas no projeto **PersonalControl**. O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Versionamento Semântico](https://semver.org/spec/v2.0.0-rc.2.html).
 
+## [1.5.0] - 2026-06-11
+
+### Adicionado
+- **Arquitetura Offline-First (Módulo de Música)**:
+  - Integração robusta com Dexie (IndexedDB) para persistência e disponibilidade offline local.
+  - Sincronização automática em background com Supabase via `SyncEngine` com limites seguros de reprocessamento (`attempts`).
+  - Fallback automático e transparente de busca local via `fetchSongsFromDexie` em caso de falha de conexão ou offline.
+  - Geração de UUIDs definitivos no cliente com `generateUUID` eliminando chaves temporárias e duplicados de sincronização.
+  - Mapeamento dinâmico local de gêneros musicais no Dexie (joins em memória).
+
 ## [1.4.0] - 2026-06-07
 
 ### Adicionado
