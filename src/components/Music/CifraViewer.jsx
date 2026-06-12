@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, ChevronUp, ChevronDown, Music, RotateCcw, Volume2, Type, Edit, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Play, Pause, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Music, RotateCcw, Volume2, Type, Edit, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
 import ChordDiagram from './ChordDiagram';
 
 // Escala de notas cromáticas para transposição
@@ -74,6 +75,54 @@ const DEFAULT_CHORDS = {
   }
 };
 
+// Componente para exibir um diagrama de acordes com suporte a navegação de variações
+function ChordDiagramWithVariations({ name, instrument, variations }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const currentVar = variations[activeIdx] || variations[0];
+  const stringsCount = instrument === 'violao' ? 6 : 4;
+
+  if (!currentVar) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
+      <ChordDiagram
+        name={name}
+        stringsCount={stringsCount}
+        frets={currentVar.frets}
+        fingers={currentVar.fingers}
+        startFret={currentVar.startFret || 1}
+      />
+      {variations.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.25rem', padding: '0 0.5rem' }}>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ padding: '2px 4px' }}
+            disabled={activeIdx === 0}
+            onClick={() => setActiveIdx(prev => prev - 1)}
+            title="Variação Anterior"
+          >
+            <ChevronLeft size={12} />
+          </button>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+            Var. {activeIdx + 1}/{variations.length}
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ padding: '2px 4px' }}
+            disabled={activeIdx === variations.length - 1}
+            onClick={() => setActiveIdx(prev => prev + 1)}
+            title="Próxima Variação"
+          >
+            <ChevronRight size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Transpõe um único acorde pelo offset dado
 function transposeChord(chord, offset) {
   if (offset === 0) return chord;
@@ -123,18 +172,42 @@ const isTabLine = (line) => {
 // Regex para identificar linhas de acordes
 const isChordLine = (line) => {
   if (line.trim() === '') return false;
+  
+  const cleanToken = (tok) => {
+    let cleaned = tok.trim();
+    while (
+      (cleaned.startsWith('(') && cleaned.endsWith(')')) ||
+      (cleaned.startsWith('[') && cleaned.endsWith(']')) ||
+      (cleaned.startsWith('{') && cleaned.endsWith('}'))
+    ) {
+      cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+    }
+    return cleaned;
+  };
+
   const tokens = line.trim().split(/\s+/);
-  const chordRegex = /^([A-G][b#]?(m|min|maj|dim|aug|sus|add|7|9|11|13)*(\/[A-G][b#]?)?(\(|\]|\))?)+$/i;
+  const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
   
   let chordsCount = 0;
+  let relevantTokensCount = 0;
+
   tokens.forEach(tok => {
-    const cleaned = tok.replace(/[()]/g, '');
-    if (cleaned.match(chordRegex) || ['/', '|'].includes(cleaned)) {
+    const rawClean = tok.trim();
+    if (rawClean === '') return;
+    
+    if (['/', '|', '(', ')', '[', ']', '{', '}'].includes(rawClean)) {
+      return;
+    }
+    
+    relevantTokensCount++;
+    const cleaned = cleanToken(rawClean);
+    if (cleaned.match(chordRegex)) {
       chordsCount++;
     }
   });
   
-  return chordsCount / tokens.length >= 0.7;
+  if (relevantTokensCount === 0) return false;
+  return chordsCount / relevantTokensCount >= 0.7;
 };
 
 export default function CifraViewer({ song, customChords = {}, onEdit = null }) {
@@ -147,6 +220,86 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
   const intervalRef = useRef(null);
+
+  // Estados e Refs do Tooltip de Acordes (tipo Cifra Club)
+  const [activeTooltip, setActiveTooltip] = useState(null); // { chord: string, rect: DOMRect, trigger: 'hover' | 'click' }
+  const hideTimeoutRef = useRef(null);
+
+  const handleMouseOver = (e) => {
+    if (e.target.classList.contains('chord-highlight')) {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+      
+      const chord = e.target.textContent;
+      const rect = e.target.getBoundingClientRect();
+      
+      setActiveTooltip(prev => {
+        if (prev && prev.trigger === 'click') {
+          return prev;
+        }
+        return { chord, rect, trigger: 'hover' };
+      });
+    }
+  };
+
+  const handleMouseOut = (e) => {
+    if (e.target.classList.contains('chord-highlight')) {
+      hideTimeoutRef.current = setTimeout(() => {
+        setActiveTooltip(prev => {
+          if (prev && prev.trigger === 'hover') {
+            return null;
+          }
+          return prev;
+        });
+      }, 300);
+    }
+  };
+
+  const handleChordClick = (e) => {
+    if (e.target.classList.contains('chord-highlight')) {
+      e.stopPropagation();
+      const chord = e.target.textContent;
+      const rect = e.target.getBoundingClientRect();
+      
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+
+      setActiveTooltip(prev => {
+        if (prev && prev.chord === chord && prev.trigger === 'click') {
+          return null;
+        }
+        return { chord, rect, trigger: 'click' };
+      });
+    }
+  };
+
+  const handleTooltipMouseEnter = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+  };
+
+  const handleTooltipMouseLeave = () => {
+    setActiveTooltip(prev => {
+      if (prev && prev.trigger === 'hover') {
+        return null;
+      }
+      return prev;
+    });
+  };
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setActiveTooltip(null);
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('pc_active_instrument', instrument);
@@ -292,7 +445,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
     if (!song?.content) return [];
     
     const chords = new Set();
-    const chordRegex = /[A-G][b#]?(?:m|maj|min|dim|aug|sus|add)?\d*(?:\/[A-G][b#]?)?/g;
+    const chordRegex = /[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?/g;
     const bracketRegex = /\[([A-G][b#]?[^\]]*)\]/gi;
     
     processedLines.forEach(line => {
@@ -317,7 +470,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
 
   // Transpõe e destaca os acordes em uma linha de texto preservando espaços
   const transposeChordLine = (lineContent) => {
-    const chordRegex = /([A-G][b#]?(?:m|maj|min|dim|aug|sus|add)?\d*(?:\/[A-G][b#]?)?)/g;
+    const chordRegex = /([A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?)/g;
     let result = '';
     let lastIndex = 0;
     let match;
@@ -333,26 +486,65 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
     return result;
   };
 
-  // Transpõe e destaca acordes entre colchetes [C]
-  const transposeBracketedChords = (lineContent) => {
-    const bracketRegex = /\[([A-G][b#]?[^\]]*)\]/gi;
+  // Transpõe e destaca os acordes e labels [Intro/Final] em uma linha de acordes
+  const highlightChordsAndLabels = (lineContent) => {
+    const regex = /(\[[^\]]+\]|[^\s[\]]+)/g;
     let result = '';
     let lastIndex = 0;
     let match;
+    
+    const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
+
+    while ((match = regex.exec(lineContent)) !== null) {
+      result += lineContent.substring(lastIndex, match.index);
+      const token = match[1];
+      
+      if (token.startsWith('[') && token.endsWith(']')) {
+        const innerText = token.slice(1, -1).trim();
+        if (innerText.match(chordRegex)) {
+          const transposed = transposeChord(innerText, transpose);
+          result += `<span class="chord-highlight" style="color: var(--primary); font-weight: bold; background: rgba(99,102,241,0.08); padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(99,102,241,0.15); margin: 0 2px; font-family: monospace; cursor: pointer;">${transposed}</span>`;
+        } else {
+          result += `<span class="label-badge" style="background: var(--bg-card, #1e293b); color: var(--text-main, #fff); border: 1px solid var(--glass-border, rgba(255,255,255,0.08)); padding: 2px 8px; border-radius: 6px; font-size: 0.8em; font-weight: bold; font-family: sans-serif; margin-right: 4px; display: inline-block;">${innerText}</span>`;
+        }
+      } else {
+        if (token.match(chordRegex)) {
+          const transposed = transposeChord(token, transpose);
+          result += `<span class="chord-highlight" style="color: var(--primary); font-weight: bold; cursor: pointer;">${transposed}</span>`;
+        } else {
+          result += token;
+        }
+      }
+      lastIndex = regex.lastIndex;
+    }
+    result += lineContent.substring(lastIndex);
+    return result;
+  };
+
+  // Transpõe e destaca acordes entre colchetes [C] em linhas de letra
+  const transposeBracketedChords = (lineContent) => {
+    const bracketRegex = /\[([^\]]+)\]/g;
+    let result = '';
+    let lastIndex = 0;
+    let match;
+    
+    const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
 
     while ((match = bracketRegex.exec(lineContent)) !== null) {
       result += lineContent.substring(lastIndex, match.index);
-      const originalChord = match[1];
-      const transposed = transposeChord(originalChord, transpose);
-      result += `<span class="chord-highlight" style="color: var(--primary); font-weight: bold; background: rgba(99,102,241,0.08); padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(99,102,241,0.15); margin: 0 2px; font-family: monospace; cursor: pointer;">${transposed}</span>`;
+      const innerText = match[1].trim();
+      if (innerText.match(chordRegex)) {
+        const transposed = transposeChord(innerText, transpose);
+        result += `<span class="chord-highlight" style="color: var(--primary); font-weight: bold; background: rgba(99,102,241,0.08); padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(99,102,241,0.15); margin: 0 2px; font-family: monospace; cursor: pointer;">${transposed}</span>`;
+      } else {
+        result += `[${innerText}]`;
+      }
       lastIndex = bracketRegex.lastIndex;
     }
     
     result += lineContent.substring(lastIndex);
     return result;
   };
-
-
 
   const renderLine = (line, idx) => {
     if (line.instrument && line.instrument !== instrument) {
@@ -368,10 +560,10 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
       }
     }
 
-    const hasBrackets = /\[[A-G][b#]?[^\]]*\]/i.test(line.content);
+    const hasBrackets = /\[[^\]]+\]/i.test(line.content);
 
     if (line.type === 'chords') {
-      const html = hasBrackets ? transposeBracketedChords(line.content) : transposeChordLine(line.content);
+      const html = highlightChordsAndLabels(line.content);
       return (
         <div key={`line-${idx}`} style={{ marginBottom: '2px' }}>
           <div dangerouslySetInnerHTML={{ __html: html }} style={{ fontFamily: 'monospace', whiteSpace: 'pre', fontSize: `${fontSize}px`, lineHeight: 2 }} />
@@ -791,6 +983,9 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
           style={{
             scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
           }}
+          onMouseOver={handleMouseOver}
+          onMouseOut={handleMouseOut}
+          onClick={handleChordClick}
         >
           {processedLines.map((line, idx) => renderLine(line, idx))}
         </div>
@@ -811,19 +1006,17 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhum acorde detectado.</span>
           ) : (
             uniqueChords.map(c => {
-              // Obtém detalhes do acorde (procura na base customizada do usuário ou fallback padrão)
               const chordKey = c.toUpperCase();
-              const chordDetails = customChords[instrument]?.[chordKey] || DEFAULT_CHORDS[instrument]?.[chordKey];
+              const details = customChords[instrument]?.[chordKey] || DEFAULT_CHORDS[instrument]?.[chordKey];
+              const variations = details ? (Array.isArray(details) ? details : [details]) : [];
 
               return (
                 <div key={`diagram-${c}`}>
-                  {chordDetails ? (
-                    <ChordDiagram
+                  {variations.length > 0 ? (
+                    <ChordDiagramWithVariations
                       name={c}
-                      stringsCount={instrument === 'violao' ? 6 : 4}
-                      frets={chordDetails.frets}
-                      fingers={chordDetails.fingers}
-                      startFret={chordDetails.startFret || 1}
+                      instrument={instrument}
+                      variations={variations}
                     />
                   ) : (
                     // Desenho vazio se não cadastrado
@@ -858,6 +1051,9 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             overflowX: 'auto',
             scrollBehavior: autoScrollSpeed > 0 ? 'auto' : 'smooth'
           }}
+          onMouseOver={handleMouseOver}
+          onMouseOut={handleMouseOut}
+          onClick={handleChordClick}
         >
           {processedLines.map((line, idx) => renderLine(line, idx))}
         </div>
@@ -880,17 +1076,16 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             ) : (
               uniqueChords.map(c => {
                 const chordKey = c.toUpperCase();
-                const chordDetails = customChords[instrument]?.[chordKey] || DEFAULT_CHORDS[instrument]?.[chordKey];
+                const details = customChords[instrument]?.[chordKey] || DEFAULT_CHORDS[instrument]?.[chordKey];
+                const variations = details ? (Array.isArray(details) ? details : [details]) : [];
 
                 return (
                   <div key={`mobile-diagram-${c}`} style={{ flexShrink: 0 }}>
-                    {chordDetails ? (
-                      <ChordDiagram
+                    {variations.length > 0 ? (
+                      <ChordDiagramWithVariations
                         name={c}
-                        stringsCount={instrument === 'violao' ? 6 : 4}
-                        frets={chordDetails.frets}
-                        fingers={chordDetails.fingers}
-                        startFret={chordDetails.startFret || 1}
+                        instrument={instrument}
+                        variations={variations}
                       />
                     ) : (
                       <div style={{
@@ -974,6 +1169,63 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
             {autoScrollSpeed > 0 ? autoScrollSpeed : savedSpeed}
           </span>
         </div>
+      {/* ── Hover/Click Floating Chord Tooltip (Cifra Club style) ── */}
+      {activeTooltip && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: `${activeTooltip.rect.top - 10}px`,
+            left: `${activeTooltip.rect.left + activeTooltip.rect.width / 2}px`,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 99999,
+            background: 'var(--bg-card, #1e293b)',
+            border: '1px solid var(--glass-border, rgba(255,255,255,0.08))',
+            borderRadius: '12px',
+            padding: '0.75rem',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+            minWidth: '130px',
+            pointerEvents: 'auto',
+          }}
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Arrow */}
+          <div style={{
+            position: 'absolute',
+            bottom: '0',
+            left: '50%',
+            transform: 'translate(-50%, 50%) rotate(45deg)',
+            width: '8px',
+            height: '8px',
+            background: 'var(--bg-card, #1e293b)',
+            borderRight: '1px solid var(--glass-border, rgba(255,255,255,0.08))',
+            borderBottom: '1px solid var(--glass-border, rgba(255,255,255,0.08))',
+          }} />
+          {(() => {
+            const chordKey = activeTooltip.chord.toUpperCase();
+            const details = customChords[instrument]?.[chordKey] || DEFAULT_CHORDS[instrument]?.[chordKey];
+            const variations = details ? (Array.isArray(details) ? details : [details]) : [];
+            return (
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                {variations.length > 0 ? (
+                  <ChordDiagramWithVariations
+                    name={activeTooltip.chord}
+                    instrument={instrument}
+                    variations={variations}
+                  />
+                ) : (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem 0' }}>
+                    Sem diagrama
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>,
+        document.body
+      )}
+
       </div>
 
     </div>

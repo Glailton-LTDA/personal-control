@@ -19,22 +19,25 @@ export default function ChordDiagram({
   fingers = [0, 0, 0, 1],
   startFret = 1
 }) {
-  // Configurações do layout do SVG
   const width = 150;
-  const height = 180;
   const topMargin = 40;
   const bottomMargin = 20;
   const leftMargin = 30;
   const rightMargin = 30;
   
   const gridWidth = width - leftMargin - rightMargin;
-  const gridHeight = height - topMargin - bottomMargin;
+  
+  // Calcula a maior casa pressionada para definir a escala do diagrama
+  const maxFretValue = Math.max(...frets.filter(f => f > 0), 1);
+  const span = maxFretValue - startFret + 1;
+  const fretsInGrid = Math.max(5, span); // Mostra no mínimo 5 trastes, mas expande se necessário
+  
+  const ySpacing = 24; // Espaçamento fixo por traste para manter escala consistente
+  const gridHeight = fretsInGrid * ySpacing;
+  const height = topMargin + gridHeight + bottomMargin;
   
   const strings = stringsCount;
-  const fretsInGrid = 5; // Número de trastes desenhados no diagrama (ex: 5 trastes)
-  
   const xSpacing = gridWidth / (strings - 1);
-  const ySpacing = gridHeight / fretsInGrid;
 
   // Renderiza marcadores no topo da corda (X ou O)
   const renderStringHeader = (fret, index) => {
@@ -74,7 +77,7 @@ export default function ChordDiagram({
       // Fret relativo no diagrama desenhado
       const relativeFret = fret - startFret + 1;
       
-      // Se estiver fora do limite visível do diagrama de 5 trastes, não renderiza
+      // Se estiver fora do limite visível do diagrama de trastes, não renderiza
       if (relativeFret < 1 || relativeFret > fretsInGrid) return null;
       
       const cx = leftMargin + stringIdx * xSpacing;
@@ -182,15 +185,15 @@ export default function ChordDiagram({
               x1={x}
               y1={topMargin}
               x2={x}
-              y2={height - bottomMargin}
+              y2={topMargin + gridHeight}
               stroke="var(--text-muted)"
               strokeWidth={1.5}
             />
           );
         })}
 
-        {/* Indicador de Traste Inicial (ex: "3ª" se começar no traste 3) */}
-        {startFret > 1 && (
+        {/* Indicador de Traste Inicial (ex: "3ª" se começar no traste 3, e sempre mostrando de 1ª em diante) */}
+        {startFret >= 1 && (
           <text
             x={leftMargin - 10}
             y={topMargin + ySpacing / 2 + 4}

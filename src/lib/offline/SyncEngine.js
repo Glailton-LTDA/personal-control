@@ -76,7 +76,7 @@ export class MusicSyncProvider {
     );
     results.music_chords = await syncEngine.pull(
       'music_chords',
-      supabase.from('music_chords').select('*')
+      supabase.from('music_chords').select('*, music_instruments(name), music_chord_variations(*)')
     );
     return results;
   }
@@ -269,7 +269,7 @@ export class SyncEngine {
     return { pushed: queueSize, pulled: Object.values(pulled || {}).reduce((a, b) => a + (b?.length || 0), 0) };
   }
 
-  startPeriodicSync(intervalMs = 30000) {
+  startPeriodicSync(intervalMs = 300000) {
     this.stopPeriodicSync();
     this._pullTimer = setInterval(() => this.sync(), intervalMs);
   }

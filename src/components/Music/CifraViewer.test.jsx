@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import CifraViewer from './CifraViewer';
 
@@ -161,4 +161,89 @@ Common Lyric Line`
     fireEvent.click(screen.getByTitle('Sair de Tela Cheia'));
     expect(screen.getByTitle('Tela Cheia')).toBeDefined();
   });
+
+  it('highlights and transposes complex chords correctly', () => {
+    const complexSong = {
+      id: 'song-complex-123',
+      title: 'Complex Chords',
+      artist: 'Artist',
+      type: 'cifra',
+      content: 'F#m7(5-)       C(add9)       G#m7(b5)\nLyrics line'
+    };
+
+    render(<CifraViewer song={complexSong} />);
+
+    // Check if complex chords are detected and highlighted
+    expect(screen.getAllByText('F#m7(5-)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('C(add9)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('G#m7(b5)').length).toBeGreaterThan(0);
+
+    // Transpose +1
+    const incBtn = screen.getByTitle('Aumentar Meio Tom');
+    fireEvent.click(incBtn);
+
+    // Transposed +1:
+    // F#m7(5-) -> Gm7(5-)
+    // C(add9) -> C#(add9)
+    // G#m7(b5) -> Am7(b5)
+    expect(screen.getAllByText('Gm7(5-)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('C#(add9)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Am7(b5)').length).toBeGreaterThan(0);
+  });
+
+  it('shows tooltip on chord hover and hides it on mouseOut after delay', async () => {
+    vi.useFakeTimers();
+    render(<CifraViewer song={mockSong} />);
+    
+    // Find the chord 'A'
+    const chordA = screen.getAllByText('A').find(el => el.classList.contains('chord-highlight'));
+    expect(chordA).toBeDefined();
+
+    const initialCount = screen.getAllByText('A').length;
+
+    // Trigger mouseOver
+    fireEvent.mouseOver(chordA);
+    
+    // Tooltip should be visible
+    expect(screen.getAllByText('A').length).toBeGreaterThan(initialCount);
+
+    // Find the chord 'A' again (the original became detached because of dangerouslySetInnerHTML re-render)
+    const activeChordA = screen.getAllByText('A').find(el => el.classList.contains('chord-highlight') && document.body.contains(el));
+    expect(activeChordA).toBeDefined();
+
+    // Trigger mouseOut
+    fireEvent.mouseOut(activeChordA);
+    
+    // Advance timers by 300ms
+    act(() => {
+      vi.runAllTimers();
+    });
+    
+    // Tooltip should be hidden
+    expect(screen.getAllByText('A').length).toBe(initialCount);
+    
+    vi.useRealTimers();
+  });
+
+  it('shows tooltip on chord click and stays visible until clicking elsewhere', () => {
+    render(<CifraViewer song={mockSong} />);
+    
+    const chordA = screen.getAllByText('A').find(el => el.classList.contains('chord-highlight'));
+    expect(chordA).toBeDefined();
+
+    const initialCount = screen.getAllByText('A').length;
+
+    // Click on chord
+    fireEvent.click(chordA);
+    
+    // Tooltip should be visible
+    expect(screen.getAllByText('A').length).toBeGreaterThan(initialCount);
+
+    // Click elsewhere (window)
+    fireEvent.click(window);
+    
+    // Tooltip should be hidden
+    expect(screen.getAllByText('A').length).toBe(initialCount);
+  });
 });
+

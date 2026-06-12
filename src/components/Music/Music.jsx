@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 
 import CifraViewer from './CifraViewer';
 import SheetViewer from './SheetViewer';
-import SongModal from './SongModal';
+import SongEditor from './SongEditor';
 import ChordSettings from './ChordSettings';
 import Setlists from './Setlists';
 
@@ -35,8 +35,8 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
   });
   const [selectedGenre, setSelectedGenre] = useState('all');
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Editor State
+  const [isEditingSong, setIsEditingSong] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
 
   // Leitor Ativo
@@ -84,14 +84,15 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
     rawChords.forEach(chord => {
       const instName = chord.music_instruments?.name;
       const name = chord.chord_name?.toUpperCase();
-      const variation = chord.music_chord_variations?.[0];
-      if (instName && name && variation) {
+      const variations = chord.music_chord_variations;
+      if (instName && name && variations && variations.length > 0) {
         if (!chordMap[instName]) chordMap[instName] = {};
-        chordMap[instName][name] = {
-          frets: variation.frets,
-          fingers: variation.fingers,
-          startFret: variation.start_fret
-        };
+        const sortedVars = [...variations].sort((a, b) => a.variation_index - b.variation_index);
+        chordMap[instName][name] = sortedVars.map(v => ({
+          frets: v.frets,
+          fingers: v.fingers,
+          startFret: v.start_fret
+        }));
       }
     });
     return chordMap;
@@ -273,7 +274,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
   const handleEditSong = (e, song) => {
     e.stopPropagation();
     setEditingSong(song);
-    setIsModalOpen(true);
+    setIsEditingSong(true);
   };
 
   const toggleFavorite = async (e, song) => {
@@ -311,16 +312,33 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
     setPage(0);
   };
 
+  // Tela de Edição/Criação de Música
+  if (isEditingSong) {
+    return (
+      <SongEditor
+        user={user}
+        initialData={editingSong}
+        onClose={() => {
+          setIsEditingSong(false);
+          setEditingSong(null);
+        }}
+        onSaved={(updatedSong) => {
+          setIsEditingSong(false);
+          setEditingSong(null);
+          if (selectedSong && updatedSong && updatedSong.id === selectedSong.id) {
+            setSelectedSong(updatedSong);
+          }
+          queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] });
+        }}
+      />
+    );
+  }
+
   // Se o usuário selecionou uma música, abre o visualizador correspondente
   if (selectedSong) {
     const handleEditFromViewer = (song) => {
       setEditingSong(song);
-      setIsModalOpen(true);
-    };
-
-    const handleSavedFromViewer = (updatedSong) => {
-      setSelectedSong(updatedSong);
-      queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] });
+      setIsEditingSong(true);
     };
 
     return (
@@ -350,16 +368,6 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
         ) : (
           <SheetViewer song={selectedSong} user={user} onEdit={handleEditFromViewer} />
         )}
-
-        {/* Modal de edição inline (sem sair do viewer) */}
-        <SongModal
-          isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setEditingSong(null); }}
-          onRefresh={() => { /* lista será atualizada via onSaved */ }}
-          user={user}
-          initialData={editingSong}
-          onSaved={handleSavedFromViewer}
-        />
       </div>
     );
   }
@@ -741,7 +749,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
               {/* Adicionar Nova */}
               <button
                 className="btn-primary"
-                onClick={() => { setEditingSong(null); setIsModalOpen(true); }}
+                onClick={() => { setEditingSong(null); setIsEditingSong(true); }}
                 style={{ padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Plus size={14} />
@@ -853,7 +861,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '400px', margin: '0.5rem auto 1.5rem', lineHeight: 1.5 }}>
                     {t('music.empty_desc')}
                   </p>
-                  <button className="btn-primary" onClick={() => { setEditingSong(null); setIsModalOpen(true); }} style={{ padding: '0.6rem 1.5rem' }}>
+                  <button className="btn-primary" onClick={() => { setEditingSong(null); setIsEditingSong(true); }} style={{ padding: '0.6rem 1.5rem' }}>
                     {t('music.register_first_song')}
                   </button>
                 </div>
@@ -1090,14 +1098,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
             )
           )}
 
-          {/* Song Modal Form */}
-          <SongModal
-            isOpen={isModalOpen}
-            onClose={() => { setIsModalOpen(false); setEditingSong(null); }}
-            onRefresh={() => { queryClient.invalidateQueries({ queryKey: ['offline_songs', user?.id] }) }}
-            user={user}
-            initialData={editingSong}
-          />
+
 
         </div>
       )}

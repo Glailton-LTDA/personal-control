@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle, Loader2, LayoutGrid, Sun, Moon, Globe, User, Info } from 'lucide-react';
+import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle, Loader2, LayoutGrid, Sun, Moon, Globe, User, Info, Database, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 export default function Settings({ user, menuOrder, setMenuOrder, menuItems, activeTab, theme, setTheme }) {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState({
     recipient_email: '',
     bcc_email: '',
@@ -16,6 +18,11 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Manual sync state
+  const [syncing, setSyncing] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Password change state
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
@@ -40,8 +47,55 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
     setUpdatingName(false);
   }
 
+  async function updateQueueCount() {
+    try {
+      const { db } = await import('../lib/offline/db');
+      const count = await db.sync_queue.count();
+      setQueueCount(count);
+    } catch (err) {
+      console.error('Error fetching queue count:', err);
+    }
+  }
+
+  async function handleManualSync() {
+    if (syncing) return;
+    setSyncing(true);
+    const toastId = toast.loading(t('settings.syncing_data', 'Sincronizando dados com o servidor...'));
+    try {
+      const { SyncEngine } = await import('../lib/offline/SyncEngine');
+      const engine = new SyncEngine(user.id);
+      await engine.sync();
+      
+      await updateQueueCount();
+      
+      // Invalidate query caches
+      queryClient.invalidateQueries();
+      
+      toast.success(t('settings.sync_success', 'Dados sincronizados com sucesso!'), { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error(t('settings.sync_error', 'Erro ao sincronizar dados.'), { id: toastId });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   useEffect(() => {
     fetchSettings();
+    if (user?.id) {
+      updateQueueCount();
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   async function fetchSettings() {
@@ -446,6 +500,138 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                   </label>
                 ))}
               </div>
+            </div>
+          </Motion.div>
+
+          {/* Card: Database & Synchronization */}
+          <Motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.35 }} 
+            className="glass-card" 
+            style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+            data-testid="section-sync"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
+                <Database size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {t('settings.sync_title', 'Dados & Sincronização')}
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>
+                  {t('settings.sync_desc', 'Gerenciamento do banco de dados offline e sincronização manual.')}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Connection Status Row */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                padding: '1rem', 
+                background: 'rgba(255,255,255,0.02)', 
+                borderRadius: '16px', 
+                border: '1px solid var(--glass-border)' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {isOnline ? (
+                    <Wifi size={18} style={{ color: '#10b981' }} />
+                  ) : (
+                    <WifiOff size={18} style={{ color: '#ef4444' }} />
+                  )}
+                  <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+                    {t('settings.sync_connection_status', 'Status da Rede')}
+                  </span>
+                </div>
+                <div style={{ 
+                  padding: '0.4rem 0.8rem', 
+                  background: isOnline ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                  border: `1px solid ${isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`, 
+                  borderRadius: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  color: isOnline ? '#10b981' : '#ef4444', 
+                  fontSize: '0.8rem', 
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  {isOnline ? t('settings.sync_online', 'Online') : t('settings.sync_offline', 'Offline')}
+                </div>
+              </div>
+
+              {/* Sync Queue Row */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                padding: '1rem', 
+                background: 'rgba(255,255,255,0.02)', 
+                borderRadius: '16px', 
+                border: '1px solid var(--glass-border)' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <RefreshCw size={18} style={{ color: 'var(--primary)' }} className={syncing ? 'animate-spin' : ''} />
+                  <div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+                      {t('settings.sync_pending_changes', 'Alterações Pendentes')}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {queueCount > 0 
+                        ? t('settings.sync_pending_desc', 'Há alterações locais pendentes de envio.') 
+                        : t('settings.sync_synced_desc', 'Seus dados locais estão totalmente atualizados.')}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ 
+                  padding: '0.4rem 0.8rem', 
+                  background: queueCount > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', 
+                  border: `1px solid ${queueCount > 0 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`, 
+                  borderRadius: '12px', 
+                  color: queueCount > 0 ? '#f59e0b' : '#10b981', 
+                  fontSize: '0.85rem', 
+                  fontWeight: 800 
+                }}>
+                  {queueCount}
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={handleManualSync}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  borderRadius: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.75rem',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: syncing ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {syncing ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>{t('settings.sync_syncing', 'Sincronizando...')}</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={18} />
+                    <span>{t('settings.sync_button', 'Sincronizar Agora')}</span>
+                  </>
+                )}
+              </button>
             </div>
           </Motion.div>
 
