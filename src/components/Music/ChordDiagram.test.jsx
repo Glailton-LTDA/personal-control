@@ -26,4 +26,12 @@ describe('ChordDiagram Component', () => {
     // Should display the 6th fret index label
     expect(getByText('6ª')).toBeDefined();
   });
+
+  it('renders 1ª fret number when startFret is equal to 1', () => {
+    const { getByText } = render(
+      <ChordDiagram name="C" stringsCount={6} frets={[-1, 3, 2, 0, 1, 0]} startFret={1} />
+    );
+    // Should display the 1st fret index label
+    expect(getByText('1ª')).toBeDefined();
+  });
 });

@@ -20,9 +20,7 @@ async function enrichSongsWithGenres(result) {
 }
 
 function createSyncEngine(userId) {
-  const engine = new SyncEngine(userId);
-  engine.startPeriodicSync();
-  return engine;
+  return new SyncEngine(userId);
 }
 
 export function useOfflineSongs(userId, filters = {}) {

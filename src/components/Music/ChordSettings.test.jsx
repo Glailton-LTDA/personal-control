@@ -1,7 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ChordSettings from './ChordSettings';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
+const renderWithProvider = (ui) => {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
+};
 
 // Mock react-hot-toast
 vi.mock('react-hot-toast', () => ({
@@ -67,7 +84,11 @@ vi.mock('../../lib/supabase', () => ({
         delete: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ error: null })),
         })),
-        insert: vi.fn(() => Promise.resolve({ error: null })),
+        insert: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({ data: { id: 'inst-123' }, error: null })
+          }))
+        })),
       };
     }),
   },
@@ -79,7 +100,7 @@ describe('ChordSettings Component', () => {
   });
 
   it('renders correctly and loads custom chords', async () => {
-    render(<ChordSettings user={{ id: 'user-123' }} />);
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
     
     expect(screen.getByText('Dicionário de Acordes Customizados')).toBeDefined();
     expect(screen.getByText('Dicionário de Acordes')).toBeDefined();
@@ -87,7 +108,7 @@ describe('ChordSettings Component', () => {
   });
 
   it('opens add chord form sidebar when clicking create button', async () => {
-    render(<ChordSettings user={{ id: 'user-123' }} />);
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
     
     const createBtn = screen.getByRole('button', { name: /Criar Acorde/i });
     fireEvent.click(createBtn);
@@ -97,7 +118,7 @@ describe('ChordSettings Component', () => {
   });
 
   it('switches to genres tab and shows genres list', async () => {
-    render(<ChordSettings user={{ id: 'user-123' }} />);
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
     
     const genresTabBtn = screen.getByRole('button', { name: 'Gêneros Musicais' });
     fireEvent.click(genresTabBtn);
@@ -109,7 +130,7 @@ describe('ChordSettings Component', () => {
   });
 
   it('allows adding a new genre', async () => {
-    render(<ChordSettings user={{ id: 'user-123' }} />);
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
     
     const genresTabBtn = screen.getByRole('button', { name: 'Gêneros Musicais' });
     fireEvent.click(genresTabBtn);
@@ -130,7 +151,7 @@ describe('ChordSettings Component', () => {
 
   it('allows deleting a genre', async () => {
     window.confirm = vi.fn().mockReturnValue(true);
-    render(<ChordSettings user={{ id: 'user-123' }} />);
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
     
     const genresTabBtn = screen.getByRole('button', { name: 'Gêneros Musicais' });
     fireEvent.click(genresTabBtn);

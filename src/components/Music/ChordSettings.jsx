@@ -1,10 +1,75 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Edit, Save, Music } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, Edit, Save, Music, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import ChordDiagram from './ChordDiagram';
 
+// Subcomponente para renderizar cada card de acorde com controle de variações
+function ChordCard({ chord, stringsCount, handleEditChord, handleDeleteChord }) {
+  const variations = chord.music_chord_variations || [];
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // Ordena variações pelo índice
+  const sortedVars = [...variations].sort((a, b) => a.variation_index - b.variation_index);
+  const currentVar = sortedVars[activeIdx] || sortedVars[0];
+
+  return (
+    <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', position: 'relative' }}>
+      {currentVar ? (
+        <ChordDiagram
+          name={chord.chord_name}
+          stringsCount={stringsCount}
+          frets={currentVar.frets}
+          fingers={currentVar.fingers}
+          startFret={currentVar.start_fret}
+        />
+      ) : (
+        <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+          Sem variação cadastrada
+        </div>
+      )}
+
+      {/* Seletor de variações do acorde na grade */}
+      {sortedVars.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.25rem', marginTop: '0.25rem' }}>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ padding: '4px' }}
+            disabled={activeIdx === 0}
+            onClick={() => setActiveIdx(prev => prev - 1)}
+            title="Variação Anterior"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+            Var. {activeIdx + 1} de {sortedVars.length}
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ padding: '4px' }}
+            disabled={activeIdx === sortedVars.length - 1}
+            onClick={() => setActiveIdx(prev => prev + 1)}
+            title="Próxima Variação"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Botões de Ação */}
+      <div style={{ display: 'flex', gap: '4px', marginTop: '0.25rem', width: '100%', justifyContent: 'center' }}>
+        <button className="icon-btn" onClick={() => handleEditChord(chord)} style={{ padding: '6px' }} title="Editar"><Edit size={12} /></button>
+        <button className="icon-btn" onClick={() => handleDeleteChord(chord.id)} style={{ padding: '6px', color: 'var(--danger)' }} title="Excluir"><Trash2 size={12} /></button>
+      </div>
+    </div>
+  );
+}
+
 export default function ChordSettings({ user }) {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('chords'); // 'chords' | 'genres'
   const [instrument, setInstrument] = useState('violao');
   const [chords, setChords] = useState([]);
@@ -14,11 +79,13 @@ export default function ChordSettings({ user }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingChordId, setEditingChordId] = useState(null);
   const [chordName, setChordName] = useState('');
-  
-  // Variação ativa no editor
-  const [frets, setFrets] = useState([0, 0, 0, 0, 0, 0]);
-  const [fingers, setFingers] = useState([0, 0, 0, 0, 0, 0]);
-  const [startFret, setStartFret] = useState(1);
+
+  // Variações do acorde sendo editadas/criadas
+  const [variations, setVariations] = useState([
+    { variation_index: 0, frets: [0, 0, 0, 0, 0, 0], fingers: [0, 0, 0, 0, 0, 0], start_fret: 1 }
+  ]);
+  const [activeVarIdx, setActiveVarIdx] = useState(0);
+  const [deletedVariationIds, setDeletedVariationIds] = useState([]);
 
   // Gêneros
   const [genres, setGenres] = useState([]);
@@ -31,14 +98,17 @@ export default function ChordSettings({ user }) {
   // Ajusta arrays de trastes/dedos ao mudar de instrumento
   useEffect(() => {
     const size = isFourString ? 4 : 6;
-    setFrets(Array(size).fill(0));
-    setFingers(Array(size).fill(0));
-  }, [instrument, isFourString]);
+    setVariations(prev => prev.map(v => ({
+      ...v,
+      frets: v.frets.length === size ? v.frets : Array(size).fill(0),
+      fingers: v.fingers.length === size ? v.fingers : Array(size).fill(0)
+    })));
+  }, [instrument, isFourString, stringsCount]);
 
   const fetchChords = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Busca os instrumentos cadastrados pelo usuário para ver se já existe o selecionado
+      // 1. Busca o instrumento
       let { data: instDataList, error: instErr } = await supabase
         .from('music_instruments')
         .select('*')
@@ -48,7 +118,6 @@ export default function ChordSettings({ user }) {
       if (instErr) throw instErr;
       let instData = instDataList?.[0];
 
-      // Se não existir o instrumento no banco, cria automaticamente
       if (!instData) {
         const { data: newInst, error: createInstErr } = await supabase
           .from('music_instruments')
@@ -64,7 +133,7 @@ export default function ChordSettings({ user }) {
         instData = newInst;
       }
 
-      // 2. Busca os acordes e suas variações do instrumento
+      // 2. Busca os acordes e suas variações
       const { data: chordsData, error: chordsErr } = await supabase
         .from('music_chords')
         .select(`
@@ -119,42 +188,86 @@ export default function ChordSettings({ user }) {
     }
   }, [activeTab, fetchGenres]);
 
-  // Interatividade do traste no Fretboard
-  const handleFretClick = (stringIdx, fretVal) => {
-    setFrets(prev => {
+  // Manipuladores de alteração corda a corda da variação ativa
+  const updateActiveVarFret = (stringIdx, fretVal) => {
+    setVariations(prev => {
       const next = [...prev];
-      next[stringIdx] = prev[stringIdx] === fretVal ? 0 : fretVal;
-      return next;
-    });
+      const activeVar = { ...next[activeVarIdx] };
+      const nextFrets = [...activeVar.frets];
+      nextFrets[stringIdx] = fretVal;
+      activeVar.frets = nextFrets;
 
-    setFingers(prev => {
-      const next = [...prev];
-      if (frets[stringIdx] === fretVal) {
-        next[stringIdx] = 0;
+      // Reseta dedo se for solta (0) ou abafada (-1)
+      if (fretVal <= 0) {
+        const nextFingers = [...activeVar.fingers];
+        nextFingers[stringIdx] = 0;
+        activeVar.fingers = nextFingers;
       }
+
+      // Cálculo Automático de traste inicial
+      const pressedFrets = nextFrets.filter(f => f > 0);
+      if (pressedFrets.length > 0) {
+        activeVar.start_fret = Math.min(...pressedFrets);
+      } else {
+        activeVar.start_fret = 1;
+      }
+
+      next[activeVarIdx] = activeVar;
       return next;
     });
   };
 
-  const handleHeaderClick = (stringIdx) => {
-    setFrets(prev => {
+  const updateActiveVarFinger = (stringIdx, fingerVal) => {
+    setVariations(prev => {
       const next = [...prev];
-      next[stringIdx] = prev[stringIdx] === -1 ? 0 : -1;
-      return next;
-    });
-    setFingers(prev => {
-      const next = [...prev];
-      next[stringIdx] = 0;
+      const activeVar = { ...next[activeVarIdx] };
+      const nextFingers = [...activeVar.fingers];
+      nextFingers[stringIdx] = parseInt(fingerVal) || 0;
+      activeVar.fingers = nextFingers;
+      next[activeVarIdx] = activeVar;
       return next;
     });
   };
 
-  const handleFingerChange = (stringIdx, fingerVal) => {
-    setFingers(prev => {
+  const updateActiveVarStartFret = (fretVal) => {
+    setVariations(prev => {
       const next = [...prev];
-      next[stringIdx] = parseInt(fingerVal) || 0;
+      const activeVar = { ...next[activeVarIdx] };
+      activeVar.start_fret = Math.max(1, parseInt(fretVal) || 1);
+      next[activeVarIdx] = activeVar;
       return next;
     });
+  };
+
+  // Gerenciamento de variações na UI do form
+  const handleAddVariation = () => {
+    setVariations(prev => [
+      ...prev,
+      {
+        variation_index: prev.length,
+        frets: Array(stringsCount).fill(0),
+        fingers: Array(stringsCount).fill(0),
+        start_fret: 1
+      }
+    ]);
+    setActiveVarIdx(variations.length);
+  };
+
+  const handleDeleteVariation = (idx) => {
+    if (variations.length === 1) {
+      toast.error('O acorde precisa conter pelo menos uma variação.');
+      return;
+    }
+    const varToDelete = variations[idx];
+    if (varToDelete.id) {
+      setDeletedVariationIds(prev => [...prev, varToDelete.id]);
+    }
+    const newVars = variations.filter((_, i) => i !== idx).map((v, i) => ({
+      ...v,
+      variation_index: i
+    }));
+    setVariations(newVars);
+    setActiveVarIdx(Math.max(0, idx - 1));
   };
 
   const handleSaveChord = async (e) => {
@@ -165,7 +278,7 @@ export default function ChordSettings({ user }) {
     }
 
     try {
-      // Pega o ID do instrumento no banco safely
+      // 1. Pega ID do instrumento
       const { data: instDataList, error: instErr } = await supabase
         .from('music_instruments')
         .select('id')
@@ -174,8 +287,8 @@ export default function ChordSettings({ user }) {
 
       if (instErr) throw instErr;
       let instData = instDataList?.[0];
-
       let instrumentId = instData?.id;
+
       if (!instrumentId) {
         const { data: newInst, error: createInstErr } = await supabase
           .from('music_instruments')
@@ -194,7 +307,7 @@ export default function ChordSettings({ user }) {
       let chordId = editingChordId;
 
       if (!chordId) {
-        // Verifica se acorde com mesmo nome já existe
+        // Novo acorde - verifica duplicados
         const { data: existing } = await supabase
           .from('music_chords')
           .select('id')
@@ -207,7 +320,6 @@ export default function ChordSettings({ user }) {
           return;
         }
 
-        // Insere Acorde principal
         const { data: newChord, error: chordErr } = await supabase
           .from('music_chords')
           .insert({
@@ -221,50 +333,67 @@ export default function ChordSettings({ user }) {
         if (chordErr) throw chordErr;
         chordId = newChord.id;
       } else {
-        // Atualiza nome do acorde
+        // Atualiza nome
         await supabase
           .from('music_chords')
           .update({ chord_name: chordName.trim() })
           .eq('id', chordId);
       }
 
-      // Upsert na variação principal (var_index = 0 por enquanto)
-      const { data: existingVars } = await supabase
-        .from('music_chord_variations')
-        .select('id')
-        .eq('chord_id', chordId)
-        .eq('variation_index', 0)
-        .maybeSingle();
+      // 2. Persiste as variações do acorde
+      for (const v of variations) {
+        const varPayload = {
+          chord_id: chordId,
+          variation_index: v.variation_index,
+          frets: v.frets,
+          fingers: v.fingers,
+          start_fret: parseInt(v.start_fret) || 1
+        };
 
-      const varPayload = {
-        chord_id: chordId,
-        variation_index: 0,
-        frets,
-        fingers,
-        start_fret: parseInt(startFret) || 1
-      };
+        if (v.id) {
+          const { error: varErr } = await supabase
+             .from('music_chord_variations')
+             .update(varPayload)
+             .eq('id', v.id);
+          if (varErr) throw varErr;
+        } else {
+          const { error: varErr } = await supabase
+             .from('music_chord_variations')
+             .insert(varPayload);
+          if (varErr) throw varErr;
+        }
+      }
 
-      if (existingVars) {
-        const { error: varErr } = await supabase
+      // 3. Exclui variações excluídas na UI
+      if (deletedVariationIds.length > 0) {
+        const { error: delErr } = await supabase
           .from('music_chord_variations')
-          .update(varPayload)
-          .eq('id', existingVars.id);
-        if (varErr) throw varErr;
-      } else {
-        const { error: varErr } = await supabase
-          .from('music_chord_variations')
-          .insert(varPayload);
-        if (varErr) throw varErr;
+          .delete()
+          .in('id', deletedVariationIds);
+        if (delErr) throw delErr;
       }
 
       toast.success('Acorde gravado com sucesso!');
       setIsEditing(false);
       setEditingChordId(null);
       setChordName('');
-      setFrets(Array(stringsCount).fill(0));
-      setFingers(Array(stringsCount).fill(0));
-      setStartFret(1);
+      setVariations([
+        { variation_index: 0, frets: Array(stringsCount).fill(0), fingers: Array(stringsCount).fill(0), start_fret: 1 }
+      ]);
+      setDeletedVariationIds([]);
+      setActiveVarIdx(0);
       fetchChords();
+
+      // Sincroniza o banco de dados offline
+      try {
+        const { SyncEngine } = await import('../../lib/offline/SyncEngine');
+        const engine = new SyncEngine(user.id);
+        await engine.sync();
+      } catch (syncErr) {
+        console.warn('Erro ao sincronizar acordes offline:', syncErr);
+      }
+      queryClient.invalidateQueries({ queryKey: ['offline_chords'] });
+
     } catch (err) {
       console.error(err);
       toast.error('Erro ao salvar acorde.');
@@ -275,17 +404,24 @@ export default function ChordSettings({ user }) {
     setIsEditing(true);
     setEditingChordId(chord.id);
     setChordName(chord.chord_name);
-    
-    const variation = chord.music_chord_variations?.[0];
-    if (variation) {
-      setFrets(variation.frets);
-      setFingers(variation.fingers);
-      setStartFret(variation.start_fret);
+    setDeletedVariationIds([]);
+
+    const vars = chord.music_chord_variations || [];
+    if (vars.length > 0) {
+      const sortedVars = [...vars].sort((a, b) => a.variation_index - b.variation_index);
+      setVariations(sortedVars.map(v => ({
+        id: v.id,
+        variation_index: v.variation_index,
+        frets: v.frets,
+        fingers: v.fingers,
+        start_fret: v.start_fret
+      })));
     } else {
-      setFrets(Array(stringsCount).fill(0));
-      setFingers(Array(stringsCount).fill(0));
-      setStartFret(1);
+      setVariations([
+        { variation_index: 0, frets: Array(stringsCount).fill(0), fingers: Array(stringsCount).fill(0), start_fret: 1 }
+      ]);
     }
+    setActiveVarIdx(0);
   };
 
   const handleDeleteChord = async (chordId) => {
@@ -299,6 +435,17 @@ export default function ChordSettings({ user }) {
       if (error) throw error;
       toast.success('Acorde excluído!');
       fetchChords();
+
+      // Sincroniza o banco de dados offline
+      try {
+        const { SyncEngine } = await import('../../lib/offline/SyncEngine');
+        const engine = new SyncEngine(user.id);
+        await engine.sync();
+      } catch (syncErr) {
+        console.warn('Erro ao sincronizar exclusão de acordes offline:', syncErr);
+      }
+      queryClient.invalidateQueries({ queryKey: ['offline_chords'] });
+
     } catch {
       toast.error('Erro ao excluir acorde.');
     }
@@ -386,7 +533,7 @@ export default function ChordSettings({ user }) {
       </div>
 
       {activeTab === 'chords' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: isEditing ? '1fr 340px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isEditing ? '1fr 360px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
           {/* ── List Area ── */}
           <div className="glass-card" style={{ padding: '2rem' }}>
             
@@ -410,7 +557,16 @@ export default function ChordSettings({ user }) {
                 </select>
                 
                 {!isEditing && (
-                  <button className="btn-primary" onClick={() => setIsEditing(true)} style={{ padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <button className="btn-primary" onClick={() => {
+                    setIsEditing(true);
+                    setEditingChordId(null);
+                    setChordName('');
+                    setVariations([
+                      { variation_index: 0, frets: Array(stringsCount).fill(0), fingers: Array(stringsCount).fill(0), start_fret: 1 }
+                    ]);
+                    setActiveVarIdx(0);
+                    setDeletedVariationIds([]);
+                  }} style={{ padding: '0.6rem 1.25rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <Plus size={14} />
                     <span>Criar Acorde</span>
                   </button>
@@ -430,28 +586,15 @@ export default function ChordSettings({ user }) {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.25rem' }}>
-                {chords.map(c => {
-                  const var0 = c.music_chord_variations?.[0];
-                  return (
-                    <div key={c.id} className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', position: 'relative' }}>
-                      {var0 && (
-                        <ChordDiagram
-                          name={c.chord_name}
-                          stringsCount={stringsCount}
-                          frets={var0.frets}
-                          fingers={var0.fingers}
-                          startFret={var0.start_fret}
-                        />
-                      )}
-                      
-                      {/* Action buttons overlay */}
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '0.5rem' }}>
-                        <button className="icon-btn" onClick={() => handleEditChord(c)} style={{ padding: '6px' }} title="Editar"><Edit size={12} /></button>
-                        <button className="icon-btn" onClick={() => handleDeleteChord(c.id)} style={{ padding: '6px', color: 'var(--danger)' }} title="Excluir"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {chords.map(c => (
+                  <ChordCard
+                    key={c.id}
+                    chord={c}
+                    stringsCount={stringsCount}
+                    handleEditChord={handleEditChord}
+                    handleDeleteChord={handleDeleteChord}
+                  />
+                ))}
               </div>
             )}
 
@@ -481,148 +624,145 @@ export default function ChordSettings({ user }) {
                   />
                 </div>
 
+                {/* Variações */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Variações do Acorde</label>
+                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {variations.map((v, idx) => (
+                      <button
+                        key={`var-tab-${idx}`}
+                        type="button"
+                        onClick={() => setActiveVarIdx(idx)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: activeVarIdx === idx ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
+                          color: activeVarIdx === idx ? 'white' : 'var(--text-muted)',
+                          border: '1px solid',
+                          borderColor: activeVarIdx === idx ? 'var(--primary)' : 'var(--glass-border)',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Var. {idx + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddVariation}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        background: 'transparent',
+                        color: 'var(--primary)',
+                        border: '1px dashed var(--primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px'
+                      }}
+                    >
+                      <Plus size={10} /> Nova
+                    </button>
+                  </div>
+                  {variations.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteVariation(activeVarIdx)}
+                      style={{
+                        alignSelf: 'flex-start',
+                        padding: '2px 6px',
+                        background: 'transparent',
+                        color: 'var(--danger)',
+                        border: 'none',
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        marginTop: '2px'
+                      }}
+                    >
+                      Excluir Variação Atual
+                    </button>
+                  )}
+                </div>
+
                 <div className="input-group">
                   <label>Traste Inicial (Capa)</label>
                   <input
                     type="number"
                     min="1"
                     max="18"
-                    value={startFret}
-                    onChange={e => setStartFret(Math.max(1, parseInt(e.target.value) || 1))}
+                    value={variations[activeVarIdx]?.start_fret || 1}
+                    onChange={e => updateActiveVarStartFret(e.target.value)}
                     required
                   />
                 </div>
 
-                {/* Fretboard Interactive Scale */}
-                <div className="input-group">
-                  <label>Escala do Instrumento (Trastes)</label>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    background: 'rgba(0,0,0,0.2)',
-                    padding: '1.25rem 0.5rem',
-                    borderRadius: '12px',
-                    border: '1px solid var(--glass-border)'
-                  }}>
-                    {/* Header (Mute / Open triggers) */}
-                    <div style={{ display: 'flex', gap: '14px', marginBottom: '8px' }}>
-                      {frets.map((f, sIdx) => (
-                        <button
-                          key={`header-btn-${sIdx}`}
-                          type="button"
-                          onClick={() => handleHeaderClick(sIdx)}
-                          style={{
-                            width: '20px',
-                            height: '20px',
-                            borderRadius: '4px',
-                            background: f === -1 ? 'var(--danger)' : f === 0 ? 'var(--success)' : 'var(--text-muted)',
-                            color: 'white',
-                            border: 'none',
-                            fontSize: '9px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title={f === -1 ? "Silenciado. Clique para liberar" : f === 0 ? "Corda Solta. Clique para silenciar" : "Corda Pressionada. Clique para soltar"}
-                        >
-                          {f === -1 ? 'X' : f === 0 ? 'O' : '•'}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Vertical Strings & Fret Bars Grid */}
-                    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '0px' }}>
-                      {/* Trastes 1 a 5 */}
-                      {[1, 2, 3, 4, 5].map(fVal => (
-                        <div key={`fret-${fVal}`} style={{
-                          display: 'flex',
-                          gap: '14px',
-                          height: '32px',
-                          borderBottom: '2.5px solid #475569',
-                          padding: '0 10px',
-                          position: 'relative'
-                        }}>
-                          {/* Indicador lateral do traste real */}
-                          <span style={{ position: 'absolute', left: '-20px', top: '6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--text-muted)' }}>
-                            {startFret + fVal - 1}
-                          </span>
-                          
-                          {/* Cordas */}
-                          {Array.from({ length: stringsCount }).map((_, sIdx) => {
-                            const isPressed = frets[sIdx] === (startFret + fVal - 1);
-                            return (
-                              <div
-                                key={`fret-${fVal}-str-${sIdx}`}
-                                onClick={() => handleFretClick(sIdx, startFret + fVal - 1)}
-                                style={{
-                                  width: '20px',
-                                  height: '100%',
-                                  position: 'relative',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                {/* Linha vertical que imita a corda física */}
-                                <div style={{
-                                  position: 'absolute',
-                                  top: 0,
-                                  bottom: 0,
-                                  width: '2px',
-                                  background: '#94a3b8',
-                                  zIndex: 1
-                                }} />
-
-                                {/* Bolinha que indica nota presa */}
-                                {isPressed && (
-                                  <div style={{
-                                    width: '15px',
-                                    height: '15px',
-                                    borderRadius: '50%',
-                                    background: 'var(--primary)',
-                                    zIndex: 2,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }} />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
+                {/* Seletores Corda a Corda */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(0,0,0,0.15)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                  {/* Live Preview */}
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+                    <ChordDiagram
+                      name={chordName || '?'}
+                      stringsCount={stringsCount}
+                      frets={variations[activeVarIdx]?.frets || Array(stringsCount).fill(0)}
+                      fingers={variations[activeVarIdx]?.fingers || Array(stringsCount).fill(0)}
+                      startFret={variations[activeVarIdx]?.start_fret || 1}
+                    />
                   </div>
-                </div>
 
-                {/* Dedos (Fingers) select para trastes pressionados */}
-                <div className="input-group">
-                  <label>Mapeamento de Dedos (1 a 4)</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: '0.5rem' }}>
-                    {frets.map((f, sIdx) => {
-                      if (f <= 0) return null;
-                      return (
-                        <div key={`finger-sel-${sIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Corda {sIdx + 1}</span>
-                          <select
-                            className="select-filter"
-                            value={fingers[sIdx] || 0}
-                            onChange={e => handleFingerChange(sIdx, e.target.value)}
-                            style={{ padding: '4px' }}
-                          >
-                            <option value="0">-</option>
-                            <option value="1">Dedo 1</option>
-                            <option value="2">Dedo 2</option>
-                            <option value="3">Dedo 3</option>
-                            <option value="4">Dedo 4</option>
-                          </select>
-                        </div>
-                      );
-                    })}
+                  <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '0.75rem' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: '0.5rem' }}>
+                      Configuração por Corda:
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {Array.from({ length: stringsCount }).map((_, sIdx) => {
+                        const activeVar = variations[activeVarIdx] || { frets: Array(stringsCount).fill(0), fingers: Array(stringsCount).fill(0), start_fret: 1 };
+                        const fret = activeVar.frets[sIdx] !== undefined ? activeVar.frets[sIdx] : 0;
+                        const finger = activeVar.fingers[sIdx] !== undefined ? activeVar.fingers[sIdx] : 0;
+
+                        return (
+                          <div key={`string-row-${sIdx}`} style={{ display: 'grid', gridTemplateColumns: '70px 1.2fr 1fr', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                              Corda {sIdx + 1}
+                            </span>
+                            
+                            <select
+                              className="select-filter"
+                              value={fret}
+                              onChange={(e) => updateActiveVarFret(sIdx, parseInt(e.target.value))}
+                              style={{ padding: '3px 6px', fontSize: '0.7rem', width: '100%' }}
+                            >
+                              <option value="-1">X (Abafada)</option>
+                              <option value="0">O (Solta)</option>
+                              {Array.from({ length: 18 }).map((_, i) => (
+                                <option key={`fret-opt-${i+1}`} value={i+1}>Casa {i+1}</option>
+                              ))}
+                            </select>
+
+                            {fret > 0 ? (
+                              <select
+                                className="select-filter"
+                                value={finger}
+                                onChange={(e) => updateActiveVarFinger(sIdx, e.target.value)}
+                                style={{ padding: '3px 6px', fontSize: '0.7rem', width: '100%' }}
+                              >
+                                <option value="0">Dedo: -</option>
+                                <option value="1">Dedo 1</option>
+                                <option value="2">Dedo 2</option>
+                                <option value="3">Dedo 3</option>
+                                <option value="4">Dedo 4</option>
+                              </select>
+                            ) : (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center' }}>-</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
