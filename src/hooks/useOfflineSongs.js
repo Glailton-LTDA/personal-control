@@ -25,6 +25,7 @@ function createSyncEngine(userId) {
 
 export function useOfflineSongs(userId, filters = {}) {
   const syncRef = useRef(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!userId) return;
@@ -34,6 +35,20 @@ export function useOfflineSongs(userId, filters = {}) {
       if (syncRef.current) syncRef.current.destroy();
     };
   }, [userId]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      queryClient.invalidateQueries({ queryKey: ['offline_songs'] });
+      queryClient.invalidateQueries({ queryKey: ['offline_genres'] });
+      queryClient.invalidateQueries({ queryKey: ['offline_chords'] });
+      queryClient.invalidateQueries({ queryKey: ['offline_artists_by_letter'] });
+      queryClient.invalidateQueries({ queryKey: ['offline_unique_artists'] });
+    };
+    window.addEventListener('database-synced', handleSync);
+    return () => {
+      window.removeEventListener('database-synced', handleSync);
+    };
+  }, [queryClient]);
 
   const queryKey = ['offline_songs', userId, filters];
 
@@ -146,6 +161,7 @@ export function useOfflineCreateSong(userId) {
             storage_type: payload.storage_type || null,
             file_path: payload.file_path || null,
             music_link: payload.music_link || null,
+            updated_at: song.updated_at,
           }).select().single();
           if (error) {
             console.warn('Erro ao inserir online no Supabase, enfileirando:', error);
@@ -187,7 +203,7 @@ export function useOfflineUpdateSong(userId) {
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('music_songs')
-            .update(payload)
+            .update({ ...payload, updated_at: updated.updated_at })
             .eq('id', id)
             .select()
             .single();

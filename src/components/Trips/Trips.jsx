@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { useOfflineTrips, useOfflineCategories } from '../../hooks/useOfflineTrips';
 import TripsList from './TripsList';
 import TripsSettings from './TripsSettings';
 import TripsItinerary from './TripsItinerary';
@@ -19,10 +19,11 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(() => {
     return localStorage.getItem('pc_trips_details_open') === 'true';
   });
-  const [categories, setCategories] = useState([]);
-  const [trips, setTrips] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   
+  const { data: trips = [], refetch: refetchTrips } = useOfflineTrips(user?.id);
+  const { data: categories = [] } = useOfflineCategories(selectedTrip?.user_id || user?.id);
+
   // Navigation state within Trips module
   const [currentView, setCurrentView] = useState(() => {
     const savedView = localStorage.getItem('pc_trips_view_v2');
@@ -72,63 +73,31 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     localStorage.setItem('pc_trips_details_open', isDetailsOpen);
   }, [isDetailsOpen]);
 
-  const fetchTrips = useCallback(async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('trips')
-      .select('*')
-      .order('start_date', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching trips:', error);
-      return;
-    }
-
-    // Always set trips, even if empty, to ensure UI state is correct
-    const tripsData = data || [];
-    setTrips(tripsData);
-    
-    if (tripsData.length > 0) {
+  useEffect(() => {
+    if (trips.length > 0) {
       const savedTripId = localStorage.getItem(STORAGE_KEY);
       
       setSelectedTrip(current => {
         if (current?.id && !current._isPlaceholder) {
-          const updated = tripsData.find(t => String(t.id) === String(current.id));
+          const updated = trips.find(t => String(t.id) === String(current.id));
           return updated || current;
         }
         
         if (savedTripId) {
-          const saved = tripsData.find(t => String(t.id) === String(savedTripId));
+          const saved = trips.find(t => String(t.id) === String(savedTripId));
           if (saved) return saved;
         }
 
-        return tripsData[0];
+        return trips[0];
       });
     } else {
       setSelectedTrip(null);
     }
-  }, [user]);
-
-  const fetchCategories = useCallback(async () => {
-    const targetUserId = selectedTrip?.user_id || user?.id;
-    if (!targetUserId) return;
-    const { data } = await supabase
-      .from('trip_categories')
-      .select('*')
-      .eq('user_id', targetUserId)
-      .order('name', { ascending: true });
-    if (data) {
-      setCategories(data);
-    }
-  }, [selectedTrip?.user_id, user?.id]);
+  }, [trips]);
 
   useEffect(() => {
-    fetchTrips();
-  }, [user, refreshKey, localRefreshKey, fetchTrips]);
-
-  useEffect(() => {
-    fetchCategories();
-  }, [user, selectedTrip?.user_id, fetchCategories]);
+    refetchTrips();
+  }, [user, refreshKey, localRefreshKey, refetchTrips]);
 
   const handleExpenseSaved = () => {
     setIsAddingExpense(false);

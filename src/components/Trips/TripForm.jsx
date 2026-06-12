@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useOfflineCreateTrip, useOfflineUpdateTrip } from '../../hooks/useOfflineTrips';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
 import { 
   Plane, Save, X, MapPin, Globe, Building, Car, DollarSign, 
   Ticket, Users, Calendar, ArrowLeft, Map, FileText, Info
@@ -16,6 +16,8 @@ export default function TripForm({ user, trip, onBack, onSave }) {
   const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isSaving, setIsSaving] = useState(false);
+  const createTripMutation = useOfflineCreateTrip(user.id);
+  const updateTripMutation = useOfflineUpdateTrip(user.id);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -106,19 +108,20 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       participants: formData.participants
     };
 
-    let result;
-    if (trip) {
-      result = await supabase.from('trips').update(payload).eq('id', trip.id);
-    } else {
-      result = await supabase.from('trips').insert([payload]);
-    }
-
-    setIsSaving(false);
-    if (!result.error) {
-      toast.success(trip ? t('trips.trip_update_success') : t('trips.trip_create_success'));
+    try {
+      if (trip) {
+        await updateTripMutation.mutateAsync({ id: trip.id, ...payload });
+        toast.success(t('trips.trip_update_success'));
+      } else {
+        await createTripMutation.mutateAsync(payload);
+        toast.success(t('trips.trip_create_success'));
+      }
       onSave();
+    } catch (err) {
+      toast.error(t('finances.error_save') + ': ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
-    else toast.error(t('finances.error_save') + ': ' + result.error.message);
   }
 
   return (

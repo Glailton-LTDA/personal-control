@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import React, { useState } from 'react';
 import { 
   ChevronLeft, Plus, Trash2, CheckCircle, Circle, 
   ListTodo, Save, X, Edit2, Check, Copy, Search,
@@ -10,11 +9,19 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { useTranslation } from 'react-i18next';
+import {
+  useOfflineChecklists,
+  useOfflineCreateChecklist,
+  useOfflineUpdateChecklist,
+  useOfflineDeleteChecklist,
+  useOfflineCreateChecklistItem,
+  useOfflineUpdateChecklistItem,
+  useOfflineDeleteChecklistItem,
+  useOfflineTrips
+} from '../../hooks/useOfflineTrips';
 
 export default function TripChecklists({ user, trip, onBack }) {
   const { t } = useTranslation();
-  const [checklists, setChecklists] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [otherTrips, setOtherTrips] = useState([]);
   const [importSearch, setImportSearch] = useState('');
@@ -28,71 +35,43 @@ export default function TripChecklists({ user, trip, onBack }) {
   const [tempItemTask, setTempItemTask] = useState('');
   const [collapsedIds, setCollapsedIds] = useState(new Set());
 
-  const fetchChecklists = useCallback(async () => {
-    if (!trip?.id) return;
-    setLoading(true);
-    const { data } = await supabase
-      .from('trip_checklists')
-      .select(`
-        *,
-        items:trip_checklist_items(*)
-      `)
-      .eq('trip_id', trip.id)
-      .order('created_at', { ascending: true });
+  const { data: checklists = [], isLoading: loading } = useOfflineChecklists(trip?.id);
+  const { data: allTrips = [] } = useOfflineTrips(user?.id);
 
-    if (data) {
-      const formatted = data.map(c => ({
-        ...c,
-        items: (c.items || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-      }));
-      setChecklists(formatted);
-    }
-    setLoading(false);
-  }, [trip?.id]);
-
-  useEffect(() => {
-    fetchChecklists();
-  }, [trip?.id, fetchChecklists]);
+  const createChecklistMutation = useOfflineCreateChecklist(user.id, trip.id);
+  const updateChecklistMutation = useOfflineUpdateChecklist(user.id, trip.id);
+  const deleteChecklistMutation = useOfflineDeleteChecklist(user.id, trip.id);
+  
+  const createChecklistItemMutation = useOfflineCreateChecklistItem(user.id, trip.id);
+  const updateChecklistItemMutation = useOfflineUpdateChecklistItem(user.id, trip.id);
+  const deleteChecklistItemMutation = useOfflineDeleteChecklistItem(user.id, trip.id);
 
   const handleAddChecklist = async () => {
     if (!trip?.id || !newListTitle.trim()) {
       setIsAddingList(false);
       return;
     }
-    setLoading(true);
 
-    const { data } = await supabase
-      .from('trip_checklists')
-      .insert({
-        trip_id: trip.id,
-        user_id: user.id,
+    try {
+      await createChecklistMutation.mutateAsync({
         title: newListTitle.trim()
-      })
-      .select()
-      .single();
-
-    if (data) {
-      setChecklists([...checklists, { ...data, title: newListTitle.trim(), items: [] }]);
+      });
       setNewListTitle('');
       setIsAddingList(false);
       toast.success(t('trips.success.list_created', 'Lista criada'));
-    } else {
+    } catch (err) {
+      console.error(err);
       toast.error(t('trips.error_creating_list', 'Erro ao criar lista'));
     }
-    setLoading(false);
   };
 
   const removeChecklist = async (id) => {
     confirmToast(t('trips.confirm.delete_list', 'Deseja excluir esta lista inteira?'), async () => {
-      const { error } = await supabase
-        .from('trip_checklists')
-        .delete()
-        .eq('id', id);
-
-      if (!error) {
-        setChecklists(checklists.filter(c => c.id !== id));
+      try {
+        await deleteChecklistMutation.mutateAsync(id);
         toast.success(t('trips.success.list_deleted', 'Lista removida'));
-      } else {
+      } catch (err) {
+        console.error(err);
         toast.error(t('trips.error_removing_list', 'Erro ao remover lista'));
       }
     }, { danger: true });
@@ -104,67 +83,36 @@ export default function TripChecklists({ user, trip, onBack }) {
       return;
     }
 
-    const { data } = await supabase
-      .from('trip_checklist_items')
-      .insert({
+    try {
+      await createChecklistItemMutation.mutateAsync({
         checklist_id: checklistId,
         task: newItemTask.trim(),
         completed: false
-      })
-      .select()
-      .single();
-
-    if (data) {
-      setChecklists(checklists.map(c => {
-        if (c.id === checklistId) {
-          return { ...c, items: [...c.items, { ...data, task: newItemTask.trim() }] };
-        }
-        return c;
-      }));
+      });
       setNewItemTask('');
       setAddingItemToId(null);
-    } else {
+    } catch (err) {
+      console.error(err);
       toast.error(t('trips.error_adding_item', 'Erro ao adicionar item'));
     }
   };
 
   const toggleItem = async (checklistId, item) => {
-    const { error } = await supabase
-      .from('trip_checklist_items')
-      .update({ completed: !item.completed })
-      .eq('id', item.id);
-
-    if (!error) {
-      setChecklists(checklists.map(c => {
-        if (c.id === checklistId) {
-          return {
-            ...c,
-            items: c.items.map(i => 
-              i.id === item.id ? { ...i, completed: !item.completed } : i
-            )
-          };
-        }
-        return c;
-      }));
+    try {
+      await updateChecklistItemMutation.mutateAsync({
+        id: item.id,
+        completed: !item.completed
+      });
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const removeItem = async (checklistId, itemId) => {
-    const { error } = await supabase
-      .from('trip_checklist_items')
-      .delete()
-      .eq('id', itemId);
-
-    if (!error) {
-      setChecklists(checklists.map(c => {
-        if (c.id === checklistId) {
-          return {
-            ...c,
-            items: c.items.filter(i => i.id !== itemId)
-          };
-        }
-        return c;
-      }));
+    try {
+      await deleteChecklistItemMutation.mutateAsync(itemId);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -184,23 +132,14 @@ export default function TripChecklists({ user, trip, onBack }) {
       return;
     }
 
-    const { error } = await supabase
-      .from('trip_checklist_items')
-      .update({ task: tempItemTask.trim() })
-      .eq('id', item.id);
-
-    if (!error) {
-      setChecklists(checklists.map(c => {
-        if (c.id === checklistId) {
-          return {
-            ...c,
-            items: c.items.map(i => i.id === item.id ? { ...i, task: tempItemTask.trim() } : i)
-          };
-        }
-        return c;
-      }));
+    try {
+      await updateChecklistItemMutation.mutateAsync({
+        id: item.id,
+        task: tempItemTask.trim()
+      });
       toast.success(t('trips.success.item_updated', 'Item atualizado'));
-    } else {
+    } catch (err) {
+      console.error(err);
       toast.error(t('trips.error_updating_item', 'Erro ao atualizar item'));
     }
     setEditingItemId(null);
@@ -219,93 +158,63 @@ export default function TripChecklists({ user, trip, onBack }) {
   const saveTitle = async (id) => {
     if (!tempTitle.trim()) return setEditingTitleId(null);
 
-    const { error } = await supabase
-      .from('trip_checklists')
-      .update({ title: tempTitle.trim() })
-      .eq('id', id);
-
-    if (!error) {
-      setChecklists(checklists.map(c => c.id === id ? { ...c, title: tempTitle } : c));
+    try {
+      await updateChecklistMutation.mutateAsync({
+        id,
+        title: tempTitle.trim()
+      });
+    } catch (err) {
+      console.error(err);
     }
     setEditingTitleId(null);
   };
 
   const openImportModal = async () => {
     setIsImportModalOpen(true);
-    const { data } = await supabase
-      .from('trips')
-      .select('id, title')
-      .neq('id', trip.id)
-      .order('created_at', { ascending: false });
-    
-    if (data) {
-      const tripsWithChecklists = [];
-      for (const t of data) {
-        const { count } = await supabase
-          .from('trip_checklists')
-          .select('*', { count: 'exact', head: true })
-          .eq('trip_id', t.id);
-        
-        if (count > 0) {
-          const { data: cData } = await supabase
-            .from('trip_checklists')
-            .select('id, title')
-            .eq('trip_id', t.id);
-          
-          tripsWithChecklists.push({ ...t, checklists: cData || [] });
-        }
+    const otherTripsList = allTrips.filter(t => t.id !== trip.id);
+    const tripsWithChecklists = [];
+    for (const t of otherTripsList) {
+      const dbModule = await import('../../lib/offline/db');
+      const checklistsForTrip = await dbModule.getTripChecklistsFromDexie(t.id);
+      if (checklistsForTrip.length > 0) {
+        tripsWithChecklists.push({ ...t, checklists: checklistsForTrip });
       }
-      setOtherTrips(tripsWithChecklists);
     }
+    setOtherTrips(tripsWithChecklists);
   };
 
   const importChecklist = async (otherChecklistId) => {
     if (!trip?.id) return;
-    const { data: originalItems } = await supabase
-      .from('trip_checklist_items')
-      .select('*')
-      .eq('checklist_id', otherChecklistId);
+    try {
+      const dbModule = await import('../../lib/offline/db');
+      const originalChecklist = await dbModule.db.trip_checklists.get(otherChecklistId);
+      if (!originalChecklist || !originalChecklist.title) {
+        toast.error(t('trips.checklist_import_error'));
+        return;
+      }
 
-    const { data: originalChecklist } = await supabase
-      .from('trip_checklists')
-      .select('title')
-      .eq('id', otherChecklistId)
-      .single();
+      const originalItems = await dbModule.getTripChecklistItemsFromDexie(otherChecklistId);
 
-    if (!originalChecklist || !originalChecklist.title) {
-      toast.error(t('trips.checklist_import_error'));
-      return;
-    }
-
-    const { data: newChecklist } = await supabase
-      .from('trip_checklists')
-      .insert({
-        trip_id: trip.id,
-        user_id: user.id,
+      const newChecklist = await createChecklistMutation.mutateAsync({
         title: `${originalChecklist.title} ${t('trips.checklist_imported_suffix')}`
-      })
-      .select()
-      .single();
+      });
 
-    if (newChecklist && originalItems && originalItems.length > 0) {
-      const itemsToInsert = originalItems.map(item => ({
-        checklist_id: newChecklist.id,
-        task: item.task,
-        completed: false
-      }));
-
-      const { data: newItems } = await supabase
-        .from('trip_checklist_items')
-        .insert(itemsToInsert)
-        .select();
-
-      setChecklists([...checklists, { ...newChecklist, items: newItems || [] }]);
-    } else if (newChecklist) {
-      setChecklists([...checklists, { ...newChecklist, items: [] }]);
+      if (newChecklist && originalItems && originalItems.length > 0) {
+        for (const item of originalItems) {
+          await createChecklistItemMutation.mutateAsync({
+            checklist_id: newChecklist.id,
+            task: item.task,
+            completed: false
+          });
+        }
+      }
+      
+      setIsImportModalOpen(false);
+      toast.success(t('trips.success.list_imported', 'Lista importada com sucesso'));
+    } catch (err) {
+      console.error(err);
+      toast.error(t('trips.checklist_import_error'));
     }
-    
-    setIsImportModalOpen(false);
-    toast.success(t('trips.success.list_imported', 'Lista importada com sucesso'));
   };
 
   if (!trip) {

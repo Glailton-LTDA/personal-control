@@ -2,6 +2,20 @@
 
 Este arquivo registra todas as alterações notáveis feitas no projeto **PersonalControl**. O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Versionamento Semântico](https://semver.org/spec/v2.0.0-rc.2.html).
 
+## [1.6.0] - 2026-06-11
+
+### Adicionado
+- **Arquitetura Offline-First (Módulo de Viagens)**:
+  - Migração de todo o fluxo de Viagens, Despesas, Itinerários, Checklists e Compartilhamento para o banco Dexie local (IndexedDB v4).
+  - Refatoração modular do `SyncEngine` suportando provedores registráveis (`MusicSyncProvider` e `TripsSyncProvider`).
+  - Sincronização incremental e mesclagem resiliente no Dexie preservando dados locais frente a retornos parciais da API.
+- **Resiliência e Estabilização da Suíte de Testes**:
+  - Resolução de deadlocks de +1min do Vitest sob Happy-DOM inibindo o auto-reload do Dexie em ambiente de testes.
+  - Saneamento de conexões IndexedDB pendentes eliminando erros de `DatabaseClosedError`.
+  - Mocks dinâmicos e stateful com suporte a arrays de payload e roteamento Playwright para testes E2E.
+- **Mapeamento Remoto de Artistas**:
+  - Busca direta no Supabase para filtragem de letras e buscas de artistas únicos quando online com fallback local offline.
+
 ## [1.5.0] - 2026-06-11
 
 ### Adicionado

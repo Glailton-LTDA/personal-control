@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { supabase } from '../lib/supabase';
 import {
   getAllMusicGenres,
   getMusicSetlists,
@@ -58,52 +58,132 @@ export function useOfflineChords() {
 }
 
 export function useOfflineUniqueArtists(userId, searchQuery = '') {
-  const { data: songs = [] } = useQuery({
-    queryKey: ['offline_songs', userId],
-    queryFn: () => import('../lib/offline/db').then(m => m.getMusicSongs(userId)),
+  const { data: artists = [] } = useQuery({
+    queryKey: ['offline_unique_artists', userId, searchQuery],
+    queryFn: async () => {
+      if (!userId) return [];
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const dbModule = await import('../lib/offline/db');
+        const songs = await dbModule.getMusicSongs(userId);
+        return getUniqueArtistsLocally(songs, searchQuery);
+      }
+
+      try {
+        let query = supabase
+          .from('music_songs')
+          .select('artist')
+          .eq('user_id', userId);
+
+        if (searchQuery) {
+          query = query.ilike('artist', `%${searchQuery.trim()}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const artistSet = new Set();
+        for (const s of data || []) {
+          if (s.artist && s.artist.trim()) {
+            artistSet.add(s.artist);
+          }
+        }
+        return [...artistSet].sort((a, b) => a.localeCompare(b));
+      } catch (err) {
+        console.warn('Fallback to local Dexie for unique artists:', err);
+        const dbModule = await import('../lib/offline/db');
+        const songs = await dbModule.getMusicSongs(userId);
+        return getUniqueArtistsLocally(songs, searchQuery);
+      }
+    },
     enabled: !!userId,
   });
 
-  return useMemo(() => {
-    const artistSet = new Set();
-    for (const s of songs) {
-      if (s.artist && s.artist.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        if (!q || s.artist.toLowerCase().includes(q)) {
-          artistSet.add(s.artist);
-        }
+  return artists;
+}
+
+function getUniqueArtistsLocally(songs, searchQuery) {
+  const artistSet = new Set();
+  for (const s of songs) {
+    if (s.artist && s.artist.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q || s.artist.toLowerCase().includes(q)) {
+        artistSet.add(s.artist);
       }
     }
-    return [...artistSet].sort((a, b) => a.localeCompare(b));
-  }, [songs, searchQuery]);
+  }
+  return [...artistSet].sort((a, b) => a.localeCompare(b));
 }
 
 export function useOfflineArtistsByLetter(userId, letter) {
-  const { data: songs = [] } = useQuery({
-    queryKey: ['offline_songs', userId],
-    queryFn: () => import('../lib/offline/db').then(m => m.getMusicSongs(userId)),
-    enabled: !!userId,
+  const { data: artists = [] } = useQuery({
+    queryKey: ['offline_artists_by_letter', userId, letter],
+    queryFn: async () => {
+      if (!letter || !userId) return [];
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const dbModule = await import('../lib/offline/db');
+        const songs = await dbModule.getMusicSongs(userId);
+        return getArtistsFromSongsLocally(songs, letter);
+      }
+
+      try {
+        let query = supabase
+          .from('music_songs')
+          .select('artist')
+          .eq('user_id', userId);
+
+        if (letter === '#') {
+          query = query.or('artist.ilike.0%,artist.ilike.1%,artist.ilike.2%,artist.ilike.3%,artist.ilike.4%,artist.ilike.5%,artist.ilike.6%,artist.ilike.7%,artist.ilike.8%,artist.ilike.9%');
+        } else {
+          query = query.ilike('artist', `${letter}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const counts = {};
+        for (const s of data || []) {
+          if (!s.artist || !s.artist.trim()) continue;
+          if (letter === '#') {
+            if (/^[a-zA-Z]/.test(s.artist)) continue;
+          }
+          counts[s.artist] = (counts[s.artist] || 0) + 1;
+        }
+
+        return Object.entries(counts)
+          .map(([artist, song_count]) => ({ artist, song_count }))
+          .sort((a, b) => a.artist.localeCompare(b.artist));
+      } catch (err) {
+        console.warn('Fallback to local Dexie for artists by letter:', err);
+        const dbModule = await import('../lib/offline/db');
+        const songs = await dbModule.getMusicSongs(userId);
+        return getArtistsFromSongsLocally(songs, letter);
+      }
+    },
+    enabled: !!userId && !!letter,
   });
 
-  return useMemo(() => {
-    if (!letter || !userId) return [];
-    const counts = {};
-    for (const s of songs) {
-      if (!s.artist || !s.artist.trim()) continue;
-      let match;
-      if (letter === '#') {
-        match = !/^[a-zA-Z]/.test(s.artist);
-      } else {
-        match = s.artist.toLowerCase().startsWith(letter.toLowerCase());
-      }
-      if (match) {
-        counts[s.artist] = (counts[s.artist] || 0) + 1;
-      }
+  return artists;
+}
+
+function getArtistsFromSongsLocally(songs, letter) {
+  const counts = {};
+  for (const s of songs) {
+    if (!s.artist || !s.artist.trim()) continue;
+    let match;
+    if (letter === '#') {
+      match = !/^[a-zA-Z]/.test(s.artist);
+    } else {
+      match = s.artist.toLowerCase().startsWith(letter.toLowerCase());
     }
-    return Object.entries(counts)
-      .map(([artist, song_count]) => ({ artist, song_count }))
-      .sort((a, b) => a.artist.localeCompare(b.artist));
-  }, [songs, letter, userId]);
+    if (match) {
+      counts[s.artist] = (counts[s.artist] || 0) + 1;
+    }
+  }
+  return Object.entries(counts)
+    .map(([artist, song_count]) => ({ artist, song_count }))
+    .sort((a, b) => a.artist.localeCompare(b.artist));
 }
 
 export function useSaveSetlistSong() {

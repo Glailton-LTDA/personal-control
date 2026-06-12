@@ -1,23 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TripChecklists from './TripChecklists';
 import { supabase } from '../../lib/supabase';
+import { clearTripsCache } from '../../lib/offline/db';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
+function Wrapper({ children }) {
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
 
 // Mock Supabase
 vi.mock('../../lib/supabase', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      single: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      neq: vi.fn().mockReturnThis(),
-    })),
+    from: vi.fn(),
   },
 }));
 
@@ -38,36 +43,56 @@ describe('TripChecklists', () => {
   const mockUser = { id: 'user-123' };
   const mockTrip = { id: 'trip-456', title: 'Viagem Teste' };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await clearTripsCache();
+    queryClient.clear();
   });
+
+  const setupSupabaseMocks = ({ checklists = [], newChecklist = null, newItem = null } = {}) => {
+    vi.mocked(supabase.from).mockImplementation((table) => {
+      const chain = {};
+      chain.select = vi.fn().mockReturnValue(chain);
+      chain.insert = vi.fn().mockReturnValue(chain);
+      chain.update = vi.fn().mockReturnValue(chain);
+      chain.delete = vi.fn().mockReturnValue(chain);
+      chain.order = vi.fn().mockReturnValue(chain);
+      chain.eq = vi.fn().mockReturnValue(chain);
+
+      chain.single = vi.fn().mockImplementation(() => {
+        if (table === 'trip_checklists' && newChecklist) {
+          return Promise.resolve({ data: newChecklist, error: null });
+        }
+        if (table === 'trip_checklist_items' && newItem) {
+          return Promise.resolve({ data: newItem, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
+
+      chain.then = vi.fn().mockImplementation((resolve) => {
+        if (table === 'trip_checklists') {
+          return Promise.resolve({ data: checklists, error: null }).then(resolve);
+        }
+        return Promise.resolve({ data: [], error: null }).then(resolve);
+      });
+
+      return chain;
+    });
+  };
 
   it('renders correctly and loads checklists', async () => {
     const mockChecklists = [
       { 
         id: 'list-1', 
+        trip_id: mockTrip.id,
         title: 'Checklist 1', 
-        items: [{ id: 'item-1', task: 'Tarefa 1', completed: false }] 
+        items: [{ id: 'item-1', checklist_id: 'list-1', task: 'Tarefa 1', completed: false }] 
       }
     ];
 
-    // Mock successful fetch
-    supabase.from.mockImplementation((table) => {
-      if (table === 'trip_checklists') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          order: vi.fn().mockResolvedValue({ data: mockChecklists, error: null }),
-        };
-      }
-      return {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      };
-    });
+    setupSupabaseMocks({ checklists: mockChecklists });
 
-    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
 
     expect(screen.getByText('Viagem Teste')).toBeInTheDocument();
     
@@ -79,22 +104,23 @@ describe('TripChecklists', () => {
 
   it('allows adding a new checklist', async () => {
     const user = userEvent.setup();
-    supabase.from.mockImplementation(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({ data: [], error: null }),
-      insert: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: { id: 'new-list', title: 'Lista Nova' }, error: null }),
-    }));
+    const newChecklist = { id: 'new-list', trip_id: mockTrip.id, title: 'Lista Nova', items: [] };
+    
+    setupSupabaseMocks({ 
+      checklists: [], 
+      newChecklist 
+    });
 
-
-    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
 
     const addButton = screen.getByRole('button', { name: /nova lista/i });
     await user.click(addButton);
 
     const input = await screen.findByPlaceholderText('Ex: Documentos, Mala de Mão...');
     await user.type(input, 'Lista Nova');
+
+    // Mudar mock para retornar a nova lista no próximo fetch
+    setupSupabaseMocks({ checklists: [newChecklist] });
 
     const createButton = screen.getByRole('button', { name: /criar lista/i });
     await user.click(createButton);
@@ -106,25 +132,15 @@ describe('TripChecklists', () => {
 
   it('allows adding an item to a checklist', async () => {
     const user = userEvent.setup();
-    const mockChecklists = [{ id: 'list-1', title: 'Checklist 1', items: [] }];
-    
-    supabase.from.mockImplementation((table) => {
-      if (table === 'trip_checklists') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          order: vi.fn().mockResolvedValue({ data: mockChecklists, error: null }),
-        };
-      }
-      return {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: { id: 'item-1', task: 'Nova Tarefa', completed: false }, error: null }),
-      };
+    const mockChecklists = [{ id: 'list-1', trip_id: mockTrip.id, title: 'Checklist 1', items: [] }];
+    const newItem = { id: 'item-1', checklist_id: 'list-1', task: 'Nova Tarefa', completed: false };
+
+    setupSupabaseMocks({ 
+      checklists: mockChecklists,
+      newItem
     });
 
-
-    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
 
     await waitFor(() => screen.getByText('Checklist 1'));
 
@@ -134,40 +150,41 @@ describe('TripChecklists', () => {
     const input = await screen.findByPlaceholderText('O que precisa ser feito?');
     await user.type(input, 'Nova Tarefa');
 
+    // Mudar mock para retornar a checklist com o item
+    setupSupabaseMocks({ 
+      checklists: [{ id: 'list-1', trip_id: mockTrip.id, title: 'Checklist 1', items: [newItem] }] 
+    });
+
     const confirmButton = screen.getByRole('button', { name: /^adicionar$/i });
     await user.click(confirmButton);
     
     await waitFor(() => {
       expect(screen.getByText('Nova Tarefa')).toBeInTheDocument();
-    }, { timeout: 3000 });
+    });
   });
 
   it('allows toggling an item', async () => {
     const mockChecklists = [
       { 
         id: 'list-1', 
+        trip_id: mockTrip.id,
         title: 'Checklist 1', 
-        items: [{ id: 'item-1', task: 'Tarefa 1', completed: false }] 
+        items: [{ id: 'item-1', checklist_id: 'list-1', task: 'Tarefa 1', completed: false }] 
       }
     ];
 
-    supabase.from.mockImplementation((table) => {
-      if (table === 'trip_checklists') {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          order: vi.fn().mockResolvedValue({ data: mockChecklists, error: null }),
-        };
-      }
-      return {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      };
-    });
+    setupSupabaseMocks({ checklists: mockChecklists });
 
-    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
 
     await waitFor(() => screen.getByText('Tarefa 1'));
+
+    // Mudar mock para refletir o toggle
+    const updatedItem = { id: 'item-1', checklist_id: 'list-1', task: 'Tarefa 1', completed: true };
+    setupSupabaseMocks({ 
+      checklists: [{ id: 'list-1', trip_id: mockTrip.id, title: 'Checklist 1', items: [updatedItem] }],
+      newItem: updatedItem
+    });
 
     // Find the toggle button next to the text
     const itemRow = screen.getByText('Tarefa 1').closest('div');
@@ -182,17 +199,13 @@ describe('TripChecklists', () => {
   it('allows collapsing/expanding all checklists', async () => {
     const user = userEvent.setup();
     const mockChecklists = [
-      { id: 'list-1', title: 'Checklist 1', items: [{ id: 'item-1', task: 'Tarefa 1' }] },
-      { id: 'list-2', title: 'Checklist 2', items: [{ id: 'item-2', task: 'Tarefa 2' }] }
+      { id: 'list-1', trip_id: mockTrip.id, title: 'Checklist 1', items: [{ id: 'item-1', checklist_id: 'list-1', task: 'Tarefa 1' }] },
+      { id: 'list-2', trip_id: mockTrip.id, title: 'Checklist 2', items: [{ id: 'item-2', checklist_id: 'list-2', task: 'Tarefa 2' }] }
     ];
     
-    supabase.from.mockImplementation(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({ data: mockChecklists, error: null }),
-    }));
+    setupSupabaseMocks({ checklists: mockChecklists });
 
-    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
 
     await waitFor(() => screen.getByText('Checklist 1'));
     

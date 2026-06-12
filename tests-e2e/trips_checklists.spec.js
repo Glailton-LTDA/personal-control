@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Viagens - Checklists (TODOs)', () => {
+  let checklistsData = [];
+
   /** Desbloqueia o app com a senha mestre padrão para testes. */
   async function unlockApp(page) {
     const unlockModal = page.getByText('Acesso Seguro');
@@ -68,21 +70,110 @@ test.describe('Viagens - Checklists (TODOs)', () => {
       });
     });
 
+    checklistsData = [
+      { 
+        id: 'checklist-alpha', 
+        title: 'Mala de Mão', 
+        trip_id: 'trip-1',
+        items: [
+          { id: 'task-alpha', task: 'Passaporte', completed: false, checklist_id: 'checklist-alpha', created_at: new Date().toISOString() }
+        ]
+      }
+    ];
+
     await page.route('**/rest/v1/trip_checklists*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { 
-            id: 'checklist-alpha', 
-            title: 'Mala de Mão', 
-            trip_id: 'trip-1',
-            items: [
-              { id: 'task-alpha', task: 'Passaporte', completed: false, checklist_id: 'checklist-alpha', created_at: new Date().toISOString() }
-            ]
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(checklistsData),
+        });
+      } else if (method === 'POST') {
+        const body = JSON.parse(route.request().postData() || '{}');
+        const payload = Array.isArray(body) ? body[0] : body;
+        const newChecklist = {
+          id: payload.id || 'checklist-' + Math.random().toString(36).substring(2, 11),
+          title: payload.title,
+          trip_id: payload.trip_id || 'trip-1',
+          items: []
+        };
+        checklistsData.push(newChecklist);
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(newChecklist),
+        });
+      } else if (method === 'PATCH' || method === 'PUT') {
+        const body = JSON.parse(route.request().postData() || '{}');
+        const payload = Array.isArray(body) ? body[0] : body;
+        const url = route.request().url();
+        const idMatch = url.match(/id=eq\.([^&]+)/);
+        const id = idMatch ? idMatch[1] : null;
+        if (id) {
+          checklistsData = checklistsData.map(c => c.id === id ? { ...c, ...payload } : c);
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      }
+    });
+
+    await page.route('**/rest/v1/trip_checklist_items*', async (route) => {
+      const method = route.request().method();
+      if (method === 'POST') {
+        const body = JSON.parse(route.request().postData() || '{}');
+        const payload = Array.isArray(body) ? body[0] : body;
+        const newItem = {
+          id: payload.id || 'item-' + Math.random().toString(36).substring(2, 11),
+          checklist_id: payload.checklist_id,
+          task: payload.task,
+          completed: payload.completed || false,
+          created_at: new Date().toISOString()
+        };
+        checklistsData = checklistsData.map(c => {
+          if (c.id === payload.checklist_id) {
+            return { ...c, items: [...(c.items || []), newItem] };
           }
-        ]),
-      });
+          return c;
+        });
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(newItem),
+        });
+      } else if (method === 'PATCH' || method === 'PUT') {
+        const body = JSON.parse(route.request().postData() || '{}');
+        const payload = Array.isArray(body) ? body[0] : body;
+        const url = route.request().url();
+        const idMatch = url.match(/id=eq\.([^&]+)/);
+        const id = idMatch ? idMatch[1] : null;
+        if (id) {
+          checklistsData = checklistsData.map(c => ({
+            ...c,
+            items: (c.items || []).map(item => item.id === id ? { ...item, ...payload } : item)
+          }));
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+      }
     });
 
 
