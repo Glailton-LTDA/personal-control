@@ -2688,3 +2688,139 @@ select.glass-input {
   }
 }
 
+/* Song Editor Responsive Styles */
+.song-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 1rem;
+}
+
+.song-editor-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.song-editor-mobile-tabs {
+  display: none;
+  background: var(--tabs-bg);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  margin-bottom: 1rem;
+}
+
+.song-editor-mobile-tab-btn {
+  flex: 1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.song-editor-mobile-tab-btn.active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+}
+
+.song-editor-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.song-editor-col-info {
+  /* No special desktop style needed */
+}
+
+.song-editor-col-content {
+  width: 100%;
+}
+
+.song-editor-textarea {
+  width: 100%;
+  height: calc(100vh - 280px);
+  min-height: 450px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  color: var(--text-main);
+  outline: none;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.song-editor-storage-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .song-editor-mobile-tabs {
+    display: flex;
+  }
+
+  .song-editor-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .song-editor-grid.show-info .song-editor-col-content {
+    display: none !important;
+  }
+
+  .song-editor-grid.show-content .song-editor-col-info {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .song-editor-textarea {
+    height: 400px;
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 640px) {
+  .song-editor-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.25rem;
+  }
+
+  .song-editor-actions {
+    width: 100%;
+  }
+
+  .song-editor-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .song-editor-storage-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
+
