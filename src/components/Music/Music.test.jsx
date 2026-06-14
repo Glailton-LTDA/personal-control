@@ -115,6 +115,7 @@ describe('Music Component', () => {
   const mockUser = { id: '9659a65c-7a82-4b08-a9d4-64fd2346cbb1' };
 
   beforeEach(() => {
+    sessionStorage.removeItem('music-session-state');
     vi.clearAllMocks();
     
     // Default mocks
