@@ -11,6 +11,7 @@ import {
   useOfflineArtistsByLetter,
   useOfflineChords,
 } from '../../hooks/useOfflineMusic';
+import { useSessionState } from '../../hooks/useMusicSessionState';
 import toast from 'react-hot-toast';
 
 import CifraViewer from './CifraViewer';
@@ -22,19 +23,35 @@ import Setlists from './Setlists';
 export default function Music({ user, mode = 'repertoire', navigate }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'cifra' | 'partitura'
 
-  // Sub-aba — inicializada a partir do mode para suportar rota /music-setlists
+  // ── Estados persistidos no sessionStorage (sobrevivem ao F5) ──
+  const [search, setSearch] = useSessionState('search', '');
+  const [filterType, setFilterType] = useSessionState('filterType', 'all'); // 'all' | 'cifra' | 'partitura'
+  const [selectedGenre, setSelectedGenre] = useSessionState('selectedGenre', 'all');
+  const [page, setPage] = useSessionState('page', 0);
+  const [pageSize, setPageSize] = useSessionState('pageSize', 25);
+
+  // Sub-aba — URL é a fonte de verdade; sessionStorage como fallback
   const [subTab, setSubTab] = useState(() => mode === 'setlists' ? 'setlists' : 'repertoire');
-  const [selectedArtist, setSelectedArtist] = useState(() => {
+
+  // selectedArtist: URL tem prioridade; sessionStorage como fallback para refresh simples
+  const [selectedArtist, setSelectedArtist] = useSessionState('selectedArtist', (() => {
     if (mode && mode.startsWith('repertoire-artist-')) {
       return decodeURIComponent(mode.replace('repertoire-artist-', ''));
     }
     return 'all';
-  });
-  const [selectedGenre, setSelectedGenre] = useState('all');
+  })());
 
+  // activeLetter: URL tem prioridade; sessionStorage como fallback para refresh simples
+  const [activeLetter, setActiveLetter] = useSessionState('activeLetter', (() => {
+    if (mode && mode.startsWith('repertoire-letter-')) {
+      const charCode = mode.replace('repertoire-letter-', '');
+      return charCode === 'num' ? '#' : charCode.toUpperCase();
+    }
+    return null;
+  })());
+
+  // ── Estados transitórios (não persistidos) ──
   // Editor State
   const [isEditingSong, setIsEditingSong] = useState(false);
   const [editingSong, setEditingSong] = useState(null);
@@ -42,23 +59,12 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
   // Leitor Ativo
   const [selectedSong, setSelectedSong] = useState(null);
 
-  // Paginação e filtros
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  // Paginação — input auxiliar
   const [pageInput, setPageInput] = useState('');
 
   // Dropdown de artista pesquisável
   const [artistSearch, setArtistSearch] = useState('');
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
-
-  // Estados de navegação hierárquica A-Z
-  const [activeLetter, setActiveLetter] = useState(() => {
-    if (mode && mode.startsWith('repertoire-letter-')) {
-      const charCode = mode.replace('repertoire-letter-', '');
-      return charCode === 'num' ? '#' : charCode.toUpperCase();
-    }
-    return null;
-  });
 
   // ── Offline-first hooks ──
   const { songs, totalCount, isLoading } = useOfflineSongs(user?.id, {
