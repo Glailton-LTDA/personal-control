@@ -29,6 +29,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
   // Setlists — só no modo edição
   const [selectedSetlistIds, setSelectedSetlistIds] = useState(new Set());
   const [originalSetlistIds, setOriginalSetlistIds] = useState(new Set());
+  const [activeTabMobile, setActiveTabMobile] = useState('info'); // 'info' | 'content'
 
   const { data: genres = [] } = useOfflineGenres();
   const { data: availableSetlists = [] } = useOfflineSetlists(user?.id);
@@ -220,7 +221,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', minHeight: '80vh' }}>
       
       {/* Cabeçalho superior */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+      <div className="song-editor-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button className="icon-btn" onClick={onClose} style={{ padding: '8px' }} title={t('music.cancel')}>
             <ChevronLeft size={20} />
@@ -235,7 +236,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="song-editor-actions">
           <button type="button" className="btn-secondary" onClick={onClose} disabled={saving} style={{ padding: '0.6rem 1.5rem', borderRadius: '8px', fontSize: '0.85rem' }}>
             {t('music.cancel')}
           </button>
@@ -246,11 +247,29 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
         </div>
       </div>
 
+      {/* Seletor de abas para Mobile / Tablet */}
+      <div className="song-editor-mobile-tabs">
+        <button
+          type="button"
+          className={`song-editor-mobile-tab-btn ${activeTabMobile === 'info' ? 'active' : ''}`}
+          onClick={() => setActiveTabMobile('info')}
+        >
+          {t('music.info_tab', 'Informações')}
+        </button>
+        <button
+          type="button"
+          className={`song-editor-mobile-tab-btn ${activeTabMobile === 'content' ? 'active' : ''}`}
+          onClick={() => setActiveTabMobile('content')}
+        >
+          {type === 'cifra' ? t('music.chords_tab', 'Cifra / Tablatura') : t('music.sheet_tab', 'Partitura')}
+        </button>
+      </div>
+
       {/* Grid Principal de Edição */}
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div className={`song-editor-grid show-${activeTabMobile}`}>
         
         {/* Coluna Esquerda: Metadados */}
-        <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="song-editor-col-info glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: 'var(--text-main)', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
             Informações
           </h3>
@@ -329,7 +348,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
         </div>
 
         {/* Coluna Direita: Editor de Cifra / Configuração de Partitura */}
-        <div style={{ width: '100%' }}>
+        <div className="song-editor-col-content">
           
           {/* Seção Cifra */}
           {type === 'cifra' && (
@@ -350,22 +369,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
                 placeholder={t('music.content_placeholder')}
                 value={content}
                 onChange={e => setContent(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: 'calc(100vh - 280px)',
-                  minHeight: '450px',
-                  background: 'var(--input-bg)',
-                  border: '1px solid var(--glass-border)',
-                  borderRadius: '12px',
-                  padding: '1.25rem',
-                  color: 'var(--text-main)',
-                  outline: 'none',
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  lineHeight: '1.6',
-                  resize: 'vertical',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
-                }}
+                className="song-editor-textarea"
               />
             </div>
           )}
@@ -377,7 +381,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
                 Hospedagem da Partitura (PDF)
               </h3>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="song-editor-storage-tabs">
                 <button
                   type="button"
                   onClick={() => setStorageType('local')}
