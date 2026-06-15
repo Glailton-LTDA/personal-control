@@ -809,7 +809,21 @@ i18n
               error_sharing_note: 'Erro ao compartilhar nota: {{error}}',
               share_note_title: 'Compartilhar Nota',
               confirm_revoke_note: 'Revogar acesso a esta nota?',
-              note_share_revoked: 'Acesso revogado'
+              note_share_revoked: 'Acesso revogado',
+              new_notebook: 'Novo Bloco de Notas',
+              delete_notebook: 'Excluir Bloco de Notas',
+              prompt_notebook_name: 'Digite o nome do novo Bloco de Notas:',
+              notebook_created: 'Bloco de Notas criado com sucesso!',
+              error_create_notebook: 'Erro ao criar bloco de notas',
+              cannot_delete_only_notebook: 'Você não pode excluir seu único bloco de notas',
+              confirm_delete_notebook: 'Tem certeza que deseja excluir este Bloco de Notas? Todas as notas dentro dele serão excluídas permanentemente.',
+              notebook_deleted: 'Bloco de Notas excluído!',
+              error_delete_notebook: 'Erro ao excluir bloco de notas',
+              note_moved: 'Nota movida com sucesso!',
+              error_move_note: 'Erro ao mover nota',
+              note_shared_success: 'Nota compartilhada!',
+              confirm_revoke_note_share: 'Revogar acesso a esta nota?',
+              move_to: 'Mover para...'
             }
           },
           music: {
@@ -1731,7 +1745,21 @@ i18n
               error_sharing_note: 'Error sharing note: {{error}}',
               share_note_title: 'Share Note',
               confirm_revoke_note: 'Revoke access to this note?',
-              note_share_revoked: 'Access revoked'
+              note_share_revoked: 'Access revoked',
+              new_notebook: 'New Notebook',
+              delete_notebook: 'Delete Notebook',
+              prompt_notebook_name: 'Enter the name for the new Notebook:',
+              notebook_created: 'Notebook created successfully!',
+              error_create_notebook: 'Error creating notebook',
+              cannot_delete_only_notebook: 'You cannot delete your only notebook',
+              confirm_delete_notebook: 'Are you sure you want to delete this Notebook? All notes inside it will be permanently deleted.',
+              notebook_deleted: 'Notebook deleted!',
+              error_delete_notebook: 'Error deleting notebook',
+              note_moved: 'Note moved successfully!',
+              error_move_note: 'Error moving note',
+              note_shared_success: 'Note shared!',
+              confirm_revoke_note_share: 'Revoke access to this note?',
+              move_to: 'Move to...'
             }
           },
           music: {
@@ -2568,7 +2596,21 @@ i18n
               error_sharing_note: 'Error al compartir nota: {{error}}',
               share_note_title: 'Compartir Nota',
               confirm_revoke_note: '¿Revocar acceso a esta nota?',
-              note_share_revoked: 'Acceso revocado'
+              note_share_revoked: 'Acceso revocado',
+              new_notebook: 'Nuevo Bloque de Notas',
+              delete_notebook: 'Eliminar Bloque de Notas',
+              prompt_notebook_name: 'Ingrese el nombre del nuevo Bloque de Notas:',
+              notebook_created: '¡Bloque de Notas creado con éxito!',
+              error_create_notebook: 'Error al crear el bloque de notas',
+              cannot_delete_only_notebook: 'No puede eliminar su único bloque de notas',
+              confirm_delete_notebook: '¿Está seguro de que desea eliminar este Bloque de Notas? Todas las notas dentro de él se eliminarán permanentemente.',
+              notebook_deleted: '¡Bloque de Notas eliminado!',
+              error_delete_notebook: 'Error al eliminar el bloque de notas',
+              note_moved: '¡Nota movida con éxito!',
+              error_move_note: 'Error al mover la nota',
+              note_shared_success: '¡Nota compartida!',
+              confirm_revoke_note_share: '¿Revocar acceso a esta nota?',
+              move_to: 'Mover a...'
             }
           },
           music: {
