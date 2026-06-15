@@ -69,6 +69,7 @@ export default function Setlists({ user, onSelectSong }) {
             content,
             storage_type,
             file_path,
+            music_link,
             is_favorite
           )
         `)
@@ -368,7 +369,19 @@ export default function Setlists({ user, onSelectSong }) {
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={() => onSelectSong(song)}
+                        onClick={async () => {
+                          // Busca o dado fresco da música para garantir content atualizado
+                          try {
+                            const { data: freshSong } = await supabase
+                              .from('music_songs')
+                              .select('id, title, artist, type, content, storage_type, file_path, music_link, is_favorite')
+                              .eq('id', song.id)
+                              .single();
+                            onSelectSong(freshSong || song);
+                          } catch {
+                            onSelectSong(song);
+                          }
+                        }}
                       >
                         <td style={{ padding: '1rem', fontWeight: 'bold', color: 'var(--primary)' }}>
                           {idx + 1}
@@ -413,7 +426,18 @@ export default function Setlists({ user, onSelectSong }) {
                           </button>
                           <button
                             className="icon-btn"
-                            onClick={() => onSelectSong(song)}
+                            onClick={async () => {
+                              try {
+                                const { data: freshSong } = await supabase
+                                  .from('music_songs')
+                                  .select('id, title, artist, type, content, storage_type, file_path, music_link, is_favorite')
+                                  .eq('id', song.id)
+                                  .single();
+                                onSelectSong(freshSong || song);
+                              } catch {
+                                onSelectSong(song);
+                              }
+                            }}
                             style={{ padding: '6px', color: 'var(--primary)' }}
                             title="Executar / Visualizar"
                           >

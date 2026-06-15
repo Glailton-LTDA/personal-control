@@ -318,7 +318,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
               style={{ width: '100%' }}
             >
               <option value="">{t('music.no_genre')}</option>
-              {genres.map(g => (
+              {[...genres].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map(g => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>

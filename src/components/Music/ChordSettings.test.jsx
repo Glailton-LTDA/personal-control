@@ -35,6 +35,9 @@ vi.mock('lucide-react', () => ({
   Edit: () => <div data-testid="edit" />,
   Save: () => <div data-testid="save" />,
   Music: () => <div data-testid="music" />,
+  ChevronLeft: () => <div data-testid="chevron-left" />,
+  ChevronRight: () => <div data-testid="chevron-right" />,
+  Search: () => <div data-testid="search-icon" />,
 }));
 
 // Mock ChordDiagram component
@@ -165,6 +168,50 @@ describe('ChordSettings Component', () => {
 
     await waitFor(() => {
       expect(mockDeleteGenre).toHaveBeenCalled();
+    });
+  });
+
+  it('shows search input in chord dictionary toolbar', async () => {
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
+    const searchInput = screen.getByPlaceholderText(/Buscar acorde/i);
+    expect(searchInput).toBeDefined();
+  });
+
+  it('renders chords grouped by root note with supabase mock returning chords', async () => {
+    // Override mock para retornar acordes C e D
+    const { supabase } = await import('../../lib/supabase');
+    supabase.from.mockImplementation((table) => {
+      if (table === 'music_instruments') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => Promise.resolve({ data: [{ id: 'inst-1', name: 'violao' }], error: null })),
+            })),
+          })),
+        };
+      }
+      if (table === 'music_chords') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({
+              data: [
+                { id: 'c1', chord_name: 'C', music_chord_variations: [] },
+                { id: 'c2', chord_name: 'Cm', music_chord_variations: [] },
+                { id: 'c3', chord_name: 'D', music_chord_variations: [] },
+              ],
+              error: null,
+            })),
+          })),
+        };
+      }
+      return { select: mockSelect, delete: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })), insert: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'inst-1' }, error: null }) })) })) };
+    });
+
+    renderWithProvider(<ChordSettings user={{ id: 'user-123' }} />);
+
+    await waitFor(() => {
+      // Deve renderizar os nomes dos acordes
+      expect(screen.getByText('C')).toBeDefined();
     });
   });
 });

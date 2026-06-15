@@ -1,9 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Edit, Save, Music, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit, Save, Music, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import ChordDiagram from './ChordDiagram';
+
+// Ordem canônica das notas raiz
+const NOTE_ORDER = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+// Extrai a nota raiz de um nome de acorde: C, C#, Db, D, etc.
+function getChordRoot(chordName) {
+  const match = chordName.match(/^([A-G][#b]?)/);
+  return match ? match[1] : chordName[0] || '?';
+}
+
+// Índice de ordenação da nota raiz (considera bemóis/sustenidos)
+function getRootSortIndex(root) {
+  const natural = root[0]; // A-G
+  const modifier = root[1] || ''; // # ou b
+  const base = NOTE_ORDER.indexOf(natural);
+  // sustenido (+0.5), bemol (-0.5) para ordenar entre as notas naturais
+  return base + (modifier === '#' ? 0.5 : modifier === 'b' ? -0.5 : 0);
+}
 
 // Subcomponente para renderizar cada card de acorde com controle de variações
 function ChordCard({ chord, stringsCount, handleEditChord, handleDeleteChord }) {
@@ -95,6 +113,9 @@ export default function ChordSettings({ user }) {
   const isFourString = ['ukulele', 'cavaquinho', 'bandolim'].includes(instrument);
   const stringsCount = isFourString ? 4 : 6;
 
+  // Busca de acordes no dicionário
+  const [chordSearch, setChordSearch] = useState('');
+
   // Ajusta arrays de trastes/dedos ao mudar de instrumento
   useEffect(() => {
     const size = isFourString ? 4 : 6;
@@ -162,6 +183,7 @@ export default function ChordSettings({ user }) {
   useEffect(() => {
     if (activeTab === 'chords') {
       fetchChords();
+      setChordSearch(''); // reset busca ao mudar instrumento
     }
   }, [fetchChords, activeTab]);
 
@@ -494,6 +516,30 @@ export default function ChordSettings({ user }) {
     }
   };
 
+  // Agrupa e ordena acordes por nota raiz (C D E F G A B)
+  const groupedChords = useMemo(() => {
+    const filtered = chordSearch.trim()
+      ? chords.filter(c => c.chord_name.toLowerCase().includes(chordSearch.toLowerCase()))
+      : chords;
+
+    const groups = {};
+    filtered.forEach(c => {
+      const root = getChordRoot(c.chord_name);
+      if (!groups[root]) groups[root] = [];
+      groups[root].push(c);
+    });
+
+    // Ordena cada grupo internamente por nome completo
+    Object.values(groups).forEach(arr => {
+      arr.sort((a, b) => a.chord_name.localeCompare(b.chord_name));
+    });
+
+    // Ordena os grupos pela posição canônica da nota raiz
+    return Object.entries(groups).sort(([rootA], [rootB]) => {
+      return getRootSortIndex(rootA) - getRootSortIndex(rootB);
+    });
+  }, [chords, chordSearch]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
       {/* ── Sub-Tab Switcher ── */}
@@ -544,7 +590,20 @@ export default function ChordSettings({ user }) {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Desenhe e gerencie dedilhados e pestanas para seus instrumentos.</p>
               </div>
               
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Busca */}
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '0.6rem', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    className="glass-input"
+                    placeholder="Buscar acorde... (ex: C7, Dm)"
+                    value={chordSearch}
+                    onChange={e => setChordSearch(e.target.value)}
+                    style={{ paddingLeft: '2rem', fontSize: '0.8rem', width: '200px' }}
+                  />
+                </div>
+
                 <select
                   className="select-filter"
                   value={instrument}
@@ -574,7 +633,7 @@ export default function ChordSettings({ user }) {
               </div>
             </div>
 
-            {/* Chords Grid */}
+            {/* Chords Grid — grouped by root note */}
             {loading ? (
               <div style={{ padding: '3rem', textAlign: 'center' }}>Carregando acordes personalizados...</div>
             ) : chords.length === 0 ? (
@@ -584,16 +643,47 @@ export default function ChordSettings({ user }) {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 1.25rem 0' }}>O sistema exibirá os diagramas padrões. Crie um novo acorde se precisar de digitações específicas.</p>
                 <button className="btn-primary" onClick={() => setIsEditing(true)} style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Cadastrar Primeiro Acorde</button>
               </div>
+            ) : groupedChords.length === 0 ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Search size={28} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
+                <p style={{ margin: 0, fontSize: '0.9rem' }}>Nenhum acorde encontrado para &quot;{chordSearch}&quot;</p>
+              </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.25rem' }}>
-                {chords.map(c => (
-                  <ChordCard
-                    key={c.id}
-                    chord={c}
-                    stringsCount={stringsCount}
-                    handleEditChord={handleEditChord}
-                    handleDeleteChord={handleDeleteChord}
-                  />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {groupedChords.map(([root, chordsInGroup]) => (
+                  <div key={root}>
+                    {/* Cabeçalho da nota raiz */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      marginBottom: '1rem'
+                    }}>
+                      <span style={{
+                        fontSize: '1.1rem',
+                        fontWeight: 900,
+                        color: 'var(--primary)',
+                        minWidth: '2rem',
+                        letterSpacing: '-0.02em'
+                      }}>{root}</span>
+                      <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {chordsInGroup.length} acorde{chordsInGroup.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    {/* Grid de acordes do grupo */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.25rem' }}>
+                      {chordsInGroup.map(c => (
+                        <ChordCard
+                          key={c.id}
+                          chord={c}
+                          stringsCount={stringsCount}
+                          handleEditChord={handleEditChord}
+                          handleDeleteChord={handleDeleteChord}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
