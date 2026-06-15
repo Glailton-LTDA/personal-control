@@ -438,7 +438,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
           className="glass-card" 
-          style={{ padding: isMobile ? '1.25rem' : '2.5rem', minHeight: '60vh' }}
+          style={{ padding: isMobile ? '1.25rem' : '2.5rem' }}
         >
           {/* Sub Header - View Specific */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1.5rem' }}>
@@ -552,13 +552,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
           <div 
             ref={parentRef}
             style={{ 
-              maxHeight: '68vh', 
-              overflowY: 'auto', 
               position: 'relative',
               borderRadius: '24px',
               paddingRight: '6px'
             }}
-            className="custom-scrollbar"
           >
             {loading ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

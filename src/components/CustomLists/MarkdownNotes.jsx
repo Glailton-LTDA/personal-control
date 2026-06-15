@@ -579,7 +579,7 @@ export default function MarkdownNotes({ user, refreshKey }) {
         .insert([{
           notebook_id: notesList.id,
           user_id: user.id,
-          title: t('lists.notes_view.untitled'),
+          title: '',
           content: ''
         }])
         .select()
@@ -1668,38 +1668,55 @@ export default function MarkdownNotes({ user, refreshKey }) {
               WebkitOverflowScrolling: 'touch'
             }} className="custom-scrollbar">
               
-              {/* Title input (Simplenote style: borderless, bold, large) */}
-              <textarea
-                ref={titleTextareaRef}
-                rows={1}
-                value={editorTitle}
-                onChange={handleTitleChange}
-                placeholder={t('lists.notes_view.title_placeholder')}
-                readOnly={isCurrentNoteReadOnly}
-                disabled={isCurrentNoteReadOnly}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    textareaRef.current?.focus();
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: '1.8rem',
-                  fontWeight: 900,
-                  color: 'var(--text-main)',
-                  letterSpacing: '-0.02em',
-                  marginBottom: '1.5rem',
-                  padding: 0,
-                  resize: 'none',
-                  overflowY: 'hidden',
-                  fontFamily: 'inherit',
-                  lineHeight: '1.2'
-                }}
-              />
+              {/* Title - textarea in edit mode, static heading in preview */}
+              {editorMode === 'edit' ? (
+                <textarea
+                  ref={titleTextareaRef}
+                  rows={1}
+                  value={editorTitle}
+                  onChange={handleTitleChange}
+                  placeholder={t('lists.notes_view.title_placeholder')}
+                  readOnly={isCurrentNoteReadOnly}
+                  disabled={isCurrentNoteReadOnly}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      textareaRef.current?.focus();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: '1.8rem',
+                    fontWeight: 900,
+                    color: 'var(--text-main)',
+                    letterSpacing: '-0.02em',
+                    marginBottom: '1.5rem',
+                    padding: 0,
+                    resize: 'none',
+                    overflowY: 'hidden',
+                    fontFamily: 'inherit',
+                    lineHeight: '1.2'
+                  }}
+                />
+              ) : (
+                editorTitle ? (
+                  <h1 style={{
+                    fontSize: '1.8rem',
+                    fontWeight: 900,
+                    color: 'var(--text-main)',
+                    letterSpacing: '-0.02em',
+                    marginBottom: '1.5rem',
+                    marginTop: 0,
+                    lineHeight: '1.2',
+                    wordBreak: 'break-word'
+                  }}>
+                    {editorTitle}
+                  </h1>
+                ) : null
+              )}
 
               {/* Note Content / Preview */}
               {editorMode === 'edit' ? (
