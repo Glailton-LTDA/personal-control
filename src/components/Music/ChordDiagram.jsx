@@ -17,11 +17,12 @@ export default function ChordDiagram({
   stringsCount = 6,
   frets = [0, 0, 0, 3], // Default para C no Ukulele
   fingers = [0, 0, 0, 1],
-  startFret = 1
+  startFret = 1,
+  instrument = 'violão'
 }) {
   const width = 150;
-  const topMargin = 40;
-  const bottomMargin = 20;
+  const topMargin = 48; // Aumentado para acomodar as notas soltas no topo
+  const bottomMargin = 20; // Reduzido de volta para o padrão
   const leftMargin = 30;
   const rightMargin = 30;
   
@@ -38,6 +39,85 @@ export default function ChordDiagram({
   
   const strings = stringsCount;
   const xSpacing = gridWidth / (strings - 1);
+
+  // Procura por uma possível pestana (barre)
+  // Ocorre se uma casa F (F > 0) tiver pelo menos 2 cordas pressionadas nessa casa,
+  // e nenhuma corda intermediária for solta (0) ou estiver em uma casa menor do que F.
+  let barreFret = null;
+  let barreStartString = -1;
+  let barreEndString = -1;
+
+  const fretCounts = {};
+  frets.forEach(f => {
+    if (f > 0) {
+      fretCounts[f] = (fretCounts[f] || 0) + 1;
+    }
+  });
+
+  const candidateFrets = Object.keys(fretCounts)
+    .map(Number)
+    .filter(f => fretCounts[f] >= 2)
+    .sort((a, b) => a - b);
+
+  for (const f of candidateFrets) {
+    const stringIndices = [];
+    frets.forEach((fretVal, idx) => {
+      if (fretVal === f) {
+        stringIndices.push(idx);
+      }
+    });
+
+    if (stringIndices.length >= 2) {
+      const start = stringIndices[0];
+      const end = stringIndices[stringIndices.length - 1];
+
+      // A pestana deve abranger pelo menos 3 cordas
+      if (end - start + 1 >= 3) {
+        let isValidBarre = true;
+        for (let i = start; i <= end; i++) {
+          const fretVal = frets[i];
+          if (stringsCount === 4) {
+            // Para instrumentos de 4 cordas (ukulele/cavaquinho),
+            // todas as cordas no intervalo devem ter o traste exatamente igual a f (ou -1 se abafada)
+            if (fretVal !== f && fretVal !== -1) {
+              isValidBarre = false;
+              break;
+            }
+          } else {
+            // Para violão, as cordas intermediárias devem ser >= f ou -1
+            if (fretVal === 0 || (fretVal > 0 && fretVal < f)) {
+              isValidBarre = false;
+              break;
+            }
+          }
+        }
+        if (isValidBarre) {
+          barreFret = f;
+          barreStartString = start;
+          barreEndString = end;
+          break; // Encontramos a pestana (menor traste elegível)
+        }
+      }
+    }
+  }
+
+  // Mapeamento de afinações padrão (grave para agudo / esquerda para direita no diagrama)
+  const tuningNotes = {
+    'violão': ['E', 'A', 'D', 'G', 'B', 'E'],
+    'violao': ['E', 'A', 'D', 'G', 'B', 'E'],
+    'cavaquinho': ['D', 'G', 'B', 'D'],
+    'ukulele': ['G', 'C', 'E', 'A'],
+    'bandolim': ['G', 'D', 'A', 'E']
+  };
+
+  const getTuning = () => {
+    const nameNorm = String(instrument || '').toLowerCase().trim();
+    if (tuningNotes[nameNorm]) return tuningNotes[nameNorm];
+    if (stringsCount === 4) return tuningNotes['cavaquinho']; // Cavaquinho/Ukulele padrão para 4 cordas
+    return tuningNotes['violão']; // Violão padrão para 6 cordas
+  };
+
+  const tuning = getTuning();
 
   // Renderiza marcadores no topo da corda (X ou O)
   const renderStringHeader = (fret, index) => {
@@ -69,20 +149,68 @@ export default function ChordDiagram({
     return null;
   };
 
+  // Renderiza a barra de pestana (barre)
+  const renderBarre = () => {
+    if (barreFret === null) return null;
+
+    const relativeFret = barreFret - startFret + 1;
+    if (relativeFret < 1 || relativeFret > fretsInGrid) return null;
+
+    const x1 = leftMargin + barreStartString * xSpacing;
+    const x2 = leftMargin + barreEndString * xSpacing;
+    const cy = topMargin + (relativeFret - 0.5) * ySpacing;
+
+    return (
+      <rect
+        key="barre-rect"
+        x={x1 - 9}
+        y={cy - 9}
+        width={x2 - x1 + 18}
+        height={18}
+        rx={9}
+        ry={9}
+        fill="var(--primary)"
+        stroke="var(--bg-canvas)"
+        strokeWidth={1.5}
+        style={{ filter: 'drop-shadow(0px 2px 4px rgba(99, 102, 241, 0.3))' }}
+      />
+    );
+  };
+
   // Renderiza os pontos das notas pressionadas (bolinhas com números de dedos)
   const renderNotes = () => {
     return frets.map((fret, stringIdx) => {
       if (fret <= 0) return null;
       
-      // Fret relativo no diagrama desenhado
       const relativeFret = fret - startFret + 1;
-      
-      // Se estiver fora do limite visível do diagrama de trastes, não renderiza
       if (relativeFret < 1 || relativeFret > fretsInGrid) return null;
       
       const cx = leftMargin + stringIdx * xSpacing;
       const cy = topMargin + (relativeFret - 0.5) * ySpacing;
       const finger = fingers[stringIdx];
+
+      // Se esta nota faz parte de uma pestana
+      if (barreFret !== null && fret === barreFret && stringIdx >= barreStartString && stringIdx <= barreEndString) {
+        // Desenhamos o dedo apenas na primeira corda da pestana
+        if (stringIdx === barreStartString) {
+          const fingerLabel = fingers[stringIdx] || 1;
+          return (
+            <g key={`barre-finger-${stringIdx}`}>
+              <text
+                x={cx}
+                y={cy + 3.5}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="bold"
+                fill="white"
+              >
+                {fingerLabel}
+              </text>
+            </g>
+          );
+        }
+        return null; // Omitir círculos individuais dentro da pestana
+      }
       
       return (
         <g key={`note-${stringIdx}`}>
@@ -209,8 +337,30 @@ export default function ChordDiagram({
         {/* Cabeçalho de cordas soltas / abafadas */}
         {frets.map((fret, idx) => renderStringHeader(fret, idx))}
 
+        {/* Pestana (Barre) */}
+        {renderBarre()}
+
         {/* Notas pressionadas */}
         {renderNotes()}
+
+        {/* Notas soltas (afinação) no topo */}
+        {tuning && tuning.slice(0, stringsCount).map((note, idx) => {
+          const x = leftMargin + idx * xSpacing;
+          const y = topMargin - 22;
+          return (
+            <text
+              key={`tuning-note-${idx}`}
+              x={x}
+              y={y}
+              textAnchor="middle"
+              fontSize="10.5"
+              fontWeight="bold"
+              fill="var(--text-muted)"
+            >
+              {note}
+            </text>
+          );
+        })}
       </svg>
     </div>
   );
