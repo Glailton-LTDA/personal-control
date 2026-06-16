@@ -91,6 +91,7 @@ function ChordDiagramWithVariations({ name, instrument, variations }) {
         frets={currentVar.frets}
         fingers={currentVar.fingers}
         startFret={currentVar.startFret || 1}
+        instrument={instrument}
       />
       {variations.length > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.25rem', padding: '0 0.5rem' }}>

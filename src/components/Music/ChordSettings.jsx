@@ -24,7 +24,7 @@ function getRootSortIndex(root) {
 }
 
 // Subcomponente para renderizar cada card de acorde com controle de variações
-function ChordCard({ chord, stringsCount, handleEditChord, handleDeleteChord }) {
+function ChordCard({ chord, stringsCount, handleEditChord, handleDeleteChord, instrument }) {
   const variations = chord.music_chord_variations || [];
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -41,6 +41,7 @@ function ChordCard({ chord, stringsCount, handleEditChord, handleDeleteChord }) 
           frets={currentVar.frets}
           fingers={currentVar.fingers}
           startFret={currentVar.start_fret}
+          instrument={instrument}
         />
       ) : (
         <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
@@ -680,6 +681,7 @@ export default function ChordSettings({ user }) {
                           stringsCount={stringsCount}
                           handleEditChord={handleEditChord}
                           handleDeleteChord={handleDeleteChord}
+                          instrument={instrument}
                         />
                       ))}
                     </div>
@@ -801,6 +803,7 @@ export default function ChordSettings({ user }) {
                       frets={variations[activeVarIdx]?.frets || Array(stringsCount).fill(0)}
                       fingers={variations[activeVarIdx]?.fingers || Array(stringsCount).fill(0)}
                       startFret={variations[activeVarIdx]?.start_fret || 1}
+                      instrument={instrument}
                     />
                   </div>
 

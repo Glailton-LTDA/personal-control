@@ -147,19 +147,42 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
         } else {
           await engine.enqueue('music_songs', initialData.id, 'update', songPayload);
         }
-        engine.destroy();
 
         const toAdd = [...selectedSetlistIds].filter(id => !originalSetlistIds.has(id));
         const toRemove = [...originalSetlistIds].filter(id => !selectedSetlistIds.has(id));
 
-        const { putMusicSetlistSong, removeMusicSetlistSong } = await import('../../lib/offline/db');
-        for (let i = 0; i < toAdd.length; i++) {
-          await putMusicSetlistSong({ setlist_id: toAdd[i], song_id: initialData.id, order_index: i + 1 });
-        }
+        const { putMusicSetlistSong, removeMusicSetlistSong, getMusicSetlistSongs } = await import('../../lib/offline/db');
+        
         for (const slId of toRemove) {
           await removeMusicSetlistSong(slId, initialData.id);
+          if (engine.isOnline) {
+            await supabase
+              .from('music_setlist_songs')
+              .delete()
+              .eq('setlist_id', slId)
+              .eq('song_id', initialData.id);
+          } else {
+            await engine.enqueue('music_setlist_songs', `${slId}_${initialData.id}`, 'delete');
+          }
         }
 
+        for (const slId of toAdd) {
+          const existingRelation = await getMusicSetlistSongs(slId);
+          const maxOrder = (existingRelation || []).reduce((max, s) => Math.max(max, s.order_index ?? 0), 0);
+          const newOrder = maxOrder + 1;
+          const relation = { setlist_id: slId, song_id: initialData.id, order_index: newOrder };
+
+          await putMusicSetlistSong(relation);
+          if (engine.isOnline) {
+            await supabase
+              .from('music_setlist_songs')
+              .upsert(relation);
+          } else {
+            await engine.enqueue('music_setlist_songs', `${slId}_${initialData.id}`, 'insert', relation);
+          }
+        }
+
+        engine.destroy();
         toast.success(t('music.song_updated'));
       } else {
         const tempId = 'local_' + Date.now();
@@ -174,6 +197,8 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
         await putMusicSong(savedSong);
 
         const engine = new SyncEngine(user.id);
+        let finalSongId = tempId;
+
         if (engine.isOnline) {
           const { data, error } = await supabase
             .from('music_songs')
@@ -192,12 +217,32 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
             await removeMusicSong(tempId);
             savedSong = { ...data, updated_at: new Date().toISOString() };
             await putMusicSong(savedSong);
+            finalSongId = data.id;
           }
         } else {
           await engine.enqueue('music_songs', tempId, 'insert', { user_id: user.id, ...songPayload });
         }
-        engine.destroy();
 
+        if (selectedSetlistIds.size > 0) {
+          const { putMusicSetlistSong, getMusicSetlistSongs } = await import('../../lib/offline/db');
+          for (const slId of selectedSetlistIds) {
+            const existingRelation = await getMusicSetlistSongs(slId);
+            const maxOrder = (existingRelation || []).reduce((max, s) => Math.max(max, s.order_index ?? 0), 0);
+            const newOrder = maxOrder + 1;
+            const relation = { setlist_id: slId, song_id: finalSongId, order_index: newOrder };
+
+            await putMusicSetlistSong(relation);
+            if (engine.isOnline && finalSongId !== tempId) {
+              await supabase
+                .from('music_setlist_songs')
+                .upsert(relation);
+            } else {
+              await engine.enqueue('music_setlist_songs', `${slId}_${finalSongId}`, 'insert', relation);
+            }
+          }
+        }
+
+        engine.destroy();
         toast.success(t('music.song_created'));
       }
 

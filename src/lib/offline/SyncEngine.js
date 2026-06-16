@@ -231,13 +231,29 @@ export class SyncEngine {
     switch (action) {
       case 'insert':
       case 'update': {
-        const { error } = await supabase.from(table_name).upsert(payload).select();
-        if (error) throw error;
+        if (table_name === 'music_setlist_songs') {
+          const { id: _id, ...cleanPayload } = payload || {};
+          const { error } = await supabase.from(table_name).upsert(cleanPayload);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from(table_name).upsert(payload).select();
+          if (error) throw error;
+        }
         break;
       }
       case 'delete': {
-        const { error } = await supabase.from(table_name).delete().eq('id', record_id);
-        if (error) throw error;
+        if (table_name === 'music_setlist_songs') {
+          const [setlistId, songId] = record_id.split('_');
+          const { error } = await supabase
+            .from(table_name)
+            .delete()
+            .eq('setlist_id', setlistId)
+            .eq('song_id', songId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from(table_name).delete().eq('id', record_id);
+          if (error) throw error;
+        }
         break;
       }
       default:
