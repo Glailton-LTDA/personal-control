@@ -198,20 +198,44 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
 
   const songRouteId = mode.startsWith('song-') ? mode.replace('song-', '') : null;
 
-  // Efeito 1: Carregar música pelo ID da URL (do Dexie)
+  // Efeito 1: Carregar música pelo ID da URL (do Dexie com fallback para Supabase)
   useEffect(() => {
     if (!songRouteId || !user?.id) return;
     if (selectedSongRef.current?.id === songRouteId) return;
-    import('../../lib/offline/db').then(({ getMusicSong }) => {
-      getMusicSong(songRouteId).then(song => {
-        if (song) {
-          setSelectedSong(song);
-        } else {
-          toast.error(t('music.song_not_found'));
-          if (navigate) navigate('music-repertoire');
+
+    const loadSong = async () => {
+      try {
+        const { getMusicSong, putMusicSong } = await import('../../lib/offline/db');
+        const localSong = await getMusicSong(songRouteId);
+        if (localSong) {
+          setSelectedSong(localSong);
+          return;
         }
-      });
-    });
+
+        // Fallback: se não estiver no cache local, busca online
+        const { data: remoteSong, error } = await supabase
+          .from('music_songs')
+          .select('*')
+          .eq('id', songRouteId)
+          .single();
+
+        if (error) throw error;
+
+        if (remoteSong) {
+          // Cacheia localmente para uso futuro offline
+          await putMusicSong(remoteSong);
+          setSelectedSong(remoteSong);
+        } else {
+          throw new Error('Song not found');
+        }
+      } catch (err) {
+        console.error('Erro ao carregar música:', err);
+        toast.error(t('music.song_not_found'));
+        if (navigate) navigate('music-repertoire');
+      }
+    };
+
+    loadSong();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songRouteId, user?.id]);
 

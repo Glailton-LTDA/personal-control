@@ -719,7 +719,7 @@ export default function TripsList({
             <div 
               ref={parentRef}
               style={{ 
-                maxHeight: '60vh', 
+                maxHeight: 'calc(100vh - 350px)', 
                 overflowY: 'auto', 
                 position: 'relative',
                 borderRadius: '16px',
@@ -729,6 +729,41 @@ export default function TripsList({
               }}
               className="custom-scrollbar"
             >
+              {!isMobile && !isExpensesLoading && filteredExpenses.length > 0 && (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '100px 2fr 1fr 1fr 1fr 140px', 
+                  textAlign: 'left', 
+                  background: 'var(--bg-card)',
+                  borderBottom: '1px solid var(--glass-border)',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 20,
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-muted)'
+                }}>
+                  <div 
+                    onClick={() => handleSort('date')} 
+                    style={{ cursor: 'pointer', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    {t('trips.date_col')} <ArrowUpDown size={12} />
+                  </div>
+                  <div 
+                    onClick={() => handleSort('description')} 
+                    style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
+                  >
+                    {t('trips.description_col')}
+                  </div>
+                  <div style={{ padding: '1rem 1.25rem' }}>{t('trips.category_col')}</div>
+                  <div style={{ padding: '1rem 1.25rem' }}>{t('trips.paid_by_col')}</div>
+                  <div style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>{t('trips.value_col')}</div>
+                  <div style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{t('trips.actions_col')}</div>
+                </div>
+              )}
+
               {isExpensesLoading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2rem', gap: '1.5rem', background: 'rgba(255,255,255,0.01)', borderRadius: '24px', border: '1px dashed var(--glass-border)' }}>
                   <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(99, 102, 241, 0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -747,41 +782,6 @@ export default function TripsList({
                     position: 'relative',
                   }}
                 >
-                  {!isMobile && (
-                    <div style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: '100px 2fr 1fr 1fr 1fr 120px', 
-                      textAlign: 'left', 
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      borderBottom: '1px solid var(--glass-border)',
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 20,
-                      backdropFilter: 'blur(12px)',
-                      fontWeight: 700,
-                      fontSize: '0.75rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      color: 'var(--text-muted)'
-                    }}>
-                      <div 
-                        onClick={() => handleSort('date')} 
-                        style={{ cursor: 'pointer', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                      >
-                        {t('trips.date_col')} <ArrowUpDown size={12} />
-                      </div>
-                      <div 
-                        onClick={() => handleSort('description')} 
-                        style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
-                      >
-                        {t('trips.description_col')}
-                      </div>
-                      <div style={{ padding: '1rem 1.25rem' }}>{t('trips.category_col')}</div>
-                      <div style={{ padding: '1rem 1.25rem' }}>{t('trips.paid_by_col')}</div>
-                      <div style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>{t('trips.value_col')}</div>
-                      <div style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{t('trips.actions_col')}</div>
-                    </div>
-                  )}
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const exp = filteredExpenses[virtualRow.index];
                     if (!exp) return null;
@@ -859,7 +859,7 @@ export default function TripsList({
                             width: '100%',
                             transform: `translateY(${virtualRow.start}px)`,
                             display: 'grid', 
-                            gridTemplateColumns: '100px 2fr 1fr 1fr 1fr 120px', 
+                            gridTemplateColumns: '100px 2fr 1fr 1fr 1fr 140px', 
                             alignItems: 'center',
                             borderBottom: '1px solid var(--glass-border)',
                             fontSize: '0.9rem',

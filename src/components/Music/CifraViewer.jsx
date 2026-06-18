@@ -187,7 +187,7 @@ const isChordLine = (line) => {
   };
 
   const tokens = line.trim().split(/\s+/);
-  const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
+  const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\)|\/\d+[-+#b]?)*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
   
   let chordsCount = 0;
   let relevantTokensCount = 0;
@@ -446,7 +446,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
     if (!song?.content) return [];
     
     const chords = new Set();
-    const chordRegex = /[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?/g;
+    const chordRegex = /[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\)|\/\d+[-+#b]?)*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?/g;
     const bracketRegex = /\[([A-G][b#]?[^\]]*)\]/gi;
     
     processedLines.forEach(line => {
@@ -471,7 +471,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
 
   // Transpõe e destaca os acordes em uma linha de texto preservando espaços
   const transposeChordLine = (lineContent) => {
-    const chordRegex = /([A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?)/g;
+    const chordRegex = /([A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\)|\/\d+[-+#b]?)*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?)/g;
     let result = '';
     let lastIndex = 0;
     let match;
@@ -494,7 +494,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
     let lastIndex = 0;
     let match;
     
-    const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
+    const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\)|\/\d+[-+#b]?)*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
 
     while ((match = regex.exec(lineContent)) !== null) {
       result += lineContent.substring(lastIndex, match.index);
@@ -529,7 +529,7 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
     let lastIndex = 0;
     let match;
     
-    const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
+    const chordRegex = /^[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\)|\/\d+[-+#b]?)*(?:\/[A-G][b#]?(?:m|M|maj|min|dim|aug|sus|add|alt|º|°|ø|Ø|[-+#b\d]|\([^)]+\))*)?$/i;
 
     while ((match = bracketRegex.exec(lineContent)) !== null) {
       result += lineContent.substring(lastIndex, match.index);
@@ -696,7 +696,8 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
         }
 
         .cifra-layout-grid:not(.cifra-fullscreen) .cifra-sheet-card {
-          max-height: 65vh !important;
+          max-height: none !important;
+          overflow-y: visible !important;
         }
 
         .cifra-fullscreen .cifra-sheet-card {
@@ -713,7 +714,8 @@ export default function CifraViewer({ song, customChords = {}, onEdit = null }) 
         }
 
         .cifra-layout-grid:not(.cifra-fullscreen) .cifra-sidebar-card {
-          max-height: 65vh !important;
+          max-height: none !important;
+          overflow-y: visible !important;
         }
 
         .cifra-fullscreen .cifra-sidebar-card {

@@ -663,7 +663,7 @@ export default function InvestmentList({ user, showValues = true }) {
         <div 
           ref={parentRef}
           style={{ 
-            maxHeight: '60vh', 
+            maxHeight: 'calc(100vh - 350px)', 
             overflowY: 'auto', 
             position: 'relative',
             borderRadius: '24px',
@@ -671,39 +671,37 @@ export default function InvestmentList({ user, showValues = true }) {
           }}
           className="custom-scrollbar"
         >
+          {!isMobile && !loading && flatItems.length > 0 && (
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '150px 2fr 1fr 1fr 140px', 
+              textAlign: 'left', 
+              borderBottom: '1px solid var(--glass-border)', 
+              background: 'var(--bg-card)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 20,
+              fontWeight: 700,
+            }}>
+              <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_date')}</div>
+              <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_account')}</div>
+              <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_final_balance')}</div>
+              <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_yield')}</div>
+              <div style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></div>
+            </div>
+          )}
           {loading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('investments.loading_records')}</div>
           ) : flatItems.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('investments.no_records')}</div>
           ) : (
-            <>
-              {!isMobile && (
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '150px 2fr 1fr 1fr 120px', 
-                  textAlign: 'left', 
-                  borderBottom: '1px solid var(--glass-border)', 
-                  background: 'rgba(255,255,255,0.03)',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 20,
-                  backdropFilter: 'blur(12px)',
-                  fontWeight: 700,
-                }}>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_date')}</div>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_account')}</div>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_final_balance')}</div>
-                  <div style={{ padding: '1.25rem 1rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{t('investments.table_yield')}</div>
-                  <div style={{ padding: '1.25rem 1rem', textAlign: 'right' }}></div>
-                </div>
-              )}
-              <div
-                style={{
-                  height: `${rowVirtualizer.getTotalSize()}px`,
-                  width: '100%',
-                  position: 'relative',
-                }}
-              >
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const item = flatItems[virtualRow.index];
                 if (!item) return null;
@@ -796,7 +794,7 @@ export default function InvestmentList({ user, showValues = true }) {
                           width: '100%',
                           transform: `translateY(${virtualRow.start}px)`,
                           display: 'grid',
-                          gridTemplateColumns: '150px 2fr 1fr 1fr 120px',
+                          gridTemplateColumns: '150px 2fr 1fr 1fr 140px',
                           background: 'color-mix(in srgb, var(--primary) 8%, transparent)',
                           borderBottom: '1px solid var(--glass-border)',
                           cursor: 'pointer',
@@ -838,7 +836,7 @@ export default function InvestmentList({ user, showValues = true }) {
                         width: '100%',
                         transform: `translateY(${virtualRow.start}px)`,
                         display: 'grid',
-                        gridTemplateColumns: '150px 2fr 1fr 1fr 120px',
+                        gridTemplateColumns: '150px 2fr 1fr 1fr 140px',
                         borderBottom: '1px solid var(--glass-border)',
                         fontSize: '0.9rem',
                         alignItems: 'center',
@@ -866,7 +864,6 @@ export default function InvestmentList({ user, showValues = true }) {
                 }
               })}
             </div>
-          </>
           )}
         </div>
       </div>
