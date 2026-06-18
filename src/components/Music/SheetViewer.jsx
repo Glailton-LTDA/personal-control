@@ -774,7 +774,8 @@ export default function SheetViewer({ song, user, onEdit = null }) {
         }
 
         .sheet-layout-container:not(.sheet-fullscreen) .sheet-scroll-container {
-          max-height: 72vh !important;
+          max-height: none !important;
+          overflow-y: visible !important;
         }
 
         .sheet-fullscreen .sheet-scroll-container {
@@ -789,9 +790,13 @@ export default function SheetViewer({ song, user, onEdit = null }) {
           flex-direction: column;
           gap: 1rem;
           height: 100%;
-          max-height: 72vh;
           overflow-y: auto;
           transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        }
+
+        .sheet-layout-container:not(.sheet-fullscreen) .sheet-sidebar-card {
+          max-height: none !important;
+          overflow-y: visible !important;
         }
 
         .sheet-layout-container.sidebar-collapsed {

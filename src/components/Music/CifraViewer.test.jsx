@@ -88,6 +88,37 @@ describe('CifraViewer Component', () => {
     expect(screen.getAllByText('Gm').length).toBeGreaterThan(0);
   });
 
+  it('highlights and transposes slash extension chords like C7/9 and A7/4 correctly', () => {
+    const songWithExtensions = {
+      id: 'song-ext-123',
+      title: 'Disritmia',
+      artist: 'Martinho da Vila',
+      type: 'cifra',
+      content: `Gm C7/9 Gm
+Eu quero me esconder debaixo
+A7/4 D7/9
+Dessa tua saia`
+    };
+
+    render(<CifraViewer song={songWithExtensions} />);
+
+    // Check if chords are highlighted (rendered as chord-highlight spans)
+    expect(screen.getAllByText('Gm').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('C7/9').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('A7/4').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('D7/9').length).toBeGreaterThan(0);
+
+    // Transpose +1 half tone
+    const incBtn = screen.getByTitle('Aumentar Meio Tom');
+    fireEvent.click(incBtn);
+
+    // Gm -> G#m, C7/9 -> C#7/9, A7/4 -> A#7/4, D7/9 -> D#7/9
+    expect(screen.getAllByText('G#m').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('C#7/9').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('A#7/4').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('D#7/9').length).toBeGreaterThan(0);
+  });
+
   it('filters tablature blocks based on instrument specific tags', () => {
     const songWithTags = {
       id: 'song-tag-123',
