@@ -424,7 +424,15 @@ export default function InvestmentList({ user, showValues = true }) {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '100px' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '1.5rem', 
+      paddingBottom: '0',
+      flex: 1,
+      minHeight: 0,
+      height: '100%'
+    }}>
       
       {/* Filters and Summary Header */}
       <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
@@ -663,11 +671,13 @@ export default function InvestmentList({ user, showValues = true }) {
         <div 
           ref={parentRef}
           style={{ 
-            maxHeight: 'calc(100vh - 350px)', 
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto', 
             position: 'relative',
             borderRadius: '24px',
-            paddingRight: '6px'
+            paddingRight: '6px',
+            paddingBottom: isMobile ? '80px' : '0'
           }}
           className="custom-scrollbar"
         >

@@ -180,7 +180,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
   }
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' }}>
       <TripsList 
         user={user} 
         refreshKey={refreshKey || localRefreshKey} 

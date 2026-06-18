@@ -651,7 +651,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
               <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('settings.version', 'Versão')}</span>
-                  <span style={{ color: 'var(--text-main)', fontWeight: 800 }}>1.2.5 (Stable)</span>
+                  <span style={{ color: 'var(--text-main)', fontWeight: 800 }}>1.7.0 (Stable)</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('settings.build_id', 'Build ID')}</span>

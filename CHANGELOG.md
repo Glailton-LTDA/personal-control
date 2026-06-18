@@ -2,6 +2,19 @@
 
 Este arquivo registra todas as alterações notáveis feitas no projeto **PersonalControl**. O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Versionamento Semântico](https://semver.org/spec/v2.0.0-rc.2.html).
 
+## [1.7.0] - 2026-06-17
+
+### Corrigido
+- **Navegação de Setlists**:
+  - Botão de voltar (ChevronLeft) redireciona condicionalmente à rota correta (`music-setlists` ou `music-repertoire`).
+  - Subtabs persistem no `sessionStorage` via `useSessionState` e não são apagadas ao abrir uma música.
+- **Rolagem Dupla (Scroll-within-Scroll)**:
+  - `Dashboard.jsx`: travado o scroll do `<main>` com `overflowY: hidden` e `display: flex` para as abas de trips, investments e music.
+  - `TripsList.jsx`: estrutura flexível incondicional nos contêineres, remoção de `maxHeight` na lista virtualizada e `paddingBottom: 80px` no mobile para o FAB.
+  - `TripsItinerary.jsx`: layout flexível no grid de colunas, remoção de `maxHeight` da barra lateral e scroll interno independente nos detalhes.
+  - `InvestmentList.jsx`: layout flexível incondicional, remoção de `maxHeight` da tabela virtualizada e `paddingBottom: 80px` no mobile.
+  - `Trips.jsx` e `Investments.jsx`: estilo flex no elemento raiz para esticar verticalmente.
+
 ## [1.6.0] - 2026-06-11
 
 ### Adicionado

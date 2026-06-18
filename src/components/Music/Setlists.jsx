@@ -2,13 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, ChevronLeft, ChevronUp, ChevronDown, Play, X, Loader2, ListPlus, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { useSessionState } from '../../hooks/useMusicSessionState';
 
 const MODAL_PAGE_SIZE = 30;
 
 export default function Setlists({ user, onSelectSong }) {
   const [setlists, setSetlists] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSetlist, setActiveSetlist] = useState(null);
+  const [activeSetlistId, setActiveSetlistId] = useSessionState('activeSetlistId', null);
+  const activeSetlist = setlists.find(s => s.id === activeSetlistId) || null;
   const [setlistSongs, setSetlistSongs] = useState([]);
   const [songsLoading, setSongsLoading] = useState(false);
 
@@ -142,8 +144,8 @@ export default function Setlists({ user, onSelectSong }) {
         .eq('id', id);
       if (error) throw error;
       toast.success('Setlist excluído!');
-      if (activeSetlist?.id === id) {
-        setActiveSetlist(null);
+      if (activeSetlistId === id) {
+        setActiveSetlistId(null);
       }
       fetchSetlists();
     } catch (err) {
@@ -298,7 +300,7 @@ export default function Setlists({ user, onSelectSong }) {
         {/* Back and title bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button className="icon-btn" onClick={() => setActiveSetlist(null)} style={{ padding: '8px' }}>
+            <button className="icon-btn" onClick={() => setActiveSetlistId(null)} style={{ padding: '8px' }}>
               <ChevronLeft size={18} />
             </button>
             <div>
@@ -630,7 +632,7 @@ export default function Setlists({ user, onSelectSong }) {
           {setlists.map(setlist => (
             <div
               key={setlist.id}
-              onClick={() => setActiveSetlist(setlist)}
+              onClick={() => setActiveSetlistId(setlist.id)}
               className="glass-card"
               style={{
                 padding: '1.5rem',

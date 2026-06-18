@@ -32,7 +32,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
   const [pageSize, setPageSize] = useSessionState('pageSize', 25);
 
   // Sub-aba — URL é a fonte de verdade; sessionStorage como fallback
-  const [subTab, setSubTab] = useState(() => mode === 'setlists' ? 'setlists' : 'repertoire');
+  const [subTab, setSubTab] = useSessionState('subTab', mode === 'setlists' ? 'setlists' : 'repertoire');
 
   // selectedArtist: URL tem prioridade; sessionStorage como fallback para refresh simples
   const [selectedArtist, setSelectedArtist] = useSessionState('selectedArtist', (() => {
@@ -251,8 +251,8 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
       setSubTab('setlists');
       return;
     }
-    setSubTab('repertoire');
     if (songRouteId) return; // modo de música — tratado pelo Efeito 1
+    setSubTab('repertoire');
     if (mode.startsWith('repertoire-letter-')) {
       const charCode = mode.replace('repertoire-letter-', '');
       const char = charCode === 'num' ? '#' : charCode.toUpperCase();
@@ -376,15 +376,18 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
         {/* Back header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <a
-            href="/music-repertoire"
+            href={subTab === 'setlists' ? "/music-setlists" : "/music-repertoire"}
             className="icon-btn"
             onClick={(e) => {
               e.preventDefault();
-              if (navigate) navigate('music-repertoire');
-              else setSelectedSong(null);
+              if (navigate) {
+                navigate(subTab === 'setlists' ? 'music-setlists' : 'music-repertoire');
+              } else {
+                setSelectedSong(null);
+              }
             }}
             style={{ padding: '8px', display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}
-            title={t('music.back_to_repertoire')}
+            title={subTab === 'setlists' ? t('music.back_to_setlists', 'Voltar para Setlists') : t('music.back_to_repertoire')}
           >
             <ChevronLeft size={18} />
           </a>

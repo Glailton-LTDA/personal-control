@@ -293,7 +293,14 @@ export default function TripsList({
 
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div className="fade-in" style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '2rem',
+      flex: 1,
+      minHeight: 0,
+      height: '100%'
+    }}>
       
       <div className="trip-header-container" style={{ zIndex: 1100, position: 'relative' }}>
         <div className="trip-selector-wrapper" style={{ position: 'relative', zIndex: isTripMenuOpen ? 2000 : 1 }}>
@@ -429,7 +436,13 @@ export default function TripsList({
           onViewChecklists={() => { setIsDetailsOpen(false); onViewChecklists(); }} 
         />
       ) : selectedTrip ? (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="fade-in" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '2rem',
+          flex: 1,
+          minHeight: 0
+        }}>
           <div className="mobile-only">
             {selectedTrip && (
               <div className="trip-active-header glass-card" style={{ padding: '1.5rem', marginBottom: '0.5rem', border: '1px solid var(--primary-light)', background: 'rgba(99,102,241,0.05)', borderRadius: '20px' }}>
@@ -681,7 +694,13 @@ export default function TripsList({
             </div>
           </div>
 
-          <div className="glass-card" style={{ padding: '2rem' }}>
+          <div className="glass-card" style={{ 
+            padding: '2rem',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.1rem' }}>
                 <DollarSign size={22} className="text-primary" /> {t('trips.expenses_title')}
@@ -719,13 +738,15 @@ export default function TripsList({
             <div 
               ref={parentRef}
               style={{ 
-                maxHeight: 'calc(100vh - 350px)', 
+                flex: 1,
+                minHeight: 0,
                 overflowY: 'auto', 
                 position: 'relative',
                 borderRadius: '16px',
                 border: '1px solid var(--glass-border)',
                 background: 'var(--bg-card)',
-                paddingRight: '6px'
+                paddingRight: '6px',
+                paddingBottom: isMobile ? '80px' : '0'
               }}
               className="custom-scrollbar"
             >
