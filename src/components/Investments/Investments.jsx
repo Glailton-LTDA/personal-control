@@ -11,7 +11,7 @@ export default function Investments({ user, refreshKey, mode, showValues = true 
   }, [refreshKey, mode]);
 
   return (
-    <div key={key}>
+    <div key={key} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' }}>
       {mode === 'dashboard' && <InvestmentDashboard user={user} showValues={showValues} />}
       {mode === 'list' && <InvestmentList user={user} showValues={showValues} />}
       {mode === 'settings' && <InvestmentSettings user={user} />}

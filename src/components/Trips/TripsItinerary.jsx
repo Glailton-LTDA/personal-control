@@ -225,7 +225,19 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
   }
 
   return (
-    <div style={{ padding: isMobile ? '0.5rem' : '1rem', maxWidth: '1200px', margin: '0 auto', overflowX: 'hidden', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ 
+      padding: isMobile ? '0.5rem' : '1rem', 
+      maxWidth: '1200px', 
+      margin: '0 auto', 
+      overflowX: 'hidden', 
+      width: '100%', 
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      flex: 1,
+      minHeight: 0,
+      height: '100%'
+    }}>
       {/* Header */}
       <div style={{ 
         display: 'flex', 
@@ -294,13 +306,22 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
         display: 'grid', 
         gridTemplateColumns: isMobile ? '100%' : '300px 1fr', 
         gap: isMobile ? '1rem' : '2rem',
-        alignItems: 'start',
+        alignItems: 'stretch',
         width: '100%',
-        minWidth: 0
+        minWidth: 0,
+        flex: 1,
+        minHeight: 0
       }}>
         {/* Sidebar: Trip Selection */}
         {(!isMobile || !selectedTrip) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '1rem',
+            flex: 1,
+            minHeight: 0,
+            height: '100%'
+          }}>
             <div className="glass-input-container" style={{ position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
               <input 
@@ -313,7 +334,16 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
               />
             </div>
  
-            <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: isMobile ? '300px' : 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '0.5rem' }}>
+            <div className="custom-scrollbar" style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '0.5rem', 
+              flex: 1, 
+              minHeight: 0, 
+              overflowY: 'auto', 
+              paddingRight: '0.5rem',
+              paddingBottom: isMobile ? '60px' : '0'
+            }}>
               {filteredTrips.map(trip => (
                 <button
                   key={trip.id}
@@ -366,7 +396,12 @@ export default function TripsItinerary({ user, initialTripId = null, onBack }) {
               position: 'relative',
               width: '100%',
               minWidth: 0,
-              overflow: 'hidden'
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              paddingBottom: isMobile ? '80px' : '2rem'
             }}
           >
           {isMobile && selectedTrip && (

@@ -438,83 +438,96 @@ export default function Dashboard({ user }) {
       )}
 
       {/* ── Main Content Area ── */}
-      <main style={{ flex: 1, padding: activeTab === 'launchpad' ? 0 : isMobile ? '1rem' : '2rem', overflowY: 'auto', position: 'relative' }}>
-        <AnimatePresence mode="wait">
-          <Motion.div
-            key={activeTab + refreshKey}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.1 }}
-          >
-            {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
-            {activeTab === 'finances-transactions' && (
-              <FinanceList
-                user={user}
-                refreshKey={refreshKey}
-                showValues={showValues}
-                onEdit={(item) => { setEditingTransaction(item); setModalOpen(true); }}
-                onToggleValues={() => setShowValues(!showValues)}
-              />
-            )}
-            {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
-            {activeTab === 'launchpad' && (
-              <Launchpad
-                user={user}
-                onNavigate={navigate}
-                menuItems={menuItems.filter(i => i.id !== 'launchpad')}
-                onLogout={() => supabase.auth.signOut()}
-              />
-            )}
-            {activeTab.startsWith('settings') && (
-              <SettingsView 
-                user={user} 
-                menuOrder={menuOrder} 
-                setMenuOrder={setMenuOrder} 
-                menuItems={defaultMenuItems.map(i => ({ ...i, label: t(`nav.${i.key}`) }))} 
-                activeTab={activeTab} 
-                theme={theme}
-                setTheme={setTheme}
-              />
-            )}
-            {activeTab.startsWith('cars') && (
-              <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
-            )}
-            {activeTab.startsWith('investments') && (
-              <Investments user={user} refreshKey={refreshKey} mode={activeTab.replace('investments-', '')} showValues={showValues} />
-            )}
-            {activeTab.startsWith('trips') && (
-              <Trips user={user} refreshKey={refreshKey} mode={activeTab.replace('trips-', '')} showValues={showValues} />
-            )}
-            {activeTab.startsWith('lists') && (
-              activeTab === 'lists-notes' ? (
-                <MarkdownNotes user={user} refreshKey={refreshKey} />
-              ) : (
-                <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
-              )
-            )}
-            {activeTab.startsWith('music') && (
-              <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} navigate={navigate} />
-            )}
+      {(() => {
+        const isScrollLockedTab = ['investments-list', 'trips-list', 'trips-itinerary', 'music-repertoire', 'music-setlists'].includes(activeTab);
+        return (
+          <main style={{ 
+            flex: 1, 
+            padding: activeTab === 'launchpad' ? 0 : isMobile ? '1rem' : '2rem', 
+            overflowY: isScrollLockedTab ? 'hidden' : 'auto', 
+            position: 'relative',
+            display: isScrollLockedTab ? 'flex' : 'block',
+            flexDirection: isScrollLockedTab ? 'column' : 'row'
+          }}>
+            <AnimatePresence mode="wait">
+              <Motion.div
+                key={activeTab + refreshKey}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.1 }}
+                style={isScrollLockedTab ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' } : undefined}
+              >
+                {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
+                {activeTab === 'finances-transactions' && (
+                  <FinanceList
+                    user={user}
+                    refreshKey={refreshKey}
+                    showValues={showValues}
+                    onEdit={(item) => { setEditingTransaction(item); setModalOpen(true); }}
+                    onToggleValues={() => setShowValues(!showValues)}
+                  />
+                )}
+                {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
+                {activeTab === 'launchpad' && (
+                  <Launchpad
+                    user={user}
+                    onNavigate={navigate}
+                    menuItems={menuItems.filter(i => i.id !== 'launchpad')}
+                    onLogout={() => supabase.auth.signOut()}
+                  />
+                )}
+                {activeTab.startsWith('settings') && (
+                  <SettingsView 
+                    user={user} 
+                    menuOrder={menuOrder} 
+                    setMenuOrder={setMenuOrder} 
+                    menuItems={defaultMenuItems.map(i => ({ ...i, label: t(`nav.${i.key}`) }))} 
+                    activeTab={activeTab} 
+                    theme={theme}
+                    setTheme={setTheme}
+                  />
+                )}
+                {activeTab.startsWith('cars') && (
+                  <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
+                )}
+                {activeTab.startsWith('investments') && (
+                  <Investments user={user} refreshKey={refreshKey} mode={activeTab.replace('investments-', '')} showValues={showValues} />
+                )}
+                {activeTab.startsWith('trips') && (
+                  <Trips user={user} refreshKey={refreshKey} mode={activeTab.replace('trips-', '')} showValues={showValues} />
+                )}
+                {activeTab.startsWith('lists') && (
+                  activeTab === 'lists-notes' ? (
+                    <MarkdownNotes user={user} refreshKey={refreshKey} />
+                  ) : (
+                    <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
+                  )
+                )}
+                {activeTab.startsWith('music') && (
+                  <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} navigate={navigate} />
+                )}
 
-            {/* Fallback for development */}
-            {activeTab !== 'finances-transactions' &&
-              activeTab !== 'finances-dashboard' &&
-              activeTab !== 'finances-settings' &&
-              !activeTab.startsWith('settings') &&
-              activeTab !== 'launchpad' &&
-              !activeTab.startsWith('cars') &&
-              !activeTab.startsWith('trips') &&
-              !activeTab.startsWith('lists') &&
-              !activeTab.startsWith('music') &&
-              !activeTab.startsWith('investments') && (
-                <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
-                  <p style={{ color: 'var(--text-muted)' }}>{t('dashboard.module_development', { module: activeTab })}</p>
-                </div>
-              )}
-          </Motion.div>
-        </AnimatePresence>
-      </main>
+                {/* Fallback for development */}
+                {activeTab !== 'finances-transactions' &&
+                  activeTab !== 'finances-dashboard' &&
+                  activeTab !== 'finances-settings' &&
+                  !activeTab.startsWith('settings') &&
+                  activeTab !== 'launchpad' &&
+                  !activeTab.startsWith('cars') &&
+                  !activeTab.startsWith('trips') &&
+                  !activeTab.startsWith('lists') &&
+                  !activeTab.startsWith('music') &&
+                  !activeTab.startsWith('investments') && (
+                    <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
+                      <p style={{ color: 'var(--text-muted)' }}>{t('dashboard.module_development', { module: activeTab })}</p>
+                    </div>
+                  )}
+              </Motion.div>
+            </AnimatePresence>
+          </main>
+        );
+      })()}
       <Footer />
 
       {/* ── Contextual FAB ── */}
