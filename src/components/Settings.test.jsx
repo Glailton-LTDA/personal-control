@@ -22,6 +22,7 @@ vi.mock('../lib/supabase', () => ({
       select: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
     })),
   }
 }));
@@ -194,6 +195,7 @@ describe('Settings Component', () => {
     vi.mocked(supabase.from).mockReturnValue({
       select: mockSelect,
       single: mockSingle,
+      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
     });
 
     const setVisibleModulesMock = vi.fn();
