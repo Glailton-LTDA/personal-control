@@ -6,7 +6,7 @@ import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Ey
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-export default function Settings({ user, menuOrder, setMenuOrder, menuItems, activeTab, theme, setTheme }) {
+export default function Settings({ user, menuOrder, setMenuOrder, menuItems, activeTab, theme, setTheme, visibleModules = [], setVisibleModules = () => {} }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState({
@@ -125,6 +125,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
         user_id: user.id, 
         ...settings,
         menu_order: menuOrder,
+        visible_modules: visibleModules,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
 
@@ -188,6 +189,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
       .upsert({ 
         user_id: user.id, 
         menu_order: newOrder,
+        visible_modules: visibleModules,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
     
@@ -422,6 +424,65 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                   </div>
                 );
               })}
+            </div>
+          </Motion.div>
+
+          {/* Card: Módulos Visíveis */}
+          <Motion.div data-testid="section-visible-modules" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="glass-card" style={{ padding: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+              <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
+                <Layout size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.visible_modules')}</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{t('settings.visible_modules_desc')}</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {menuItems
+                .filter(item => item.id !== 'launchpad' && item.id !== 'settings')
+                .map(item => {
+                  const isVisible = (visibleModules || []).includes(item.id);
+                  const Icon = item.icon;
+                  return (
+                    <label 
+                      key={item.id} 
+                      data-testid={`module-visibility-row-${item.id}`}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        padding: '1rem', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        borderRadius: '16px', 
+                        border: '1px solid var(--glass-border)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <Icon size={18} style={{ color: isVisible ? 'var(--primary)' : 'var(--text-muted)' }} />
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem', color: isVisible ? 'var(--text-main)' : 'var(--text-muted)' }}>{item.label}</span>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        data-testid={`module-visibility-check-${item.id}`}
+                        checked={isVisible}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          let newVisible;
+                          if (checked) {
+                            newVisible = [...visibleModules, item.id];
+                          } else {
+                            newVisible = visibleModules.filter(id => id !== item.id);
+                          }
+                          setVisibleModules(newVisible);
+                        }}
+                        style={{ width: '20px', height: '20px', accentColor: 'var(--primary)' }}
+                      />
+                    </label>
+                  );
+                })}
             </div>
           </Motion.div>
 

@@ -140,6 +140,10 @@ export default function Dashboard({ user }) {
     const saved = localStorage.getItem('personal-control-show-values');
     return saved !== null ? saved === 'true' : true;
   });
+  const [visibleModules, setVisibleModules] = useState(() => {
+    const saved = localStorage.getItem('personal-control-visible-modules');
+    return saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
+  });
   const [menuOrder, setMenuOrder] = useState(() => {
     const saved = localStorage.getItem('personal-control-menu-order');
     const savedOrder = saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
@@ -189,6 +193,10 @@ export default function Dashboard({ user }) {
   }, [showValues]);
 
   useEffect(() => {
+    localStorage.setItem('personal-control-visible-modules', JSON.stringify(visibleModules));
+  }, [visibleModules]);
+
+  useEffect(() => {
     localStorage.setItem('personal-control-expanded-sections', JSON.stringify(expandedSections));
   }, [expandedSections]);
 
@@ -202,7 +210,7 @@ export default function Dashboard({ user }) {
   const fetchMenuOrder = useCallback(async () => {
     const { data } = await supabase
       .from('notification_settings')
-      .select('menu_order')
+      .select('menu_order, visible_modules')
       .maybeSingle();
 
     if (data?.menu_order) {
@@ -219,6 +227,13 @@ export default function Dashboard({ user }) {
       // Filter out invalid IDs
       const finalOrder = mergedOrder.filter(id => currentIds.includes(id));
       setMenuOrder(finalOrder);
+    }
+
+    if (data?.visible_modules) {
+      const currentVisible = new Set(data.visible_modules);
+      currentVisible.add('launchpad');
+      currentVisible.add('settings');
+      setVisibleModules(Array.from(currentVisible));
     }
   }, []);
 
@@ -306,7 +321,7 @@ export default function Dashboard({ user }) {
 
         {/* Primary Nav */}
         <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
-          {menuItems.map(item => {
+          {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
             const isActive = activeTab === item.id || activeTab.startsWith(item.id);
             const targetTab = getModuleInitialTab(item.id);
             return (
@@ -473,7 +488,7 @@ export default function Dashboard({ user }) {
                   <Launchpad
                     user={user}
                     onNavigate={navigate}
-                    menuItems={menuItems.filter(i => i.id !== 'launchpad')}
+                    menuItems={menuItems.filter(i => i.id !== 'launchpad' && visibleModules.includes(i.id))}
                     onLogout={() => supabase.auth.signOut()}
                   />
                 )}
@@ -486,6 +501,8 @@ export default function Dashboard({ user }) {
                     activeTab={activeTab} 
                     theme={theme}
                     setTheme={setTheme}
+                    visibleModules={visibleModules}
+                    setVisibleModules={setVisibleModules}
                   />
                 )}
                 {activeTab.startsWith('cars') && (

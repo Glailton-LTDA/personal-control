@@ -133,5 +133,75 @@ test.describe('Autenticação e Dashboard', () => {
     await expect(pendingTotalCard).not.toBeVisible();
   });
 
-  // O teste de colapsar menu lateral foi removido pois a navegação agora é superior (Orbit Layout)
+  test('deve ocultar e exibir módulos na navegação com base nas configurações de visibilidade', async ({ page }) => {
+    let currentVisibleModules = ['launchpad', 'finances', 'settings'];
+    let upsertedData = null;
+
+    await page.route('**/rest/v1/notification_settings*', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            recipient_email: 'test@example.com',
+            bcc_email: '',
+            menu_order: ['launchpad', 'finances', 'cars', 'settings'],
+            visible_modules: currentVisibleModules,
+            skip_email_modal: false,
+            auto_send_on_paid: false,
+            skip_confirmations: false
+          })
+        });
+      } else if (method === 'POST') {
+        const payload = JSON.parse(route.request().postData());
+        upsertedData = payload;
+        if (payload.visible_modules) {
+          currentVisibleModules = payload.visible_modules;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(payload)
+        });
+      }
+    });
+
+    await page.goto('/');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.click('button:has-text("Entrar")');
+    await page.waitForLoadState('networkidle');
+    await unlockApp(page);
+
+    // Módulo Finanças deve estar visível no menu
+    await expect(page.getByTestId('sidebar-group-finances')).toBeVisible();
+
+    // Módulo Carros NÃO deve estar visível no menu
+    await expect(page.getByTestId('sidebar-group-cars')).not.toBeVisible();
+
+    // Navega para Ajustes
+    await page.getByTestId('sidebar-group-settings').click();
+    await page.waitForLoadState('networkidle');
+
+    // Módulo Carros deve aparecer na lista de Módulos Visíveis em Ajustes como desmarcado
+    const carsVisibilityCheck = page.getByTestId('module-visibility-check-cars');
+    await expect(carsVisibilityCheck).not.toBeChecked();
+
+    // Marca o módulo Carros
+    await page.click('label[data-testid="module-visibility-row-cars"]');
+    await expect(carsVisibilityCheck).toBeChecked();
+
+    // Clica em Salvar Configurações
+    await page.getByTestId('save-settings-button').click();
+    await page.waitForLoadState('networkidle');
+
+    // Verifica que o payload foi enviado ao Supabase contendo 'cars' nos módulos visíveis
+    expect(upsertedData).not.toBeNull();
+    expect(upsertedData.visible_modules).toContain('cars');
+
+    // Agora o módulo Carros deve estar visível no menu
+    await expect(page.getByTestId('sidebar-group-cars')).toBeVisible();
+  });
 });
+

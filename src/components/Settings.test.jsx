@@ -183,4 +183,47 @@ describe('Settings Component', () => {
 
     expect(mockSyncFn).toHaveBeenCalled();
   });
+
+  it('renders visible modules toggle and handles module visibility changes', async () => {
+    const mockSelect = vi.fn().mockReturnThis();
+    const mockSingle = vi.fn().mockResolvedValue({ 
+      data: { recipient_email: 'test@example.com', bcc_email: '', skip_email_modal: false, skip_confirmations: false, auto_send_on_paid: false }, 
+      error: null 
+    });
+    
+    vi.mocked(supabase.from).mockReturnValue({
+      select: mockSelect,
+      single: mockSingle,
+    });
+
+    const setVisibleModulesMock = vi.fn();
+    const visibleModules = ['finances', 'cars'];
+
+    await act(async () => {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <Settings 
+            user={mockUser} 
+            menuOrder={mockMenuOrder} 
+            setMenuOrder={vi.fn()} 
+            menuItems={mockMenuItems} 
+            activeTab="settings-general"
+            visibleModules={visibleModules}
+            setVisibleModules={setVisibleModulesMock}
+          />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(screen.getByTestId('section-visible-modules')).toBeDefined();
+    
+    const financesCheckbox = screen.getByTestId('module-visibility-check-finances');
+    expect(financesCheckbox.checked).toBe(true);
+
+    await act(async () => {
+      await userEvent.click(financesCheckbox);
+    });
+    expect(setVisibleModulesMock).toHaveBeenCalledWith(['cars']);
+  });
 });
+

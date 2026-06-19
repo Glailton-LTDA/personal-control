@@ -141,4 +141,21 @@ describe('Dashboard Navigation', () => {
     expect(localStorage.getItem('pc_selected_trip_v1')).toBe('trip-abc');
     expect(localStorage.getItem('personal-control-active-tab')).toBe('trips-itinerary');
   });
+
+  it('filters navigation items based on visible modules stored in localStorage', async () => {
+    localStorage.setItem('personal-control-visible-modules', JSON.stringify(['launchpad', 'finances', 'settings']));
+    
+    let container;
+    await act(async () => {
+      const rendered = render(<Dashboard user={mockUser} />);
+      container = rendered.container;
+    });
+
+    const financesTab = container.querySelector('[data-testid="sidebar-group-finances"]');
+    expect(financesTab).not.toBeNull();
+
+    const carsTab = container.querySelector('[data-testid="sidebar-group-cars"]');
+    expect(carsTab).toBeNull();
+  });
 });
+
