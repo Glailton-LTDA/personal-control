@@ -176,6 +176,31 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
     setPwSaving(false);
   }
 
+  const toggleModuleVisibility = async (moduleId, isVisible) => {
+    let newVisible;
+    if (isVisible) {
+      newVisible = [...visibleModules, moduleId];
+    } else {
+      newVisible = visibleModules.filter(id => id !== moduleId);
+    }
+    setVisibleModules(newVisible);
+
+    const { error } = await supabase
+      .from('notification_settings')
+      .upsert({ 
+        user_id: user.id, 
+        ...settings,
+        menu_order: menuOrder,
+        visible_modules: newVisible,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('Error saving module visibility:', error);
+      toast.error('Erro ao salvar visibilidade do módulo.');
+    }
+  };
+
   const moveItem = async (index, direction) => {
     const newOrder = [...menuOrder];
     const targetIndex = index + direction;
@@ -468,16 +493,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
                         type="checkbox" 
                         data-testid={`module-visibility-check-${item.id}`}
                         checked={isVisible}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          let newVisible;
-                          if (checked) {
-                            newVisible = [...visibleModules, item.id];
-                          } else {
-                            newVisible = visibleModules.filter(id => id !== item.id);
-                          }
-                          setVisibleModules(newVisible);
-                        }}
+                        onChange={(e) => toggleModuleVisibility(item.id, e.target.checked)}
                         style={{ width: '20px', height: '20px', accentColor: 'var(--primary)' }}
                       />
                     </label>
