@@ -118,7 +118,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       }
       onSave();
     } catch (err) {
-      toast.error(t('finances.error_save') + ': ' + err.message);
+      toast.error(t('common.error_save') + ': ' + err.message);
     } finally {
       setIsSaving(false);
     }
