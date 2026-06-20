@@ -162,11 +162,16 @@ export default function Dashboard({ user }) {
     return mergedOrder.filter(id => currentIds.includes(id));
   });
   const drawerRef = useRef(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 1100);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+  const [isBottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [isSidebarExpanded, setSidebarExpanded] = useState(false);
 
   const navigate = useCallback((tab) => {
     routerNavigate(tab);
     setDrawerOpen(false);
+    setBottomSheetOpen(false);
+    setSidebarExpanded(false);
   }, [routerNavigate]);
 
   const handleNavClick = useCallback((e, tab) => {
@@ -176,8 +181,21 @@ export default function Dashboard({ user }) {
     }
   }, [navigate]);
 
+  const handleTabletNavClick = useCallback((e, tab) => {
+    if (!isSidebarExpanded) {
+      e.preventDefault();
+      e.stopPropagation();
+      setSidebarExpanded(true);
+    } else {
+      handleNavClick(e, tab);
+    }
+  }, [isSidebarExpanded, handleNavClick]);
+
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 1100);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -298,7 +316,7 @@ export default function Dashboard({ user }) {
         display: 'flex',
         alignItems: 'center',
         padding: isMobile ? '0 1rem' : '0 2rem',
-        gap: isMobile ? '1rem' : '3rem',
+        justifyContent: 'space-between',
         position: 'sticky',
         top: 0,
         zIndex: 100
@@ -307,7 +325,7 @@ export default function Dashboard({ user }) {
         <a
           href="/launchpad"
           onClick={(e) => handleNavClick(e, 'launchpad')}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', textDecoration: 'none' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', textDecoration: 'none', flexShrink: 0 }}
         >
           <div style={{ width: 38, height: 38, background: 'var(--primary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px var(--primary)' }}>
             <LayoutGrid color="white" size={24} />
@@ -319,43 +337,46 @@ export default function Dashboard({ user }) {
           )}
         </a>
 
-        {/* Primary Nav */}
-        <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
-          {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
-            const isActive = activeTab === item.id || activeTab.startsWith(item.id);
-            const targetTab = getModuleInitialTab(item.id);
-            return (
-              <a
-                key={item.id}
-                href={`/${targetTab}`}
-                data-testid={`sidebar-group-${item.id}`}
-                onClick={(e) => handleNavClick(e, targetTab)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: isActive ? 'var(--primary)' : 'transparent',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: isActive ? 'white' : 'var(--text-muted)',
-                  fontWeight: isActive ? 600 : 500,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  transition: 'all 0.2s',
-                  whiteSpace: 'nowrap',
-                  textDecoration: 'none'
-                }}
-              >
-                <item.icon size={18} />
-                <span className="hide-mobile">{t(`nav.${item.id}`)}</span>
-              </a>
-            );
-          })}
-        </nav>
+        {/* Primary Nav (Desktop only) */}
+        {!isMobile && !isTablet && (
+          <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, justifyContent: 'center', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 1rem' }}>
+            {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
+              const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+              const targetTab = getModuleInitialTab(item.id);
+              return (
+                <a
+                  key={item.id}
+                  href={`/${targetTab}`}
+                  data-testid={`sidebar-group-${item.id}`}
+                  onClick={(e) => handleNavClick(e, targetTab)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: isActive ? 'var(--primary)' : 'transparent',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: isActive ? 'white' : 'var(--text-muted)',
+                    fontWeight: isActive ? 600 : 500,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    transition: 'all 0.2s',
+                    whiteSpace: 'nowrap',
+                    textDecoration: 'none',
+                    flexShrink: 0
+                  }}
+                >
+                  <item.icon size={18} />
+                  <span className="hide-mobile">{t(`nav.${item.id}`)}</span>
+                </a>
+              );
+            })}
+          </nav>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.75rem' : '1.5rem', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? t('dashboard.hide_values') : t('dashboard.show_values')}>
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
@@ -363,10 +384,12 @@ export default function Dashboard({ user }) {
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingLeft: '1rem', borderLeft: '1px solid var(--glass-border)' }}>
-            <div className="hide-mobile" style={{ textAlign: 'right' }}>
-              <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{user?.email?.split('@')[0]}</p>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingLeft: isMobile ? '0.5rem' : '1rem', borderLeft: '1px solid var(--glass-border)' }}>
+            {!isMobile && (
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{user?.email?.split('@')[0]}</p>
+              </div>
+            )}
             <div
               onClick={() => supabase.auth.signOut()}
               style={{ width: 35, height: 35, borderRadius: '10px', background: 'linear-gradient(135deg, var(--primary), #818cf8)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '0.9rem' }}>
@@ -375,6 +398,118 @@ export default function Dashboard({ user }) {
           </div>
         </div>
       </header>
+
+      {/* ── Tablet Left Sidebar ── */}
+      {isTablet && (
+        <aside className={`tablet-sidebar ${isSidebarExpanded ? 'expanded' : ''}`} onClick={() => setSidebarExpanded(!isSidebarExpanded)}>
+          {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
+            const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+            const targetTab = getModuleInitialTab(item.id);
+            return (
+              <a
+                key={item.id}
+                href={`/${targetTab}`}
+                className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+                onClick={(e) => handleTabletNavClick(e, targetTab)}
+                title={t(`nav.${item.id}`)}
+              >
+                <item.icon size={22} />
+                <span>{t(`nav.${item.id}`)}</span>
+              </a>
+            );
+          })}
+        </aside>
+      )}
+
+      {/* ── Mobile Bottom Navigation ── */}
+      {isMobile && (
+        <nav className="bottom-nav">
+          {(() => {
+            const activeMenuItems = menuItems.filter(item => visibleModules.includes(item.id));
+            const maxDirectItems = 5;
+            const showMoreButton = activeMenuItems.length > maxDirectItems;
+            const directItems = showMoreButton ? activeMenuItems.slice(0, 4) : activeMenuItems;
+
+            return (
+              <>
+                {directItems.map(item => {
+                  const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+                  const targetTab = getModuleInitialTab(item.id);
+                  return (
+                    <a
+                      key={item.id}
+                      href={`/${targetTab}`}
+                      className={`bottom-nav-item ${isActive ? 'active' : ''}`}
+                      onClick={(e) => handleNavClick(e, targetTab)}
+                    >
+                      <item.icon size={20} />
+                      <span>{t(`nav.${item.id}`)}</span>
+                    </a>
+                  );
+                })}
+                {showMoreButton && (
+                  <button
+                    className="bottom-nav-item"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    onClick={() => setBottomSheetOpen(true)}
+                  >
+                    <Menu size={20} />
+                    <span>{t('nav.more') || 'Mais'}</span>
+                  </button>
+                )}
+              </>
+            );
+          })()}
+        </nav>
+      )}
+
+      {/* ── Mobile Bottom Sheet Drawer ── */}
+      <AnimatePresence>
+        {isMobile && isBottomSheetOpen && (
+          <>
+            <Motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="bottom-sheet-overlay"
+              onClick={() => setBottomSheetOpen(false)}
+              style={{ zIndex: 200 }}
+            />
+            <Motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="bottom-sheet"
+              style={{ zIndex: 201 }}
+            >
+              <div className="bottom-sheet-header">
+                <span className="bottom-sheet-title">{t('nav.modules') || t('nav.more') || 'Módulos'}</span>
+                <button className="bottom-sheet-close" onClick={() => setBottomSheetOpen(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="bottom-sheet-grid">
+                {menuItems.filter(item => visibleModules.includes(item.id)).slice(4).map(item => {
+                  const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+                  const targetTab = getModuleInitialTab(item.id);
+                  return (
+                    <a
+                      key={item.id}
+                      href={`/${targetTab}`}
+                      className={`bottom-sheet-item ${isActive ? 'active' : ''}`}
+                      onClick={(e) => handleNavClick(e, targetTab)}
+                    >
+                      <item.icon size={24} />
+                      <span>{t(`nav.${item.id}`)}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </Motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Contextual Sub-Header ── */}
       {activeTab !== 'launchpad' && (
