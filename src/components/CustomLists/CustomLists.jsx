@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   List, Plus, Search, Settings, Trash2, Edit2, 
@@ -6,9 +6,9 @@ import {
   CheckCircle, Circle, Calendar, Hash, Type, AlignLeft,
   MapPin, CheckSquare as CheckboxIcon, Box, ExternalLink,
   Users, Share2, Mail, Lock, ChevronDown, ChevronUp,
-  FileText, BookOpen
+  FileText, BookOpen, ArrowUpDown, GripVertical
 } from 'lucide-react';
-import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence, Reorder } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import AddressInput from '../Trips/AddressInput';
@@ -602,6 +602,64 @@ function MarkdownEditor({ value, onChange, placeholder }) {
   );
 }
 
+const sortItems = (itemsList, listSchema, sortOption) => {
+  if (!itemsList || itemsList.length === 0) return [];
+  
+  if (sortOption === 'manual') {
+    // Sort purely by order_index ascending, then created_at descending
+    return [...itemsList].sort((a, b) => {
+      const orderA = a.order_index ?? 0;
+      const orderB = b.order_index ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+  }
+
+  // Find date field in listSchema
+  const dateField = listSchema?.fields?.find(f => f.type === 'date');
+
+  return [...itemsList].sort((a, b) => {
+    // 1. Completion status is the primary key (Pending first, Completed last)
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
+    }
+
+    // 2. Secondary sorting based on sortOption
+    if (sortOption === 'date' && dateField) {
+      const valA = a.data?.[dateField.id] || '';
+      const valB = b.data?.[dateField.id] || '';
+
+      if (valA && valB) {
+        return valA.localeCompare(valB);
+      }
+      if (valA && !valB) return -1;
+      if (!valA && valB) return 1;
+    }
+
+    if (sortOption === 'newest') {
+      return new Date(b.created_at) - new Date(a.created_at);
+    }
+    if (sortOption === 'oldest') {
+      return new Date(a.created_at) - new Date(b.created_at);
+    }
+
+    // Default Smart Sort fallback:
+    // If there is a date field, sort by custom date ascending.
+    // If not, sort by created_at descending.
+    if (dateField) {
+      const valA = a.data?.[dateField.id] || '';
+      const valB = b.data?.[dateField.id] || '';
+      if (valA && valB) {
+        return valA.localeCompare(valB);
+      }
+      if (valA && !valB) return -1;
+      if (!valA && valB) return 1;
+    }
+
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+};
+
 export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   const { t, i18n } = useTranslation();
   const [lists, setLists] = useState([]);
@@ -614,6 +672,8 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
   const [isSaving, setIsSaving] = useState(false);
   const [activeShares, setActiveShares] = useState([]);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('lists_sort_by') || 'smart');
+  const debounceRef = useRef(null);
 
   const [newList, setNewList] = useState({
     name: '',
@@ -650,7 +710,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       }
     } catch (err) {
       console.error('Error fetching lists:', err);
-      toast.error(t('finances.error_loading'));
+      toast.error(t('common.error_loading'));
     } finally {
       setIsLoading(false);
     }
@@ -671,32 +731,63 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       const { data, error } = await supabase
         .from('custom_list_items')
         .select('*')
-        .eq('list_id', listId)
-        .order('created_at', { ascending: false });
+        .eq('list_id', listId);
       
       if (error) throw error;
       
       if (data) {
-        const decrypted = data;
-        
-        const itemsWithData = decrypted.map(item => ({
+        const itemsWithData = data.map(item => ({
           ...item,
           data: JSON.parse(item.content)
         }));
-        
-        // Smart Sort: Pending first, then by date desc
-        const sortedItems = [...itemsWithData].sort((a, b) => {
-          if (a.completed === b.completed) return 0;
-          return a.completed ? 1 : -1;
-        });
-        
-        setItems(sortedItems);
+        setItems(itemsWithData);
       }
     } catch (err) {
       console.error('Error fetching items:', err);
-      toast.error(t('finances.error_loading'));
+      toast.error(t('common.error_loading'));
     }
   }, [t]);
+
+  const sortedItems = useMemo(() => {
+    return sortItems(items, selectedList, sortBy);
+  }, [items, selectedList, sortBy]);
+
+  const handleSortChange = (newSort) => {
+    setSortBy(newSort);
+    localStorage.setItem('lists_sort_by', newSort);
+  };
+
+  const handleReorder = (newItems) => {
+    const updatedItems = newItems.map((item, index) => ({
+      ...item,
+      order_index: index
+    }));
+    setItems(updatedItems);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const updates = updatedItems.map((item) => ({
+          id: item.id,
+          list_id: selectedList.id,
+          user_id: item.user_id,
+          content: JSON.stringify(item.data),
+          completed: item.completed,
+          order_index: item.order_index,
+          updated_at: new Date().toISOString()
+        }));
+
+        const { error } = await supabase
+          .from('custom_list_items')
+          .upsert(updates, { onConflict: 'id' });
+
+        if (error) throw error;
+      } catch (err) {
+        console.error('Error saving order:', err);
+        toast.error(t('lists.error_save_order'));
+      }
+    }, 1000);
+  };
 
   useEffect(() => {
     fetchLists();
@@ -732,7 +823,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
 
   const handleSaveList = async () => {
     if (!newList.name) {
-      toast.error(t('lists.list_name') + ' ' + t('finances.required_field'));
+      toast.error(t('lists.list_name') + ' ' + t('common.required_field'));
       return;
     }
     setIsSaving(true);
@@ -748,7 +839,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           })
           .eq('id', editingListId);
         if (error) throw error;
-        toast.success(t('finances.success_update'));
+        toast.success(t('common.success_update'));
       } else {
         const { error } = await supabase
           .from('custom_lists')
@@ -760,7 +851,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
             fields: newList.fields
           }]);
         if (error) throw error;
-        toast.success(t('finances.success_save'));
+        toast.success(t('common.success_save'));
       }
       
       setIsModalOpen(false);
@@ -769,7 +860,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       fetchLists();
     } catch (err) {
       console.error('Error saving list:', err);
-      toast.error(t('finances.error_save'));
+      toast.error(t('common.error_save'));
     } finally {
       setIsSaving(false);
     }
@@ -780,16 +871,16 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
     if (!list) return;
 
     if (list.user_id === user.id) {
-      if (confirm(t('finances.delete_confirm'))) {
+      if (confirm(t('common.delete_confirm'))) {
         const { error } = await supabase.from('custom_lists').delete().eq('id', id);
         if (!error) {
-          toast.success(t('finances.success_delete'));
+          toast.success(t('common.success_delete'));
           if (selectedList?.id === id) setSelectedList(null);
           fetchLists();
         }
       }
     } else {
-      if (confirm(t('finances.delete_confirm'))) {
+      if (confirm(t('common.delete_confirm'))) {
         const { error } = await supabase
           .from('custom_list_shares')
           .delete()
@@ -797,7 +888,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           .eq('shared_with_email', user.email.toLowerCase().trim());
         
         if (!error) {
-          toast.success(t('finances.success_delete'));
+          toast.success(t('common.success_delete'));
           if (selectedList?.id === id) setSelectedList(null);
           fetchLists();
         }
@@ -818,12 +909,14 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
           .eq('id', editingItem.id);
         if (error) throw error;
       } else {
+        const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.order_index ?? 0)) : 0;
         const { error } = await supabase
           .from('custom_list_items')
           .insert([{
             list_id: selectedList.id,
             user_id: user.id,
-            content: encryptedContent
+            content: encryptedContent,
+            order_index: maxOrder + 1
           }]);
         if (error) throw error;
       }
@@ -831,25 +924,25 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       fetchItems(selectedList.id);
       setIsModalOpen(false);
       setEditingItem(null);
-      toast.success(editingItem ? t('finances.success_update') : t('finances.success_save'));
+      toast.success(editingItem ? t('common.success_update') : t('common.success_save'));
     } catch (err) {
       console.error('Save error:', err);
-      toast.error(t('finances.error_save'));
+      toast.error(t('common.error_save'));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteItem = async (id) => {
-    if (!confirm(t('finances.delete_confirm'))) return;
+    if (!confirm(t('common.delete_confirm'))) return;
     try {
       const { error } = await supabase.from('custom_list_items').delete().eq('id', id);
       if (error) throw error;
       setItems(items.filter(i => i.id !== id));
-      toast.success(t('finances.success_delete'));
+      toast.success(t('common.success_delete'));
     } catch (err) {
       console.error('Delete error:', err);
-      toast.error(t('finances.error_delete'));
+      toast.error(t('common.error_delete'));
     }
   };
 
@@ -862,14 +955,7 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
       if (error) throw error;
       
       const newItems = items.map(i => i.id === item.id ? { ...i, completed: !item.completed } : i);
-      
-      // Re-sort after toggle
-      const sortedItems = [...newItems].sort((a, b) => {
-        if (a.completed === b.completed) return 0;
-        return a.completed ? 1 : -1;
-      });
-      
-      setItems(sortedItems);
+      setItems(newItems);
     } catch (err) {
       console.error('Toggle error:', err);
     }
@@ -1276,13 +1362,49 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                   <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-main)' }}>{selectedList.name}</h2>
                   <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{selectedList.description || t('lists.dynamic_list')}</p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.5rem', 
+                    background: 'rgba(255, 255, 255, 0.03)', 
+                    borderRadius: '12px', 
+                    padding: '0.45rem 0.75rem', 
+                    border: '1px solid var(--glass-border)',
+                    height: '44px'
+                  }}>
+                    <ArrowUpDown size={16} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
+                    <select
+                      value={sortBy}
+                      onChange={(e) => handleSortChange(e.target.value)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-main)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        outline: 'none',
+                        paddingRight: '0.5rem'
+                      }}
+                      data-testid="select-sort-by"
+                    >
+                      <option value="smart" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{t('lists.sort_smart')}</option>
+                      {selectedList.fields?.some(f => f.type === 'date') && (
+                        <option value="date" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{t('lists.sort_date')}</option>
+                      )}
+                      <option value="newest" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{t('lists.sort_newest')}</option>
+                      <option value="oldest" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{t('lists.sort_oldest')}</option>
+                      <option value="manual" style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{t('lists.sort_manual')}</option>
+                    </select>
+                  </div>
                   {selectedList.user_id === user.id && (
                     <button 
                       onClick={() => { setModalType('share'); setIsModalOpen(true); }} 
                       className="icon-btn" 
                       title={t('lists.share')}
                       data-testid="btn-share-collection"
+                      style={{ height: '44px', width: '44px' }}
                     >
                       <Users size={20} />
                     </button>
@@ -1291,133 +1413,273 @@ export default function CustomLists({ user, refreshKey, mode = 'manager' }) {
                 </div>
               </div>
 
-              <div className="responsive-grid" style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
-                gap: '1.25rem' 
-              }}>
-                {items.length > 0 ? items.map(item => (
-                  <Motion.div 
-                    layout
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    key={item.id} 
-                    className="glass-card" 
+              {sortBy === 'manual' ? (
+                sortedItems.length > 0 ? (
+                  <Reorder.Group 
+                    values={sortedItems} 
+                    onReorder={handleReorder} 
                     style={{ 
-                      padding: '1.5rem', 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      gap: '1.25rem', 
-                      border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', 
-                      background: item.completed ? 'rgba(34, 197, 94, 0.05)' : 'var(--bg-card)',
-                      opacity: item.completed ? 0.8 : 1, 
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      position: 'relative',
-                      overflow: 'hidden'
+                      gap: '1.25rem',
+                      listStyle: 'none',
+                      padding: 0,
+                      margin: 0
                     }}
                   >
-                    {/* Status Glow for Pending */}
-                    {!item.completed && (
-                      <div style={{ 
-                        position: 'absolute', 
-                        top: 0, 
-                        left: 0, 
-                        width: '4px', 
-                        height: '100%', 
-                        background: 'var(--primary)',
-                        boxShadow: '0 0 15px var(--primary)'
-                      }} />
-                    )}
-
-                    {/* Card Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <button 
-                        onClick={() => toggleItemCompletion(item)} 
-                        style={{ 
-                          background: 'none', 
-                          border: 'none', 
-                          cursor: 'pointer', 
-                          color: item.completed ? 'var(--success)' : 'var(--text-muted)', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '0.75rem', 
-                          padding: 0 
-                        }}
+                    {sortedItems.map(item => (
+                      <Reorder.Item 
+                        key={item.id} 
+                        value={item} 
+                        style={{ listStyle: 'none' }}
                       >
-                        <div style={{ 
-                          width: 24, 
-                          height: 24, 
-                          borderRadius: '50%', 
-                          border: `2px solid ${item.completed ? 'var(--success)' : 'var(--text-muted)'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: item.completed ? 'var(--success)' : 'transparent',
-                          transition: 'all 0.2s'
-                        }}>
-                          {item.completed && <CheckCircle size={16} color="white" />}
-                        </div>
-                        <span style={{ 
-                          fontWeight: 900, 
-                          color: item.completed ? 'var(--success)' : 'var(--text-main)', 
-                          fontSize: '0.85rem',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
-                        }}>
-                          {item.completed ? t('common.completed', 'Concluído') : t('common.pending', 'Pendente')}
-                        </span>
-                      </button>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 32, height: 32 }}><Edit2 size={14} /></button>
-                        <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 32, height: 32, color: 'var(--danger)' }}><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                    
-                    {/* Card Body - Fields */}
-                    <div style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '1rem',
-                      padding: '1.25rem',
-                      background: 'rgba(255,255,255,0.03)',
-                      borderRadius: '16px',
-                      border: '1px solid rgba(255,255,255,0.05)'
-                    }}>
-                      {selectedList.fields?.map((field, idx) => {
-                        const isTitle = idx === 0;
-                        return (
-                          <div key={field.id} style={{ 
+                        <div 
+                          className="glass-card" 
+                          style={{ 
+                            padding: '1.5rem', 
                             display: 'flex', 
                             flexDirection: 'column', 
-                            gap: '0.4rem', 
-                            minWidth: 0,
-                            borderBottom: idx < selectedList.fields.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                            paddingBottom: idx < selectedList.fields.length - 1 ? '0.75rem' : 0
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                               {FIELD_TYPES.find(t => t.id === field.type)?.icon && React.createElement(FIELD_TYPES.find(t => t.id === field.type).icon, { size: 12, style: { opacity: 0.4 } })}
-                               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.06em' }}>{field.name}</span>
-                            </div>
+                            gap: '1.25rem', 
+                            border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', 
+                            background: item.completed ? 'rgba(34, 197, 94, 0.05)' : 'var(--bg-card)',
+                            opacity: item.completed ? 0.8 : 1, 
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {!item.completed && (
                             <div style={{ 
-                              fontSize: isTitle ? '1.1rem' : '0.95rem', 
-                              color: 'var(--text-main)', 
-                              fontWeight: isTitle ? 900 : 600,
-                              lineHeight: 1.4
-                            }}>
-                              {renderFieldContent(field, item)}
+                              position: 'absolute', 
+                              top: 0, 
+                              left: 0, 
+                              width: '4px', 
+                              height: '100%', 
+                              background: 'var(--primary)',
+                              boxShadow: '0 0 15px var(--primary)'
+                            }} />
+                          )}
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ cursor: 'grab', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', opacity: 0.6 }} title={t('lists.drag_to_sort', 'Arrastar para ordenar')}>
+                                <GripVertical size={18} />
+                              </div>
+                              <button 
+                                onClick={() => toggleItemCompletion(item)} 
+                                style={{ 
+                                  background: 'none', 
+                                  border: 'none', 
+                                  cursor: 'pointer', 
+                                  color: item.completed ? 'var(--success)' : 'var(--text-muted)', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '0.75rem', 
+                                  padding: 0 
+                                }}
+                              >
+                                <div style={{ 
+                                  width: 24, 
+                                  height: 24, 
+                                  borderRadius: '50%', 
+                                  border: `2px solid ${item.completed ? 'var(--success)' : 'var(--text-muted)'}`,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  background: item.completed ? 'var(--success)' : 'transparent',
+                                  transition: 'all 0.2s'
+                                }}>
+                                  {item.completed && <CheckCircle size={16} color="white" />}
+                                </div>
+                                <span style={{ 
+                                  fontWeight: 900, 
+                                  color: item.completed ? 'var(--success)' : 'var(--text-main)', 
+                                  fontSize: '0.85rem',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em'
+                                }}>
+                                  {item.completed ? t('common.completed', 'Concluído') : t('common.pending', 'Pendente')}
+                                </span>
+                              </button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 32, height: 32 }}><Edit2 size={14} /></button>
+                              <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 32, height: 32, color: 'var(--danger)' }}><Trash2 size={14} /></button>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </Motion.div>
-                )) : (
-                  <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.3, gridColumn: '1 / -1' }}>
+
+                          <div style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '1rem',
+                            padding: '1.25rem',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: '16px',
+                            border: '1px solid rgba(255,255,255,0.05)'
+                          }}>
+                            {selectedList.fields?.map((field, idx) => {
+                              const isTitle = idx === 0;
+                              return (
+                                <div key={field.id} style={{ 
+                                  display: 'flex', 
+                                  flexDirection: 'column', 
+                                  gap: '0.4rem', 
+                                  minWidth: 0,
+                                  borderBottom: idx < selectedList.fields.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                                  paddingBottom: idx < selectedList.fields.length - 1 ? '0.75rem' : 0
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                     {FIELD_TYPES.find(t => t.id === field.type)?.icon && React.createElement(FIELD_TYPES.find(t => t.id === field.type).icon, { size: 12, style: { opacity: 0.4 } })}
+                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.06em' }}>{field.name}</span>
+                                  </div>
+                                  <div style={{ 
+                                    fontSize: isTitle ? '1.1rem' : '0.95rem', 
+                                    color: 'var(--text-main)', 
+                                    fontWeight: isTitle ? 900 : 600,
+                                    lineHeight: 1.4
+                                  }}>
+                                    {renderFieldContent(field, item)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </Reorder.Item>
+                    ))}
+                  </Reorder.Group>
+                ) : (
+                  <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.3 }}>
                     <Box size={48} style={{ margin: '0 auto 1rem' }} />
                     <p style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>{t('lists.no_items', 'Nenhum item nesta lista ainda')}</p>
                   </div>
-                )}
-              </div>
+                )
+              ) : (
+                <div className="responsive-grid" style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+                  gap: '1.25rem' 
+                }}>
+                  {sortedItems.length > 0 ? sortedItems.map(item => (
+                    <Motion.div 
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={item.id} 
+                      className="glass-card" 
+                      style={{ 
+                        padding: '1.5rem', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '1.25rem', 
+                        border: item.completed ? '1px solid var(--success)' : '1px solid var(--glass-border)', 
+                        background: item.completed ? 'rgba(34, 197, 94, 0.05)' : 'var(--bg-card)',
+                        opacity: item.completed ? 0.8 : 1, 
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {!item.completed && (
+                        <div style={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          left: 0, 
+                          width: '4px', 
+                          height: '100%', 
+                          background: 'var(--primary)',
+                          boxShadow: '0 0 15px var(--primary)'
+                        }} />
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <button 
+                          onClick={() => toggleItemCompletion(item)} 
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            color: item.completed ? 'var(--success)' : 'var(--text-muted)', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.75rem', 
+                            padding: 0 
+                          }}
+                        >
+                          <div style={{ 
+                            width: 24, 
+                            height: 24, 
+                            borderRadius: '50%', 
+                            border: `2px solid ${item.completed ? 'var(--success)' : 'var(--text-muted)'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: item.completed ? 'var(--success)' : 'transparent',
+                            transition: 'all 0.2s'
+                          }}>
+                            {item.completed && <CheckCircle size={16} color="white" />}
+                          </div>
+                          <span style={{ 
+                            fontWeight: 900, 
+                            color: item.completed ? 'var(--success)' : 'var(--text-main)', 
+                            fontSize: '0.85rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {item.completed ? t('common.completed', 'Concluído') : t('common.pending', 'Pendente')}
+                          </span>
+                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button onClick={() => { setModalType('item'); setEditingItem(item); setIsModalOpen(true); }} className="icon-btn" style={{ width: 32, height: 32 }}><Edit2 size={14} /></button>
+                          <button onClick={() => handleDeleteItem(item.id)} className="icon-btn" style={{ width: 32, height: 32, color: 'var(--danger)' }}><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                      
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '1rem',
+                        padding: '1.25rem',
+                        background: 'rgba(255,255,255,0.03)',
+                        borderRadius: '16px',
+                        border: '1px solid rgba(255,255,255,0.05)'
+                      }}>
+                        {selectedList.fields?.map((field, idx) => {
+                          const isTitle = idx === 0;
+                          return (
+                            <div key={field.id} style={{ 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              gap: '0.4rem', 
+                              minWidth: 0,
+                              borderBottom: idx < selectedList.fields.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                              paddingBottom: idx < selectedList.fields.length - 1 ? '0.75rem' : 0
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                 {FIELD_TYPES.find(t => t.id === field.type)?.icon && React.createElement(FIELD_TYPES.find(t => t.id === field.type).icon, { size: 12, style: { opacity: 0.4 } })}
+                                 <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.06em' }}>{field.name}</span>
+                              </div>
+                              <div style={{ 
+                                fontSize: isTitle ? '1.1rem' : '0.95rem', 
+                                color: 'var(--text-main)', 
+                                fontWeight: isTitle ? 900 : 600,
+                                lineHeight: 1.4
+                              }}>
+                                {renderFieldContent(field, item)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Motion.div>
+                  )) : (
+                    <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', opacity: 0.3, gridColumn: '1 / -1' }}>
+                      <Box size={48} style={{ margin: '0 auto 1rem' }} />
+                      <p style={{ color: 'var(--text-main)', fontSize: '1.1rem' }}>{t('lists.no_items', 'Nenhum item nesta lista ainda')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="glass-card" style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>

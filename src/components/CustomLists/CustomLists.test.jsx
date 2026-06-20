@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CustomLists from './CustomLists';
+import { supabase } from '../../lib/supabase';
 
 // Mock supabase
 vi.mock('../../lib/supabase', () => ({
@@ -58,7 +59,6 @@ describe('CustomLists Component', () => {
     const addBtn = screen.getByTestId('btn-add-collection');
     fireEvent.click(addBtn);
 
-    // The field type select should contain "lists.field_types.text" as an option text
     const selects = screen.getAllByRole('combobox');
     const fieldTypeSelect = selects.find(s => {
       const options = Array.from(s.querySelectorAll('option'));
@@ -70,5 +70,32 @@ describe('CustomLists Component', () => {
     const textareaOption = options.find(o => o.textContent === 'lists.field_types.textarea');
     expect(textareaOption).toBeDefined();
     expect(textareaOption.value).toBe('textarea');
+  });
+
+  it('renders sorting selector when a list is selected', async () => {
+    const mockLists = [
+      { id: 'list-123', name: 'My List', user_id: 'user-123', fields: [{ id: 'field-1', name: 'Date Field', type: 'date' }] }
+    ];
+    const mockItems = [
+      { id: 'item-1', list_id: 'list-123', user_id: 'user-123', completed: false, content: '{"field-1":"2026-06-25"}', order_index: 0, created_at: '2026-06-20T00:00:00Z' }
+    ];
+
+    vi.spyOn(supabase, 'from').mockImplementation((table) => {
+      let data = [];
+      if (table === 'custom_lists') data = mockLists;
+      if (table === 'custom_list_items') data = mockItems;
+      return {
+        select: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        then: vi.fn((cb) => cb({ data, error: null }))
+      };
+    });
+
+    render(<CustomLists user={mockUser} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('select-sort-by')).toBeDefined();
+    });
   });
 });
