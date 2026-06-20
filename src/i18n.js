@@ -62,6 +62,8 @@ i18n
             },
           },
           nav: {
+            more: 'Mais',
+            modules: 'Módulos',
             launchpad: 'Início',
             finances: 'Finanças',
             finances_desc: 'Controle suas receitas, despesas e fluxo de caixa mensal.',
@@ -1058,6 +1060,8 @@ i18n
             }
           },
           nav: {
+            more: 'More',
+            modules: 'Modules',
             launchpad: 'Home',
             finances: 'Finances',
             finances_desc: 'Track your income, expenses, and monthly cash flow.',
@@ -1996,6 +2000,8 @@ i18n
             }
           },
           nav: {
+            more: 'Más',
+            modules: 'Módulos',
             launchpad: 'Inicio',
             finances: 'Finanzas',
             finances_desc: 'Controle sus ingresos, gastos y flujo de caja mensual.',
