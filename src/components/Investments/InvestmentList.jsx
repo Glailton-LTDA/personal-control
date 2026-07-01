@@ -409,6 +409,10 @@ export default function InvestmentList({ user, showValues = true }) {
 
   const parentRef = useRef(null);
 
+  const getItemKey = useCallback((index) => {
+    return flatItems[index]?.id || index;
+  }, [flatItems]);
+
   const rowVirtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => parentRef.current,
@@ -420,6 +424,7 @@ export default function InvestmentList({ user, showValues = true }) {
       return isMobile ? 100 : 60;
     },
     overscan: 5,
+    getItemKey,
     initialRect: { width: 1000, height: 800 },
   });
 
