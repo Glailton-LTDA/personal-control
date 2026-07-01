@@ -155,7 +155,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         if (item) sendEmailToRecipient(notificationSettings.recipient_email, { ...item, status: 'PAGO' });
       }
     } catch (error) {
-      toast.error(t('finance.error_mark_paid', { error: error.message }));
+      toast.error(t('finances.error_mark_paid', { error: error.message }));
     }
   };
 
@@ -173,7 +173,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       toast.success(t('finances.email_sent_to', 'E-mail enviado para {{email}}!', { email: recipientEmail }));
       setEmailModalOpen(false);
     } catch (err) {
-      toast.error(t('finance.error_send_email', { error: err.message }));
+      toast.error(t('finances.error_send_email', { error: err.message }));
     } finally {
       setEmailLoading(false);
     }
@@ -195,9 +195,9 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
         });
         toast.success(t('finances.transactions_copied', '{{count}} transações copiadas!', { count }));
       } catch (err) {
-        toast.error(t('finance.error_copy', { error: err.message }));
+        toast.error(t('finances.error_copy', { error: err.message }));
       }
-    }, { confirmText: t('finance.confirm_copy_text') });
+    }, { confirmText: t('finances.confirm_copy_text') });
   };
 
   const handleSort = (key) => {
@@ -300,7 +300,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       setSelectedIds(new Set());
       toast.success(t('finances.batch_marked_paid', '{{count}} lançamentos marcados como pagos', { count: idsToUpdate.length }));
     } catch (error) {
-      toast.error(t('finance.error_update', { error: error.message }));
+      toast.error(t('finances.error_update', { error: error.message }));
     }
   };
 
@@ -313,7 +313,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       setSelectedIds(new Set());
       toast.success(t('finances.batch_marked_unpaid', '{{count}} lançamentos marcados como pendentes', { count: idsToUpdate.length }));
     } catch (error) {
-      toast.error(t('finance.error_update', { error: error.message }));
+      toast.error(t('finances.error_update', { error: error.message }));
     }
   };
 

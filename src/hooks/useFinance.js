@@ -326,8 +326,9 @@ export function useCopyMonthTransactions() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ prevMonth, prevYear, selectedMonth, selectedYear }) => {
+      const lastDayDate = new Date(prevYear, prevMonth + 1, 0).getDate();
       const start = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-01`;
-      const end = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-31`;
+      const end = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(lastDayDate).padStart(2, '0')}`;
 
       const { data: previousData, error: fetchError } = await supabase
         .from('finances')
@@ -341,7 +342,7 @@ export function useCopyMonthTransactions() {
       }
 
       const newEntries = previousData.map(item => {
-        const { id: _id, user_id: _user_id, created_at: _created_at, email_sent: _email_sent, payment_date, ...rest } = item;
+        const { id: _id, created_at: _created_at, email_sent: _email_sent, payment_date, ...rest } = item;
         const originalDate = new Date(payment_date);
         const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
         const newDate = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(Math.min(originalDate.getDate(), lastDayOfMonth)).padStart(2, '0')}`;
