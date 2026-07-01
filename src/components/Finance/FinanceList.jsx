@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
@@ -348,6 +348,10 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
 
   const parentRef = useRef(null);
 
+  const getItemKey = useCallback((index) => {
+    return flatItems[index]?.id || index;
+  }, [flatItems]);
+
   const rowVirtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => parentRef.current,
@@ -357,6 +361,7 @@ export default function FinanceList({ refreshKey, onEdit, user, showValues = tru
       return isMobile ? 180 : 88;
     },
     overscan: 5,
+    getItemKey,
     initialRect: { width: 1000, height: 800 },
   });
 

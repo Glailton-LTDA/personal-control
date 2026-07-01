@@ -242,6 +242,10 @@ export default function TripsList({
 
   const parentRef = useRef(null);
 
+  const getItemKey = useCallback((index) => {
+    return filteredExpenses[index]?.id || index;
+  }, [filteredExpenses]);
+
   const rowVirtualizer = useVirtualizer({
     count: filteredExpenses.length,
     getScrollElement: () => parentRef.current,
@@ -249,6 +253,7 @@ export default function TripsList({
       return isMobile ? 120 : 60;
     },
     overscan: 5,
+    getItemKey,
     initialRect: { width: 1000, height: 800 },
   });
 
