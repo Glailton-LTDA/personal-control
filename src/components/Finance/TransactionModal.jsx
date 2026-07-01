@@ -112,8 +112,8 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
       <div className="glass-card modal-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{initialData ? t('finance.edit_transaction', 'Editar Lançamento') : t('finance.new_transaction', 'Novo Lançamento')}</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{initialData ? t('finance.edit_desc', 'Altere as informações do registro') : t('finance.new_desc', 'Adicione uma nova transação financeira')}</p>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{initialData ? t('finances.edit_transaction', 'Editar Lançamento') : t('finances.new_transaction', 'Novo Lançamento')}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{initialData ? t('finances.edit_desc', 'Altere as informações do registro') : t('finances.new_desc', 'Adicione uma nova transação financeira')}</p>
           </div>
           <button className="icon-btn" onClick={onClose}>
             <X size={24} />
@@ -122,22 +122,22 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label><Tag size={14} style={{ marginRight: '4px' }}/> {t('finance.description', 'Descrição')}</label>
+            <label><Tag size={14} style={{ marginRight: '4px' }}/> {t('finances.description', 'Descrição')}</label>
             <input 
               type="text" required value={formData.description}
               onChange={handleDescriptionChange}
-              placeholder={t('finance.description_placeholder', 'Ex: Aluguel, Salário...')}
+              placeholder={t('finances.description_placeholder', 'Ex: Aluguel, Salário...')}
             />
           </div>
 
           <div className="form-grid">
             <div className="input-group">
-              <label><DollarSign size={14} style={{ marginRight: '4px' }}/> {t('finance.amount', 'Valor (R$)')}</label>
+              <label><DollarSign size={14} style={{ marginRight: '4px' }}/> {t('finances.amount', 'Valor (R$)')}</label>
               <input 
                 type="text" 
                 required 
                 value={formData.amount}
-                placeholder={t('finance.amount_placeholder')}
+                placeholder={t('finances.amount_placeholder')}
                 onChange={e => {
                   let val = e.target.value.replace(/\D/g, '');
                   if (!val) {
@@ -150,7 +150,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
               />
             </div>
             <div className="input-group">
-              <label><Calendar size={14} style={{ marginRight: '4px' }}/> {t('finance.date', 'Data')}</label>
+              <label><Calendar size={14} style={{ marginRight: '4px' }}/> {t('finances.date', 'Data')}</label>
               <input 
                 type="date" required value={formData.payment_date}
                 onChange={e => setFormData({...formData, payment_date: e.target.value})}
@@ -160,14 +160,14 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
 
           <div className="form-grid">
             <div className="input-group">
-              <label>{t('finance.type', 'Tipo')}</label>
+              <label>{t('finances.type', 'Tipo')}</label>
               <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
-                <option value="DESPESA">{t('finance.expense', 'Despesa')}</option>
-                <option value="RECEITA">{t('finance.income', 'Receita')}</option>
+                <option value="DESPESA">{t('finances.expense', 'Despesa')}</option>
+                <option value="RECEITA">{t('finances.income', 'Receita')}</option>
               </select>
             </div>
             <div className="input-group">
-              <label><User size={14} style={{ marginRight: '4px' }}/> {t('finance.responsible', 'Responsável')}</label>
+              <label><User size={14} style={{ marginRight: '4px' }}/> {t('finances.responsible', 'Responsável')}</label>
               <select 
                 required value={formData.paid_by} 
                 onChange={e => setFormData({...formData, paid_by: e.target.value})}
@@ -180,7 +180,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
 
           <div className="form-grid">
             <div className="input-group">
-              <label>{t('finance.category', 'Categoria')}</label>
+              <label>{t('finances.category', 'Categoria')}</label>
               <select 
                 required value={formData.category} 
                 onChange={e => {
@@ -193,17 +193,17 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
               </select>
             </div>
             <div className="input-group">
-              <label>{t('finance.status', 'Status')}</label>
+              <label>{t('finances.status', 'Status')}</label>
               <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                <option value="PAGO">{t('finance.paid', 'Pago')}</option>
-                <option value="PENDENTE">{t('finance.pending', 'Pendente')}</option>
+                <option value="PAGO">{t('finances.paid', 'Pago')}</option>
+                <option value="PENDENTE">{t('finances.pending', 'Pendente')}</option>
               </select>
             </div>
           </div>
 
           <div style={{ marginTop: '2rem' }}>
             <button disabled={loading} className="btn-primary" style={{ width: '100%', height: '3.5rem' }}>
-              {loading ? t('common.processing', 'Processando...') : <><Save size={22} /> {initialData ? t('finance.update_data', 'Atualizar Dados') : t('finance.save_transaction', 'Salvar Lançamento')}</>}
+              {loading ? t('common.processing', 'Processando...') : <><Save size={22} /> {initialData ? t('finances.update_data', 'Atualizar Dados') : t('finances.save_transaction', 'Salvar Lançamento')}</>}
             </button>
           </div>
         </form>

@@ -64,7 +64,7 @@ export default function FinanceSettings() {
     try {
       await setMainResponsibleMutation.mutateAsync(id);
     } catch {
-      toast.error(t('finance.error_set_main_responsible'));
+      toast.error(t('finances.error_set_main_responsible'));
     }
   }
 
