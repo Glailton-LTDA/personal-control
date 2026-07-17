@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import PullToRefresh from './components/PullToRefresh';
 
 
 function App() {
@@ -36,20 +37,26 @@ function App() {
   // Se estiver em modo de recuperação ou não tiver sessão, mostra Login
   if (isRecovering || !session) {
     return (
-      <Login 
-        onLogin={(user) => setSession({ user })} 
-        recoveryMode={isRecovering}
-        onRecoveryComplete={() => {
-          setIsRecovering(false);
-          setSession(null); // Garante que saia da sessão após reset
-          supabase.auth.signOut();
-        }}
-      />
+      <>
+        <PullToRefresh />
+        <Login 
+          onLogin={(user) => setSession({ user })} 
+          recoveryMode={isRecovering}
+          onRecoveryComplete={() => {
+            setIsRecovering(false);
+            setSession(null); // Garante que saia da sessão após reset
+            supabase.auth.signOut();
+          }}
+        />
+      </>
     );
   }
 
   return (
-    <Dashboard user={session.user} />
+    <>
+      <PullToRefresh />
+      <Dashboard user={session.user} />
+    </>
   );
 }
 

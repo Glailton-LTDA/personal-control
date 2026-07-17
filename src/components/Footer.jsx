@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 export default function Footer() {
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
-  const version = "1.7.0";
+  const version = import.meta.env.PACKAGE_VERSION || "1.7.1";
 
   return (
     <footer style={{
