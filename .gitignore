@@ -45,6 +45,7 @@ test_output.txt
 artifacts/
 *.png
 !src/assets/*.png
+!public/*.png
 
 # Vite temporary files
 .vite/
