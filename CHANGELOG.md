@@ -2,6 +2,19 @@
 
 Este arquivo registra todas as alterações notáveis feitas no projeto **PersonalControl**. O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Versionamento Semântico](https://semver.org/spec/v2.0.0-rc.2.html).
 
+## [1.7.1] - 2026-07-17
+
+### Adicionado
+- **Swipe Refresh para PWA Standalone**:
+  - Implementação de pull-to-refresh customizado em `PullToRefresh.jsx` para modos standalone.
+  - Captura de gestos tácteis e rotação acelerada por GPU integrada às variáveis de cores do tema do aplicativo.
+
+### Alterado
+- **Ícone do Aplicativo e Favicon Multiplataforma**:
+  - Atualização do favicon principal para usar o novo PNG do Luminous Ledger (`favicon.png`) para compatibilidade e nitidez multiplataforma (Chrome, Firefox, Safari, Edge).
+  - Adição da tag `apple-touch-icon` e de tags meta iOS standalone no `index.html`.
+  - Criação do manifesto PWA (`manifest.json`) com os metadados do aplicativo e ícones de 1024x1024.
+
 ## [1.7.0] - 2026-06-17
 
 ### Corrigido
