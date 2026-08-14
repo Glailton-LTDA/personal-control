@@ -4,18 +4,22 @@ import { XCircle, Car, Wrench, FileText, Share2, DollarSign, Calendar, CheckCirc
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { useFormDraft } from '../../hooks/useFormDraft';
+
+const DEFAULT_CAR_STATE = { name: '', plate: '', current_km: 0, is_hidden: false };
+const DEFAULT_SERVICE_STATE = { 
+  description: '', 
+  km_milestone: 10000, 
+  status: 'DONE', 
+  amount: '',
+  service_date: new Date().toISOString().split('T')[0]
+};
 
 export default function CarModal({ isOpen, onClose, type, car, maintenance, user, onSuccess }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ name: '', plate: '', current_km: 0, is_hidden: false });
-  const [serviceData, setServiceData] = useState({ 
-    description: '', 
-    km_milestone: 10000, 
-    status: 'DONE', 
-    amount: '',
-    service_date: new Date().toISOString().split('T')[0]
-  });
+  const [formData, setFormData, clearCarDraft] = useFormDraft('new_car_form', DEFAULT_CAR_STATE, type === 'add_car');
+  const [serviceData, setServiceData, clearServiceDraft] = useFormDraft('log_service_form', DEFAULT_SERVICE_STATE, type === 'log_service');
   const [noteData, setNoteData] = useState({ description: '', km_milestone: 10000, notes: '' });
 
   useEffect(() => {
@@ -31,7 +35,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
         setServiceData(prev => ({ ...prev, km_milestone: car.current_km }));
       }
     }
-  }, [car, type]);
+  }, [car, type, setFormData, setServiceData]);
 
   useEffect(() => {
     if (typeof type === 'object') {
@@ -51,7 +55,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
         }));
       }
     }
-  }, [type]);
+  }, [type, setServiceData]);
 
   if (!isOpen) return null;
 
@@ -92,7 +96,10 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     };
 
     const { error } = await supabase.from('cars').insert(encrypted);
-    if (!error) onSuccess();
+    if (!error) {
+      clearCarDraft();
+      onSuccess();
+    }
     setLoading(false);
   }
 
@@ -138,13 +145,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
         await supabase.from('cars').update({ current_km: parseInt(serviceData.km_milestone.toString()) }).eq('id', car.id);
       }
 
-      setServiceData({ 
-        description: '', 
-        km_milestone: 10000, 
-        status: 'DONE', 
-        amount: '',
-        service_date: new Date().toISOString().split('T')[0]
-      });
+      clearServiceDraft();
       onSuccess();
       toast.success(t('cars.success.service_logged', 'Serviço registrado!'));
     } else {

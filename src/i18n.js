@@ -128,7 +128,8 @@ i18n
               status_done: 'Concluído',
               status_pending: 'Pendente',
               status_ignored: 'Ignorar',
-              view_add_note: 'Ver/Adicionar Observação'
+              view_add_note: 'Ver/Adicionar Observação',
+              checkpoints_desc: 'Checkpoints sugeridos por quilometragem.'
             },
             checkpoints_desc: 'Checkpoints sugeridos por quilometragem.',
             empty_notes: 'Nenhuma observação encontrada para este serviço.',
@@ -1142,7 +1143,8 @@ i18n
               status_done: 'Completed',
               status_pending: 'Pending',
               status_ignored: 'Ignored',
-              view_add_note: 'View/Add Note'
+              view_add_note: 'View/Add Note',
+              checkpoints_desc: 'Suggested mileage checkpoints.'
             },
             checkpoints_desc: 'Suggested mileage checkpoints.',
             empty_notes: 'No notes found for this service.',
@@ -2098,7 +2100,8 @@ i18n
               status_done: 'Concluido',
               status_pending: 'Pendiente',
               status_ignored: 'Ignorado',
-              view_add_note: 'Ver/Añadir Observación'
+              view_add_note: 'Ver/Añadir Observación',
+              checkpoints_desc: 'Checkpoints sugeridos por kilometraje.'
             },
             checkpoints_desc: 'Checkpoints sugeridos por kilometraje.',
             empty_notes: 'Ninguna observación encontrada para este servicio.',
