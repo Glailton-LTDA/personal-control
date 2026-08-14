@@ -3,6 +3,7 @@ import { AnimatePresence, motion as Motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { X, Save, Calendar, Search, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useFormDraft } from '../../hooks/useFormDraft';
 
 // Currency mask helper: formats a raw numeric string into "1.234,56" pattern
 const formatCurrency = (rawValue) => {
@@ -17,15 +18,17 @@ const parseCurrencyToNumber = (maskedValue) => {
   return parseFloat(String(maskedValue).replace(',', '.')) || 0;
 };
 
+const DEFAULT_INVESTMENT_STATE = {
+  account_id: '',
+  record_date: new Date().toISOString().split('T')[0],
+  initial_balance: '',
+  final_balance: '',
+  yield: ''
+};
+
 export default function InvestmentModal({ isOpen, onClose, onRefresh, user, initialData, accounts }) {
   const { t } = useTranslation();
-  const [formData, setFormData] = useState({
-    account_id: '',
-    record_date: new Date().toISOString().split('T')[0],
-    initial_balance: '',
-    final_balance: '',
-    yield: ''
-  });
+  const [formData, setFormData, clearDraft] = useFormDraft('investment_form', DEFAULT_INVESTMENT_STATE, !initialData);
 
   const fetchPreviousMonthBalance = useCallback(async (accountId, recordDate) => {
     if (!accountId || !recordDate) return;
@@ -70,7 +73,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
     } catch (err) {
       console.error('Error fetching previous month balance:', err);
     }
-  }, []);
+  }, [setFormData]);
 
   useEffect(() => {
     if (!initialData && isOpen && formData.account_id && formData.record_date) {
@@ -90,16 +93,13 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
         final_balance: initialData.final_balance != null ? formatCurrency(Math.round(initialData.final_balance * 100).toString()) : '',
         yield: initialData.yield
       });
-    } else {
-      setFormData({
-        account_id: accounts[0]?.id || '',
-        record_date: new Date().toISOString().split('T')[0],
-        initial_balance: '',
-        final_balance: '',
-        yield: ''
-      });
+    } else if (!formData.account_id && accounts?.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        account_id: accounts[0].id
+      }));
     }
-  }, [initialData, accounts, isOpen]);
+  }, [initialData, accounts, isOpen, setFormData, formData.account_id]);
 
   // Handle automatic yield calculation
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
       const yield_val = (final_val - initial).toFixed(2);
       setFormData(prev => ({ ...prev, yield: parseFloat(yield_val) }));
     }
-  }, [formData.initial_balance, formData.final_balance]);
+  }, [formData.initial_balance, formData.final_balance, setFormData]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -132,6 +132,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
         .from('investment_records')
         .insert([{ ...submitPayload, user_id: user.id }]);
       if (!error) {
+        clearDraft();
         onRefresh();
         onClose();
       }

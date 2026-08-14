@@ -6,6 +6,18 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
 
+import { useFormDraft } from '../../hooks/useFormDraft';
+
+const DEFAULT_EXPENSE_STATE = {
+  description: '',
+  amount: '',
+  date: new Date().toISOString().split('T')[0],
+  paid_by: 'Glailton Costa',
+  category_id: '',
+  currency: 'BRL',
+  receipt_url: null
+};
+
 export default function ExpenseModal({ user, trip, expense, currency: initialCurrency, categories: initialCategories, onClose, onSave }) {
   const { t } = useTranslation();
   const { data: offlineCategories = [] } = useOfflineCategories(user.id);
@@ -25,18 +37,30 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   };
 
-  const [displayDate, setDisplayDate] = useState(formatDateToDisplay(expense?.date || new Date().toISOString().split('T')[0]));
+  const defaultStateWithCurrency = {
+    ...DEFAULT_EXPENSE_STATE,
+    currency: initialCurrency || trip?.currencies?.[0] || 'BRL'
+  };
+
+  const [formData, setFormData, clearDraft] = useFormDraft('trip_expense_form', defaultStateWithCurrency, !expense);
+  const [displayDate, setDisplayDate] = useState(formatDateToDisplay(expense?.date || formData.date || new Date().toISOString().split('T')[0]));
   const [isCustomDate, setIsCustomDate] = useState(false);
   
-  const [formData, setFormData] = useState({
-    description: expense?.description || '',
-    amount: expense?.amount ? (parseFloat(expense.amount).toFixed(2).replace('.', ',')) : '',
-    date: expense?.date || new Date().toISOString().split('T')[0],
-    paid_by: expense?.paid_by || 'Glailton Costa',
-    category_id: expense?.category_id || '',
-    currency: expense?.currency || initialCurrency || trip?.currencies?.[0] || 'BRL',
-    receipt_url: expense?.receipt_url || null
-  });
+  useEffect(() => {
+    if (expense) {
+      setFormData({
+        description: expense.description || '',
+        amount: expense.amount ? (parseFloat(expense.amount).toFixed(2).replace('.', ',')) : '',
+        date: expense.date || new Date().toISOString().split('T')[0],
+        paid_by: expense.paid_by || 'Glailton Costa',
+        category_id: expense.category_id || '',
+        currency: expense.currency || initialCurrency || trip?.currencies?.[0] || 'BRL',
+        receipt_url: expense.receipt_url || null
+      });
+      setDisplayDate(formatDateToDisplay(expense.date));
+    }
+  }, [expense, initialCurrency, trip, setFormData]);
+
   const [isCustomPaidBy, setIsCustomPaidBy] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -157,6 +181,7 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
         toast.success(t('trips.expense_updated'));
       } else {
         await createExpenseMutation.mutateAsync(payload);
+        clearDraft();
         toast.success(t('trips.expense_saved'));
       }
       onSave();

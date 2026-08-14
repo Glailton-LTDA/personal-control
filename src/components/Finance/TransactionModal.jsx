@@ -7,6 +7,7 @@ import {
   useCreateTransaction, 
   useUpdateTransaction 
 } from '../../hooks/useFinance';
+import { useFormDraft } from '../../hooks/useFormDraft';
 
 const DEFAULT_MAPPINGS = [
   { keywords: ['uber'], category: 'Transporte', type: 'DESPESA' },
@@ -18,17 +19,19 @@ const DEFAULT_MAPPINGS = [
   { keywords: ['salário', 'salario', 'recebimento'], category: 'Receitas', type: 'RECEITA' }
 ];
 
+const DEFAULT_FORM_STATE = {
+  description: '',
+  amount: '',
+  payment_date: new Date().toLocaleDateString('en-CA'),
+  type: 'DESPESA',
+  category: '',
+  paid_by: '',
+  status: 'PENDENTE'
+};
+
 export default function TransactionModal({ isOpen, onClose, user, initialData = null }) {
   const { t } = useTranslation();
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    payment_date: new Date().toLocaleDateString('en-CA'),
-    type: 'DESPESA',
-    category: '',
-    paid_by: '',
-    status: 'PENDENTE'
-  });
+  const [formData, setFormData, clearDraft] = useFormDraft('finance_transaction_form', DEFAULT_FORM_STATE, !initialData);
   const [isCategoryManual, setIsCategoryManual] = useState(false);
 
   const { data: categories = [] } = useFinanceCategories();
@@ -46,19 +49,8 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
         payment_date: initialData.payment_date
       });
       setIsCategoryManual(!!initialData.category);
-    } else {
-      setFormData({
-        description: '',
-        amount: '',
-        payment_date: new Date().toLocaleDateString('en-CA'),
-        type: 'DESPESA',
-        category: '',
-        paid_by: '',
-        status: 'PENDENTE'
-      });
-      setIsCategoryManual(false);
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, setFormData]);
 
   const handleDescriptionChange = (e) => {
     const value = e.target.value;
@@ -88,7 +80,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
 
     const numericAmount = parseFloat(formData.amount.replace(',', '.'));
     const dataToSave = { ...formData, amount: numericAmount };
-    
+
     try {
       if (initialData?.id) {
         // Edit
@@ -96,6 +88,7 @@ export default function TransactionModal({ isOpen, onClose, user, initialData = 
       } else {
         // Create
         await createMutation.mutateAsync({ ...dataToSave, user_id: user.id });
+        clearDraft();
       }
       onClose();
     } catch (err) {
