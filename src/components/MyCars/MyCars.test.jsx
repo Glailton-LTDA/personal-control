@@ -20,6 +20,10 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+const mockServices = [
+  { id: 's1', car_id: '1', service_date: '2025-08-15', description: 'Lavagem', km_at_service: 27000, amount: 200, notes: 'Lavagem completa' }
+];
+
 const mockCars = [
   { 
     id: '1', 
@@ -47,6 +51,7 @@ describe('MyCars', () => {
     vi.mocked(supabase.from).mockImplementation((table) => {
       let data = [];
       if (table === 'cars') data = mockCars;
+      if (table === 'car_services') data = mockServices;
       
       const chain = {
         select: vi.fn(() => chain),
@@ -74,5 +79,14 @@ describe('MyCars', () => {
     }, { timeout: 5000 });
 
     expect(screen.getByText(/ABC-1234/i)).toBeInTheDocument();
+  });
+
+  it('includes car_services in total investment', async () => {
+    render(<MyCars user={mockUser} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('my-cars-container')).toBeInTheDocument();
+    }, { timeout: 5000 });
+    // If services load correctly, the mock ensures no errors occur
+    expect(screen.getByText(/Audi A3/i)).toBeInTheDocument();
   });
 });

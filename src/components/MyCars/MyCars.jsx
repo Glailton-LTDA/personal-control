@@ -48,6 +48,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
 
   const [serviceTemplates, setServiceTemplates] = useState([]);
   const [maintenance, setMaintenance] = useState([]);
+  const [services, setServices] = useState([]);
   const [invitations, setInvitations] = useState([]);
 
   useEffect(() => {
@@ -173,6 +174,16 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
     setMaintenance(data || []);
   }, []);
 
+  const fetchServices = useCallback(async (carId) => {
+    const { data } = await supabase
+      .from('car_services')
+      .select('*')
+      .eq('car_id', carId)
+      .order('service_date', { ascending: false });
+    
+    setServices(data || []);
+  }, []);
+
   useEffect(() => {
     fetchCars();
     fetchServiceTemplates();
@@ -181,8 +192,9 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   useEffect(() => {
     if (selectedCar) {
       fetchMaintenance(selectedCar.id);
+      fetchServices(selectedCar.id);
     }
-  }, [selectedCar, fetchMaintenance]);
+  }, [selectedCar, fetchMaintenance, fetchServices]);
 
   useEffect(() => {
     const handleAddCar = () => {
@@ -448,7 +460,8 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
           <div className="glass-card" style={{ padding: '0.5rem', marginBottom: '2.5rem', display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
             {[
               { id: 'summary', label: t('cars.tabs.summary'), icon: LayoutDashboard },
-              { id: 'revision', label: t('cars.tabs.revisions'), icon: Wrench }
+              { id: 'revision', label: t('cars.tabs.revisions'), icon: Wrench },
+              { id: 'services', label: t('cars.tabs.services', 'Serviços'), icon: Wrench }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -472,6 +485,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                 <CarSummary 
                   car={selectedCar} 
                   maintenance={maintenance}
+                  services={services}
                   insights={insights}
                   onEdit={() => { setModalType('edit_car'); setIsModalOpen(true); }}
                   onDelete={() => handleDeleteCar(selectedCar.id)}
@@ -479,15 +493,19 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
                   onArchive={() => handleToggleArchive(selectedCar)}
                   isOwner={selectedCar.user_id === user.id}
                 />
+              ) : activeSubTab === 'services' ? (
+                <CarServicesTable services={services} />
               ) : (
                 <CarRevisionTable 
                   car={selectedCar} 
-                  maintenance={maintenance} 
+                  maintenance={maintenance}
+                  services={services}
                   templates={serviceTemplates}
                   onLogService={(data) => { 
                     setModalType(data ? { type: 'log_service', ...data } : 'log_service'); 
                     setIsModalOpen(true); 
                   }}
+                  onAddFreeService={() => { setModalType('free_service'); setIsModalOpen(true); }}
                   onToggleStatus={toggleServiceStatus}
                   onAddNote={(data) => { 
                     setModalType(data); 
@@ -523,6 +541,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
           onSuccess={() => {
             setIsModalOpen(false);
             fetchMaintenance(selectedCar.id);
+            fetchServices(selectedCar.id);
             fetchCars();
           }}
         />
@@ -531,12 +550,12 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
   );
 }
 
-function CarSummary({ car, maintenance, insights, onEdit, onDelete, onShare, onArchive, isOwner }) {
+function CarSummary({ car, maintenance, services, insights, onEdit, onDelete, onShare, onArchive, isOwner }) {
   const { t } = useTranslation();
   const nextMilestone = milestones.find(m => m > car.current_km) || 120000;
   const kmRemainingGlobal = nextMilestone - car.current_km;
   const progress = Math.max(0, Math.min(100, ((car.current_km % 10000) / 10000) * 100));
-  const totalSpent = maintenance.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+  const totalSpent = maintenance.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0) + (services || []).reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
   
   return (
     <div className="bento-grid">
@@ -664,7 +683,7 @@ function CarSummary({ car, maintenance, insights, onEdit, onDelete, onShare, onA
   );
 }
 
-function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleStatus, onAddNote, canEdit }) {
+function CarRevisionTable({ car, maintenance, templates, onLogService, onAddFreeService, onToggleStatus, onAddNote, canEdit }) {
   const { t, i18n } = useTranslation();
   const miles = milestones;
   
@@ -693,9 +712,14 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
           <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{t('cars.tabs.revisions')}</h3>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{t('cars.revisions.checkpoints_desc')}</p>
         </div>
-        <button className="btn-primary" onClick={() => onLogService()} style={{ padding: '10px 20px' }}>
-          <Plus size={18} /> {t('cars.add_service')}
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button className="btn-primary" onClick={() => onLogService()} style={{ padding: '10px 20px' }}>
+            <Plus size={18} /> {t('cars.add_service')}
+          </button>
+          <button className="btn-secondary" onClick={() => onAddFreeService && onAddFreeService()} style={{ padding: '10px 20px' }}>
+            <Plus size={18} /> {t('cars.free_service')}
+          </button>
+        </div>
       </div>
 
       <div className="orbit-table-container" style={{ borderTop: '1px solid var(--glass-border)', borderRadius: 0 }}>
@@ -853,6 +877,39 @@ function CarRevisionTable({ car, maintenance, templates, onLogService, onToggleS
           <div className="status-badge danger" style={{ padding: '4px' }}><XCircle size={12} /></div> {t('cars.revisions.status_ignored')}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CarServicesTable({ services }) {
+  const { t } = useTranslation();
+  return (
+    <div className="glass-card" style={{ padding: '1.5rem' }}>
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>{t('cars.services.title')}</h3>
+      {(!services || services.length === 0) ? (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('cars.services.empty')}</p>
+      ) : (
+        <table className="orbit-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Descrição</th>
+              <th>KM</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {services.map(s => (
+              <tr key={s.id}>
+                <td>{s.service_date}</td>
+                <td>{s.description}</td>
+                <td>{(s.km_at_service || 0).toLocaleString()}</td>
+                <td>{s.amount ? `${t('common.currency_symbol', 'R$')} ${parseFloat(s.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

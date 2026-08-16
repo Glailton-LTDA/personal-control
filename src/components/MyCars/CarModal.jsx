@@ -14,12 +14,20 @@ const DEFAULT_SERVICE_STATE = {
   amount: '',
   service_date: new Date().toISOString().split('T')[0]
 };
+const DEFAULT_FREE_SERVICE_STATE = {
+  description: '',
+  km_at_service: 0,
+  amount: '',
+  service_date: new Date().toISOString().split('T')[0],
+  notes: ''
+};
 
 export default function CarModal({ isOpen, onClose, type, car, maintenance, user, onSuccess }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData, clearCarDraft] = useFormDraft('new_car_form', DEFAULT_CAR_STATE, type === 'add_car');
   const [serviceData, setServiceData, clearServiceDraft] = useFormDraft('log_service_form', DEFAULT_SERVICE_STATE, type === 'log_service');
+  const [freeServiceData, setFreeServiceData] = useState(DEFAULT_FREE_SERVICE_STATE);
   const [noteData, setNoteData] = useState({ description: '', km_milestone: 10000, notes: '' });
 
   useEffect(() => {
@@ -154,8 +162,36 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
     setLoading(false);
   }
 
+  async function handleLogFreeService() {
+    if (!freeServiceData.description.trim()) {
+      toast.error(t('cars.errors.description_required', 'Preencha a descrição do serviço.'));
+      return;
+    }
+    setLoading(true);
+    const payload = {
+      car_id: car.id,
+      service_date: freeServiceData.service_date,
+      description: freeServiceData.description.trim(),
+      km_at_service: parseInt(freeServiceData.km_at_service.toString()) || car.current_km || 0,
+      amount: freeServiceData.amount ? parseFloat(String(freeServiceData.amount).replace(',', '.')) : 0,
+      notes: freeServiceData.notes || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('car_services').insert(payload);
+    if (!error) {
+      setFreeServiceData(DEFAULT_FREE_SERVICE_STATE);
+      onSuccess();
+      toast.success(t('cars.success.service_logged', 'Serviço registrado!'));
+    } else {
+      toast.error(t('cars.errors.service_log_failed', 'Erro ao salvar serviço.'));
+    }
+    setLoading(false);
+  }
+
   const isCarForm = type === 'add_car' || type === 'edit_car';
   const isServiceForm = type === 'log_service' || (typeof type === 'object' && type.type === 'log_service' && !type.notes && !type.isList);
+  const isFreeServiceForm = type === 'free_service';
   const isNoteForm = type === 'service_note' || (typeof type === 'object' && (type.isNote || type.isList));
 
   return (
@@ -179,16 +215,18 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               "--cat-color": isCarForm ? "var(--primary)" : isServiceForm ? "var(--success)" : "var(--pending)",
               width: 48, height: 48, borderRadius: 14 
             }}>
-              {isCarForm ? <Car size={24} /> : isServiceForm ? <Wrench size={24} /> : <FileText size={24} />}
+              {isCarForm ? <Car size={24} /> : isFreeServiceForm ? <Wrench size={24} /> : isServiceForm ? <Wrench size={24} /> : <FileText size={24} />}
             </div>
             <div>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
                 {isCarForm ? (type === 'add_car' ? t('cars.new_vehicle') : t('cars.edit_vehicle')) :
+                 isFreeServiceForm ? t('cars.free_service') :
                  isServiceForm ? t('cars.add_service') :
                  (typeof type === 'object' && type.isList ? t('cars.revisions.notes_history', 'Histórico de Notas') : t('cars.revisions.notes', 'Observações'))}
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
                 {isCarForm ? t('cars.basic_info') :
+                 isFreeServiceForm ? t('cars.log_service_desc', 'Registre um serviço não vinculado a revisão.') :
                  isServiceForm ? t('cars.log_service_desc') :
                  t('cars.notes_desc')}
               </p>
@@ -334,6 +372,73 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
             </div>
             <button className="btn-primary" onClick={handleLogService} disabled={loading || !serviceData.description.trim()} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
               {loading ? t('common.saving') : t('cars.save_maintenance')}
+            </button>
+          </div>
+        )}
+
+        {isFreeServiceForm && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="input-group">
+              <label>{t('cars.service_description', 'Descrição')}</label>
+              <input
+                type="text"
+                value={freeServiceData.description}
+                onChange={e => setFreeServiceData({...freeServiceData, description: e.target.value})}
+                placeholder={t('cars.service_placeholder', 'Ex: Lavagem, Troca de pneu...')}
+                autoFocus
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+              <div className="input-group">
+                <label>{t('cars.current_km', 'KM Atual')}</label>
+                <input
+                  type="number"
+                  value={freeServiceData.km_at_service}
+                  onChange={e => setFreeServiceData({...freeServiceData, km_at_service: parseInt(e.target.value) || car.current_km || 0})}
+                />
+              </div>
+              <div className="input-group">
+                <label>{t('cars.service_date', 'Data')}</label>
+                <input
+                  type="date"
+                  value={freeServiceData.service_date}
+                  onChange={e => setFreeServiceData({...freeServiceData, service_date: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="input-group">
+              <label>{t('cars.service_cost', 'Valor')}</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.9rem', fontWeight: 700 }}>{t('common.currency_symbol')}</span>
+                <input
+                  type="text"
+                  value={freeServiceData.amount}
+                  style={{ paddingLeft: '2.5rem' }}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (!val) {
+                      setFreeServiceData({...freeServiceData, amount: ''});
+                      return;
+                    }
+                    val = (parseInt(val) / 100).toFixed(2);
+                    setFreeServiceData({...freeServiceData, amount: val.replace('.', ',')});
+                  }}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+            <div className="input-group">
+              <label>{t('cars.notes_placeholder', 'Observações')}</label>
+              <textarea
+                className="settings-textarea"
+                value={freeServiceData.notes}
+                onChange={e => setFreeServiceData({...freeServiceData, notes: e.target.value})}
+                placeholder={t('cars.notes_placeholder', 'Observações...')}
+                style={{ minHeight: '100px', padding: '1rem', fontSize: '0.95rem', background: 'var(--card-action-bg)', border: '1px solid var(--glass-border)', borderRadius: '12px', color: 'var(--text-main)' }}
+              />
+            </div>
+            <button className="btn-primary" onClick={handleLogFreeService} disabled={loading || !freeServiceData.description.trim()} style={{ width: '100%', height: '52px', marginTop: '0.5rem' }}>
+              {loading ? t('common.saving') : t('cars.save_service')}
             </button>
           </div>
         )}

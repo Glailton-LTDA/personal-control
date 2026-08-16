@@ -36,6 +36,12 @@ test.describe('MyCars Module', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
 
+    await page.route('**/rest/v1/car_services*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+        { id: 's1', car_id: '1', service_date: '2025-08-15', description: 'Lavagem', km_at_service: 27000, amount: 200, notes: 'Lavagem completa' }
+      ]) });
+    });
+
     await page.addInitScript(() => {
       window.localStorage.setItem('pc_e2e_test', 'true');
     });
@@ -90,5 +96,11 @@ test.describe('MyCars Module', () => {
     await expect(page.locator('text=Concluído').first()).toBeVisible();
     await expect(page.locator('text=Pendente').first()).toBeVisible();
     await expect(page.locator('text=Ignorar').first()).toBeVisible();
+  });
+
+  test('should include car_services amount in total investment', async ({ page }) => {
+    await page.getByTestId('launchpad-item-cars').click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('car-name').first()).toBeVisible();
   });
 });

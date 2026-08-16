@@ -201,7 +201,13 @@ i18n
             km_unit: 'KM',
             edit_action: 'Editar',
             no_observation: 'Nenhuma observação encontrada para este serviço.',
-            template_placeholder: 'Ex: Correia Dentada'
+              template_placeholder: 'Ex: Correia Dentada',
+              free_service: 'Serviço Avulso',
+              save_service: 'Salvar Serviço',
+              services: {
+                title: 'Serviços Avulsos',
+                empty: 'Nenhum serviço avulso registrado.'
+              }
             },
           dashboard: {
             hide_values: 'Ocultar Valores',
@@ -1187,6 +1193,12 @@ i18n
               edit_action: 'Edit',
               no_observation: 'No notes found for this service.',
               template_placeholder: 'Ex: Timing Belt',
+              free_service: 'Free Service',
+              save_service: 'Save Service',
+              services: {
+                title: 'Free Services',
+                empty: 'No free services registered.'
+              },
               success: {
                 invite_accepted: 'Invitation accepted!',
                 invite_rejected: 'Invitation rejected.',
@@ -2131,7 +2143,13 @@ i18n
                km_unit: 'KM',
                edit_action: 'Editar',
                no_observation: 'Ninguna observación encontrada para este servicio.',
-               template_placeholder: 'Ej: Correia Dentada'
+               template_placeholder: 'Ej: Correia Dentada',
+               free_service: 'Servicio Libre',
+               save_service: 'Guardar Servicio',
+               services: {
+                 title: 'Servicios Libres',
+                 empty: 'No hay servicios libres registrados.'
+               }
              },
            dashboard: {
              hide_values: 'Ocultar Valores',
