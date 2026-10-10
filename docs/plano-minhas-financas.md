@@ -1284,6 +1284,14 @@ Itens ativos, na ordem de atendimento:
       vez de sempre hoje; e o formulário de lançamento ganhou
       **Excluir** (`mf-tx-delete`, com confirmação, vínculos de tag
       caem por cascade) — antes só existia na lista de Transações;
+    - **Ícones: Nomad oficial + leva nova (Fase B, rodada 10/10)**:
+      `nomad.svg` amarelo oficial (marca do site; entrada passa a
+      fundo amarelo/texto escuro) + 28 na grade (🐼🦁🍽️🌊🏞️🪕
+      👨👩🧒👧 bandeiras BR/US/EU/PT/AR/UY/CL/PY/ES/IT/JP/CN,
+      `R$`/`US$`/`€` como texto, 🍳 p/ fogão) com keywords; sem emoji
+      de fogão/cachoeira/cavaquinho/sanduíche-novo (🥪🍵💧🎸 já
+      existiam); 1 teste funcional (busca), guarda de SVGs cobre o
+      arquivo;
     - **Ícones de categoria: +60 e busca (rodada 09/10)**: a grade era
       curadoria própria de emojis (`MFCategoryIcons.js`, como no
       original) — a bomba ⛽ já existia, mas era inachável sem busca.

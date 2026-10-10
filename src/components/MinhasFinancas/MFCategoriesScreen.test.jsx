@@ -256,6 +256,11 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
     expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('⛽');
 
     fireEvent.change(screen.getByTestId('mf-cat-modal-icon-search'), {
+      target: { value: 'panda' },
+    });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🐼');
+
+    fireEvent.change(screen.getByTestId('mf-cat-modal-icon-search'), {
       target: { value: 'zzz-inexistente' },
     });
     expect(screen.getByTestId('mf-cat-modal-icon-empty')).toBeInTheDocument();

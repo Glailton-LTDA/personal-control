@@ -101,7 +101,7 @@ export const MF_BRAND_ICONS = {
   apay: { bg: '#000000', fg: '#ffffff', glyph: 'apay', name: 'Apple Pay' },
   bofa: { bg: '#012169', fg: '#ffffff', glyph: 'boa', name: 'Bank of America' },
   iti: { bg: '#7C3AED', fg: '#ffffff', glyph: 'iti', name: 'iti' },
-  nomad: { bg: '#0B1F3F', fg: '#ffffff', glyph: 'nomad', name: 'Nomad' },
+  nomad: { bg: '#FFD100', fg: '#1A1A13', glyph: 'nomad', name: 'Nomad' },
   ifood: { bg: '#EA1D2C', fg: '#ffffff', glyph: 'ifood', name: 'iFood' },
 
   // ── Redes de cartão ──
@@ -191,6 +191,7 @@ export const MF_BRAND_FILES = {
   amex: 'amex.svg',
   hipercard: 'hipercard.svg',
   tesourodireto: 'tesourodireto.svg',
+  nomad: 'nomad.svg',
 };
 
 /** Ícones genéricos (lucide) — gravado como glyph:<chave>. */

@@ -26,6 +26,10 @@ export const MF_CATEGORY_ICONS = [
   '🍼', '🪁', '📎', '🖨️', '📅', '📌', '👗', '🧥',
   '👟', '🥾', '🧢', '🎧', '⌨️', '🔊', '🧳', '🙏',
   '💒', '🍷', '🥂', '🐖',
+  '🐼', '🦁', '🍽️', '🌊', '🏞️', '🪕', '👨', '👩',
+  '🧒', '👧', '🇧🇷', '🇺🇸', '🇪🇺', '🇵🇹', '🇦🇷', '🇺🇾',
+  '🇨🇱', '🇵🇾', '🇪🇸', '🇮🇹', '🇯🇵', '🇨🇳', 'R$', 'US$',
+  '€', '🍳',
 ];
 
 /**
@@ -222,6 +226,32 @@ export const MF_ICON_KEYWORDS = {
   '🙏': 'igreja oracao reza fe dizimo culto missa',
   '💒': 'casamento igreja cerimonia festa',
   '🐖': 'cofrinho poupanca economia reserva guardar',
+  '🐼': 'panda urso china bambu',
+  '🦁': 'leao rei selva africa safari',
+  '🍽️': 'comida prato refeicao almoco janta restaurante garfo faca',
+  '🌊': 'mar praia onda agua piscina cachoeira',
+  '🏞️': 'cachoeira natureza parque trilha cascata',
+  '🪕': 'cavaquinho banjo viola musica sertanejo instrumento',
+  '👨': 'homem pai marido senhor',
+  '👩': 'mulher mae esposa senhora',
+  '🧒': 'crianca filho menino',
+  '👧': 'crianca filha menina',
+  '🇧🇷': 'brasil bandeira pais',
+  '🇺🇸': 'estados unidos eua america bandeira pais dolar',
+  '🇪🇺': 'europa uniao europeia euro bandeira',
+  '🇵🇹': 'portugal bandeira pais',
+  '🇦🇷': 'argentina bandeira pais',
+  '🇺🇾': 'uruguai bandeira pais',
+  '🇨🇱': 'chile bandeira pais',
+  '🇵🇾': 'paraguai bandeira pais',
+  '🇪🇸': 'espanha bandeira pais',
+  '🇮🇹': 'italia bandeira pais',
+  '🇯🇵': 'japao bandeira pais',
+  '🇨🇳': 'china bandeira pais',
+  'R$': 'real brasil moeda dinheiro brl',
+  'US$': 'dolar americano eua moeda dinheiro usd',
+  '€': 'euro europa moeda dinheiro eur',
+  '🍳': 'frigideira fritura ovo cozinha fogao',
 };
 
 /** Busca de ícone: termo normalizado (sem acento/caixa) nas palavras-chave. */
