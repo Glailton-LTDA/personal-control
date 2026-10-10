@@ -115,6 +115,8 @@ describe('MFContas', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('pc_skip_confirmations', 'true');
+    localStorage.removeItem('mf_month_key');
+    localStorage.removeItem('mf_detail_drill');
   });
 
   it('renderiza a tabela de contas com totais', async () => {
@@ -206,6 +208,35 @@ describe('MFContas', () => {
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+  });
+
+  it('drill sobrevive ao F5: restaura, ignora id inválido e limpa ao fechar', async () => {
+    // restaura a conta salva
+    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'accounts', id: 'acc-1' }));
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    });
+
+    // fechar limpa o salvo
+    fireEvent.click(screen.getByTestId('mf-acct-det-back'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+    expect(localStorage.getItem('mf_detail_drill')).toBeNull();
+  });
+
+  it('drill com id inexistente abre a lista normalmente', async () => {
+    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'accounts', id: 'nope' }));
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+    expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
   });
 
   it('abre o modal de edicao sem entrar no detalhe', async () => {

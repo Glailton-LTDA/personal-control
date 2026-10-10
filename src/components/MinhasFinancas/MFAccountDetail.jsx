@@ -5,8 +5,6 @@ import {
   Pie,
   Cell,
   Tooltip,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   AreaChart,
@@ -300,14 +298,18 @@ export default function MFAccountDetail({
   //   últimos 12 meses e últimas despesas (padrão do app original). —
   const cashflow = useMemo(() => {
     const entradas = round2(movement.receitas.pago + movement.transfIn.pago);
+    const entradasTotal = round2(entradas + movement.receitas.pendente + movement.transfIn.pendente);
     const saidas = round2(movement.despesas.pago + movement.transfOut.pago);
+    const saidasTotal = round2(saidas + movement.despesas.pendente + movement.transfOut.pendente);
     return [
-      { id: 'in', label: t('minhasfinancas.det_cf_in'), value: entradas, color: '#10b981' },
-      { id: 'out', label: t('minhasfinancas.det_cf_out'), value: saidas, color: '#ef4444' },
+      { id: 'in', label: t('minhasfinancas.det_cf_in'), value: entradas, pago: entradas, total: entradasTotal, color: '#10b981' },
+      { id: 'out', label: t('minhasfinancas.det_cf_out'), value: saidas, pago: saidas, total: saidasTotal, color: '#ef4444' },
       {
         id: 'balance',
         label: t('minhasfinancas.det_cf_balance'),
         value: round2(Number(account.saldo) || 0),
+        pago: 0,
+        total: 0,
         color: 'var(--primary)',
       },
     ];
@@ -590,7 +592,6 @@ export default function MFAccountDetail({
           className={`mf-det-panel${mobileTab === 'resumo' ? ' mf-det-active' : ''}`}
           data-testid="mf-det-panel-resumo"
           data-panel="resumo"
-          style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}
         >
       {/* Resumo do mês: saldo inicial + movimentação + saldos (padrão original) */}
       <div
@@ -844,9 +845,9 @@ export default function MFAccountDetail({
                         : `${t('minhasfinancas.card_due')} ${fmtShort(active.dueISO)}`}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div
-                      style={{ fontWeight: 800, fontSize: '0.95rem' }}
+                      style={{ fontWeight: 800, fontSize: '1.1rem' }}
                       data-testid={`mf-linked-card-amount-${card.id}`}
                     >
                       {showValues ? formatMoney(invTotal, card.currency || 'BRL') : '•••'}
@@ -871,15 +872,24 @@ export default function MFAccountDetail({
                   {owed > 0 && (
                     <button
                       type="button"
-                      className="btn-cancel"
                       data-testid={`mf-linked-card-pay-${card.id}`}
                       onClick={() => handlePayLinked(card, active)}
                       style={{
-                        fontSize: '0.78rem',
-                        padding: '0.5rem 0.75rem',
+                        flexBasis: '100%',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        marginTop: '0.35rem',
+                        padding: '0.6rem',
+                        borderRadius: 10,
+                        border: '1px solid var(--danger)',
+                        background: 'transparent',
+                        color: 'var(--danger)',
+                        fontSize: '0.85rem',
+                        fontWeight: 800,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
                       }}
                     >
                       <Wallet size={14} />
@@ -908,33 +918,40 @@ export default function MFAccountDetail({
           }}
         >
           <h4 style={sectionTitle}>{t('minhasfinancas.det_cashflow')}</h4>
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cashflow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis hide />
-                <Tooltip formatter={(value) => money(value)} contentStyle={chartTooltipStyle} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]} isAnimationActive={false}>
-                  {cashflow.map((entry) => (
-                    <Cell key={entry.id} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.5rem', fontSize: '0.82rem' }}>
-            {cashflow.map((entry) => (
-              <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span
-                  aria-hidden
-                  style={{ width: 10, height: 10, borderRadius: '50%', background: entry.color, display: 'inline-block' }}
-                />
-                <span style={{ color: 'var(--text-muted)' }}>{entry.label}</span>
-                <strong style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-                  {money(entry.value)}
-                </strong>
-              </div>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+            {[
+              { id: 'in', label: t('minhasfinancas.det_cf_in'), value: cashflow[0].value, pago: cashflow[0].pago, total: cashflow[0].total, color: '#10b981', bg: 'linear-gradient(135deg, #10b981, #059669)' },
+              { id: 'out', label: t('minhasfinancas.det_cf_out'), value: cashflow[1].value, pago: cashflow[1].pago, total: cashflow[1].total, color: '#ef4444', bg: 'linear-gradient(135deg, #ef4444, #dc2626)' },
+            ].map((card) => {
+              const pct = card.total > 0 ? Math.round((card.pago / card.total) * 100) : 100;
+              return (
+                <div
+                  key={card.id}
+                  style={{
+                    background: card.bg,
+                    borderRadius: 16,
+                    padding: '0.9rem 1rem',
+                    color: '#fff',
+                  }}
+                >
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.9 }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', marginTop: '0.35rem', opacity: 0.9, fontVariantNumeric: 'tabular-nums' }}>
+                    {money(card.value)}
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                    {pct}%
+                  </div>
+                  <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.3)', marginTop: '0.45rem', overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: '#fff', borderRadius: 999 }} />
+                  </div>
+                  <div style={{ fontSize: '0.7rem', marginTop: '0.3rem', opacity: 0.85 }}>
+                    {pct}% {t('minhasfinancas.det_cf_of_forecast')}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 

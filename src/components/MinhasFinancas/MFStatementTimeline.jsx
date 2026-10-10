@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useNotificationSettings } from '../../hooks/useFinance';
 import {
   useMFStatement,
   computeStatement,
   useMFCategories,
   useUpdateMFTransaction,
+  useMFSendReceiptEmail,
   formatMoney,
   parseISODate,
   toISODate,
@@ -14,6 +16,7 @@ import {
   mfInstallmentSuffix,
 } from '../../hooks/useMinhasFinancas';
 import MFCategoryAvatar from './MFCategoryAvatar';
+import MFEmailModal from './MFEmailModal';
 import { mfNormalize } from './MFCategoryIcons';
 
 /**
@@ -74,6 +77,18 @@ export default function MFStatementTimeline({
   };
   const { data: categories = [] } = useMFCategories(user);
   const updateTx = useUpdateMFTransaction();
+  const sendReceipt = useMFSendReceiptEmail();
+  const { data: notificationSettings } = useNotificationSettings();
+  const [emailTarget, setEmailTarget] = useState(null);
+
+  /** Enviar comprovante: direto se pula o modal, senão abre a escolha. */
+  const openEmail = (tx, categoryName) => {
+    if (notificationSettings?.skip_email_modal && notificationSettings?.recipient_email) {
+      sendReceipt({ tx, categoryName });
+    } else {
+      setEmailTarget({ tx, categoryName });
+    }
+  };
 
   const categoryById = useMemo(
     () => Object.fromEntries((categories || []).map((row) => [row.id, row])),
@@ -186,6 +201,7 @@ export default function MFStatementTimeline({
                   fontSize: '0.85rem',
                   fontWeight: 800,
                   color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
                 }}
               >
                 {formatDay(group.date)}
@@ -265,16 +281,34 @@ export default function MFStatementTimeline({
                           </span>
                         )}
                       </span>
-                      <span style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <span
-                          style={{
-                            display: 'block',
-                            fontWeight: 800,
-                            color,
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {money(signed, itemCurrency)}
+                      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', flexShrink: 0 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <span
+                            style={{
+                              fontWeight: 800,
+                              color,
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {money(signed, itemCurrency)}
+                          </span>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            data-testid={`mf-timeline-email-${tx.id}`}
+                            aria-label={t('minhasfinancas.email_send')}
+                            title={t('minhasfinancas.email_send')}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openEmail(tx, category?.name ?? '');
+                            }}
+                            style={{
+                              padding: '0.25rem',
+                              color: tx.email_sent ? 'var(--primary)' : 'var(--text-muted)',
+                            }}
+                          >
+                            <Send size={13} />
+                          </button>
                         </span>
                         {tx.status === 'PENDENTE' && (
                           <button
@@ -286,7 +320,6 @@ export default function MFStatementTimeline({
                               handleSettle(tx);
                             }}
                             style={{
-                              marginTop: '0.25rem',
                               fontSize: '0.7rem',
                               padding: '0.25rem 0.6rem',
                             }}
@@ -298,11 +331,19 @@ export default function MFStatementTimeline({
                     </>
                   );
                   return onOpenTx ? (
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       key={tx.id}
-                      type="button"
                       data-testid={`mf-timeline-item-${tx.id}`}
                       onClick={() => onOpenTx(tx)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onOpenTx(tx);
+                        }
+                      }}
                       className="table-row-hover"
                       style={{
                         display: 'flex',
@@ -310,16 +351,13 @@ export default function MFStatementTimeline({
                         gap: '0.7rem',
                         width: '100%',
                         textAlign: 'left',
-                        padding: 0,
-                        background: 'none',
-                        border: 'none',
                         cursor: 'pointer',
                         color: 'inherit',
                         font: 'inherit',
                       }}
                     >
                       {body}
-                    </button>
+                    </div>
                   ) : (
                     <div
                       key={tx.id}
@@ -388,6 +426,13 @@ export default function MFStatementTimeline({
             </p>
           )}
         </div>
+      )}
+      {emailTarget && (
+        <MFEmailModal
+          tx={emailTarget.tx}
+          categoryName={emailTarget.categoryName}
+          onClose={() => setEmailTarget(null)}
+        />
       )}
     </div>
   );

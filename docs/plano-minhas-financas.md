@@ -1205,9 +1205,14 @@ Itens ativos, na ordem de atendimento:
       arquivo novo `MFStatementTimeline.test.jsx` +6 (grupos desc com
       saldos/abertura, busca, Efetivar, loading, erro+retry,
       pré-carregado sem fetch),
+      arquivo novo `mfViewState.test.js` +4, `MFContas` +2 (restaura,
+      ignora, limpa), `MFCartoes` +2, `MinhasFinancas` +1 (mês),
       arquivo novo `MFRepeatModal.test.jsx` +3 (toggle, preview,
       payload), `MFTransacoes` +5 (total divide, parcela mantém,
-      escopo from, one+renumera, form), `useMinhasFinancas.test.js`
+      escopo from, one+renumera, form) +2 (envio direto, modal de
+      destinatário), `MFStatementTimeline` +2 (envio direto, modal de
+      destinatário) +1 (sem botão aninhado), arquivo novo `MFEmailModal.test.jsx` +1,
+      `useMinhasFinancas.test.js`
       +3 (`mfInstallmentSuffix`, `installmentHeadId`/`orderSeries`);
     - **CORS fantasma ao salvar tag (rodada 09/10, diagnóstico com
       logs)**: `mf_tags` saudável no remoto (policies/grants idênticos
@@ -1220,6 +1225,28 @@ Itens ativos, na ordem de atendimento:
       paralelas (~6k hits/dia só em `mf_transactions`). Fix: trailing
       de 750ms no `useInvalidateAll` (rajadas viram 1 tempestade;
       igual para saves isolados);
+    - **F5 mantém a página (Fase C, rodada 10/10)**: a aba já
+      persistia via router; faltavam mês + drill. `mfViewState.js`
+      (`mf_month_key` validado, `mf_detail_drill` {tab, id} com
+      restaura-uma-vez/limpa-ao-fechar/ignora-inexistente); mês no
+      container e nos Cartões; drill em Contas e Cartões; higiene de
+      storage nos testes;
+    - **E-mail de comprovante no MF, manual (Fase A, rodada 10/10)**:
+      botão ✉️ na linha de Transações e na timeline, mesmo formato do
+      Finance (assunto tipo+descrição, corpo via `send-finance-email`
+      com nome da categoria; mesmo destinatário de
+      `notification_settings`); migration `email_sent` em
+      `mf_transactions` (aplicada remoto); helper
+      `useMFSendReceiptEmail`; sem auto-envio;
+    - **Modal de destinatário + restyle do detalhe (Fase A, rodada
+      10/10)**: `MFEmailModal` replica o do Finance (responsáveis,
+      PRINCIPAL, envio direto com `skip_email_modal`); detalhe no
+      padrão do mockup (fluxo em cards % do previsto, fatura vinculada
+      com Pagar full-width, dias em maiúsculas, avião na linha do
+      valor; bottom-nav é do shell do app, fora do MF); abas mobile
+      funcionam (layout saiu do inline para as classes); linha da
+      timeline sem botão aninhado (div role+teclado); rodapés dos
+      modais fixos (`modal-footer`);
     - **Parcelamento completo (rodada 10/10)**: modal Repetição
       redesenhado + alternador **Valor total | Valor parcela** (total
       divide, parcela repete; preview "Em Nx de R$ Y"); sufixo **N/M**
@@ -1280,4 +1307,4 @@ Itens ativos, na ordem de atendimento:
       parecia "não fazer nada" quando o refetch morria na
       tempestade); trava de Save enquanto categorias carregam
       (evita duplicar Outros/Ajuste);
-      gates verdes (ESLint 0 · Vitest 64/450 · E2E 41/41 `--workers=1`).
+      gates verdes (ESLint 0 · Vitest 66/465 · E2E 41/41 `--workers=1`).

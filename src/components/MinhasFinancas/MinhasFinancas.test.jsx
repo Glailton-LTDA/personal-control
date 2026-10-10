@@ -75,6 +75,17 @@ const mockUser = { id: 'test-user', email: 'test@example.com' };
 describe('MinhasFinancas', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.removeItem('mf_month_key');
+    localStorage.removeItem('mf_detail_drill');
+  });
+
+  it('mês selecionado sobrevive ao F5', async () => {
+    localStorage.setItem('mf_month_key', '2026-09');
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="resumo" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Setembro de 2026');
+    });
   });
 
   it('renderiza o Resumo com navegação de mês, KPIs e tabela de contas', async () => {

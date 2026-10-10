@@ -164,6 +164,7 @@ export default function MFPaymentModal({ card, invoice, user, onClose }) {
         </p>
 
         <div
+          className="modal-footer"
           style={{
             display: 'flex',
             justifyContent: 'flex-end',

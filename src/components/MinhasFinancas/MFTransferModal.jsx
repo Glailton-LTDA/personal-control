@@ -219,7 +219,7 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
               <input type="text" value={form.description} onChange={set('description')} />
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+            <div className="modal-footer" style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
               <button
                 type="button"
                 className="btn-cancel"

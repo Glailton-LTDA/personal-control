@@ -155,6 +155,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('pc_skip_confirmations', 'true');
+    localStorage.removeItem('mf_month_key');
+    localStorage.removeItem('mf_detail_drill');
     // congela o relatório: 04/10/2026 (ciclos do cartão fixos)
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 4, 12, 0, 0) });
   });
@@ -162,6 +164,29 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   afterEach(() => {
     vi.useRealTimers();
     localStorage.removeItem('pc_skip_confirmations');
+  });
+
+  it('drill do cartão sobrevive ao F5 e limpa ao fechar', async () => {
+    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'cards', id: 'acc-card' }));
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-acct-det-back'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
+    });
+    expect(localStorage.getItem('mf_detail_drill')).toBeNull();
+  });
+
+  it('drill de outra aba é ignorado nos cartões', async () => {
+    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'accounts', id: 'acc-card' }));
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-card-widget-acc-card')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
   });
 
   it('aceite: fechamento dia 10 → fatura vence dia 20; status e corrente calculados', async () => {

@@ -264,7 +264,7 @@ export default function MFCategoryFormModal({
         </div>
 
         {/* Ações */}
-        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', marginTop: '1rem' }}>
+        <div className="modal-footer" style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', marginTop: '1rem' }}>
           {mode === 'edit' && (
             <button
               type="button"

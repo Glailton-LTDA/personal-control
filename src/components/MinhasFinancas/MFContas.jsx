@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -25,6 +25,7 @@ import MFTransferModal from './MFTransferModal';
 import MFGroupModal from './MFGroupModal';
 import MFGroupIcon from './MFGroupIcon';
 import MFAccountDetail from './MFAccountDetail';
+import { readDrill, writeDrill } from './mfViewState';
 
 const cellBase = {
   padding: '0.85rem 1rem',
@@ -170,6 +171,26 @@ export default function MFContas({
   const foundSelected = selectedId ? rows.find((row) => row.id === selectedId) : null;
   if (foundSelected) lastSelectedRef.current = foundSelected;
   const selectedRow = selectedId ? foundSelected || lastSelectedRef.current : null;
+
+  // Drill-down sobrevive ao F5: grava ao abrir, limpa ao fechar e
+  // restaura uma vez (quando as linhas chegam) se a conta existir.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (selectedId) {
+      writeDrill({ tab: 'accounts', id: selectedId });
+      return;
+    }
+    if (restoredRef.current) {
+      writeDrill(null);
+      return;
+    }
+    if (rows.length === 0) return;
+    restoredRef.current = true;
+    const saved = readDrill();
+    if (saved?.tab === 'accounts' && saved?.id && rows.some((row) => row.id === saved.id)) {
+      setSelectedId(saved.id);
+    }
+  }, [selectedId, rows]);
 
   const nativeMoney = (value, rowCurrency) =>
     showValues ? formatMoney(value, rowCurrency) : '•••';

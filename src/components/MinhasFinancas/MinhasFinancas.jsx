@@ -25,6 +25,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import { MFProfileContext } from '../../hooks/mfProfileContext';
 import { SyncEngine } from '../../lib/offline/SyncEngine';
+import { readMonthKey, writeMonthKey } from './mfViewState';
 
 const PROFILE_STORAGE_KEY = 'mf_active_profile';
 
@@ -38,7 +39,11 @@ const PROFILE_STORAGE_KEY = 'mf_active_profile';
 export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', showValues = true }) {
   const { t } = useTranslation();
   const [key, setKey] = useState(0);
-  const [monthKey, setMonthKey] = useState(() => currentMonthKey());
+  // Mês sobrevive ao F5 (validado na leitura; drill-down idem, por tela).
+  const [monthKey, setMonthKey] = useState(() => readMonthKey(currentMonthKey()));
+  useEffect(() => {
+    writeMonthKey(monthKey);
+  }, [monthKey]);
   const [activeProfile, setActiveProfile] = useState(() => {
     try {
       return localStorage.getItem(PROFILE_STORAGE_KEY) || null;

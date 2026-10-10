@@ -1234,6 +1234,7 @@ export default function MFTransacaoScreen({
 
         {/* Ações */}
         <div
+          className="modal-footer"
           style={{
             display: 'flex',
             gap: '0.75rem',

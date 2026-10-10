@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useMFProfileScope } from './mfProfileContext';
+import { useNotificationSettings } from './useFinance';
 import { mfSelect, mfSelectAll, mfMutate } from '../lib/offline/mfOffline';
 
 /* ────────────────────────────────────────────────────────────
@@ -1154,6 +1157,55 @@ export function useBulkMFTransactions() {
       }),
     onSuccess: invalidate,
   });
+}
+
+/**
+ * Envia o comprovante do lançamento por e-mail (botão ✉️ manual, mesmo
+ * formato do Finance): usa o destinatário informado (`to`) ou o da
+ * `notification_settings`, invoca `send-finance-email` e marca
+ * `email_sent`. Retorna a função `sendReceipt({ tx, categoryName, to })`.
+ */
+export function useMFSendReceiptEmail() {
+  const { t } = useTranslation();
+  const { data: settings } = useNotificationSettings();
+  const updateTx = useUpdateMFTransaction();
+  return async ({ tx, categoryName = '', to = null }) => {
+    const dest = to || settings?.recipient_email;
+    if (!dest) {
+      toast.error(t('minhasfinancas.email_no_recipient'));
+      return false;
+    }
+    const subjectKey =
+      tx.type === 'RECEITA'
+        ? 'minhasfinancas.email_subject_income'
+        : tx.type === 'TRANSFERENCIA'
+          ? 'minhasfinancas.email_subject_transfer'
+          : 'minhasfinancas.email_subject_expense';
+    try {
+      const { error } = await supabase.functions.invoke('send-finance-email', {
+        body: {
+          to: dest,
+          subject: t(subjectKey, { desc: tx.description }),
+          data: {
+            description: tx.description,
+            category: categoryName || '',
+            type: tx.type,
+            status: tx.status,
+            amount: Number(tx.amount) || 0,
+            payment_date: tx.payment_date,
+          },
+          bcc: settings?.bcc_email,
+        },
+      });
+      if (error) throw error;
+      await updateTx.mutateAsync({ id: tx.id, email_sent: true });
+      toast.success(t('minhasfinancas.email_sent_to', { email: dest }));
+      return true;
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+      return false;
+    }
+  };
 }
 
 /** Exclusão em lote. */

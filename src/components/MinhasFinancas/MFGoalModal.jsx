@@ -241,7 +241,7 @@ export default function MFGoalModal({ isOpen, onClose, goal = null, user }) {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+          <div className="modal-footer" style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
             <button type="button" className="btn-cancel" onClick={onClose} style={{ flex: 1 }}>
               {t('minhasfinancas.cancel')}
             </button>

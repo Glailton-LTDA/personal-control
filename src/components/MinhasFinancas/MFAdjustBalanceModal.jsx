@@ -446,6 +446,7 @@ export default function MFAdjustBalanceModal({
         </p>
 
         <div
+          className="modal-footer"
           style={{
             display: 'flex',
             justifyContent: 'flex-end',

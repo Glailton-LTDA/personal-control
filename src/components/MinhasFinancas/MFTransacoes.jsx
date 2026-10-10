@@ -11,9 +11,11 @@ import {
   Repeat,
   FastForward,
   Loader2,
+  Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
+import { useNotificationSettings } from '../../hooks/useFinance';
 import {
   useMFLancamentos,
   useMFAccounts,
@@ -26,6 +28,7 @@ import {
   useBulkMFTransactions,
   useBulkDeleteMFTransactions,
   useInstallmentDelete,
+  useMFSendReceiptEmail,
   buildEstornoTx,
   formatMoney,
   mfInstallmentSuffix,
@@ -44,6 +47,7 @@ import MFSelect from './MFSelect';
 import MFAddMenu from './MFAddMenu';
 import MFTransferModal from './MFTransferModal';
 import MFChoiceDialog from './MFChoiceDialog';
+import MFEmailModal from './MFEmailModal';
 
 const cellBase = {
   padding: '0.8rem 0.9rem',
@@ -92,6 +96,18 @@ export default function MFTransacoes({
   const deleteMutation = useDeleteMFTransaction();
   const deleteFixedMutation = useDeleteMFFixedSeries();
   const instDelete = useInstallmentDelete();
+  const sendReceipt = useMFSendReceiptEmail();
+  const { data: notificationSettings } = useNotificationSettings();
+  const [emailTarget, setEmailTarget] = useState(null);
+
+  /** Enviar comprovante: direto se pula o modal, senão abre a escolha. */
+  const openEmail = (tx, categoryName) => {
+    if (notificationSettings?.skip_email_modal && notificationSettings?.recipient_email) {
+      sendReceipt({ tx, categoryName });
+    } else {
+      setEmailTarget({ tx, categoryName });
+    }
+  };
   const createMutation = useCreateMFTransaction();
   const bulkMutation = useBulkMFTransactions();
   const bulkDeleteMutation = useBulkDeleteMFTransactions();
@@ -985,6 +1001,19 @@ export default function MFTransacoes({
                           <button
                             type="button"
                             className="icon-btn"
+                            data-testid={`mf-tx-email-${tx.id}`}
+                            aria-label={t('minhasfinancas.email_send')}
+                            title={t('minhasfinancas.email_send')}
+                            onClick={() =>
+                              openEmail(tx, category?.name ?? '')
+                            }
+                            style={{ color: tx.email_sent ? 'var(--primary)' : 'var(--text-muted)' }}
+                          >
+                            <Send size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
                             data-testid={`mf-tx-delete-${tx.id}`}
                             aria-label={t('minhasfinancas.delete')}
                             onClick={() => handleDelete(tx)}
@@ -1085,6 +1114,15 @@ export default function MFTransacoes({
           }}
           onOption={onInstDeleteChoice}
           onClose={() => setChoice(null)}
+        />
+      )}
+
+      {/* Enviar comprovante: escolha do destinatário */}
+      {emailTarget && (
+        <MFEmailModal
+          tx={emailTarget.tx}
+          categoryName={emailTarget.categoryName}
+          onClose={() => setEmailTarget(null)}
         />
       )}
 

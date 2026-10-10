@@ -698,6 +698,9 @@ describe('MFAccountDetail', () => {
     expect(screen.getByTestId('mf-det-tab-transacoes')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('mf-det-panel-transacoes')).toHaveClass('mf-det-active');
     expect(screen.getByTestId('mf-det-panel-resumo')).not.toHaveClass('mf-det-active');
+    // visibilidade vem só das classes (sem display inline, que venceria o CSS)
+    expect(screen.getByTestId('mf-det-panel-resumo').style.display).toBe('');
+    expect(screen.getByTestId('mf-det-panel-transacoes').style.display).toBe('');
 
     // timeline embutida com os lançamentos do mês
     await waitFor(() => {
@@ -721,10 +724,11 @@ describe('MFAccountDetail', () => {
     });
     expect(screen.getByTestId('mf-det-cashflow')).toBeInTheDocument();
 
-    // fluxo: entradas 200 (transf. recebida) · saídas 80 (100 − 20) · balanço 500
+    // fluxo: entradas 200 (transf. recebida) · saídas 80 (100 − 20) · % do previsto
     expect(txt('mf-det-cashflow')).toContain('R$ 200,00');
     expect(txt('mf-det-cashflow')).toContain('R$ 80,00');
-    expect(txt('mf-det-cashflow')).toContain('R$ 500,00');
+    expect(txt('mf-det-cashflow')).toContain('100%');
+    expect(txt('mf-det-cashflow')).toContain('62%');
 
     // pizza: só despesa paga positiva (Mercado 100; estorno negativo fora)
     expect(txt('mf-det-categories-total')).toContain('R$ 100,00');

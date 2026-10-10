@@ -262,6 +262,7 @@ export default function MFAnticipateModal({ tx, user, currency = 'BRL', onClose 
         )}
 
         <div
+          className="modal-footer"
           style={{
             display: 'flex',
             justifyContent: 'flex-end',

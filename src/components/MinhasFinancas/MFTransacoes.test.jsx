@@ -47,6 +47,7 @@ vi.mock('../../lib/supabase', () => {
       in: vi.fn().mockReturnThis(),
       or: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
           onFulfilled,
@@ -133,6 +134,15 @@ vi.mock('../../lib/supabase', () => {
   });
 
   const upload = vi.fn().mockResolvedValue({ error: null });
+  const notifRow = { recipient_email: 'dest@test.com', bcc_email: null, skip_email_modal: true };
+  const notifSettings = makeChain({ data: notifRow, error: null });
+  const responsibles = makeChain({
+    data: [
+      { id: 'resp-1', name: 'Deisianne', email: 'dei@test.com', is_main: false },
+      { id: 'resp-2', name: 'Glailton', email: 'glai@test.com', is_main: true },
+    ],
+    error: null,
+  });
 
   return {
     supabase: {
@@ -141,8 +151,13 @@ vi.mock('../../lib/supabase', () => {
         if (table === 'mf_categories') return categories;
         if (table === 'mf_tags') return tags;
         if (table === 'mf_transaction_tags') return transactionTags;
+        if (table === 'notification_settings') return notifSettings;
+        if (table === 'finance_responsibles') return responsibles;
         return transactions;
       }),
+      functions: {
+        invoke: vi.fn().mockResolvedValue({ error: null }),
+      },
       storage: {
         from: vi.fn(() => ({ upload })),
       },
@@ -154,6 +169,7 @@ vi.mock('../../lib/supabase', () => {
     getSignedUrl: vi.fn().mockResolvedValue('https://signed.example/x'),
     __upload: upload,
     __txRows: txRows,
+    __notifRow: notifRow,
   };
 });
 
@@ -612,6 +628,79 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       });
     } finally {
       __txRows.length = 3;
+    }
+  });
+
+  it('envia o comprovante com a categoria e marca como enviado', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-email-tx-2'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.functions.invoke).toHaveBeenCalledWith('send-finance-email', {
+        body: {
+          to: 'dest@test.com',
+          subject: 'minhasfinancas.email_subject_expense',
+          data: {
+            description: 'Supermercado Extra',
+            category: 'Supermercado',
+            type: 'DESPESA',
+            status: 'PAGO',
+            amount: 200,
+            payment_date: '2026-10-06',
+          },
+          bcc: null,
+        },
+      });
+    });
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.update).toHaveBeenCalledWith({ email_sent: true });
+    });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'tx-2');
+    const toast = (await import('react-hot-toast')).default;
+    expect(toast.success).toHaveBeenCalledWith('minhasfinancas.email_sent_to');
+  });
+
+  it('sem pular o modal, abre a escolha e envia ao responsável', async () => {
+    const { __notifRow } = await import('../../lib/supabase');
+    __notifRow.skip_email_modal = false;
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      fireEvent.click(screen.getByTestId('mf-tx-email-tx-2'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-email-modal')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-email-resp-resp-2')).toBeInTheDocument();
+      });
+
+      // envio direto NÃO aconteceu ainda
+      const { supabase } = await import('../../lib/supabase');
+      expect(supabase.functions.invoke).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('mf-email-resp-resp-1'));
+      await waitFor(() => {
+        expect(supabase.functions.invoke).toHaveBeenCalledWith(
+          'send-finance-email',
+          expect.objectContaining({
+            body: expect.objectContaining({ to: 'dei@test.com' }),
+          })
+        );
+      });
+      await waitFor(() => {
+        expect(screen.queryByTestId('mf-email-modal')).not.toBeInTheDocument();
+      });
+    } finally {
+      __notifRow.skip_email_modal = true;
     }
   });
 

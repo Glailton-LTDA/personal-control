@@ -38,6 +38,7 @@ vi.mock('../../lib/supabase', () => {
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
           onFulfilled,
@@ -99,6 +100,15 @@ vi.mock('../../lib/supabase', () => {
     data: [{ id: 'cat-food', name: 'Alimentação', icon: '🍔', color: '#f59e0b' }],
     error: null,
   });
+  const notifRow = { recipient_email: 'dest@test.com', bcc_email: null, skip_email_modal: true };
+  const notifSettings = makeChain({ data: notifRow, error: null });
+  const responsibles = makeChain({
+    data: [
+      { id: 'resp-1', name: 'Deisianne', email: 'dei@test.com', is_main: false },
+      { id: 'resp-2', name: 'Glailton', email: 'glai@test.com', is_main: true },
+    ],
+    error: null,
+  });
   const empty = makeChain({ data: [], error: null });
 
   return {
@@ -107,14 +117,20 @@ vi.mock('../../lib/supabase', () => {
         if (table === 'mf_accounts') return accounts;
         if (table === 'mf_transactions') return transactions;
         if (table === 'mf_categories') return categories;
+        if (table === 'notification_settings') return notifSettings;
+        if (table === 'finance_responsibles') return responsibles;
         return empty;
       }),
+      functions: {
+        invoke: vi.fn().mockResolvedValue({ error: null }),
+      },
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
         signOut: vi.fn().mockResolvedValue({ error: null }),
       },
     },
     getSignedUrl: vi.fn().mockResolvedValue('https://signed.example/x'),
+    __notifRow: notifRow,
   };
 });
 
@@ -235,8 +251,7 @@ describe('MFStatementTimeline', () => {
     });
   });
 
-  it('modo pré-carregado usa as transações passadas sem buscar', async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  it('modo pré-carregado usa as transações passadas sem buscar', async () => {    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={queryClient}>
         <MFStatementTimeline
@@ -270,5 +285,99 @@ describe('MFStatementTimeline', () => {
     const { supabase } = await import('../../lib/supabase');
     const tables = supabase.from.mock.calls.map((call) => call[0]);
     expect(tables).not.toContain('mf_transactions');
+  });
+
+  it('envia o comprovante com o nome da categoria', async () => {
+    renderTimeline();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-timeline-email-tx-d'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.functions.invoke).toHaveBeenCalledWith('send-finance-email', {
+        body: {
+          to: 'dest@test.com',
+          subject: 'minhasfinancas.email_subject_expense',
+          data: {
+            description: 'Mercado',
+            category: 'Alimentação',
+            type: 'DESPESA',
+            status: 'PAGO',
+            amount: 100,
+            payment_date: '2026-10-05',
+          },
+          bcc: null,
+        },
+      });
+    });
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.update).toHaveBeenCalledWith({ email_sent: true });
+    });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'tx-d');
+  });
+
+  it('sem pular o modal, abre a escolha e envia ao responsável', async () => {
+    const { __notifRow } = await import('../../lib/supabase');
+    __notifRow.skip_email_modal = false;
+    try {
+      renderTimeline();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('mf-timeline-email-tx-d'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-email-modal')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-email-resp-resp-2')).toBeInTheDocument();
+      });
+
+      const { supabase } = await import('../../lib/supabase');
+      expect(supabase.functions.invoke).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('mf-email-resp-resp-2'));
+      await waitFor(() => {
+        expect(supabase.functions.invoke).toHaveBeenCalledWith(
+          'send-finance-email',
+          expect.objectContaining({
+            body: expect.objectContaining({ to: 'glai@test.com' }),
+          })
+        );
+      });
+      await waitFor(() => {
+        expect(screen.queryByTestId('mf-email-modal')).not.toBeInTheDocument();
+      });
+    } finally {
+      __notifRow.skip_email_modal = true;
+    }
+  });
+
+  it('linha clicável sem aninhar botões (role + teclado)', async () => {
+    const onOpenTx = vi.fn();
+    renderTimeline({ onOpenTx });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    });
+
+    const row = screen.getByTestId('mf-timeline-item-tx-d');
+    expect(row.tagName).toBe('DIV');
+    expect(row.getAttribute('role')).toBe('button');
+    // botões internos (email) existem sem aninhamento inválido
+    expect(row.querySelector('button[data-testid="mf-timeline-email-tx-d"]')).toBeInTheDocument();
+
+    fireEvent.click(row);
+    expect(onOpenTx).toHaveBeenCalledWith(expect.objectContaining({ id: 'tx-d' }));
+
+    onOpenTx.mockClear();
+    fireEvent.keyDown(row, { key: 'Enter' });
+    expect(onOpenTx).toHaveBeenCalledWith(expect.objectContaining({ id: 'tx-d' }));
   });
 });
