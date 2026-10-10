@@ -36,7 +36,13 @@ import {
   Smartphone,
   Check,
   Filter,
-  Music as MusicIcon
+  Wallet,
+  Receipt,
+  CreditCard,
+  Target,
+  Music as MusicIcon,
+  Upload,
+  MessageCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
@@ -51,6 +57,7 @@ import Trips from './Trips/Trips';
 import CustomLists from './CustomLists/CustomLists';
 import MarkdownNotes from './CustomLists/MarkdownNotes';
 import Music from './Music/Music';
+import MinhasFinancas from './MinhasFinancas/MinhasFinancas';
 import Launchpad from './Launchpad';
 import Footer from './Footer';
 import { useRouter } from '../hooks/useRouter';
@@ -58,6 +65,7 @@ import { useRouter } from '../hooks/useRouter';
 const defaultMenuItems = [
   { id: 'launchpad', icon: LayoutGrid, key: 'launchpad' },
   { id: 'finances', icon: Coins, key: 'finances' },
+  { id: 'minhasfinancas', icon: Wallet, key: 'minhasfinancas' },
   { id: 'cars', icon: Car, key: 'cars' },
   { id: 'investments', icon: TrendingUp, key: 'investments' },
   { id: 'trips', icon: Plane, key: 'trips' },
@@ -71,6 +79,19 @@ const moduleSubItems = {
     { tab: 'finances-dashboard', icon: BarChart2, key: 'dashboard' },
     { tab: 'finances-transactions', icon: DollarSign, key: 'transactions' },
     { tab: 'finances-settings', icon: Settings, key: 'settings' },
+  ],
+  minhasfinancas: [
+    { tab: 'minhasfinancas-resumo', icon: BarChart2, key: 'resumo' },
+    { tab: 'minhasfinancas-transactions', icon: DollarSign, key: 'transactions' },
+    { tab: 'minhasfinancas-accounts', icon: Wallet, key: 'accounts' },
+    { tab: 'minhasfinancas-statement', icon: Receipt, key: 'statement' },
+    { tab: 'minhasfinancas-import', icon: Upload, key: 'import' },
+    { tab: 'minhasfinancas-cards', icon: CreditCard, key: 'cards' },
+    { tab: 'minhasfinancas-budgets', icon: PieChart, key: 'budgets' },
+    { tab: 'minhasfinancas-goals', icon: Target, key: 'goals' },
+    { tab: 'minhasfinancas-reports', icon: FileText, key: 'reports' },
+    { tab: 'minhasfinancas-felix', icon: MessageCircle, key: 'felix' },
+    { tab: 'minhasfinancas-settings', icon: Settings, key: 'settings' },
   ],
   cars: [
     { tab: 'cars-list', icon: Car, key: 'my_cars' },
@@ -106,6 +127,7 @@ const moduleSubItems = {
 const getModuleInitialTab = (id) => {
   if (id === 'launchpad') return 'launchpad';
   if (id === 'finances') return 'finances-dashboard';
+  if (id === 'minhasfinancas') return 'minhasfinancas-resumo';
   if (id === 'cars') return 'cars-list';
   if (id === 'investments') return 'investments-dashboard';
   if (id === 'trips') return 'trips-list';
@@ -339,7 +361,7 @@ export default function Dashboard({ user }) {
 
         {/* Primary Nav (Desktop only) */}
         {!isMobile && !isTablet && (
-          <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, justifyContent: 'center', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 1rem' }}>
+          <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, justifyContent: 'safe center', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 1rem' }}>
             {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
               const isActive = activeTab === item.id || activeTab.startsWith(item.id);
               const targetTab = getModuleInitialTab(item.id);
@@ -541,6 +563,7 @@ export default function Dashboard({ user }) {
           }}>
             <span data-testid="sub-header-title-text">
               {activeTab.startsWith('finances') ? t('nav.finances') :
+                activeTab.startsWith('minhasfinancas') ? t('nav.minhasfinancas') :
                 activeTab.startsWith('cars') ? t('nav.cars') :
                 activeTab.startsWith('investments') ? t('nav.investments') :
                 activeTab.startsWith('trips') ? t('nav.trips') :
@@ -659,6 +682,9 @@ export default function Dashboard({ user }) {
                 {activeTab.startsWith('music') && (
                   <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} navigate={navigate} />
                 )}
+                {activeTab.startsWith('minhasfinancas') && (
+                  <MinhasFinancas user={user} refreshKey={refreshKey} mode={activeTab.replace('minhasfinancas-', '')} showValues={showValues} />
+                )}
 
                 {/* Fallback for development */}
                 {activeTab !== 'finances-transactions' &&
@@ -670,7 +696,8 @@ export default function Dashboard({ user }) {
                   !activeTab.startsWith('trips') &&
                   !activeTab.startsWith('lists') &&
                   !activeTab.startsWith('music') &&
-                  !activeTab.startsWith('investments') && (
+                  !activeTab.startsWith('investments') &&
+                  !activeTab.startsWith('minhasfinancas') && (
                     <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
                       <p style={{ color: 'var(--text-muted)' }}>{t('dashboard.module_development', { module: activeTab })}</p>
                     </div>

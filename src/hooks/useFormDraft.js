@@ -25,12 +25,19 @@ export function useFormDraft(draftKey, initialState, enabled = true) {
     return initialState;
   });
 
-  // Sync to sessionStorage when formData changes
+  // Sync to sessionStorage when formData changes.
+  // Drafst equal to the initial state are removed instead of saved, so
+  // clearDraft() actually leaves the storage clean (the reset triggers this
+  // effect right after the removeItem inside clearDraft).
   useEffect(() => {
     if (!enabled || !draftKey) return;
     try {
-      if (formData !== undefined && formData !== null) {
-        sessionStorage.setItem(`draft_${draftKey}`, JSON.stringify(formData));
+      if (formData === undefined || formData === null) return;
+      const storageKey = `draft_${draftKey}`;
+      if (JSON.stringify(formData) === JSON.stringify(initialStateRef.current)) {
+        sessionStorage.removeItem(storageKey);
+      } else {
+        sessionStorage.setItem(storageKey, JSON.stringify(formData));
       }
     } catch (e) {
       console.warn(`[useFormDraft] Failed to save draft for key: ${draftKey}`, e);

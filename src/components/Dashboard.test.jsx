@@ -94,7 +94,13 @@ vi.mock('lucide-react', () => {
     Cpu: mockIcon('cpu'),
     Shield: mockIcon('shield'),
     Music: mockIcon('music'),
-    FileText: mockIcon('file-text')
+    FileText: mockIcon('file-text'),
+    Wallet: mockIcon('wallet'),
+    Receipt: mockIcon('receipt'),
+    CreditCard: mockIcon('credit-card'),
+    Target: mockIcon('target'),
+    Upload: mockIcon('upload'),
+    MessageCircle: mockIcon('message-circle')
   };
 });
 
@@ -108,6 +114,7 @@ vi.mock('./MyCars/MyCars', () => ({ default: () => <div data-testid="my-cars" />
 vi.mock('./Trips/Trips', () => ({ default: () => <div data-testid="trips" /> }));
 vi.mock('./Investments/Investments', () => ({ default: () => <div data-testid="investments" /> }));
 vi.mock('./CustomLists/CustomLists', () => ({ default: () => <div data-testid="custom-lists" /> }));
+vi.mock('./MinhasFinancas/MinhasFinancas', () => ({ default: () => <div data-testid="minhas-financas" /> }));
 
 describe('Dashboard Navigation', () => {
   const mockUser = { id: 'user-123', email: 'test@example.com' };

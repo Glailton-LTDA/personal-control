@@ -49,6 +49,102 @@ db.version(4).stores({
   trip_shares: 'id, trip_id, shared_with_email',
 });
 
+// Fase 9 (2026-10-04): Minhas Finanças offline (Dexie + SyncEngine)
+db.version(5).stores({
+  music_songs: 'id, user_id, title, artist, type, genre_id, is_favorite, updated_at',
+  music_setlists: 'id, user_id, updated_at',
+  music_setlist_songs: 'id, setlist_id, song_id',
+  music_genres: 'id, name',
+  music_chords: 'id, chord_name',
+  sync_queue: '++id, table_name, action, created_at, attempts',
+
+  trips: 'id, user_id, start_date, updated_at',
+  trip_expenses: 'id, trip_id, user_id, category_id, date, updated_at',
+  trip_itinerary: 'id, trip_id, day, time, updated_at',
+  trip_checklists: 'id, trip_id, updated_at',
+  trip_checklist_items: 'id, checklist_id, updated_at',
+  trip_categories: 'id, user_id, name',
+  trip_shares: 'id, trip_id, shared_with_email',
+
+  // Tabelas mf_* (cache local + fila offline). A junção mf_transaction_tags
+  // não tem coluna id: usa PK composto [transaction_id+tag_id].
+  mf_accounts: 'id, user_id, profile_id, sort_order',
+  mf_account_types: 'id, user_id, name',
+  mf_transactions: 'id, user_id, account_id, payment_date, parent_transaction_id',
+  mf_transaction_tags: '[transaction_id+tag_id], user_id, transaction_id, tag_id',
+  mf_categories: 'id, user_id, name, parent_id',
+  mf_tags: 'id, user_id, name',
+  mf_responsibles: 'id, user_id, name',
+  mf_budgets: 'id, user_id, account_id, period_start',
+  mf_goals: 'id, user_id, account_id',
+  mf_goal_contributions: 'id, user_id, goal_id',
+  mf_saved_reports: 'id, user_id',
+  mf_profiles: 'id, user_id, sort_order',
+  mf_restore_points: 'id, user_id, created_at',
+});
+
+// Grupos de contas hierárquicos (Fase das novas features) + índices.
+db.version(6).stores({
+  music_songs: 'id, user_id, title, artist, type, genre_id, is_favorite, updated_at',
+  music_setlists: 'id, user_id, updated_at',
+  music_setlist_songs: 'id, setlist_id, song_id',
+  music_genres: 'id, name',
+  music_chords: 'id, chord_name',
+  sync_queue: '++id, table_name, action, created_at, attempts',
+
+  trips: 'id, user_id, start_date, updated_at',
+  trip_expenses: 'id, trip_id, user_id, category_id, date, updated_at',
+  trip_itinerary: 'id, trip_id, day, time, updated_at',
+  trip_checklists: 'id, trip_id, updated_at',
+  trip_checklist_items: 'id, checklist_id, updated_at',
+  trip_categories: 'id, user_id, name',
+  trip_shares: 'id, trip_id, shared_with_email',
+
+  // Tabelas mf_* (cache local + fila offline). A junção mf_transaction_tags
+  // não tem coluna id: usa PK composto [transaction_id+tag_id].
+  mf_account_groups: 'id, user_id, parent_id, sort_order',
+  mf_accounts: 'id, user_id, profile_id, sort_order, group_id',
+  mf_account_types: 'id, user_id, name',
+  mf_transactions: 'id, user_id, account_id, payment_date, parent_transaction_id',
+  mf_transaction_tags: '[transaction_id+tag_id], user_id, transaction_id, tag_id',
+  mf_categories: 'id, user_id, name, parent_id',
+  mf_tags: 'id, user_id, name',
+  mf_responsibles: 'id, user_id, name',
+  mf_budgets: 'id, user_id, account_id, period_start',
+  mf_goals: 'id, user_id, account_id',
+  mf_goal_contributions: 'id, user_id, goal_id',
+  mf_saved_reports: 'id, user_id',
+  mf_profiles: 'id, user_id, sort_order',
+  mf_restore_points: 'id, user_id, created_at',
+});
+
+/**
+ * Tabelas do Minhas Finanças replicadas no Dexie (cache de leitura).
+ * mf_import_* ficam de fora (exigem conexão) e mf_restore_points não é
+ * baixado em bloco (payload grande; só cacheia leituras).
+ */
+export const MF_OFFLINE_TABLES = [
+  'mf_account_groups',
+  'mf_accounts',
+  'mf_account_types',
+  'mf_transactions',
+  'mf_transaction_tags',
+  'mf_categories',
+  'mf_tags',
+  'mf_responsibles',
+  'mf_budgets',
+  'mf_goals',
+  'mf_goal_contributions',
+  'mf_saved_reports',
+  'mf_profiles',
+  'mf_restore_points',
+];
+
+/** Subconjunto baixado em bloco pelo MfSyncProvider (payloads leves). */
+export const MF_SYNC_TABLES = MF_OFFLINE_TABLES.filter(
+  (table) => table !== 'mf_restore_points'
+);
+
 db.open().catch(async (err) => {
   if (/UpgradeError/i.test(err.message) || err.name === 'DatabaseClosedError') {
     console.warn('Dexie upgrade failed, deleting database and reloading', err);

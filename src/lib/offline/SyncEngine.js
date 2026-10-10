@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { db } from './db';
+import { db, MF_SYNC_TABLES } from './db';
 
 export class MusicSyncProvider {
   constructor(userId) {
@@ -121,6 +121,39 @@ export class TripsSyncProvider {
   }
 }
 
+/**
+ * Minhas Finanças (Fase 9): baixa todas as tabelas mf_* em bloco.
+ * Como os dados do módulo são pequenos, faz substituição completa
+ * (clear + put) para descartar linhas apagadas em outros dispositivos.
+ */
+export class MfSyncProvider {
+  constructor(userId) {
+    this.userId = userId;
+  }
+
+  async pull() {
+    const results = {};
+    for (const table of MF_SYNC_TABLES) {
+      const { data, error } = await supabase.from(table).select('*');
+      if (error) throw error;
+      const rows = data || [];
+      const tableDb = db[table];
+      if (!tableDb) continue;
+      await db.transaction('rw', tableDb, async () => {
+        await tableDb.clear();
+        for (const row of rows) {
+          await tableDb.put({
+            ...row,
+            updated_at: row.updated_at || row.created_at || new Date().toISOString(),
+          });
+        }
+      });
+      results[table] = rows;
+    }
+    return results;
+  }
+}
+
 export class SyncEngine {
   constructor(userId) {
     this.userId = userId;
@@ -139,6 +172,7 @@ export class SyncEngine {
     if (userId) {
       this.registerProvider(new MusicSyncProvider(userId));
       this.registerProvider(new TripsSyncProvider(userId));
+      this.registerProvider(new MfSyncProvider(userId));
     }
   }
 
@@ -231,8 +265,13 @@ export class SyncEngine {
     switch (action) {
       case 'insert':
       case 'update': {
-        if (table_name === 'music_setlist_songs') {
-          const { id: _id, ...cleanPayload } = payload || {};
+        if (
+          table_name === 'music_setlist_songs' ||
+          table_name === 'mf_transaction_tags'
+        ) {
+          // Tabelas sem PK `id` (e sem `updated_at` na junção de tags):
+          // upsert só com as colunas reais.
+          const { id: _id, updated_at: _ua, ...cleanPayload } = payload || {};
           const { error } = await supabase.from(table_name).upsert(cleanPayload);
           if (error) throw error;
         } else {
@@ -249,6 +288,13 @@ export class SyncEngine {
             .delete()
             .eq('setlist_id', setlistId)
             .eq('song_id', songId);
+          if (error) throw error;
+        } else if (table_name === 'mf_transaction_tags') {
+          // PK composto: record_id é o id da transação → apaga os vínculos dela.
+          const { error } = await supabase
+            .from(table_name)
+            .delete()
+            .eq('transaction_id', record_id);
           if (error) throw error;
         } else {
           const { error } = await supabase.from(table_name).delete().eq('id', record_id);

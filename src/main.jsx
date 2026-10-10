@@ -49,3 +49,12 @@ createRoot(document.getElementById('root')).render(
     />
   </StrictMode>,
 )
+
+// PWA: registra o service worker apenas em produção (dev/E2E sem SW).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* indisponível (ex.: sem HTTPS) — segue sem PWA */
+    });
+  })
+}
