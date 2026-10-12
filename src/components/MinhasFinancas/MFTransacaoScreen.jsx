@@ -323,10 +323,19 @@ export default function MFTransacaoScreen({
     return containing?.closeISO ?? invoiceCycles[invoiceCycles.length - 1].closeISO;
   }, [invoiceCycles, form.payment_date]);
 
-  const invoiceDate = (iso) => {
+  // Rótulo do picker de fatura no padrão do app original ("Outubro, 2026"):
+  // só mês + ano do vencimento — mais fácil de ler que período/vencimento.
+  const invoiceMonthYear = (iso) => {
     if (!iso) return '—';
-    const [y, m, d] = iso.split('-');
-    return `${d}/${m}/${y.slice(2)}`;
+    const [y, m] = iso.split('-').map(Number);
+    try {
+      const month = new Intl.DateTimeFormat(i18n.language, { month: 'long' }).format(
+        new Date(y, m - 1, 1)
+      );
+      return `${month.charAt(0).toUpperCase() + month.slice(1)}, ${y}`;
+    } catch {
+      return `${String(m).padStart(2, '0')}/${y}`;
+    }
   };
 
   // Despesa de cartão (app original não tem status: entra sempre paga e
@@ -359,9 +368,6 @@ export default function MFTransacaoScreen({
     return invoiceCloseForDueMonth(selectedAccount, day.slice(0, 7));
   }, [isCardExpense, selectedAccount, form.payment_date]);
   const expenseInvoiceClose = invoiceChoice || naturalExpenseClose;
-  // Mês da fatura = mês do VENCIMENTO (vale para todos os cartões,
-  // mesmo quando vence no mês seguinte ao fechamento).
-  const invoiceMonthName = (iso) => (iso ? formatMonthLabel(iso.slice(0, 7), i18n.language) : '');
   /** "setembro/2026" para o aviso de fatura fechada (texto do original).
       Mês do vencimento, como no picker. */
   const closedWarnMonth = useMemo(() => {
@@ -1014,9 +1020,7 @@ export default function MFTransacaoScreen({
                 searchable={false}
                 options={invoiceCycles.map((cycle) => ({
                   value: cycle.closeISO,
-                  label: `${invoiceDate(cycle.startISO)} – ${invoiceDate(
-                    cycle.closeISO
-                  )} · ${t('minhasfinancas.card_due')} ${invoiceDate(cycle.dueISO)}`,
+                  label: invoiceMonthYear(cycle.dueISO),
                 }))}
               />
             </div>
@@ -1033,7 +1037,7 @@ export default function MFTransacaoScreen({
                 searchable={false}
                 options={expenseCycles.map((cycle) => ({
                   value: cycle.closeISO,
-                  label: `${invoiceMonthName(cycle.dueISO)} · ${t('minhasfinancas.card_due')} ${invoiceDate(cycle.dueISO)}`,
+                  label: invoiceMonthYear(cycle.dueISO),
                 }))}
               />
             </div>
