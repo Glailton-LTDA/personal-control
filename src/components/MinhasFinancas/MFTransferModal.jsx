@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { X, ArrowLeftRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useCreateTransfer, parseMoney, maskAmount, toISODate } from '../../hooks/useMinhasFinancas';
+import { useCreateTransfer, useCreateMFTransaction, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney } from '../../hooks/useMinhasFinancas';
 import MFSelect from './MFSelect';
+import MFRepeatModal from './MFRepeatModal';
 
 /**
  * Modal de transferência entre contas (mf_transactions.type = 'TRANSFERENCIA').
@@ -16,7 +17,10 @@ import MFSelect from './MFSelect';
 export default function MFTransferModal({ isOpen, onClose, accounts = [], user, onSuccess }) {
   const { t } = useTranslation();
   const createTransfer = useCreateTransfer();
+  const createTx = useCreateMFTransaction();
   const [saving, setSaving] = useState(false);
+  const [repeat, setRepeat] = useState(null); // null | { initial, count, periodicity }
+  const [repeatOpen, setRepeatOpen] = useState(false);
   const [form, setForm] = useState({
     from: '',
     to: '',
@@ -39,6 +43,8 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
       payment_date: toISODate(new Date()),
       description: t('minhasfinancas.transfer_default'),
     });
+    setRepeat(null);
+    setRepeatOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, accounts.length]);
 
@@ -86,7 +92,7 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
 
     setSaving(true);
     try {
-      await createTransfer.mutateAsync({
+      const payload = {
         user_id: user.id,
         account_id: form.from,
         transfer_account_id: form.to,
@@ -95,7 +101,48 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
         amount,
         payment_date: form.payment_date,
         status: 'PAGO',
-      });
+      };
+      if (!repeat || repeat.count < 2) {
+        await createTransfer.mutateAsync(payload);
+      } else if (repeat.periodicity === 'MONTHLY') {
+        // Parcelamento numerado (1/N…): cabeça + filhas pendentes vinculadas.
+        const { initial, count } = repeat;
+        const total = initial + count - 1;
+        const [first] = await createTx.mutateAsync({
+          ...payload,
+          installments_current: initial,
+          installments_total: total,
+        });
+        const children = [];
+        for (let i = 1; i < count; i += 1) {
+          children.push({
+            ...payload,
+            payment_date: addMonthsISO(payload.payment_date, i),
+            status: 'PENDENTE',
+            effective_date: null,
+            installments_current: initial + i,
+            installments_total: total,
+            parent_transaction_id: first?.id ?? null,
+          });
+        }
+        if (children.length > 0) await createTx.mutateAsync(children);
+      } else {
+        // Repetição finita semanal/anual (sem numeração de parcela).
+        const { count, periodicity } = repeat;
+        const [first] = await createTx.mutateAsync({ ...payload, recurrence: periodicity });
+        const children = [];
+        for (let i = 1; i < count; i += 1) {
+          children.push({
+            ...payload,
+            payment_date: shiftRecurrenceDate(payload.payment_date, periodicity, i),
+            status: 'PENDENTE',
+            effective_date: null,
+            recurrence: periodicity,
+            parent_transaction_id: first?.id ?? null,
+          });
+        }
+        if (children.length > 0) await createTx.mutateAsync(children);
+      }
       toast.success(t('minhasfinancas.transfer_success'));
       onClose();
       onSuccess?.();
@@ -218,6 +265,60 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
               <label>{t('minhasfinancas.transfer_description')}</label>
               <input type="text" value={form.description} onChange={set('description')} />
             </div>
+
+            <div className="input-group" style={{ marginTop: '1rem' }}>
+              <label>{t('minhasfinancas.tx_repeat_label')}</label>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  data-testid="mf-transfer-repeat-open"
+                  onClick={() => setRepeatOpen(true)}
+                  style={{ fontSize: '0.82rem', padding: '0.45rem 0.8rem' }}
+                >
+                  {t('minhasfinancas.tx_repeat_open')}
+                </button>
+                {repeat && (
+                  <>
+                    <span data-testid="mf-transfer-repeat-summary" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {t('minhasfinancas.tx_repeat_summary', {
+                        count: repeat.count,
+                        amount: formatMoney(parseMoney(form.amount) || 0, originCurrency),
+                        periodicity: t(`minhasfinancas.tx_recurrence_${repeat.periodicity.toLowerCase()}`),
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      data-testid="mf-transfer-repeat-clear"
+                      aria-label={t('minhasfinancas.delete')}
+                      title={t('minhasfinancas.delete')}
+                      onClick={() => setRepeat(null)}
+                      style={{ padding: '0.3rem' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {repeatOpen && (
+              <MFRepeatModal
+                initial={repeat?.initial ?? 1}
+                count={repeat?.count ?? 2}
+                periodicity={repeat?.periodicity ?? 'MONTHLY'}
+                amountMode="parcela"
+                showAmountToggle={false}
+                amount={parseMoney(form.amount) || 0}
+                currency={originCurrency}
+                onApply={(next) => {
+                  setRepeat(next);
+                  setRepeatOpen(false);
+                }}
+                onClose={() => setRepeatOpen(false)}
+              />
+            )}
 
             <div className="modal-footer" style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
               <button

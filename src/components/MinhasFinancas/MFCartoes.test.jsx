@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFCartoes from './MFCartoes';
+import { clearInvoiceSel } from './mfViewState';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -115,8 +116,8 @@ vi.mock('../../lib/supabase', () => {
       { id: 'tx-pay1', account_id: 'acc-check', transfer_account_id: 'acc-card', type: 'TRANSFERENCIA', amount: 300, payment_date: '2026-08-15', status: 'PAGO', description: 'Pagamento' },
       // Fatura Visa 09 (fecha 10/09, vence 20/09) — vencida em aberto
       { id: 'tx-v2', account_id: 'acc-card', type: 'DESPESA', amount: 800, payment_date: '2026-09-05', status: 'PAGO', description: 'Curso' },
-      // Corrente (fecha 10/10, vence 20/10)
-      { id: 'tx-v3', account_id: 'acc-card', type: 'DESPESA', amount: 1200, payment_date: '2026-09-25', status: 'PAGO', description: 'Notebook parcela 1/12', installments_current: 1, installments_total: 12 },
+      // Corrente (vence 20/10): fatura do mês — a data é só rótulo
+      { id: 'tx-v3', account_id: 'acc-card', type: 'DESPESA', amount: 1200, payment_date: '2026-10-02', status: 'PAGO', description: 'Notebook parcela 1/12', installments_current: 1, installments_total: 12 },
       { id: 'tx-v4', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-10-01', status: 'PENDENTE', description: 'Combustível' },
       // Master (fecha 01/09, vence 10/09) — vencida, sem conta vinculada
       { id: 'tx-m1', account_id: 'acc-master', type: 'DESPESA', amount: 300, payment_date: '2026-08-20', status: 'PAGO', description: 'Streaming' },
@@ -157,6 +158,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     localStorage.setItem('pc_skip_confirmations', 'true');
     localStorage.removeItem('mf_month_key');
     localStorage.removeItem('mf_detail_drill');
+    clearInvoiceSel();
     // congela o relatório: 04/10/2026 (ciclos do cartão fixos)
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 4, 12, 0, 0) });
   });
@@ -180,8 +182,28 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(localStorage.getItem('mf_detail_drill')).toBeNull();
   });
 
-  it('drill de outra aba é ignorado nos cartões', async () => {
-    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'accounts', id: 'acc-card' }));
+  it('fatura selecionada sobrevive ao F5 e volta à corrente ao trocar', async () => {
+    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'cards', id: 'acc-card' }));
+    localStorage.setItem('mf_invoice_sel_acc-card', '2026-08-10');
+    renderScreen();
+    // abre direto na fatura salva (paga), não na corrente
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+        'minhasfinancas.card_status_paid'
+      );
+    });
+
+    // trocar para a corrente limpa a seleção salva
+    fireEvent.click(screen.getByTestId('mf-invoice-chip-current'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+        'minhasfinancas.card_status_current'
+      );
+    });
+    expect(localStorage.getItem('mf_invoice_sel_acc-card')).toBeNull();
+  });
+
+  it('drill de outra aba é ignorado nos cartões', async () => {    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'accounts', id: 'acc-card' }));
     renderScreen();
     await waitFor(() => {
       expect(screen.getByTestId('mf-card-widget-acc-card')).toBeInTheDocument();
@@ -207,13 +229,13 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
     });
 
-    // Fatura corrente: compras desde 11/09 até o fechamento de 10/10
+    // Fatura corrente: a do mês (vence 20/10) — 2 compras de outubro
     expect(screen.getByTestId('mf-invoice-chip-current')).toHaveTextContent('R$ 1.700,00');
     expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
       'minhasfinancas.card_status_current'
     );
     expect(screen.getByTestId('mf-invoice-total')).toHaveTextContent('R$ 1.700,00');
-    expect(screen.getByTestId('mf-invoice-detail')).toHaveTextContent('11/09/26 – 10/10/26');
+    expect(screen.getByTestId('mf-invoice-detail')).toHaveTextContent('10/10/26');
     expect(screen.getAllByTestId('mf-card-tx-row')).toHaveLength(2);
 
     // Fatura fechada 10/09 → vence 20/09 (vencida) e 10/08 → 20/08 (paga)
@@ -259,9 +281,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
     expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
       user_id: 'test-user',
-      type: 'TRANSFERENCIA',
-      account_id: 'acc-check', // origem: conta vinculada
-      transfer_account_id: 'acc-card', // destino: cartão
+      type: 'DESPESA',
+      account_id: 'acc-check', // origem: conta vinculada (sem transação no cartão)
       amount: 800,
       status: 'PAGO', // vencimento 20/09 já passou → pago hoje
       payment_date: '2026-10-04',
@@ -287,13 +308,15 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     );
     expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
     expect(screen.queryByTestId('mf-invoice-pay')).not.toBeInTheDocument();
+    // identidade pelo vencimento: fatura de agosto (vence 20/08/26)
+    expect(screen.getByTestId('mf-invoice-chip-2026-08-10')).toHaveTextContent('Agosto de 2026');
   });
 
   it('widget oferece pagar a fatura vencida quando a corrente zerou (feedback 07/10)', async () => {
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
     __mfState.transactions = [
-      // Compra em 15/12/2020 → fatura que fecha 10/01/2021 (vence 20/01), em aberto
+      // Compra em 15/12/2020 → fatura de dezembro (fecha 10/12, vence 20/12), em aberto
       { id: 'tx-old', account_id: 'acc-card', type: 'DESPESA', amount: 1266.93, payment_date: '2020-12-15', status: 'PAGO', description: 'Compras' },
     ];
     vi.setSystemTime(new Date(2021, 0, 15, 12, 0, 0));
@@ -308,6 +331,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(screen.queryByTestId('mf-card-pay-acc-card')).not.toBeInTheDocument();
       // …mas o widget agora oferece pagar a fatura em aberto mais antiga
       expect(screen.getByTestId('mf-card-pay-open-acc-card')).toBeInTheDocument();
+      // …nomeando qual fatura (não é a corrente): a mais antiga, vence 20/12/20
+      expect(screen.getByTestId('mf-card-pay-open-acc-card')).toHaveTextContent('20/12/20');
 
       fireEvent.click(screen.getByTestId('mf-card-pay-open-acc-card'));
       await waitFor(() => {
@@ -321,14 +346,13 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
         expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
       });
       expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
-        type: 'TRANSFERENCIA',
-        account_id: 'acc-check', // conta vinculada
-        transfer_account_id: 'acc-card',
+        type: 'DESPESA',
+        account_id: 'acc-check', // conta vinculada (sem transação no cartão)
         amount: 1266.93,
-        // vencimento 20/01/2021 ainda não passou em 15/01 → agenda no vencimento
-        status: 'PENDENTE',
-        payment_date: '2021-01-20',
-        invoice_close: '2021-01-10', // vínculo com a fatura em aberto
+        // vencimento 20/12/2020 já passou em 15/01 → pago hoje
+        status: 'PAGO',
+        payment_date: '2021-01-15',
+        invoice_close: '2020-12-10', // vínculo com a fatura em aberto
       });
     } finally {
       __mfState.transactions = original;
@@ -357,9 +381,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
     });
     expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
-      type: 'TRANSFERENCIA',
+      type: 'DESPESA',
       account_id: 'acc-check',
-      transfer_account_id: 'acc-card',
       amount: 1700,
       status: 'PENDENTE', // agendada: efetivável no Extrato
       payment_date: '2026-10-20', // vencimento da fatura corrente
@@ -385,9 +408,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
     expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
       user_id: 'test-user',
-      type: 'TRANSFERENCIA',
+      type: 'DESPESA',
       account_id: 'acc-check',
-      transfer_account_id: 'acc-card',
       amount: 1700,
       status: 'PENDENTE',
       payment_date: '2026-10-20',
@@ -449,10 +471,11 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
 
     fireEvent.click(screen.getByTestId('mf-open-card-acc-master'));
+    // Master fecha dia 1/vence dia 10: 20/08 é de agosto (fecha 01/08)
     await waitFor(() => {
-      expect(screen.getByTestId('mf-invoice-chip-2026-09-01')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-invoice-chip-2026-08-01')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-09-01'));
+    fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-08-01'));
 
     expect(screen.getByTestId('mf-invoice-link-hint')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('mf-invoice-pay'));
@@ -470,11 +493,11 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
 
     // Mês anterior (set/2026, referência = fim do mês): fatura corrente =
-    // compras de 11/09 a 30/09 (a de 01/10 ainda não existe à época)
+    // setembro (só a compra de 05/09; a de outubro ainda não existe à época)
     fireEvent.click(screen.getByTestId('mf-month-prev'));
     expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Setembro de 2026');
     await waitFor(() => {
-      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 1.200,00');
+      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 800,00');
     });
 
     // Volta para o mês atual (referência = hoje): a compra de 01/10 volta
@@ -490,17 +513,17 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     __mfState.transactions = [
       { id: 'tx-s1', account_id: 'acc-card', type: 'DESPESA', amount: 800, payment_date: '2026-09-05', status: 'PAGO', description: 'Curso' },
       { id: 'tx-s2', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-09-25', status: 'PAGO', description: 'Livros' },
-      // registrado em out/2026 para a fatura que fechou em 10/09/26
+      // registrado em out/2026 para a fatura de setembro (fecha 10/09)
       { id: 'tx-p1', account_id: 'acc-check', transfer_account_id: 'acc-card', type: 'TRANSFERENCIA', amount: 800, payment_date: '2026-10-06', status: 'PAGO', description: 'Pagamento', invoice_close: '2026-09-10' },
-      // registrado em out/2026 para a fatura que fecha em 10/10/26 (futura à época)
+      // registrado em out/2026 para a fatura de outubro (fecha 10/10, futura à época)
       { id: 'tx-p2', account_id: 'acc-check', transfer_account_id: 'acc-card', type: 'TRANSFERENCIA', amount: 500, payment_date: '2026-10-06', status: 'PAGO', description: 'Pagamento', invoice_close: '2026-10-10' },
     ];
     try {
       renderScreen();
 
-      // Mês vivo (out/2026): tudo contado — em aberto zerado
+      // Mês vivo (out/2026): setembro tem 1300 − 800 = 500 em aberto
       await waitFor(() => {
-        expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 0,00');
+        expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 500,00');
       });
 
       // Set/2026 (época): o vínculo futuro não abate — só o do ciclo fechado
@@ -509,8 +532,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       await waitFor(() => {
         expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 500,00');
       });
-      // fatura corrente à época = compras desde 11/09 (500, sem o vínculo futuro)
-      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 500,00');
+      // fatura corrente à época = setembro (1300 de compras, 800 pagos)
+      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 1.300,00');
     } finally {
       __mfState.transactions = original;
     }
@@ -678,17 +701,17 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   it('pagamento futuro quita o mês da fatura, sem limpar o mês passado (regressão de época)', async () => {
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
-    // Compra de fev/2023 (ciclo fecha 10/03) + pagamento feito hoje com
-    // vínculo invoice_close: régua de época — em fev/2023 o ciclo ainda está
-    // aberto e o pagamento nem existia (dívida visível); em mar/2023 o ciclo
-    // fechou e o vínculo conta (fatura Paga, limite reagindo junto).
+    // Compra de mar/2023 (fatura de março: fecha 10/03, vence 20/03) +
+    // pagamento feito hoje com vínculo: em fev/2023 a compra nem existia
+    // (fatura futura não vaza para o mês passado); em mar/2023 o vínculo
+    // conta (fatura Paga).
     __mfState.transactions = [
       {
         id: 'tx-old',
         account_id: 'acc-card',
         type: 'DESPESA',
         amount: 748.76,
-        payment_date: '2023-02-20',
+        payment_date: '2023-03-05',
         status: 'PAGO',
         description: 'Compras antigas',
       },
@@ -719,15 +742,11 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
         expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Fevereiro de 2023');
       });
 
-      // Fev/2023: fatura corrente com o valor em aberto, sem selo Paga —
-      // o pagamento futuro não apaga a dívida à época.
-      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 748,76');
-      expect(screen.queryByTestId('mf-card-fatura-paid-acc-card')).not.toBeInTheDocument();
-      expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 748,76');
-      expect(screen.getByTestId('mf-card-available-acc-card')).toHaveTextContent('R$ 2.251,24');
+      // Fev/2023: a compra de março ainda não existia — nada em aberto.
+      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 0,00');
+      expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 0,00');
 
-      // Mar/2023: ciclo fechado + vínculo conta — em aberto zera, disponível
-      // volta ao limite cheio e a fatura exibe o selo Paga no detalhe.
+      // Mar/2023: vínculo conta — em aberto zera e a fatura exibe Paga.
       fireEvent.click(screen.getByTestId('mf-month-next'));
       await waitFor(() => {
         expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Março de 2023');
@@ -737,10 +756,10 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(screen.getByTestId('mf-card-limit-acc-card')).toHaveTextContent('R$ 3.000,00');
 
       fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+      // Março é a corrente do mês (paga): o detalhe já abre nela com Paga.
       await waitFor(() => {
-        expect(screen.getByTestId('mf-invoice-chip-2023-03-10')).toBeInTheDocument();
+        expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByTestId('mf-invoice-chip-2023-03-10'));
       expect(screen.getByTestId('mf-invoice-badge')).toHaveTextContent(
         'minhasfinancas.inv_status_paid'
       );

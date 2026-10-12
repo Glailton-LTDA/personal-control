@@ -380,4 +380,64 @@ describe('MFStatementTimeline', () => {
     fireEvent.keyDown(row, { key: 'Enter' });
     expect(onOpenTx).toHaveBeenCalledWith(expect.objectContaining({ id: 'tx-d' }));
   });
+
+  it('cartão: extrato segue a fatura (vinculada fora, futura dentro)', async () => {
+    const cardAccount = {
+      id: 'acc-card',
+      name: 'Cartão',
+      currency: 'BRL',
+      account_type: 'CARTAO',
+      initial_balance: 0,
+    };
+    const txs = [
+      {
+        id: 'tx-nov',
+        account_id: 'acc-card',
+        type: 'DESPESA',
+        description: 'Teste Nov',
+        amount: 10,
+        payment_date: '2026-10-11',
+        status: 'PAGO',
+        category_id: null,
+        invoice_close: '2026-11-14',
+      },
+      {
+        id: 'tx-oct',
+        account_id: 'acc-card',
+        type: 'DESPESA',
+        description: 'Compra Out',
+        amount: 20,
+        payment_date: '2026-10-05',
+        status: 'PAGO',
+        category_id: null,
+        invoice_close: null,
+      },
+    ];
+
+    // Outubro: a vinculada a novembro não aparece
+    const first = renderTimeline({
+      account: cardAccount,
+      monthKey: '2026-10',
+      transactions: txs,
+      accounts: [cardAccount],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-oct')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-timeline-item-tx-nov')).not.toBeInTheDocument();
+    first.unmount();
+
+    // Novembro: aparece agrupada pela data de lançamento (11/10)
+    renderTimeline({
+      account: cardAccount,
+      monthKey: '2026-11',
+      transactions: txs,
+      accounts: [cardAccount],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-nov')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-timeline-day-2026-10-11')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-timeline-item-tx-oct')).not.toBeInTheDocument();
+  });
 });

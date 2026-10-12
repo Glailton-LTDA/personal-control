@@ -59,8 +59,34 @@ describe('MFSelect (dropdown genérico do MinhasFinanças)', () => {
     expect(onChange).toHaveBeenCalledWith(2);
   });
 
-  it('desabilitado não abre o popover', () => {
-    render(
+  it('abre o popover na opção selecionada (listas longas)', () => {
+    const scrollIntoView = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(
+        <MFSelect
+          testId="mf-generic"
+          value="v3"
+          onChange={() => {}}
+          searchable={false}
+          options={[
+            { value: 'v1', label: 'Um' },
+            { value: 'v2', label: 'Dois' },
+            { value: 'v3', label: 'Três' },
+          ]}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('mf-generic'));
+      const selected = screen.getByTestId('mf-generic-option-v3');
+      expect(selected).toHaveAttribute('aria-selected', 'true');
+      expect(scrollIntoView).toHaveBeenCalled();
+    } finally {
+      delete window.HTMLElement.prototype.scrollIntoView;
+    }
+  });
+
+  it('desabilitado não abre o popover', () => {    render(
       <MFSelect
         testId="mf-generic"
         value=""

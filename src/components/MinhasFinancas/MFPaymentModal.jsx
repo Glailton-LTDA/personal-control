@@ -12,12 +12,12 @@ import {
 } from '../../hooks/useMinhasFinancas';
 
 /**
- * Pagamento de fatura (corrente ou fechada) — replica o "Registrar pagamento"
- * do Minhas Finanças: valor editável (pagamento parcial é permitido, até o
- * em aberto) e o payload sai como transferência da conta vinculada → cartão:
- * agendada no vencimento (PENDENTE, efetivável no Extrato) ou paga na hora
- * quando o vencimento já passou. `invoice_close` amarra o pagamento à fatura
- * certa para ela reagir imediatamente.
+ * Pagamento de fatura (corrente ou fechada): valor editável (pagamento
+ * parcial é permitido, até o em aberto) e o payload sai como DESPESA na
+ * conta vinculada ao cartão: agendada no vencimento (PENDENTE) ou paga na
+ * hora quando o vencimento já passou. `invoice_close` amarra o pagamento
+ * à fatura certa para ela reagir imediatamente. O cartão não recebe
+ * transação própria (só "fatura paga + valor pago" via vínculo).
  */
 export default function MFPaymentModal({ card, invoice, user, onClose }) {
   const { t } = useTranslation();

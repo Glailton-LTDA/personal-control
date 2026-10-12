@@ -386,9 +386,13 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     // rodapé mantém o VALOR da fatura; o em aberto reage na métrica EM ABERTO
     await expect(page.getByTestId('mf-card-fatura-acc-e2e-card')).toHaveText('R$ 300,00');
     await expect(page.getByTestId('mf-card-open-acc-e2e-card')).toHaveText('R$ 150,00');
-    // a transferência agendada entrou no store (PENDENTE, no vencimento)
+    // a despesa de pagamento entrou no store (PENDENTE, no vencimento,
+    // na conta vinculada — sem transação no cartão)
     const paid = page.mfStore.mf_transactions.find(
-      (tx) => tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === 'acc-e2e-card'
+      (tx) =>
+        tx.type === 'DESPESA' &&
+        tx.account_id === 'acc-e2e' &&
+        tx.invoice_close
     );
     expect(paid).toBeTruthy();
     expect(paid.amount).toBe(150);

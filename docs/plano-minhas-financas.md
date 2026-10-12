@@ -1225,6 +1225,21 @@ Itens ativos, na ordem de atendimento:
       paralelas (~6k hits/dia só em `mf_transactions`). Fix: trailing
       de 750ms no `useInvalidateAll` (rajadas viram 1 tempestade;
       igual para saves isolados);
+    - **Transferência recorrente (Fase D, rodada 10/10)**: o modal de
+      transferência ganhou o mesmo botão **Repetir** do lançamento
+      (`MFRepeatModal` reusado, sem o alternador total/parcela):
+      mensal cria série numerada (cabeça 1/N `PAGO` + filhas
+      `PENDENTE` com `parent_transaction_id`, datas via
+      `addMonthsISO`) e semanal/anual repete sem numeração
+      (`recurrence` + filhas vinculadas, datas via
+      `shiftRecurrenceDate` — helper movido para
+      `useMinhasFinancas.js` como fonte única, importado de volta
+      pela `MFTransacaoScreen`); avulsa continua com 1 insert;
+      exclusão em série cobre as filhas mensais (`installments_*` +
+      `parent_transaction_id`; semanal segue o mesmo comportamento das
+      recorrências do lançamento);
+      arquivo novo `MFTransferModal.test.jsx` +3 (avulsa, mensal 1/3,
+      semanal);
     - **F5 mantém a página (Fase C, rodada 10/10)**: a aba já
       persistia via router; faltavam mês + drill. `mfViewState.js`
       (`mf_month_key` validado, `mf_detail_drill` {tab, id} com
@@ -1315,4 +1330,149 @@ Itens ativos, na ordem de atendimento:
       parecia "não fazer nada" quando o refetch morria na
       tempestade); trava de Save enquanto categorias carregam
       (evita duplicar Outros/Ajuste);
-      gates verdes (ESLint 0 · Vitest 66/465 · E2E 41/41 `--workers=1`).
+    - **Fatura paga aparecia em aberto no mês passado (rodada 11/10,
+      bug reportado com prints)**: pagamento PAGO em 20/08 vinculado
+      ao ciclo que fecha em 14/09 era ignorado ao navegar agosto
+      (`invoice_close > refISO`), e a conta mostrava "Fatura corrente
+      R$ 311,76 CORRENTE" + Pagar com o dinheiro já saído na timeline.
+      A régua de época agora conta o vinculado quando o dinheiro já
+      saiu (`PAGO` com `payment_date <= refISO`); agendado futuro
+      (PENDENTE) continua fora. Compra de 16/06 com fechamento dia 14
+      sempre caiu na fatura que vence 20/07 (regra do emissor, ciclo
+      15/06–14/07) — o que confundia era o rótulo "Fatura corrente"
+      sem mês ao navegar junho: corrente agora exibe "· Vence
+      {data}" (chips, título do detalhe, etiqueta de Reajustar e
+      painel de cartões vinculados); compra de 20/07 (após o
+      fechamento de 14/07) pertence à fatura que vence 20/08, como o
+      app já calculava; `mfCardPayments.test.js` +3 (PAGO conta no
+      mês da saída, PENDENTE futuro não, 16/06 → vence 20/07);
+      gates verdes (ESLint 0 · Vitest 67/471 · E2E 41/41 `--workers=1`).
+    - **Despesa de cartão sempre paga + picker de Fatura ~2 anos
+      (rodada 11/10, prints do app original)**: despesa de cartão não
+      tem mais Status (entra sempre `PAGO`, como no original — o
+      limite já caía com pendente; o que segurava a 2/10 era a data
+      futura 20/10, que entra na fatura/limite ao chegar); filhas de
+      parcelado no cartão também nascem `PAGO` (nas contas seguem
+      `PENDENTE`); backfill das 101 pendentes de cartão → `PAGO`.
+      Repetição aparece na edição salvo se já recorrente
+      (`isRecurrentTx`: fixa/recorrência/parcelado) — editar avulso
+      para parcelar/repetir/fixar cria as filhas com a aberta de
+      cabeça. Campo **Fatura** na despesa de cartão ("Mês, ano · vence
+      dd/mm", 26 opções set/2025–out/2027 como no original, padrão =
+      ciclo natural da data): grava `invoice_close` independente da
+      data; motor atribui a despesa ao ciclo escolhido (fechada,
+      corrente ou futura `upcomingInvoices`, que entra no em aberto
+      sem virar "ativa" e só aceita pagamento vinculado); chips das
+      futuras na fatura; "Despesas no mês" virou "Despesas na fatura"
+      (a corrente 15/09–14/10 mostra as de 20/09 — mesma fatura).
+      Testes +10 (`mfCardPayments` +4 vínculo/futura, `useMinhasFinancas`
+      +2 `isRecurrentTx`, `MFTransacoes` +4 picker 26/PAGO+`invoice_close`/
+      mostra-esconde/conversão);
+      gates verdes (ESLint 0 · Vitest 67/481 · E2E 41/41 `--workers=1`).
+    - **Fatura de outubro PAGA indevida + picker abre em 2025 (rodada
+      11/10, prints)**: a corrente de outubro (490,70) marcava PAGA
+      por sobra de FIFO (pagamento de 30/09 pensado p/ setembro
+      escorreu p/ a corrente) — conta fechada nos dados reais
+      (pagamentos = meses das compras: 198,69/311,76/1073,41; outubro
+      582,71 sem pagamento). Vinculadas as 9 de setembro → 09-14 e a
+      2/10 → 10-14 (SQL, reversível limpando `invoice_close`): corrente
+      de outubro = 582,71 em aberto + Pagar; setembro 1385,17 PAGA
+      (311,76 de agosto fecha 14/09 pela mesma regra do 16/06 +
+      1073,41 de setembro). Vínculo gravado foi Setembro/2026 (banco),
+      não 2025; cabeça aparece no chip "Vence 20/09". Janela de época
+      p/ vinculada passa a valer o MÊS (parcela futura do mês entra na
+      fatura do mês vivo sem vazar p/ trás); janela cobre o menor
+      vínculo (2025 não some) + vinculadas antigas entram na lista;
+      dropdown abre rolado na selecionada (`MFSelect`).
+      Testes +3 (`mfCardPayments` mês/futura-antiga, `MFSelect` scroll);
+      gates verdes (ESLint 0 · Vitest 67/484 · E2E 41/41 `--workers=1`).
+    - **Fatura manda no cartão (rodada 11/10, prints do app original)**:
+      despesa de cartão agora só tem Data de lançamento + Fatura (sem
+      Competência/Vencimento/Efetivação); salvar em fatura fechada
+      pede confirmação ("Fatura fechada! ... setembro/2026 ...",
+      com "não perguntar novamente"); extrato/movimento/saldo do
+      cartão seguem a fatura (`cardExpenseMonth`: vinculada vale o
+      mês do fechamento, agrupada pela data de lançamento — a de
+      novembro mostra a de 11/10 e a de outubro não; transferência
+      continua pela data); Testes +5 (`computeStatement` 2,
+      `computeMovementSplit` 1, diálogo 1, timeline 1);
+      gates verdes (ESLint 0 · Vitest 67/489 · E2E 41/41 `--workers=1`).
+    - **Pagar em fatura paga (rodada 11/10, print Nubank)**: o botão do
+      widget mirava a fechada antiga em aberto sem dizer qual — 5
+      pagamentos de 06–07/10 foram parar em ciclos 2020–2023 (dia de
+      fechamento certo, ano errado) e um deles duplicou com agendado
+      11-07. Dinheiro não se perdeu (cascateia p/ as antigas; soma
+      bate: 278k−261k = 17.066,28 de dívida real). Reparos: órfão
+      06/10 → `2026-10-30` + agendado duplicado excluído; botão agora
+      nomeia o alvo (`Pagar fatura · 20/03/23`); detalhe já era
+      paga→só-Reabrir. Teste do rótulo no widget;
+      gates verdes (ESLint 0 · Vitest 67/489 · E2E 41/41 `--workers=1`).
+    - **F5 dentro da fatura voltava ao menu (rodada 11/10)**: o drill
+      restaurava o cartão, mas a fatura selecionada zerava (sempre
+      "corrente"). Seleção agora persiste por cartão
+      (`mf_invoice_sel_<id>`, vale em Cartões/detalhe/Resumo;
+      inválida ou sem movimento volta à corrente); higiene de storage
+      nos testes que montam faturas. Testes +4 (`mfViewState` 3,
+      F5-na-fatura no componente);
+      gates verdes (ESLint 0 · Vitest 67/493 · E2E 41/41 `--workers=1`).
+    - **Saldo negativo do Nubank era dívida real faltando (rodada
+      11/10)**: auditoria mês a mês: 70 meses batem pago×gasto no
+      centavo; o buraco (20.021,01) = só 3 pontos sem pagamento
+      (ago–dez/2020: 13.296,47; mar/2023: 3.349,58; mai/2023:
+      3.374,96). Usuário confirmou que pagou tudo → registrados os 7
+      pagamentos (Nuconta→Nubank, PAGO, fim do mês, sem vínculo/FIFO
+      como os outros 70 meses; resta −31,27 de crédito de jun/2020,
+      absorvido na exibição). Sem mudança de código (sem gates).
+    - **Cartão não é conta (rodada 11/10, prints do usuário)**: detalhe
+      do cartão deixou de exibir Saldo inicial, Saldo/Previsão,
+      "sem inicial", aviso de inicial customizado e o botão
+      "Reajustar saldo" — cartão só fatura/limite; "Reajustar saldo"
+      na fatura virou **"Reajustar fatura"** (`inv_adjust_title`,
+      pt/en/es). Teste novo: cartão sem bloco de saldo;
+      gates verdes (ESLint 0 · Vitest 67/498 · E2E 41/41 `--workers=1`).
+    - **Mês da fatura = mês do VENCIMENTO (rodada 11/10, regra do
+      usuário: "todos os gastos da fatura de outubro são pagos em
+      07/10, vale para todos os cartões")**: o picker nomeava pelo
+      fechamento — para fecha-30/vence-7 (Nubank) "Novembro" era a
+      fatura que fecha em novembro, não a que vence 07/11. Identidade
+      unificada pelo vencimento em picker, chips, título do detalhe,
+      rótulo do Reajustar e widget de Cartões; testes de
+      `cardCycles` (30/7 e 14/20) + chip com nome do mês;
+    - **Anti-duplicada em série fixa/repetida (rodada 11/10, HBO Max
+      criado duplicado)**: fixa criada sobre mês já importado virava
+      cabeça nova jogada para o mês seguinte (out tinha a importada,
+      nov ficou com 2). Criação de fixa/parcelada/repetida agora
+      consulta os meses planejados e, havendo mesmo nome no mês,
+      pede confirmação ("Lançamento repetido?" com os meses,
+      `mf-tx-dupe`); dados reparados (cabeça de nov virou cabeça da
+      série; FK `parent_transaction_id` é `ON DELETE CASCADE` — apagar
+      a cabeça leva as filhas, por isso a recriação da série inteira);
+      Testes +2 (diálogo + MFFixed com guarda);
+      gates verdes (ESLint 0 · Vitest 67/498 · E2E 41/41 `--workers=1`).
+    - **Pagar fatura = despesa na conta vinculada, sem transação no
+      cartão (fila 12/10, modelo DECIDIDO e IMPLEMENTADO — ver item
+      "Fatura corrente" abaixo)**: sem crédito no cartão; Reabrir
+      mantém a conta vinculada; pagar de outra conta é transferência
+      feita PELO USUÁRIO.
+    - **Correção do meu erro de conceito — "Fatura corrente" e
+      membership por ESCOLHA (rodada 12/10, modelo do usuário
+      IMPLEMENTADO)**: 1. **Despesa de cartão só olha a fatura.**
+      Membro = escolha no picker (`invoice_close`); data é rótulo
+      (12/10 na fatura de novembro mostra "12/10/2026 - segunda" em
+      novembro). Default = fatura do mês (`invoiceCloseForDueMonth`).
+      Escolher fatura NÃO move a data; aviso de fechada só abaixo do
+      mês atual. Filhas de série levam a fatura do seu mês. 2.
+      **"Fatura corrente" = fatura do mês calendário** (vence no mês):
+      em outubro, corrente = Outubro (fecha 30/09, vence 07/10) — pode
+      estar PAGA. 3. **Detalhe mostra Fechamento** (`card_closing` +
+      `card_due_label`), não período. 4. **Pagamento = DESPESA na
+      conta vinculada** (`buildCardPaymentTx`), sem transação no
+      cartão (só "paga + valor pago" via vínculo); TRANSFERENCIA
+      antiga segue contada; Reabrir exclui o vínculo (conta mantida).
+      Cartão sem Transf. na movimentação/extrato (só compras) e sem
+      linhas de Saldo na timeline. Reparos: pagamento 06/10
+      (2.954,73) → DESPESA vinculada a 2026-09-30 (era
+      TRANSFERENCIA em 2026-10-30, impossível); HBO nov → fatura
+      nov (2026-10-30). Testes atualizados ao modelo (corrente do
+      mês, fallback por mês, DESPESA) +3 novos;
+      gates verdes (ESLint 0 · Vitest 67/501 · E2E 41/41 `--workers=1`).

@@ -94,6 +94,10 @@ export default function MFSelect({
 
   useEffect(() => {
     if (!open) return undefined;
+    // Abre na opção selecionada (listas longas, ex.: 26 faturas do picker).
+    popRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest' });
     const handleMouseDown = (event) => {
       const inRoot = rootRef.current?.contains(event.target);
       const inPopover = popRef.current?.contains(event.target);

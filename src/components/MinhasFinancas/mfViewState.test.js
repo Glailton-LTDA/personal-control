@@ -6,12 +6,16 @@ import {
   writeMonthKey,
   readDrill,
   writeDrill,
+  readInvoiceSel,
+  writeInvoiceSel,
+  clearInvoiceSel,
 } from './mfViewState';
 
 describe('mfViewState — persistência de vista (F5)', () => {
   beforeEach(() => {
     localStorage.removeItem(MF_MONTH_STORAGE_KEY);
     localStorage.removeItem(MF_DETAIL_STORAGE_KEY);
+    clearInvoiceSel();
   });
 
   it('mês: lê o salvo válido e ignora inválido', () => {
@@ -45,5 +49,36 @@ describe('mfViewState — persistência de vista (F5)', () => {
     writeDrill({ tab: 'cards', id: 'c1' });
     writeDrill(null);
     expect(localStorage.getItem(MF_DETAIL_STORAGE_KEY)).toBeNull();
+  });
+
+  it('fatura: lê/escreve por cartão e ignora inválido', () => {
+    expect(readInvoiceSel('c1')).toBeNull();
+    writeInvoiceSel('c1', '2026-08-10');
+    expect(readInvoiceSel('c1')).toBe('2026-08-10');
+    // outro cartão não vaza
+    expect(readInvoiceSel('c2')).toBeNull();
+    // formato inválido é ignorado (não grava nem lê)
+    writeInvoiceSel('c1', 'agosto');
+    expect(readInvoiceSel('c1')).toBe('2026-08-10');
+    localStorage.setItem('mf_invoice_sel_c1', 'lixo');
+    expect(readInvoiceSel('c1')).toBeNull();
+    expect(readInvoiceSel('')).toBeNull();
+  });
+
+  it('fatura: current/nulo limpa (volta ao padrão)', () => {
+    writeInvoiceSel('c1', '2026-08-10');
+    writeInvoiceSel('c1', 'current');
+    expect(localStorage.getItem('mf_invoice_sel_c1')).toBeNull();
+    writeInvoiceSel('c1', '2026-08-10');
+    writeInvoiceSel('c1', null);
+    expect(localStorage.getItem('mf_invoice_sel_c1')).toBeNull();
+  });
+
+  it('fatura: clearInvoiceSel remove só as chaves de fatura', () => {
+    writeInvoiceSel('c1', '2026-08-10');
+    writeDrill({ tab: 'cards', id: 'c1' });
+    clearInvoiceSel();
+    expect(localStorage.getItem('mf_invoice_sel_c1')).toBeNull();
+    expect(readDrill()).toEqual({ tab: 'cards', id: 'c1' });
   });
 });

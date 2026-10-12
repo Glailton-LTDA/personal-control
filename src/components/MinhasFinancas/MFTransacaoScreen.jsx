@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Receipt, Eye, Trash2, Plus, Tag, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -19,13 +19,16 @@ import {
   formatMoney,
   parseMoney,
   maskAmount,
-  parseISODate,
   toISODate,
   addMonthsISO,
+  shiftRecurrenceDate,
   cardCycles,
   FIXED_SERIES_COUNT,
   fetchInstallmentSeries,
   installmentHeadId,
+  isRecurrentTx,
+  formatMonthLabel,
+  invoiceCloseForDueMonth,
 } from '../../hooks/useMinhasFinancas';
 import MFAccountSelect from './MFAccountSelect';
 import MFSelect from './MFSelect';
@@ -83,16 +86,6 @@ const emptyForm = {
   attachment_path: '',
 };
 
-const shiftRecurrenceDate = (iso, recurrence, step) => {
-  if (recurrence === 'WEEKLY') {
-    const date = parseISODate(iso);
-    date.setDate(date.getDate() + 7 * step);
-    return toISODate(date);
-  }
-  // MONTHLY e YEARLY avançam meses (12 meses = 1 ano)
-  return addMonthsISO(iso, recurrence === 'YEARLY' ? 12 * step : step);
-};
-
 /** Grid de campos da tela (colunas responsivas). */
 const screenGrid = {
   display: 'grid',
@@ -134,7 +127,7 @@ export default function MFTransacaoScreen({
    */
   mode = 'normal',
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: categories = [] } = useMFCategories(user);
   const { data: tags = [] } = useMFTags(user);
@@ -163,6 +156,14 @@ export default function MFTransacaoScreen({
     amountMode: 'parcela',
   });
   const [repeatOpen, setRepeatOpen] = useState(false);
+  // Fatura escolhida no picker (despesa de cartão): '' = segue a data.
+  const [invoiceChoice, setInvoiceChoice] = useState('');
+  // Aviso de fatura fechada (app original): aceite pontual desta tela.
+  const [closedWarn, setClosedWarn] = useState(false);
+  const warnAccepted = useRef(false);
+  // Série que repete mês com mesmo nome: confirma antes de duplicar.
+  const [dupeWarn, setDupeWarn] = useState(null);
+  const dupeAccepted = useRef(false);
 
   const isEdit = !!tx;
   const isEstorno = mode === 'estorno' && !isEdit;
@@ -174,6 +175,11 @@ export default function MFTransacaoScreen({
     setRepeatMode('none');
     setRepeatConfig({ initial: 1, count: 2, periodicity: 'MONTHLY', amountMode: 'parcela' });
     setRepeatOpen(false);
+    setInvoiceChoice(tx?.invoice_close ?? '');
+    setClosedWarn(false);
+    warnAccepted.current = false;
+    setDupeWarn(null);
+    dupeAccepted.current = false;
     if (tx) {
       setForm({
         type: tx.type ?? 'DESPESA',
@@ -323,20 +329,63 @@ export default function MFTransacaoScreen({
     return `${d}/${m}/${y.slice(2)}`;
   };
 
+  // Despesa de cartão (app original não tem status: entra sempre paga e
+  // consome o limite na hora).
+  const selectedAccount = useMemo(
+    () => accounts.find((account) => account.id === form.account_id) ?? null,
+    [accounts, form.account_id]
+  );
+  const isCardExpense =
+    form.type === 'DESPESA' && selectedAccount?.account_type === 'CARTAO' && !isEstorno;
+  // Repetição na edição: só some se o lançamento já for recorrente
+  // (fixa, com recorrência ou parte de parcelado).
+  const alreadyRecurrent = isEdit && isRecurrentTx(tx);
+
+  // Fatura da despesa de cartão (~2 anos: treze meses para trás + doze
+  // para frente, "Mês · Vence dd/mm/aa"). O membro da fatura é a ESCOLHA
+  // no picker (`invoice_close`); a data é só rótulo exibido. Default =
+  // fatura do mês (do lançamento): em outubro, 05/10 e 12/10 caem em
+  // "Outubro" salvo escolha explícita.
+  const expenseCycles = useMemo(() => {
+    if (!isCardExpense || !selectedAccount) return [];
+    return cardCycles(selectedAccount, toISODate(new Date()), 13, 12)
+      .slice()
+      .sort((a, b) => a.closeISO.localeCompare(b.closeISO));
+  }, [isCardExpense, selectedAccount]);
+  /** Default: fatura que vence no mês do lançamento (mês calendário). */
+  const naturalExpenseClose = useMemo(() => {
+    if (!isCardExpense || !selectedAccount) return '';
+    const day = form.payment_date || toISODate(new Date());
+    return invoiceCloseForDueMonth(selectedAccount, day.slice(0, 7));
+  }, [isCardExpense, selectedAccount, form.payment_date]);
+  const expenseInvoiceClose = invoiceChoice || naturalExpenseClose;
+  // Mês da fatura = mês do VENCIMENTO (vale para todos os cartões,
+  // mesmo quando vence no mês seguinte ao fechamento).
+  const invoiceMonthName = (iso) => (iso ? formatMonthLabel(iso.slice(0, 7), i18n.language) : '');
+  /** "setembro/2026" para o aviso de fatura fechada (texto do original).
+      Mês do vencimento, como no picker. */
+  const closedWarnMonth = useMemo(() => {
+    const dueISO = expenseCycles.find((cycle) => cycle.closeISO === expenseInvoiceClose)?.dueISO;
+    const iso = dueISO || expenseInvoiceClose;
+    if (!iso) return '';
+    const label = formatMonthLabel(iso.slice(0, 7), i18n.language);
+    return label.charAt(0).toLowerCase() + label.slice(1).replace(' de ', '/').replace(' ', '/');
+  }, [expenseInvoiceClose, expenseCycles, i18n.language]);
+
+  // Despesa de cartão entra sempre paga (sem status, como no original).
+  useEffect(() => {
+    if (isCardExpense) {
+      setForm((prev) => (prev.status === 'PAGO' ? prev : { ...prev, status: 'PAGO' }));
+    }
+  }, [isCardExpense]);
+
   /**
-   * Escolher uma fatura move a data de lançamento para dentro do ciclo
-   * escolhido (mesmo dia, limitado ao dia do fechamento): a fatura é
-   * derivada da data, então o par continua consistente.
+   * Escolher uma fatura NÃO move a data: a data é só rótulo exibido
+   * ("12/10/2026 - segunda" dentro da fatura de novembro, se escolhida).
+   * O membro da fatura é a escolha (`invoice_close`).
    */
   const pickInvoice = (closeISO) => {
-    setForm((prev) => {
-      const [year, month, day] = closeISO.split('-').map(Number);
-      const origDay = prev.payment_date ? Number(prev.payment_date.split('-')[2]) : day;
-      // cap = dia do próprio fechamento (respeita meses curtos: 28/30/31)
-      const chosen = Math.min(origDay || 1, day);
-      const pad2 = (num) => String(num).padStart(2, '0');
-      return { ...prev, payment_date: `${year}-${pad2(month)}-${pad2(chosen)}` };
-    });
+    setInvoiceChoice(closeISO);
   };
 
   const handleDescriptionChange = (event) => {
@@ -519,6 +568,24 @@ export default function MFTransacaoScreen({
       return;
     }
 
+    // Fatura fechada: salvar despesa de cartão numa fatura mais antiga
+    // que a do mês (vencimento anterior ao mês atual) pede confirmação
+    // ("Fatura fechada!"). A corrente nunca avisa (é o default).
+    const chosenDueMonth = expenseCycles.find(
+      (cycle) => cycle.closeISO === expenseInvoiceClose
+    )?.dueISO?.slice(0, 7);
+    if (
+      isCardExpense &&
+      expenseInvoiceClose &&
+      chosenDueMonth &&
+      chosenDueMonth < toISODate(new Date()).slice(0, 7) &&
+      !warnAccepted.current &&
+      localStorage.getItem('mf_closed_invoice_warn_off') !== '1'
+    ) {
+      setClosedWarn(true);
+      return;
+    }
+
     // preserva sinal de estornos/reembolsos já lançados com valor negativo;
     // no modo estorno o valor digitado é positivo (devolução da operadora)
     // e é gravado negativo — é ele que reduz a fatura.
@@ -529,13 +596,15 @@ export default function MFTransacaoScreen({
       : isEstorno
         ? -1
         : 1;
+    // Na edição, repetir só converte quem ainda não é recorrente.
+    const converting = isEdit && repeatMode !== 'none' && !alreadyRecurrent;
     // Parcelado "Valor total": o digitado é dividido entre as parcelas;
     // "Valor parcela" (padrão): cada parcela tem o valor digitado.
     const each =
-      !isEdit &&
       repeatMode === 'repeat' &&
       repeatConfig.amountMode === 'total' &&
-      repeatConfig.count > 0
+      repeatConfig.count > 0 &&
+      (!isEdit || converting)
         ? Math.round((amount / repeatConfig.count) * 100) / 100
         : amount;
     const base = {
@@ -545,18 +614,74 @@ export default function MFTransacaoScreen({
       description: form.description.trim(),
       amount: each * sign,
       payment_date: form.payment_date,
-      due_date: form.due_date || null,
+      // Despesa de cartão: só data de lançamento + fatura (sem vencimento).
+      due_date: isCardExpense ? null : form.due_date || null,
       effective_date:
         form.effective_date || (form.status === 'PAGO' ? form.payment_date : null),
-      status: isEstorno ? 'PAGO' : form.status,
+      status: isCardExpense || isEstorno ? 'PAGO' : form.status,
       category_id: form.category_id || null,
       notes: form.notes.trim() || null,
       attachment_path: form.attachment_path || null,
+      // Despesa de cartão: fatura escolhida no picker (sempre gravada —
+      // a fatura independe da data, como no app original).
+      ...(isCardExpense ? { invoice_close: expenseInvoiceClose || null } : {}),
     };
+
+    // Série que repete mês com mesmo nome (fixa/parcelada/repetida):
+    // confirma antes de duplicar (ex.: fixa criada sobre mês importado).
+    const createsSeries =
+      (!isEdit && (repeatMode === 'fixed' || repeatMode === 'repeat')) || converting;
+    if (createsSeries && !dupeAccepted.current) {
+      const plannedDates =
+        repeatMode === 'fixed'
+          ? Array.from({ length: FIXED_SERIES_COUNT }, (_, i) => addMonthsISO(base.payment_date, i))
+          : repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY'
+            ? Array.from({ length: repeatConfig.count }, (_, i) => addMonthsISO(base.payment_date, i))
+            : repeatMode === 'repeat'
+              ? Array.from({ length: repeatConfig.count }, (_, i) =>
+                  shiftRecurrenceDate(base.payment_date, repeatConfig.periodicity, i)
+                )
+              : [];
+      if (plannedDates.length > 0) {
+        try {
+          const from = `${plannedDates[0].slice(0, 7)}-01`;
+          const lastPlanned = plannedDates[plannedDates.length - 1];
+          const to = `${lastPlanned.slice(0, 7)}-31`;
+          const { data, error } = await supabase
+            .from('mf_transactions')
+            .select('id,description,payment_date,status')
+            .eq('account_id', form.account_id)
+            .eq('type', isEstorno ? 'DESPESA' : form.type)
+            .gte('payment_date', from)
+            .lte('payment_date', to);
+          if (!error) {
+            const want = base.description.trim().toLowerCase();
+            const plannedMonths = new Set(plannedDates.map((iso) => iso.slice(0, 7)));
+            const hitMonths = [...new Set(
+              (data ?? [])
+                .filter(
+                  (row) =>
+                    row.id !== tx?.id &&
+                    row.status !== 'CANCELADO' &&
+                    String(row.description ?? '').trim().toLowerCase() === want &&
+                    plannedMonths.has(String(row.payment_date ?? '').slice(0, 7))
+                )
+                .map((row) => String(row.payment_date).slice(0, 7))
+            )].sort();
+            if (hitMonths.length > 0) {
+              setDupeWarn({ months: hitMonths });
+              return;
+            }
+          }
+        } catch {
+          /* offline: segue sem checar */
+        }
+      }
+    }
 
     setSaving(true);
     try {
-      if (isEdit) {
+      if (isEdit && !converting) {
         await updateMutation.mutateAsync({ id: tx.id, ...base });
         await linkTags([tx.id]);
         toast.success(t('minhasfinancas.tx_updated'));
@@ -565,95 +690,99 @@ export default function MFTransacaoScreen({
       }
 
       const createdIds = [];
+      // Cabeça: cria — ou atualiza o lançamento em edição ao converter
+      // um avulso em série (ele vira a cabeça, com as filhas vinculadas).
+      const saveHead = async (extra) => {
+        if (isEdit) {
+          await updateMutation.mutateAsync({ id: tx.id, ...base, ...extra });
+          return tx.id;
+        }
+        const [first] = await createMutation.mutateAsync({ ...base, ...extra });
+        createdIds.push(first?.id);
+        return first?.id ?? null;
+      };
+      const saveChildren = async (rows) => {
+        if (rows.length === 0) return;
+        const created = await createMutation.mutateAsync(rows);
+        created.forEach((row) => createdIds.push(row?.id));
+      };
+      // Filhas: despesa de cartão entra paga; cada filha leva a fatura
+      // do seu mês (vencimento = mês do lançamento) — a data é só rótulo.
+      // Nas demais contas, futura segue pendente e sem vínculo.
+      const childBase = (over) => ({
+        ...base,
+        ...over,
+        ...(isCardExpense && over.payment_date && selectedAccount
+          ? { invoice_close: invoiceCloseForDueMonth(selectedAccount, over.payment_date.slice(0, 7)) }
+          : { invoice_close: null }),
+        status: isCardExpense ? 'PAGO' : 'PENDENTE',
+        effective_date: isCardExpense ? over.payment_date : null,
+      });
 
       if (repeatMode === 'fixed') {
         // Série fixa mensal: 12 ocorrências agora; o estensor (1x/dia)
         // mantém ~12 meses futuros até o usuário excluir a série.
-        const [first] = await createMutation.mutateAsync({
-          ...base,
-          recurrence: 'MONTHLY',
-          is_fixed: true,
-        });
-        createdIds.push(first?.id);
+        const headId = await saveHead({ recurrence: 'MONTHLY', is_fixed: true });
         const children = [];
         for (let i = 1; i < FIXED_SERIES_COUNT; i += 1) {
-          children.push({
-            ...base,
-            payment_date: addMonthsISO(base.payment_date, i),
-            due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
-            status: 'PENDENTE',
-            effective_date: null,
-            recurrence: 'MONTHLY',
-            is_fixed: true,
-            parent_transaction_id: first?.id ?? null,
-          });
+          children.push(
+            childBase({
+              payment_date: addMonthsISO(base.payment_date, i),
+              due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
+              recurrence: 'MONTHLY',
+              is_fixed: true,
+              parent_transaction_id: headId,
+            })
+          );
         }
-        if (children.length > 0) {
-          const created = await createMutation.mutateAsync(children);
-          created.forEach((row) => createdIds.push(row?.id));
-        }
+        await saveChildren(children);
       } else if (repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY') {
         // Parcelamento numerado (1/12…) — série finita mensal.
         const { initial, count } = repeatConfig;
         const total = initial + count - 1;
-        const [first] = await createMutation.mutateAsync({
-          ...base,
+        const headId = await saveHead({
           recurrence: 'NONE',
           installments_current: initial,
           installments_total: total,
         });
-        createdIds.push(first?.id);
         const children = [];
         for (let i = 1; i < count; i += 1) {
-          children.push({
-            ...base,
-            payment_date: addMonthsISO(base.payment_date, i),
-            due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
-            status: 'PENDENTE',
-            effective_date: null,
-            recurrence: 'NONE',
-            installments_current: initial + i,
-            installments_total: total,
-            parent_transaction_id: first?.id ?? null,
-          });
+          children.push(
+            childBase({
+              payment_date: addMonthsISO(base.payment_date, i),
+              due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
+              recurrence: 'NONE',
+              installments_current: initial + i,
+              installments_total: total,
+              parent_transaction_id: headId,
+            })
+          );
         }
-        if (children.length > 0) {
-          const created = await createMutation.mutateAsync(children);
-          created.forEach((row) => createdIds.push(row?.id));
-        }
+        await saveChildren(children);
       } else if (repeatMode === 'repeat') {
         // Repetição finita semanal/anual (sem numeração de parcela).
         const { count, periodicity } = repeatConfig;
-        const [first] = await createMutation.mutateAsync({
-          ...base,
-          recurrence: periodicity,
-        });
-        createdIds.push(first?.id);
+        const headId = await saveHead({ recurrence: periodicity });
         const children = [];
         for (let i = 1; i < count; i += 1) {
-          children.push({
-            ...base,
-            payment_date: shiftRecurrenceDate(base.payment_date, periodicity, i),
-            due_date: base.due_date
-              ? shiftRecurrenceDate(base.due_date, periodicity, i)
-              : null,
-            status: 'PENDENTE',
-            effective_date: null,
-            recurrence: periodicity,
-            parent_transaction_id: first?.id ?? null,
-          });
+          children.push(
+            childBase({
+              payment_date: shiftRecurrenceDate(base.payment_date, periodicity, i),
+              due_date: base.due_date
+                ? shiftRecurrenceDate(base.due_date, periodicity, i)
+                : null,
+              recurrence: periodicity,
+              parent_transaction_id: headId,
+            })
+          );
         }
-        if (children.length > 0) {
-          const created = await createMutation.mutateAsync(children);
-          created.forEach((row) => createdIds.push(row?.id));
-        }
+        await saveChildren(children);
       } else {
-        const [first] = await createMutation.mutateAsync({ ...base, recurrence: 'NONE' });
-        createdIds.push(first?.id);
+        await saveHead({ recurrence: 'NONE' });
       }
 
-      await linkTags(createdIds.filter(Boolean));
-      toast.success(t('minhasfinancas.tx_saved'));
+      await linkTags(isEdit ? [tx.id, ...createdIds.filter(Boolean)] : createdIds.filter(Boolean));
+      toast.success(t(isEdit ? 'minhasfinancas.tx_updated' : 'minhasfinancas.tx_saved'));
       onClose();
     } catch {
       toast.error(t('minhasfinancas.save_error'));
@@ -856,7 +985,7 @@ export default function MFTransacaoScreen({
               </p>
             )}
           </div>
-          {!isEstorno && (
+          {!isEstorno && !isCardExpense && (
             <div className="input-group">
               <label>{t('minhasfinancas.tx_status_label')}</label>
               <MFSelect
@@ -873,7 +1002,7 @@ export default function MFTransacaoScreen({
           )}
         </div>
 
-        {/* Datas (+ Fatura no estorno: em qual fatura do cartão cai) */}
+        {/* Datas (+ Fatura no estorno e na despesa de cartão) */}
         <div style={{ ...screenGrid, marginBottom: '1rem' }}>
           {isEstorno && invoiceCycles.length > 0 && (
             <div className="input-group">
@@ -892,38 +1021,71 @@ export default function MFTransacaoScreen({
               />
             </div>
           )}
-          <div className="input-group">
-            <label>{t('minhasfinancas.tx_date_payment')}</label>
-            <input
-              type="date"
-              value={form.payment_date}
-              onChange={set('payment_date')}
-              data-testid="mf-tx-payment-date"
-            />
-          </div>
-          <div className="input-group">
-            <label>{t('minhasfinancas.tx_date_due')}</label>
-            <input
-              type="date"
-              value={form.due_date}
-              onChange={set('due_date')}
-              data-testid="mf-tx-due-date"
-            />
-          </div>
-          <div className="input-group">
-            <label>{t('minhasfinancas.tx_date_effective')}</label>
-            <input
-              type="date"
-              value={form.effective_date}
-              onChange={set('effective_date')}
-              data-testid="mf-tx-effective-date"
-            />
-          </div>
+          {/* Fatura da despesa de cartão (picker do app original, ~2 anos):
+              em qual fatura o lançamento cai, independente da data. */}
+          {isCardExpense && expenseCycles.length > 0 && (
+            <div className="input-group">
+              <label>{t('minhasfinancas.tx_invoice_label')}</label>
+              <MFSelect
+                testId="mf-tx-invoice"
+                value={expenseInvoiceClose}
+                onChange={(closeISO) => setInvoiceChoice(closeISO)}
+                searchable={false}
+                options={expenseCycles.map((cycle) => ({
+                  value: cycle.closeISO,
+                  label: `${invoiceMonthName(cycle.dueISO)} · ${t('minhasfinancas.card_due')} ${invoiceDate(cycle.dueISO)}`,
+                }))}
+              />
+            </div>
+          )}
+          {/* Despesa de cartão (app original): só Data de lançamento + Fatura */}
+          {isCardExpense ? (
+            <div className="input-group">
+              <label>{t('minhasfinancas.tx_launch_date')}</label>
+              <input
+                type="date"
+                value={form.payment_date}
+                onChange={set('payment_date')}
+                data-testid="mf-tx-payment-date"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="input-group">
+                <label>{t('minhasfinancas.tx_date_payment')}</label>
+                <input
+                  type="date"
+                  value={form.payment_date}
+                  onChange={set('payment_date')}
+                  data-testid="mf-tx-payment-date"
+                />
+              </div>
+              <div className="input-group">
+                <label>{t('minhasfinancas.tx_date_due')}</label>
+                <input
+                  type="date"
+                  value={form.due_date}
+                  onChange={set('due_date')}
+                  data-testid="mf-tx-due-date"
+                />
+              </div>
+              <div className="input-group">
+                <label>{t('minhasfinancas.tx_date_effective')}</label>
+                <input
+                  type="date"
+                  value={form.effective_date}
+                  onChange={set('effective_date')}
+                  data-testid="mf-tx-effective-date"
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Repetição (somente criação; nunca em estorno) — 3 opções:
-            Não recorrente | Parcelar ou repetir | Fixa mensal */}
-        {!isEdit && !isEstorno && (
+        {/* Repetição (nunca em estorno; na edição, só se ainda não é
+            recorrente) — 3 opções: Não recorrente | Parcelar ou repetir
+            | Fixa mensal */}
+        {!isEstorno && !alreadyRecurrent && (
           <div className="input-group" style={{ marginBottom: '1rem' }} data-testid="mf-tx-repeat">
             <label>{t('minhasfinancas.tx_repeat_label')}</label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -984,7 +1146,7 @@ export default function MFTransacaoScreen({
             )}
           </div>
         )}
-        {repeatOpen && !isEdit && !isEstorno && (
+        {repeatOpen && !isEstorno && !alreadyRecurrent && (
           <MFRepeatModal
             initial={repeatConfig.initial}
             count={repeatConfig.count}
@@ -1000,6 +1162,77 @@ export default function MFTransacaoScreen({
               setRepeatOpen(false);
             }}
             onClose={() => setRepeatOpen(false)}
+          />
+        )}
+
+        {/* Fatura fechada (app original): confirma antes de salvar nela. */}
+        {closedWarn && (
+          <MFChoiceDialog
+            testId="mf-tx-closed-invoice"
+            title={t('minhasfinancas.inv_closed_title')}
+            body={t('minhasfinancas.inv_closed_body', { month: closedWarnMonth })}
+            checkbox={{
+              label: t('minhasfinancas.inv_closed_no_warn'),
+              testId: 'mf-tx-closed-check',
+              defaultChecked: false,
+            }}
+            options={[
+              { key: 'cancel', label: t('minhasfinancas.cancel') },
+              {
+                key: 'continue',
+                label: t('minhasfinancas.card_pay_continue'),
+                variant: 'primary',
+              },
+            ]}
+            onOption={(key, noWarn) => {
+              if (key !== 'continue') {
+                setClosedWarn(false);
+                return;
+              }
+              if (noWarn) {
+                try {
+                  localStorage.setItem('mf_closed_invoice_warn_off', '1');
+                } catch {
+                  /* armazenamento indisponível */
+                }
+              }
+              warnAccepted.current = true;
+              setClosedWarn(false);
+              handleSubmit({ preventDefault() {} });
+            }}
+            onClose={() => setClosedWarn(false)}
+          />
+        )}
+
+        {/* Série com mesmo nome no mês: confirma antes de duplicar. */}
+        {dupeWarn && (
+          <MFChoiceDialog
+            testId="mf-tx-dupe"
+            title={t('minhasfinancas.tx_dupe_title')}
+            body={t('minhasfinancas.tx_dupe_body', {
+              name: form.description.trim(),
+              months: dupeWarn.months
+                .map((mk) => formatMonthLabel(mk, i18n.language))
+                .join(', '),
+            })}
+            options={[
+              { key: 'cancel', label: t('minhasfinancas.cancel') },
+              {
+                key: 'continue',
+                label: t('minhasfinancas.card_pay_continue'),
+                variant: 'primary',
+              },
+            ]}
+            onOption={(key) => {
+              if (key !== 'continue') {
+                setDupeWarn(null);
+                return;
+              }
+              dupeAccepted.current = true;
+              setDupeWarn(null);
+              handleSubmit({ preventDefault() {} });
+            }}
+            onClose={() => setDupeWarn(null)}
           />
         )}
 

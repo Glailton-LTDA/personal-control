@@ -908,9 +908,209 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
     // Selo de tipo fixo "Despesa cartão" — a tela não tem mais abas de tipo
     expect(screen.getByTestId('mf-tx-type-badge')).toHaveTextContent('minhasfinancas.add_card_expense');
-    expect(screen.getByTestId('mf-tx-status')).toBeInTheDocument();
+    // Despesa de cartão entra sempre paga (sem status, como no original)...
+    expect(screen.queryByTestId('mf-tx-status')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
-    expect(screen.queryByTestId('mf-tx-invoice')).not.toBeInTheDocument();
+    // ...e escolhe a fatura no picker do app original (~2 anos)
+    expect(screen.getByTestId('mf-tx-invoice')).toBeInTheDocument();
+    // Despesa de cartão (app original): só Data de lançamento, sem
+    // Competência/Vencimento/Efetivação
+    expect(screen.getByTestId('mf-tx-payment-date')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-tx-due-date')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-tx-effective-date')).not.toBeInTheDocument();
+  });
+
+  it('fatura fechada pede confirmação antes de salvar (app original)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 11, 12, 0, 0) });
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      openAdd('cardExpense');
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-invoice')).toBeInTheDocument();
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Compra atrasada' },
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '99,90' } });
+      // Cartão do mock sem closing_day → C=1: setembro/2026 (fecha 01/09)
+      // já fechou em 11/10/2026 → salva com aviso
+      fireEvent.click(screen.getByTestId('mf-tx-invoice'));
+      fireEvent.click(screen.getByTestId('mf-tx-invoice-option-2026-09-01'));
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-closed-invoice')).toBeInTheDocument();
+      });
+      // Continuar + "não perguntar" grava com o vínculo e suprime o aviso
+      fireEvent.click(screen.getByTestId('mf-tx-closed-check'));
+      fireEvent.click(screen.getByTestId('mf-tx-closed-invoice-option-continue'));
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(chain.insert).toHaveBeenCalled();
+      });
+      const inserted = chain.insert.mock.calls.flatMap((call) => call[0]);
+      expect(
+        inserted.find((row) => row?.description === 'Compra atrasada')
+      ).toMatchObject({ invoice_close: '2026-09-01', status: 'PAGO' });
+      expect(localStorage.getItem('mf_closed_invoice_warn_off')).toBe('1');
+      localStorage.removeItem('mf_closed_invoice_warn_off');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fixa mensal com mesmo nome no mês pede confirmação (anti-duplicada)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    // 'Supermercado Extra' já existe em 10/2026 (tx-2): fixa avisa antes
+    openAdd('expense');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Supermercado Extra' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '100,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-10-15' },
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-fixed'));
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-dupe')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-dupe-option-continue'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    // cabeça fixa + 11 filhas
+    expect(chain.insert.mock.calls[0][0][0]).toMatchObject({ is_fixed: true });
+  });
+
+  it('picker de fatura do cartão lista ~2 anos de faturas (Mês, ano)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('cardExpense');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-invoice')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-invoice'));
+    const popover = await screen.findByTestId('mf-tx-invoice-popover');
+    // treze meses para trás + doze para frente + o vigente
+    expect(popover.querySelectorAll('[role="option"]')).toHaveLength(26);
+  });
+
+  it('"Despesa cartão" parcelada grava cabeça e filhas como PAGO com fatura vinculada', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('cardExpense');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-account')).toHaveTextContent('Cartão Visa');
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Vacina cartão' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '582,71' } });
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-10-15' },
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-open'));
+    fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // Cartão do mock sem closing_day → C=1: 15/10 é da fatura de outubro
+    // (fecha 01/10, vence no mês); a filha de 15/11 leva a de novembro.
+    expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
+      amount: 582.71,
+      status: 'PAGO',
+      invoice_close: '2026-10-01',
+      installments_current: 1,
+      installments_total: 2,
+    });
+    expect(chain.insert.mock.calls[1][0][0]).toMatchObject({
+      status: 'PAGO',
+      invoice_close: '2026-11-01',
+      installments_current: 2,
+      installments_total: 2,
+      payment_date: '2026-11-15',
+    });
+  });
+
+  it('edição mostra Repetição no avulso e esconde no parcelado', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    // tx-2 é avulso (recurrence NONE) → pode virar série na edição
+    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-2'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-tx-back'));
+
+    // tx-3 já é parcela (2/12) → repetição não aparece
+    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-3'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-type-badge')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-tx-repeat')).not.toBeInTheDocument();
+  });
+
+  it('edição converte avulso em parcelado (cabeça atualizada + filhas)', async () => {    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-2'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-open'));
+    fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert).toHaveBeenCalled();
+    });
+    const inserted = chain.insert.mock.calls.flatMap((call) => call[0]);
+    // tx-2 é 06/10 conta comum → filha 2/2 em 06/11, pendente (regra das contas)
+    expect(
+      inserted.find((row) => row?.parent_transaction_id === 'tx-2')
+    ).toMatchObject({
+      installments_current: 2,
+      installments_total: 2,
+      status: 'PENDENTE',
+      payment_date: '2026-11-06',
+    });
+    expect(chain.update).toHaveBeenCalled();
   });
 
   it('Transferência pelo menu abre o modal direto (sem tela de criação)', async () => {

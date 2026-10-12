@@ -2,6 +2,16 @@
 
 Este arquivo registra todas as alterações notáveis feitas no projeto **PersonalControl**. O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e este projeto adere ao [Versionamento Semântico](https://semver.org/spec/v2.0.0-rc.2.html).
 
+## [Unreleased]
+
+### Adicionado
+- **Módulo Minhas Finanças** (branch `feat/minhas-financas`, sem push):
+  - Resumo, Contas, Cartões, Transações, Extrato, Orçamentos, Relatórios, Importação OFX/CSV, Felix e modo offline-first; i18n pt/en/es.
+
+### Alterado
+- **Modelo de fatura de cartão**: despesa pertence à fatura escolhida (data é só rótulo, default = fatura do mês); "Fatura corrente" = fatura do mês calendário (rotulada pelo vencimento, pode estar PAGA); detalhe mostra Fechamento + Vencimento; pagamento vira DESPESA na conta vinculada, sem transação no cartão; cartão sem bloco de saldo/transferências na movimentação, extrato e timeline.
+- **Anti-duplicada**: criar série fixa/parcelada/repetida com mesmo nome no mês pede confirmação.
+
 ## [1.7.1] - 2026-07-17
 
 ### Adicionado

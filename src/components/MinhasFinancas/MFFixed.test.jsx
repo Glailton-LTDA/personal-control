@@ -274,6 +274,12 @@ describe('Série fixa — criação', () => {
 
     fireEvent.click(screen.getByTestId('mf-tx-save'));
 
+    // 'Aluguel' fixa já existe em out/nov → confirma antes de duplicar
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-dupe')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-dupe-option-continue'));
+
     const calls = await getCalls();
     await waitFor(() => {
       expect(txInserts(calls)).toHaveLength(2);

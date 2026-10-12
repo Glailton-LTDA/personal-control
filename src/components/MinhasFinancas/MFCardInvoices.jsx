@@ -9,6 +9,7 @@ import {
   useDeleteMFTransaction,
   buildCardInvoices,
   formatMoney,
+  formatMonthLabel,
   monthRefISO,
   toISODate,
   currentMonthKey,
@@ -16,6 +17,7 @@ import {
 import MFPaymentModal from './MFPaymentModal';
 import MFAdjustBalanceModal from './MFAdjustBalanceModal';
 import MFCardBrandIcon from './MFCardBrandIcon';
+import { readInvoiceSel, writeInvoiceSel } from './mfViewState';
 
 const STATUS = {
   PAGA: { key: 'minhasfinancas.card_status_paid', color: '#10b981' },
@@ -46,10 +48,14 @@ const chipStyle = (active, color) => ({
  * clique numa linha da tabela abre a edição do lançamento.
  */
 export default function MFCardInvoices({ card, user, showValues = true, monthKey = currentMonthKey(), onEditTx = null, onManualTx = null, onOpenTransfer = null }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: transactions = [] } = useMFAllTransactions(user);
   const { data: categories = [] } = useMFCategories(user);
-  const [selectedInvoice, setSelectedInvoice] = useState('current');
+  // Fatura selecionada sobrevive ao F5 (por cartão, em qualquer
+  // superfície); inválida ou sumida → corrente.
+  const [selectedInvoice, setSelectedInvoice] = useState(
+    () => readInvoiceSel(card.id) ?? 'current'
+  );
   const [paying, setPaying] = useState(null); // invoice escolhida no modal
   const [adjustOpen, setAdjustOpen] = useState(false);
 
@@ -59,7 +65,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   );
 
   const refISO = monthRefISO(monthKey);
-  const { current, invoices } = useMemo(
+  const { current, invoices, upcomingInvoices = [] } = useMemo(
     () => buildCardInvoices({ card, transactions, refISO, monthKey }),
     [card, transactions, refISO, monthKey]
   );
@@ -68,19 +74,38 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
     () => invoices.filter((inv) => inv.total > 0 || inv.openAmount > 0),
     [invoices]
   );
+  /** Futuras com despesa vinculada (picker do app original). */
+  const shownUpcoming = useMemo(
+    () => upcomingInvoices.filter((inv) => inv.total > 0 || inv.openAmount > 0),
+    [upcomingInvoices]
+  );
 
   useEffect(() => {
-    setSelectedInvoice('current');
+    setSelectedInvoice(readInvoiceSel(card.id) ?? 'current');
   }, [card.id]);
+
+  useEffect(() => {
+    writeInvoiceSel(card.id, selectedInvoice);
+  }, [card.id, selectedInvoice]);
 
   const activeInvoice =
     selectedInvoice === 'current'
       ? current
-      : shownInvoices.find((inv) => inv.closeISO === selectedInvoice) ?? current;
+      : [...shownUpcoming, ...shownInvoices].find((inv) => inv.closeISO === selectedInvoice) ??
+        current;
+  // Seleção salva que sumiu (fatura sem movimento) → volta à corrente.
+  const selectedKnown =
+    selectedInvoice === 'current' ||
+    [...shownUpcoming, ...shownInvoices].some((inv) => inv.closeISO === selectedInvoice);
+  useEffect(() => {
+    if (!selectedKnown) setSelectedInvoice('current');
+  }, [selectedKnown]);
   const cardStatus = STATUS[activeInvoice.status] ?? STATUS.CORRENTE;
   const linkedOk = !!card.linked_account_id;
 
   const money = (value) => (showValues ? formatMoney(value, card.currency || 'BRL') : '•••');
+  // Mês da fatura = mês do VENCIMENTO (vale para todos os cartões).
+  const invMonth = (iso) => (iso ? formatMonthLabel(iso.slice(0, 7), i18n.language) : '');
   const formatDate = (iso) => {
     if (!iso) return '—';
     const [y, m, d] = iso.split('-');
@@ -107,9 +132,10 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   const invIsPaid = invOpen < 0.005;
   const invIsPartial = !invIsPaid && invPaid > 0.005;
   const invIsClosed = selectedInvoice !== 'current';
+  const invIsFuture = !!activeInvoice?.future;
   const invBadge = invIsPaid
     ? { key: 'minhasfinancas.inv_status_paid', color: '#10b981', Icon: Check }
-    : invIsClosed && !invIsPartial
+    : invIsClosed && !invIsFuture && !invIsPartial
       ? { key: 'minhasfinancas.inv_status_closed', color: '#ef4444', Icon: Lock }
       : { key: 'minhasfinancas.inv_status_open', color: 'var(--primary)', Icon: LockOpen };
   const invTitle = invIsPaid
@@ -122,17 +148,21 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
 
   const deleteTx = useDeleteMFTransaction();
   // Pagamentos atribuíveis à fatura (vínculo invoice_close) — só eles podem
-  // ser removidos pelo "Reabrir"; o que veio por FIFO antigo não tem dono.
+  // ser removidos pelo "Reabrir". Modelo novo: DESPESA na conta vinculada;
+  // modelo antigo (TRANSFERENCIA → cartão) segue contado. O que veio por
+  // FIFO antigo não tem dono.
   const linkedPayments = useMemo(
     () =>
       (transactions ?? []).filter(
         (tx) =>
-          tx.type === 'TRANSFERENCIA' &&
-          tx.transfer_account_id === card.id &&
           tx.invoice_close === activeInvoice?.closeISO &&
-          tx.status !== 'CANCELADO'
+          tx.status !== 'CANCELADO' &&
+          ((tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === card.id) ||
+            (tx.type === 'DESPESA' &&
+              tx.account_id === card.linked_account_id &&
+              tx.invoice_close))
       ),
-    [transactions, card.id, activeInvoice?.closeISO]
+    [transactions, card.id, card.linked_account_id, activeInvoice?.closeISO]
   );
 
   /** Reabrir: exclui os pagamentos vinculados — a fatura volta a em aberto. */
@@ -165,8 +195,26 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
           onClick={() => setSelectedInvoice('current')}
           style={chipStyle(selectedInvoice === 'current', STATUS.CORRENTE.color)}
         >
-          {t('minhasfinancas.card_current')} · {money(current.total)}
+          {t('minhasfinancas.card_current')}
+          {current.dueISO ? ` · ${invMonth(current.dueISO)}` : ''}
+          {' · '}
+          {money(current.total)}
         </button>
+        {shownUpcoming.map((inv) => (
+          <button
+            key={inv.closeISO}
+            type="button"
+            data-testid={`mf-invoice-chip-${inv.closeISO}`}
+            onClick={() => setSelectedInvoice(inv.closeISO)}
+            style={chipStyle(selectedInvoice === inv.closeISO, STATUS[inv.status].color)}
+          >
+            {invMonth(inv.dueISO)} · {t('minhasfinancas.card_due')} {formatDate(inv.dueISO)} · {money(inv.total)}
+            {' · '}
+            <strong style={{ color: STATUS[inv.status].color }}>
+              {t(STATUS[inv.status].key)}
+            </strong>
+          </button>
+        ))}
         {shownInvoices.map((inv) => (
           <button
             key={inv.closeISO}
@@ -175,7 +223,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
             onClick={() => setSelectedInvoice(inv.closeISO)}
             style={chipStyle(selectedInvoice === inv.closeISO, STATUS[inv.status].color)}
           >
-            {t('minhasfinancas.card_due')} {formatDate(inv.dueISO)} · {money(inv.total)}
+            {invMonth(inv.dueISO)} · {t('minhasfinancas.card_due')} {formatDate(inv.dueISO)} · {money(inv.total)}
             {' · '}
             <strong style={{ color: STATUS[inv.status].color }}>
               {t(STATUS[inv.status].key)}
@@ -211,8 +259,8 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
             <MFCardBrandIcon brand={card.card_brand} size={22} title={card.name} />
             <strong style={{ fontSize: '1.05rem' }}>
               {selectedInvoice === 'current'
-                ? t('minhasfinancas.card_current')
-                : `${t('minhasfinancas.card_due')} ${formatDate(activeInvoice?.dueISO)}`}
+                ? `${t('minhasfinancas.card_current')}${activeInvoice?.dueISO ? ` · ${invMonth(activeInvoice.dueISO)}` : ''}`
+                : `${invMonth(activeInvoice?.dueISO)} · ${t('minhasfinancas.card_due')} ${formatDate(activeInvoice?.dueISO)}`}
             </strong>
           </span>
           <span
@@ -244,9 +292,9 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
           }}
         >
           <span>
-            {t('minhasfinancas.card_period')}:{' '}
+            {t('minhasfinancas.card_closing')}:{' '}
             <strong style={{ color: 'var(--text-main)' }}>
-              {formatDate(activeInvoice?.startISO)} – {formatDate(activeInvoice?.closeISO)}
+              {formatDate(activeInvoice?.closeISO)}
             </strong>
           </span>
           <span>
@@ -428,7 +476,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                     cursor: 'pointer',
                   }}
                 >
-                  {t('minhasfinancas.adjust_title')}
+                  {t('minhasfinancas.inv_adjust_title')}
                 </button>
                 </span>
               </div>
@@ -598,7 +646,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
             user={user}
             current={invTotal}
             payDate={
-              invIsClosed
+              invIsClosed && !invIsFuture
                 ? activeInvoice.closeISO
                 : today <= refISO
                   ? today
@@ -606,8 +654,8 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
             }
             invoiceLabel={
               selectedInvoice === 'current'
-                ? t('minhasfinancas.card_current')
-                : `${t('minhasfinancas.card_due')} ${formatDate(activeInvoice?.dueISO)}`
+                ? `${t('minhasfinancas.card_current')}${activeInvoice?.dueISO ? ` · ${invMonth(activeInvoice.dueISO)}` : ''}`
+                : `${invMonth(activeInvoice?.dueISO)} · ${t('minhasfinancas.card_due')} ${formatDate(activeInvoice?.dueISO)}`
             }
             allowInitial={false}
             onClose={() => setAdjustOpen(false)}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -155,15 +155,16 @@ describe('buildCardPaymentTx — payload de pagamento', () => {
 
     expect(payload).toMatchObject({
       user_id: 'u1',
-      type: 'TRANSFERENCIA',
+      type: 'DESPESA',
       account_id: 'acc-1',
-      transfer_account_id: 'acc-card',
       description: 'Pagamento de fatura — Nubank',
       amount: 1700,
       status: 'PENDENTE',
       payment_date: '2026-10-20',
       invoice_close: '2026-10-10',
     });
+    // Sem transação no cartão: só despesa na conta vinculada.
+    expect(payload).not.toHaveProperty('transfer_account_id');
   });
 
   it('vencimento já passado → PAGO hoje', () => {
@@ -236,7 +237,7 @@ describe('buildCardInvoices — régua de época em mês passado (feedback 07/10
   });
 
   it('vinculado ao ciclo já fechado conta mesmo registrado anos depois', () => {
-    const { invoices } = buildCardInvoices({
+    const built = buildCardInvoices({
       card,
       refISO: '2021-03-31',
       monthKey: '2021-03',
@@ -247,10 +248,12 @@ describe('buildCardInvoices — régua de época em mês passado (feedback 07/10
       ],
     });
 
-    const mar = invoices.find((inv) => inv.closeISO === '2021-03-10');
-    expect(mar.total).toBe(800);
-    expect(mar.openAmount).toBe(0);
-    expect(mar.status).toBe('PAGA');
+    // 2021-03-10 vence em março → é a corrente do mês (não aparece na
+    // lista de fechadas).
+    expect(built.current.closeISO).toBe('2021-03-10');
+    expect(built.current.total).toBe(800);
+    expect(built.current.openAmount).toBe(0);
+    expect(built.current.status).toBe('PAGA');
   });
 
   it('sem monthKey mantém a régua do mês vivo (compatibilidade)', () => {
@@ -310,7 +313,7 @@ describe('buildCardInvoices — régua de época em mês passado (feedback 07/10
   });
 
   it('carrega excedente de pagamento vinculado para a fatura seguinte', () => {
-    const { current } = buildCardInvoices({
+    const built = buildCardInvoices({
       card,
       refISO: '2026-10-06',
       transactions: [
@@ -321,15 +324,18 @@ describe('buildCardInvoices — régua de época em mês passado (feedback 07/10
           payment_date: '2026-09-20',
           invoice_close: '2026-09-10',
         }),
-        purchase({ id: 'current', payment_date: '2026-09-25', amount: 100 }),
+        // Outubro (corrente): absorve os 50 excedentes de setembro.
+        purchase({ id: 'current', payment_date: '2026-10-02', amount: 100 }),
       ],
     });
 
-    // Os primeiros 100 quitam a fatura fechada; os 50 excedentes reduzem
-    // a corrente, em vez de desaparecerem do cálculo.
-    expect(current.total).toBe(100);
-    expect(current.paid).toBe(50);
-    expect(current.openAmount).toBe(50);
+    // Setembro quitada (100/100); os 50 excedentes reduzem a corrente.
+    const sep = built.invoices.find((inv) => inv.closeISO === '2026-09-10');
+    expect(sep.total).toBe(100);
+    expect(sep.openAmount).toBe(0);
+    expect(built.current.total).toBe(100);
+    expect(built.current.paid).toBe(50);
+    expect(built.current.openAmount).toBe(50);
   });
 
   it('pagamento no fechamento do mês quita a fatura corrente mesmo antes do ciclo fechar', () => {
@@ -348,5 +354,285 @@ describe('buildCardInvoices — régua de época em mês passado (feedback 07/10
     expect(current.total).toBe(311.76);
     expect(current.openAmount).toBe(0);
     expect(current.status).toBe('PAGA');
+  });
+});
+
+describe('buildCardInvoices — pagamento efetivado em mês passado (bug fatura paga aparece em aberto)', () => {
+  // Cartão fecha dia 14, vence dia 20 (caso real): fatura paga em 20/08
+  // (PAGO, vinculada ao ciclo que fecha em 14/09) tem que aparecer paga
+  // ao navegar agosto — o dinheiro saiu em 20/08.
+  const card14 = { ...card, closing_day: 14, due_day: 20 };
+
+  it('PAGO vinculado conta no mês em que o dinheiro saiu', () => {
+    const { current } = buildCardInvoices({
+      card: card14,
+      refISO: '2026-08-31',
+      monthKey: '2026-08',
+      transactions: [
+        purchase({ id: 'aug', payment_date: '2026-08-20', amount: 311.76 }),
+        payment({
+          id: 'aug-pay',
+          amount: 311.76,
+          status: 'PAGO',
+          payment_date: '2026-08-20',
+          // Agosto vence 20/08 (fecha 14/08): o vínculo é na fatura do mês.
+          invoice_close: '2026-08-14',
+        }),
+      ],
+    });
+
+    expect(current.total).toBe(311.76);
+    expect(current.openAmount).toBe(0);
+    expect(current.status).toBe('PAGA');
+  });
+
+  it('PENDENTE agendado para depois continua fora do mês passado', () => {
+    const { current } = buildCardInvoices({
+      card: card14,
+      refISO: '2026-08-31',
+      monthKey: '2026-08',
+      transactions: [
+        purchase({ id: 'aug', payment_date: '2026-08-20', amount: 311.76 }),
+        // Agendado no vencimento (20/09), ainda não efetivado: à época
+        // de agosto esse dinheiro não tinha saído.
+        payment({
+          id: 'aug-pay',
+          amount: 311.76,
+          status: 'PENDENTE',
+          payment_date: '2026-09-20',
+          invoice_close: '2026-09-14',
+        }),
+      ],
+    });
+
+    expect(current.total).toBe(311.76);
+    expect(current.openAmount).toBe(311.76);
+    expect(current.status).toBe('CORRENTE');
+  });
+
+  it('compra cai na fatura do mês do lançamento (fecha 14 → junho, não julho)', () => {
+    const { current, invoices } = buildCardInvoices({
+      card: card14,
+      refISO: '2026-08-31',
+      transactions: [
+        // 16/06 é de junho (fatura que vence 20/06): a data nunca empurra
+        // para o mês seguinte — a fatura é a do mês calendário.
+        purchase({ id: 'jun', payment_date: '2026-06-16', amount: 11.49 }),
+      ],
+    });
+
+    const june = invoices.find((inv) => inv.closeISO === '2026-06-14');
+    const july = invoices.find((inv) => inv.closeISO === '2026-07-14');
+    expect(june.total).toBe(11.49);
+    expect(june.dueISO).toBe('2026-06-20');
+    expect(july.total).toBe(0);
+    expect(current.closeISO).toBe('2026-08-14');
+  });
+});
+
+describe('buildCardInvoices — despesa com fatura escolhida (picker do app original)', () => {
+  const card14 = {
+    ...card,
+    closing_day: 14,
+    due_day: 20,
+  };
+  const expense = (over) => ({
+    id: 'e',
+    account_id: 'acc-card',
+    type: 'DESPESA',
+    status: 'PAGO',
+    description: 'Compra',
+    ...over,
+  });
+
+  it('vai direto para o ciclo escolhido, ignorando a data', () => {
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-11',
+      transactions: [
+        // 10/10 cairia na corrente (fecha 14/10); com vínculo vai para 11-14.
+        expense({ id: 'e1', payment_date: '2026-10-10', amount: 100, invoice_close: '2026-11-14' }),
+      ],
+    });
+
+    expect(built.current.total).toBe(0);
+    expect(built.upcomingInvoices).toHaveLength(1);
+    const up = built.upcomingInvoices[0];
+    expect(up.closeISO).toBe('2026-11-14');
+    expect(up.dueISO).toBe('2026-11-20');
+    expect(up.total).toBe(100);
+    expect(up.openAmount).toBe(100);
+    expect(up.future).toBe(true);
+    expect(up.status).toBe('EM_ABERTO');
+  });
+
+  it('futura vinculada entra no em aberto (limite comprometido)', () => {
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-11',
+      transactions: [
+        expense({ id: 'e1', payment_date: '2026-10-10', amount: 100, invoice_close: '2026-11-14' }),
+      ],
+    });
+
+    expect(built.openTotal).toBe(100);
+  });
+
+  it('pagamento vinculado quita a futura', () => {
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-11',
+      transactions: [
+        expense({ id: 'e1', payment_date: '2026-10-10', amount: 100, invoice_close: '2026-11-14' }),
+        payment({ id: 'p1', amount: 100, payment_date: '2026-10-11', invoice_close: '2026-11-14' }),
+      ],
+    });
+
+    expect(built.upcomingInvoices[0].openAmount).toBe(0);
+    expect(built.upcomingInvoices[0].status).toBe('PAGA');
+    expect(built.openTotal).toBe(0);
+  });
+
+  it('PENDENTE conta na fatura (limite cai independente de status)', () => {
+    const { current } = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-11',
+      transactions: [
+        purchase({ id: 'c1', payment_date: '2026-10-02', amount: 500, status: 'PENDENTE' }),
+      ],
+    });
+
+    expect(current.total).toBe(500);
+    expect(current.openAmount).toBe(500);
+  });
+
+  it('vinculada com data futura no mês entra na fatura do mês vivo', () => {
+    // Parcela de 28/10 vinculada a outubro: aparece na corrente de
+    // outubro (mês vivo) sem vazar para meses anteriores.
+    const txs = [
+      expense({ id: 'e1', payment_date: '2026-10-28', amount: 582.71, invoice_close: '2026-10-14' }),
+    ];
+    const live = buildCardInvoices({ card: card14, refISO: '2026-10-11', transactions: txs });
+    expect(live.current.total).toBe(582.71);
+
+    const sept = buildCardInvoices({
+      card: card14,
+      refISO: '2026-09-30',
+      monthKey: '2026-09',
+      transactions: txs,
+    });
+    expect(sept.current.total).toBe(0);
+    expect(sept.upcomingInvoices).toHaveLength(0);
+  });
+
+  it('vinculada antiga fora da janela continua visível na lista', () => {    const built = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-11',
+      transactions: [
+        // Junho natural seria 06-14; com vínculo vai para janeiro.
+        expense({ id: 'e1', payment_date: '2026-06-05', amount: 50, invoice_close: '2026-01-14' }),
+      ],
+    });
+
+    const june = built.invoices.find((inv) => inv.closeISO === '2026-06-14');
+    expect(june.total).toBe(0);
+    const jan = built.invoices.find((inv) => inv.closeISO === '2026-01-14');
+    expect(jan.total).toBe(50);
+  });
+});
+
+describe('cardCycles — mês da fatura é o do vencimento (vale todos os cartões)', () => {  it('fecha 30/vence 7: compra de 11/10 cai no ciclo que vence 07/11', () => {
+    const cycles = cardCycles(
+      { closing_day: 30, due_day: 7 },
+      '2026-10-11',
+      6
+    );
+    const containing = cycles
+      .filter((cycle) => cycle.closeISO >= '2026-10-11')
+      .sort((a, b) => a.closeISO.localeCompare(b.closeISO))[0];
+    // Fecha 30/10, vence 07/11 → fatura "de novembro"
+    expect(containing.closeISO).toBe('2026-10-30');
+    expect(containing.dueISO).toBe('2026-11-07');
+    expect(containing.dueISO.slice(0, 7)).toBe('2026-11');
+  });
+
+  it('fecha 14/vence 20: compra de 16/06 cai no ciclo que vence 20/07', () => {
+    const cycles = cardCycles(
+      { closing_day: 14, due_day: 20 },
+      '2026-08-31',
+      6
+    );
+    const containing = cycles
+      .filter((cycle) => cycle.closeISO >= '2026-06-16')
+      .sort((a, b) => a.closeISO.localeCompare(b.closeISO))[0];
+    expect(containing.closeISO).toBe('2026-07-14');
+    expect(containing.dueISO).toBe('2026-07-20');
+    expect(containing.dueISO.slice(0, 7)).toBe('2026-07');
+  });
+});
+
+describe('fatura corrente = fatura do mês (vencimento), com pagamento como despesa vinculada', () => {
+  const nubank = {
+    id: 'acc-nubank',
+    linked_account_id: 'acc-nuconta',
+    name: 'Nubank',
+    closing_day: 30,
+    due_day: 7,
+    currency: 'BRL',
+  };
+  const buy = (over) => ({
+    id: 'c',
+    account_id: 'acc-nubank',
+    type: 'DESPESA',
+    status: 'PAGO',
+    description: 'Compra',
+    ...over,
+  });
+  const pay = (over) => ({
+    id: 'p',
+    account_id: 'acc-nuconta',
+    type: 'DESPESA',
+    status: 'PAGO',
+    description: 'Pagamento de fatura — Nubank',
+    ...over,
+  });
+
+  it('invoiceCloseForDueMonth: outubro → fecha 30/09 (fecha 30/vence 7)', () => {
+    expect(invoiceCloseForDueMonth(nubank, '2026-10')).toBe('2026-09-30');
+    expect(invoiceCloseForDueMonth({ closing_day: 14, due_day: 20 }, '2026-10')).toBe(
+      '2026-10-14'
+    );
+  });
+
+  it('em outubro a corrente é Outubro (fecha 30/09, vence 07/10) — pode estar PAGA', () => {
+    const built = buildCardInvoices({
+      card: nubank,
+      refISO: '2026-10-12',
+      transactions: [
+        buy({ id: 'c1', payment_date: '2026-10-07', amount: 100 }),
+        buy({ id: 'c2', payment_date: '2026-10-08', amount: 50 }),
+        pay({ id: 'p1', payment_date: '2026-10-06', amount: 150, invoice_close: '2026-09-30' }),
+      ],
+    });
+
+    expect(built.current.closeISO).toBe('2026-09-30');
+    expect(built.current.dueISO).toBe('2026-10-07');
+    expect(built.current.total).toBe(150);
+    expect(built.current.openAmount).toBe(0);
+    expect(built.current.status).toBe('PAGA');
+    // Sem chip duplicado na lista de fechadas.
+    expect(built.invoices.some((inv) => inv.closeISO === '2026-09-30')).toBe(false);
+  });
+
+  it('despesa conta no mês do vencimento (extrato/movimento seguem a fatura)', () => {
+    const { current } = buildCardInvoices({
+      card: nubank,
+      refISO: '2026-10-12',
+      transactions: [
+        // 12/10 na fatura de novembro aparece em novembro, não em outubro.
+        buy({ id: 'nov', payment_date: '2026-10-12', amount: 77, invoice_close: '2026-10-30' }),
+      ],
+    });
+    expect(current.total).toBe(0);
   });
 });

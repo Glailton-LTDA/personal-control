@@ -9,6 +9,7 @@ import {
   useUpdateAccount,
   buildCardInvoices,
   formatMoney,
+  formatMonthLabel,
   currencyFlag,
   currentMonthKey,
   monthRefISO,
@@ -49,7 +50,7 @@ const badgeChip = {
  * com edição/arquivamento no próprio widget.
  */
 export default function MFCartoes({ user, showValues = true }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: transactions = [] } = useMFAllTransactions(user);
   const updateAccount = useUpdateAccount();
@@ -296,6 +297,13 @@ export default function MFCartoes({ user, showValues = true }) {
               const oldestOpen = built.oldestOpenInvoice;
               const cardMoney = (value) => money(value, item.currency);
               const fmtShort = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—');
+              // Mês da fatura = mês do vencimento (vale para todos os cartões).
+              const invMonth = (iso) =>
+                iso ? formatMonthLabel(iso.slice(0, 7), i18n.language) : '';
+              // Com ano: o botão pode mirar uma fatura antiga (a mais antiga
+              // em aberto) — "20/03" sem ano parecia a fatura atual.
+              const fmtDueY = (iso) =>
+                iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—';
 
               return (
                 <div
@@ -535,7 +543,10 @@ export default function MFCartoes({ user, showValues = true }) {
                     }}
                   >
                     <div style={{ flex: '1 1 auto', minWidth: 120 }}>
-                      <span style={metricLabel}>{t('minhasfinancas.card_current')}</span>
+                      <span style={metricLabel}>
+                        {t('minhasfinancas.card_current')}
+                        {inv.dueISO ? ` · ${invMonth(inv.dueISO)}` : ''}
+                      </span>
                       {/* Valor TOTAL da fatura: o em aberto zera ao pagar,
                           mas o valor pago continua visível aqui — o que está
                           em aberto já aparece na métrica EM ABERTO acima. */}
@@ -598,7 +609,8 @@ export default function MFCartoes({ user, showValues = true }) {
                       </>
                     )}
                     {/* Corrente quitada/zerada, mas há uma fatura fechada em
-                        aberto: oferece pagar a mais antiga. */}
+                        aberto: oferece pagar a mais antiga (nomeando qual —
+                        não é a corrente, que segue só com Reabrir). */}
                     {currentOpen <= 0 && oldestOpen && (
                       <button
                         type="button"
@@ -618,7 +630,7 @@ export default function MFCartoes({ user, showValues = true }) {
                         }}
                       >
                         <Wallet size={14} />
-                        {t('minhasfinancas.card_pay')}
+                        {t('minhasfinancas.card_pay')} · {fmtDueY(oldestOpen.dueISO)}
                       </button>
                     )}
                   </div>

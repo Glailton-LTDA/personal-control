@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFAccountDetail from './MFAccountDetail';
+import { clearInvoiceSel } from './mfViewState';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -176,7 +177,7 @@ vi.mock('../../lib/supabase', () => {
         recurrence: 'NONE',
       },
       {
-        // Fatura quitada do 2º cartão (ciclo 06/09–05/10, paga com vínculo)
+        // Fatura quitada do 2º cartão (setembro: fecha 05/09, vence 15/09)
         id: 'tx-card2-buy',
         account_id: 'acc-card2',
         type: 'DESPESA',
@@ -202,7 +203,7 @@ vi.mock('../../lib/supabase', () => {
         status: 'PAGO',
         category_id: null,
         recurrence: 'NONE',
-        invoice_close: '2026-10-05',
+        invoice_close: '2026-09-05',
       },
       {
         id: 'tx-refund',
@@ -324,6 +325,7 @@ describe('MFAccountDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('pc_skip_confirmations', 'true');
+    clearInvoiceSel();
   });
 
 
@@ -524,9 +526,8 @@ describe('MFAccountDetail', () => {
     });
     expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
       user_id: 'test-user',
-      type: 'TRANSFERENCIA',
-      account_id: 'acc-1', // origem: a própria conta
-      transfer_account_id: 'acc-card', // destino: o cartão
+      type: 'DESPESA',
+      account_id: 'acc-1', // origem: a própria conta (sem transação no cartão)
       amount: 350,
       status: 'PENDENTE', // agendada: efetivável no Extrato
       payment_date: '2026-10-20', // vencimento da fatura
@@ -541,7 +542,7 @@ describe('MFAccountDetail', () => {
       expect(screen.getByTestId('mf-linked-card-acc-card2')).toBeInTheDocument();
     });
 
-    // fatura 06/09–05/10 quitada: mostra o total (não zero) + tag PAGA,
+    // fatura de setembro quitada: mostra o total (não zero) + tag PAGA,
     // sem botão de pagar (nada em aberto)
     expect(txt('mf-linked-card-amount-acc-card2')).toBe('R$ 200,00');
     expect(screen.getByTestId('mf-linked-card-status-acc-card2')).toHaveTextContent(
@@ -688,6 +689,33 @@ describe('MFAccountDetail', () => {
     expect(screen.getByTestId('mf-det-initial-warning')).toBeInTheDocument();
   });
 
+  it('cartão com inicial zerado não mostra aviso de inicial customizado', async () => {
+    renderDetail({ account: cardAccount });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-acct-det-invoices')).toBeInTheDocument();
+    });
+    // dívida acumulada ≠ 0, mas o inicial nunca foi customizado (é 0)
+    expect(screen.queryByTestId('mf-det-initial-warning')).not.toBeInTheDocument();
+  });
+
+  it('cartão não exibe bloco de saldo de conta (só fatura/limite)', async () => {
+    renderDetail({ account: cardAccount });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-acct-det-invoices')).toBeInTheDocument();
+    });
+    // Sem saldo inicial, sem Saldo/Previsão, sem Reajustar: cartão não é conta
+    expect(screen.queryByTestId('mf-acct-det-initial')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-acct-det-chip-balance')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-acct-det-chip-forecast')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-acct-det-chip-no-initial')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-acct-det-adjust')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-det-initial-warning')).not.toBeInTheDocument();
+    // Movimentação e faturas continuam
+    expect(screen.getByTestId('mf-det-movement-despesas')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-acct-det-invoices')).toBeInTheDocument();
+  });
   it('abas mobile: Transações primeiro; Extrato troca para Transações', async () => {    renderDetail();
 
     await waitFor(() => {

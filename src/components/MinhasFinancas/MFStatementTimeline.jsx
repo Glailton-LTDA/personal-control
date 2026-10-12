@@ -143,6 +143,9 @@ export default function MFStatementTimeline({
   }, [data, searching, search, categoryById]);
 
   const opening = Number(data?.opening) || 0;
+  // Cartão não tem saldo (só fatura): o extrato lista as compras, sem
+  // linhas de Saldo/Saldo inicial.
+  const isCard = account?.account_type === 'CARTAO';
 
   return (
     <div data-testid="mf-timeline" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -369,7 +372,7 @@ export default function MFStatementTimeline({
                   );
                 })}
               </div>
-              {!searching && (
+              {!searching && !isCard && (
                 <p
                   data-testid={`mf-timeline-balance-${group.date}`}
                   style={{
@@ -398,7 +401,7 @@ export default function MFStatementTimeline({
               )}
             </section>
           ))}
-          {!searching && (
+          {!searching && !isCard && (
             <p
               data-testid="mf-timeline-opening"
               style={{

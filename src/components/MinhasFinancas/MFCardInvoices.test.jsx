@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFCardInvoices from './MFCardInvoices';
+import { clearInvoiceSel } from './mfViewState';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -123,6 +124,7 @@ const renderInvoices = (overrides = {}) => {
 describe('MFCardInvoices — Reajustar saldo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearInvoiceSel();
   });
 
   it('abre o Reajustar no modo fatura (sem alterar saldo inicial)', async () => {

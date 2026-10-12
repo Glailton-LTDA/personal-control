@@ -40,6 +40,7 @@ import {
   prevMonthKey,
   shiftMonth,
   computeMovementSplit,
+  cardExpenseMonth,
   formatMoney,
   formatMonthLabel,
   currentMonthKey,
@@ -264,29 +265,75 @@ export default function MFAccountDetail({
   // MOVIMENTAÇÃO do mês: efetivadas (PAGO) × pendentes por tipo/direção.
   const { start: monthStart, end: monthEnd } = monthBounds(monthKey);
   const movement = useMemo(
-    () => computeMovementSplit(lanc?.transactions ?? [], account.id, monthStart, monthEnd),
+    // Extrato completo (não o recorte do mês): despesa de cartão conta no
+    // mês da fatura, como na timeline.
+    () => computeMovementSplit(allTx ?? [], account.id, monthStart, monthEnd, accounts),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lanc, account.id, monthKey]
+    [allTx, accounts, account.id, monthKey]
   );
 
+  // Cartão: Saldo/Previsão pela fatura (despesa de cartão conta no mês da
+  // fatura, como no extrato) — usa o allTx completo. Demais contas seguem
+  // o saldo do mês (hook).
+  const cardBalance = useMemo(() => {
+    if (account.account_type !== 'CARTAO') return null;
+    const viewMonth = monthKey.slice(0, 7);
+    const byId = new Map(accounts.map((row) => [row.id, row]));
+    let saldoMov = 0;
+    let pendenteMov = 0;
+    (allTx ?? []).forEach((tx) => {
+      if (tx.status === 'CANCELADO') return;
+      const amount = Number(tx.amount) || 0;
+      if (tx.type === 'TRANSFERENCIA') {
+        if (tx.payment_date > monthEnd) return;
+        if (tx.account_id === account.id) {
+          if (tx.status === 'PAGO') saldoMov -= amount;
+          else pendenteMov -= amount;
+        }
+        if (tx.transfer_account_id === account.id) {
+          if (tx.status === 'PAGO') saldoMov += amount;
+          else pendenteMov += amount;
+        }
+        return;
+      }
+      if (tx.account_id !== account.id) return;
+      const inScope =
+        tx.type === 'DESPESA' && tx.invoice_close
+          ? cardExpenseMonth(tx, byId) <= viewMonth
+          : tx.payment_date <= monthEnd;
+      if (!inScope) return;
+      const delta = tx.type === 'RECEITA' ? amount : -amount;
+      if (tx.status === 'PAGO') saldoMov += delta;
+      else pendenteMov += delta;
+    });
+    const saldo = Math.round(((Number(account.initial_balance) || 0) + saldoMov) * 100) / 100;
+    return { saldo, previsto: Math.round((saldo + pendenteMov) * 100) / 100 };
+  }, [allTx, accounts, account, monthKey, monthEnd]);
+
   // Fechamento do mês anterior (inicial + pago até lá): base do aviso de
-  // saldo inicial customizado (padrão do app original).
+  // saldo inicial customizado (padrão do app original). Despesa de cartão
+  // conta no mês da fatura, como no extrato.
   const prevClose = useMemo(() => {
     const prevEnd = monthBounds(prevMonthKey(monthKey)).end;
+    const prevMonth = prevMonthKey(monthKey);
+    const byId = new Map(accounts.map((row) => [row.id, row]));
     let close = Number(account.initial_balance) || 0;
     (allTx ?? []).forEach((tx) => {
       if (tx.status !== 'PAGO') return;
-      if (tx.payment_date > prevEnd) return;
       const amount = Number(tx.amount) || 0;
       if (tx.type === 'TRANSFERENCIA') {
-        if (tx.account_id === account.id) close -= amount;
-        if (tx.transfer_account_id === account.id) close += amount;
-      } else if (tx.account_id === account.id) {
-        close += tx.type === 'RECEITA' ? amount : -amount;
+        if (tx.account_id === account.id && tx.payment_date <= prevEnd) close -= amount;
+        if (tx.transfer_account_id === account.id && tx.payment_date <= prevEnd) close += amount;
+        return;
       }
+      if (tx.account_id !== account.id) return;
+      if (tx.type === 'DESPESA' && tx.invoice_close) {
+        if (cardExpenseMonth(tx, byId) > prevMonth) return;
+      } else if (tx.payment_date > prevEnd) return;
+      close += tx.type === 'RECEITA' ? amount : -amount;
     });
     return Math.round(close * 100) / 100;
-  }, [allTx, account, monthKey]);
+  }, [allTx, accounts, account, monthKey]);
 
   const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
   const categoryById = useMemo(
@@ -404,9 +451,19 @@ export default function MFAccountDetail({
         .slice(0, 5),
     [lanc, account.id]
   );
-  const noInitial = round2((Number(account.saldo) || 0) - (Number(account.initial_balance) || 0));
+  const shownSaldo =
+    account.account_type === 'CARTAO' && cardBalance ? cardBalance.saldo : Number(account.saldo) || 0;
+  const shownPrevisto =
+    account.account_type === 'CARTAO' && cardBalance
+      ? cardBalance.previsto
+      : Number(account.previsto) || 0;
+  const noInitial = round2(shownSaldo - (Number(account.initial_balance) || 0));
+  const initialValue = round2(Number(account.initial_balance) || 0);
+  // Cartão com inicial zerado (padrão): a dívida acumulada sempre difere
+  // de zero — avisar "customizado" seria falso. Só avisa no cartão com
+  // inicial diferente de zero.
   const showInitialWarning =
-    round2(Number(account.initial_balance) || 0) !== prevClose;
+    initialValue !== prevClose && (account.account_type !== 'CARTAO' || initialValue !== 0);
 
   /** Vai ao extrato: no mobile troca para a aba Transações. */
   const gotoTimeline = () => {
@@ -605,12 +662,16 @@ export default function MFAccountDetail({
           gap: '0.7rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-          <span style={{ fontWeight: 800 }}>{t('minhasfinancas.accounts_table_initial')}</span>
-          <strong data-testid="mf-acct-det-initial" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {money(account.initial_balance)}
-          </strong>
-        </div>
+        {/* Cartão não tem saldo (só fatura/limite): esconde o bloco de
+            conta — Saldo inicial, Saldo/Previsão, aviso e Reajustar. */}
+        {account.account_type !== 'CARTAO' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+            <span style={{ fontWeight: 800 }}>{t('minhasfinancas.accounts_table_initial')}</span>
+            <strong data-testid="mf-acct-det-initial" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {money(account.initial_balance)}
+            </strong>
+          </div>
+        )}
 
         <section data-testid="mf-det-movement">
           <button
@@ -655,20 +716,26 @@ export default function MFAccountDetail({
                   color: '#10b981',
                   data: movement.receitas,
                 },
-                {
-                  id: 'transfIn',
-                  label: t('minhasfinancas.movement_transf_in'),
-                  Icon: ArrowDownLeft,
-                  color: '#10b981',
-                  data: movement.transfIn,
-                },
-                {
-                  id: 'transfOut',
-                  label: t('minhasfinancas.movement_transf_out'),
-                  Icon: ArrowUpRight,
-                  color: '#ef4444',
-                  data: movement.transfOut,
-                },
+                // Cartão não tem crédito de pagamento (a fatura é paga por
+                // despesa na conta vinculada): esconde as transferências.
+                ...(account.account_type === 'CARTAO'
+                  ? []
+                  : [
+                      {
+                        id: 'transfIn',
+                        label: t('minhasfinancas.movement_transf_in'),
+                        Icon: ArrowDownLeft,
+                        color: '#10b981',
+                        data: movement.transfIn,
+                      },
+                      {
+                        id: 'transfOut',
+                        label: t('minhasfinancas.movement_transf_out'),
+                        Icon: ArrowUpRight,
+                        color: '#ef4444',
+                        data: movement.transfOut,
+                      },
+                    ]),
                 {
                   id: 'despesas',
                   label: t('minhasfinancas.movement_expense'),
@@ -719,28 +786,30 @@ export default function MFAccountDetail({
           )}
         </section>
 
-        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-            <span style={{ fontSize: '1rem', fontWeight: 800 }}>{t('minhasfinancas.accounts_table_balance')}</span>
-            <strong data-testid="mf-acct-det-chip-balance" style={{ fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
-              {money(account.saldo)}
-            </strong>
+        {account.account_type !== 'CARTAO' && (
+          <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <span style={{ fontSize: '1rem', fontWeight: 800 }}>{t('minhasfinancas.accounts_table_balance')}</span>
+              <strong data-testid="mf-acct-det-chip-balance" style={{ fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
+                {money(shownSaldo)}
+              </strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <span>{t('minhasfinancas.accounts_table_forecast')}</span>
+              <span data-testid="mf-acct-det-chip-forecast" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {money(shownPrevisto)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <span>{t('minhasfinancas.balance_no_initial')}</span>
+              <span data-testid="mf-acct-det-chip-no-initial" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {money(noInitial)}
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            <span>{t('minhasfinancas.accounts_table_forecast')}</span>
-            <span data-testid="mf-acct-det-chip-forecast" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {money(account.previsto)}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            <span>{t('minhasfinancas.balance_no_initial')}</span>
-            <span data-testid="mf-acct-det-chip-no-initial" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {money(noInitial)}
-            </span>
-          </div>
-        </div>
+        )}
 
-        {showInitialWarning && (
+        {account.account_type !== 'CARTAO' && showInitialWarning && (
           <p
             data-testid="mf-det-initial-warning"
             style={{
@@ -767,15 +836,17 @@ export default function MFAccountDetail({
           >
             {t('nav.sub.minhasfinancas.statement')}
           </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            data-testid="mf-acct-det-adjust"
-            onClick={() => setAdjustOpen(true)}
-            style={{ padding: '0.6rem 1rem', fontSize: '0.85rem', flex: 1 }}
-          >
-            {t('minhasfinancas.adjust_title')}
-          </button>
+          {account.account_type !== 'CARTAO' && (
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid="mf-acct-det-adjust"
+              onClick={() => setAdjustOpen(true)}
+              style={{ padding: '0.6rem 1rem', fontSize: '0.85rem', flex: 1 }}
+            >
+              {t('minhasfinancas.adjust_title')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -841,8 +912,8 @@ export default function MFAccountDetail({
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       {active.status === 'CORRENTE'
-                        ? t('minhasfinancas.card_current')
-                        : `${t('minhasfinancas.card_due')} ${fmtShort(active.dueISO)}`}
+                        ? `${t('minhasfinancas.card_current')}${active.dueISO ? ` · ${formatMonthLabel(active.dueISO.slice(0, 7), i18n.language)} · ${t('minhasfinancas.card_due')} ${fmtShort(active.dueISO)}` : ''}`
+                        : `${active.dueISO ? `${formatMonthLabel(active.dueISO.slice(0, 7), i18n.language)} · ` : ''}${t('minhasfinancas.card_due')} ${fmtShort(active.dueISO)}`}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>

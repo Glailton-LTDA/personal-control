@@ -11,7 +11,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfMutate: vi.fn(),
 }));
 
-import { countableRows, groupTotalsByCurrency, computeMovementSplit, mfInstallmentSuffix, installmentHeadId, orderSeries } from './useMinhasFinancas';
+import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx } from './useMinhasFinancas';
 
 describe('countableRows', () => {
   it('mantém as contas padrão e remove as marcadas com "Ignorar nos totais"', () => {
@@ -79,6 +79,23 @@ describe('computeMovementSplit', () => {
       transfOut: { pago: 0, pendente: 0 },
     });
   });
+
+  it('despesa de cartão com fatura conta no mês da fatura', () => {
+    const card = { id: 'acc-card', account_type: 'CARTAO' };
+    const txs = [
+      // 11/10 vinculada a novembro → fora de outubro, dentro de novembro
+      { ...base, id: 'nov', account_id: 'acc-card', type: 'DESPESA', amount: 10, payment_date: '2026-10-11', status: 'PAGO', invoice_close: '2026-11-14' },
+      // sem vínculo → mês da data
+      { ...base, id: 'oct', account_id: 'acc-card', type: 'DESPESA', amount: 20, payment_date: '2026-10-05', status: 'PAGO', invoice_close: null },
+    ];
+    expect(computeMovementSplit(txs, 'acc-card', START, END, [card]).despesas).toEqual({
+      pago: 20,
+      pendente: 0,
+    });
+    expect(
+      computeMovementSplit(txs, 'acc-card', '2026-11-01', '2026-11-30', [card]).despesas
+    ).toEqual({ pago: 10, pendente: 0 });
+  });
 });
 
 describe('installmentHeadId / orderSeries', () => {
@@ -96,6 +113,57 @@ describe('installmentHeadId / orderSeries', () => {
       { id: 'c1', installments_current: 1, payment_date: '2026-10-15' },
       { id: 'c2', installments_current: 2, payment_date: '2026-11-15' },
     ];
-    expect(orderSeries(rows).map((row) => row.id)).toEqual(['c1', 'c2', 'c3']);
+    expect(orderSeries(rows).map((row) => row.id)).toEqual(['c1', 'c2', 'c3']); 
+  }); 
+});
+
+describe('isRecurrentTx', () => {
+  it('avulso não é recorrente', () => {
+    expect(isRecurrentTx(null)).toBe(false);
+    expect(isRecurrentTx({})).toBe(false);
+    expect(isRecurrentTx({ recurrence: 'NONE' })).toBe(false);
+    expect(isRecurrentTx({ installments_total: 1 })).toBe(false);
+  });
+
+  it('fixa, com recorrência ou de parcelado é recorrente', () => {
+    expect(isRecurrentTx({ is_fixed: true })).toBe(true);
+    expect(isRecurrentTx({ recurrence: 'MONTHLY' })).toBe(true);
+    expect(isRecurrentTx({ recurrence: 'WEEKLY' })).toBe(true);
+    expect(isRecurrentTx({ installments_total: 12 })).toBe(true);
+    expect(isRecurrentTx({ parent_transaction_id: 'head' })).toBe(true);
+  });
+});
+
+describe('computeStatement — extrato do cartão segue a fatura', () => {
+  const card = { id: 'acc-card', name: 'Cartão', account_type: 'CARTAO', currency: 'BRL', initial_balance: 0 };
+  const txs = [
+    // 11/10 vinculada a novembro → extrato de novembro (agrupada em 11/10), fora de outubro
+    { id: 'nov', account_id: 'acc-card', type: 'DESPESA', description: 'Teste Nov', amount: 10, payment_date: '2026-10-11', status: 'PAGO', category_id: null, invoice_close: '2026-11-14' },
+    // sem vínculo → mês da data
+    { id: 'oct', account_id: 'acc-card', type: 'DESPESA', description: 'Compra Out', amount: 20, payment_date: '2026-10-05', status: 'PAGO', category_id: null, invoice_close: null },
+  ];
+
+  it('outubro exclui a vinculada a novembro', () => {
+    const { groups } = computeStatement({
+      accounts: [card],
+      transactions: txs,
+      start: '2026-10-01',
+      end: '2026-10-31',
+      accountId: 'acc-card',
+    });
+    expect(groups.flatMap((group) => group.items.map((item) => item.tx.id))).toEqual(['oct']);
+  });
+
+  it('novembro inclui a vinculada, agrupada pela data de lançamento', () => {
+    const { groups } = computeStatement({
+      accounts: [card],
+      transactions: txs,
+      start: '2026-11-01',
+      end: '2026-11-30',
+      accountId: 'acc-card',
+    });
+    expect(groups).toHaveLength(1);
+    expect(groups[0].date).toBe('2026-10-11');
+    expect(groups[0].items.map((item) => item.tx.id)).toEqual(['nov']);
   });
 });

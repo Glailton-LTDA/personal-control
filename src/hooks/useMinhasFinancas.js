@@ -36,6 +36,19 @@ export const addMonthsISO = (iso, months) => {
   return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}`;
 };
 
+/**
+ * Avança `step` períodos de uma recorrência a partir de uma data ISO:
+ * WEEKLY soma 7 dias; YEARLY avança 12 meses; MONTHLY avança meses.
+ */
+export const shiftRecurrenceDate = (iso, recurrence, step) => {
+  if (recurrence === 'WEEKLY') {
+    const date = parseISODate(iso);
+    date.setDate(date.getDate() + 7 * step);
+    return toISODate(date);
+  }
+  return addMonthsISO(iso, recurrence === 'YEARLY' ? 12 * step : step);
+};
+
 /** Limites 'YYYY-MM-DD' do mês (inclusive). */
 export const monthBounds = (monthKey) => {
   const [year, month] = monthKey.split('-').map(Number);
@@ -278,6 +291,15 @@ export function installmentHeadId(tx) {
   return (Number(tx.installments_total) || 0) > 1 ? tx.id : null;
 }
 
+/** Lançamento já recorrente: série fixa, com recorrência ou parte de parcelado. */
+export function isRecurrentTx(tx) {
+  if (!tx) return false;
+  if (tx.is_fixed) return true;
+  if (installmentHeadId(tx)) return true;
+  if ((Number(tx.installments_total) || 0) > 1) return true;
+  return !!tx.recurrence && tx.recurrence !== 'NONE';
+}
+
 /** Ordena a série por nº da parcela (desempate: vencimento, id). */
 export function orderSeries(rows) {
   return [...(rows ?? [])].sort((a, b) => {
@@ -353,6 +375,36 @@ export const accountTypeInfo = (type, customTypes = []) => {
 const isCancelled = (tx) => tx.status === 'CANCELADO';
 
 /**
+ * Mês de competência de uma despesa de cartão (manda a fatura escolhida):
+ * com fatura escolhida (`invoice_close`) vale o mês do VENCIMENTO (a
+ * fatura é rotulada pelo vencimento em todos os cartões); sem vínculo,
+ * o mês da data. Receitas, transferências e contas não-cartão seguem a data.
+ */
+export function cardExpenseMonth(tx, byId) {
+  const acc = byId?.get?.(tx?.account_id);
+  if (tx?.type === 'DESPESA' && tx.invoice_close && acc?.account_type === 'CARTAO') {
+    const C = Number(acc.closing_day) || 1;
+    const D = Number(acc.due_day) || 10;
+    return shiftMonth(String(tx.invoice_close).slice(0, 7), D >= C ? 0 : 1);
+  }
+  return String(tx?.payment_date || '').slice(0, 7);
+}
+
+/**
+ * Fechamento (`invoice_close`) da fatura que vence no mês informado
+ * (`dueMonthKey` = 'YYYY-MM'): a escolha do picker de fatura é o
+ * vencimento, e o fechamento deriva dele (D >= C → mesmo mês, senão
+ * mês anterior). Usado como default do picker (fatura do mês).
+ */
+export function invoiceCloseForDueMonth(card, dueMonthKey) {
+  const C = Number(card?.closing_day) || 1;
+  const D = Number(card?.due_day) || 10;
+  const closeKey = shiftMonth(dueMonthKey, D >= C ? 0 : -1);
+  const [y, m] = closeKey.split('-').map(Number);
+  return isoDay(y, m, C);
+}
+
+/**
  * Saldo de uma conta ao fim do mês:
  *  - saldo    = saldo inicial + lançamentos PAGO até o fim do mês
  *  - previsto = saldo + lançamentos PENDENTE com data até o fim do mês
@@ -424,16 +476,27 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
  * canceladas; janela [start, end]; transferências entram por direção
  * (débito = origem, crédito = destino). Valores brutos (despesa positiva).
  */
-export function computeMovementSplit(transactions, accountId, start, end) {
+export function computeMovementSplit(transactions, accountId, start, end, accounts = []) {
   const split = {
     receitas: { pago: 0, pendente: 0 },
     despesas: { pago: 0, pendente: 0 },
     transfIn: { pago: 0, pendente: 0 },
     transfOut: { pago: 0, pendente: 0 },
   };
+  const byId = new Map((accounts ?? []).map((acc) => [acc.id, acc]));
+  const viewMonth = String(start).slice(0, 7);
+  // Cartão não tem crédito de pagamento: transferências não aparecem na
+  // movimentação do cartão (o pagamento é despesa na conta vinculada).
+  const targetIsCard = byId.get(accountId)?.account_type === 'CARTAO';
   (transactions ?? []).forEach((tx) => {
     if (isCancelled(tx)) return;
-    if (tx.payment_date < start || tx.payment_date > end) return;
+    if (targetIsCard && tx.type === 'TRANSFERENCIA') return;
+    // Despesa de cartão: mês da fatura (vencimento); o resto, a data.
+    const inMonth =
+      tx.account_id === accountId && tx.type === 'DESPESA' && tx.invoice_close
+        ? cardExpenseMonth(tx, byId) === viewMonth
+        : tx.payment_date >= start && tx.payment_date <= end;
+    if (!inMonth) return;
     const amount = Number(tx.amount) || 0;
     const bucket = tx.status === 'PAGO' ? 'pago' : 'pendente';
     if (tx.type === 'TRANSFERENCIA') {
@@ -594,21 +657,35 @@ export function computeStatement({ accounts = [], transactions = [], start, end,
   );
   const scopeIds = new Set(scoped.map((acc) => acc.id));
   const inScope = (tx) => scopeIds.has(tx.account_id) || scopeIds.has(tx.transfer_account_id);
+  const accountById = new Map((accounts ?? []).map((acc) => [acc.id, acc]));
+  const viewMonth = String(start).slice(0, 7);
+  // Cartão não tem crédito de pagamento: o extrato do cartão lista só as
+  // compras da fatura (o pagamento é despesa na conta vinculada).
+  const scopeIsCard =
+    accountId != null && accountById.get(accountId)?.account_type === 'CARTAO';
 
   // Saldo de abertura: saldo inicial das contas do escopo + PAGO antes do mês
+  // (despesa de cartão: antes da fatura vista).
   let opening = scoped.reduce((sum, acc) => sum + (Number(acc.initial_balance) || 0), 0);
   (transactions ?? []).forEach((tx) => {
-    if (isCancelled(tx) || tx.status !== 'PAGO' || tx.payment_date >= start) return;
+    if (isCancelled(tx) || tx.status !== 'PAGO') return;
+    if (scopeIsCard && tx.type === 'TRANSFERENCIA') return;
+    if (cardExpenseMonth(tx, accountById) >= viewMonth) return;
     const delta = scopeDelta(tx, scopeIds);
     if (delta !== null) opening += delta;
   });
 
-  // Movimentações do mês, ordenadas por data
+  // Movimentações do mês, ordenadas por data (despesa de cartão: mês da
+  // fatura — vencimento — agrupada pela data de lançamento).
   const monthTxs = (transactions ?? [])
-    .filter(
-      (tx) =>
-        !isCancelled(tx) && tx.payment_date >= start && tx.payment_date <= end && inScope(tx)
-    )
+    .filter((tx) => {
+      if (isCancelled(tx) || !inScope(tx)) return false;
+      if (scopeIsCard && tx.type === 'TRANSFERENCIA') return false;
+      if (tx.type === 'DESPESA' && tx.invoice_close) {
+        return cardExpenseMonth(tx, accountById) === viewMonth;
+      }
+      return tx.payment_date >= start && tx.payment_date <= end;
+    })
     .sort((a, b) =>
       a.payment_date === b.payment_date
         ? String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
@@ -1609,13 +1686,15 @@ export const plusDaysISO = (iso, days) => {
  * Retorna do ciclo mais futuro ao mais antigo, com período
  * (startISO..closeISO), vencimento (dueISO) e se já fechou (closed).
  */
-export const cardCycles = (card, refISO, count = 6) => {
+export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
   const C = Number(card.closing_day) || 1;
   const D = Number(card.due_day) || 10;
   const [ry, rm] = refISO.split('-').map(Number);
   const cycles = [];
-  // i = -1 → próximo fechamento ainda futuro; depois mês a mês para trás
-  for (let i = -1; i <= count; i += 1) {
+  // i = -1 → próximo fechamento ainda futuro (picker de fatura do app
+  // original alcança ~1 ano à frente: futureCount amplia a janela); depois
+  // mês a mês para trás
+  for (let i = -futureCount; i <= count; i += 1) {
     const key = shiftMonth(`${ry}-${pad(rm)}`, -i);
     const [y, m] = key.split('-').map(Number);
     const closeISO = isoDay(y, m, C);
@@ -1636,36 +1715,57 @@ export const cardCycles = (card, refISO, count = 6) => {
 
 /**
  * Faturas de um cartão: fechadas (mais recente primeiro) + fatura corrente
- * (período desde o último fechamento até o próximo). Pagamentos VINCULADOS
- * (`invoice_close`) caem direto na fatura que pagam; os sem vínculo (histórico
- * migrado) são alocados em FIFO, da fechada mais antiga para a corrente.
- * `monthKey` (mês navegado) define a régua de época: no mês vivo o vínculo
- * conta na hora (inclusive agendado futuro); em mês passado só conta o que
- * já tinha acontecido até lá (vinculado ao ciclo já fechado).
+ * (a do MÊS — rotulada pelo vencimento, não pelo ciclo aberto) + futuras
+ * com despesa vinculada (`upcomingInvoices` — entram no em aberto, sem
+ * virar "ativa"). A despesa de cartão pertence à fatura ESCOLHIDA
+ * (`invoice_close`); sem vínculo (legado), vale o mês da data = mês do
+ * vencimento (fatura do mês calendário). Pagamentos VINCULADOS
+ * (`invoice_close`) caem direto na fatura que pagam — modelo novo:
+ * DESPESA na conta vinculada; modelo antigo (TRANSFERENCIA → cartão)
+ * segue contado por compatibilidade. Sem vínculo (histórico migrado),
+ * FIFO da fechada mais antiga para a corrente. `monthKey` define a régua
+ * de época: no mês vivo o vínculo conta na hora; em mês passado só o que
+ * já tinha acontecido até lá.
  */
 export const buildCardInvoices = ({ card, transactions, refISO, count = 6, monthKey }) => {
-  // Despesas até a data de referência: sem o corte, a fatura corrente de um
+  const refMonthKey = refISO.slice(0, 7);
+  // Despesas até a data de referência — com fatura escolhida
+  // (invoice_close) vale o MÊS: a compra entra quando o mês chega (ex.:
+  // parcela de 28/10 vinculada a outubro aparece na fatura de outubro
+  // já no mês vivo), sem vazar para meses anteriores. Sem vínculo, vale
+  // a data (regra do emissor) — sem o corte, a fatura corrente de um
   // mês passado englobaria compras dos meses seguintes (futuro relativo a refISO).
+  const inWindow = (tx) =>
+    tx.payment_date <= refISO ||
+    (tx.invoice_close && (tx.payment_date || '').slice(0, 7) <= refMonthKey);
   const expenses = transactions.filter(
     (tx) =>
       tx.account_id === card.id &&
       tx.type === 'DESPESA' &&
       tx.status !== 'CANCELADO' &&
-      tx.payment_date <= refISO
+      inWindow(tx)
   );
   // Mês vivo (atual): pagamento vinculado conta na hora — ele foi agendado
-  // no vencimento da fatura que paga. Em mês passado (época), o vinculado só
-  // vale se o ciclo que ele paga já tinha fechado; sem vínculo (histórico)
+  // no vencimento da fatura que paga. Em mês passado (época), o vinculado
+  // conta se o ciclo que ele paga já tinha fechado OU se o dinheiro já
+  // tinha saído até lá (PAGO com payment_date <= refISO) — sem isso, uma
+  // fatura paga no mês (ex.: paga em 20/08 a corrente que fecha em 14/09)
+  // aparecia em aberto ao navegar aquele mês. Sem vínculo (histórico)
   // só vale até a data de referência.
   const live = !monthKey || monthKey === currentMonthKey();
+  // Pagamento = DESPESA na conta vinculada (modelo novo) ou TRANSFERENCIA
+  // → cartão (histórico — segue contado). Só o vinculado quita fatura
+  // certa; DESPESA sem vínculo é gasto normal da conta (nunca vai ao FIFO).
+  const isPaymentTx = (tx) =>
+    (tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === card.id) ||
+    (tx.type === 'DESPESA' && tx.account_id === card.linked_account_id && tx.invoice_close);
   const payments = transactions
     .filter(
       (tx) =>
-        tx.type === 'TRANSFERENCIA' &&
-        tx.transfer_account_id === card.id &&
+        isPaymentTx(tx) &&
         tx.status !== 'CANCELADO' &&
         (tx.invoice_close
-          ? live || tx.invoice_close <= refISO
+          ? live || tx.invoice_close <= refISO || (tx.status === 'PAGO' && tx.payment_date <= refISO)
           : tx.payment_date <= refISO)
     )
     .sort((a, b) => a.payment_date.localeCompare(b.payment_date));
@@ -1676,7 +1776,7 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     const value = Number(tx.amount) || 0;
     if (tx.invoice_close) {
       boundByClose[tx.invoice_close] = (boundByClose[tx.invoice_close] || 0) + value;
-    } else {
+    } else if (tx.type === 'TRANSFERENCIA') {
       fifoPool += value;
     }
   });
@@ -1689,16 +1789,41 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     .filter(
       (tx) =>
         (tx.account_id === card.id && tx.type === 'DESPESA') ||
-        (tx.transfer_account_id === card.id && tx.type === 'TRANSFERENCIA')
+        (tx.transfer_account_id === card.id && tx.type === 'TRANSFERENCIA') ||
+        (tx.account_id === card.linked_account_id && tx.type === 'DESPESA' && tx.invoice_close)
     )
     .map((tx) => tx.payment_date)
     .filter(Boolean);
   const [refYear, refMonth] = refISO.split('-').map(Number);
   const earliest = relevantDates.reduce((min, iso) => (iso < min ? iso : min), refISO);
   const [firstYear, firstMonth] = earliest.split('-').map(Number);
-  const monthsBack = Math.max(0, (refYear - firstYear) * 12 + refMonth - firstMonth);
+  // Fatura escolhida no lançamento (picker do app original, ~2 anos): a
+  // janela cobre o menor e o maior invoice_close vinculados, senão a
+  // despesa some até o ciclo chegar (futuro) ou some da lista (passado).
+  const linkedCloses = transactions
+    .filter(
+      (tx) =>
+        tx.account_id === card.id &&
+        tx.type === 'DESPESA' &&
+        tx.status !== 'CANCELADO' &&
+        tx.invoice_close
+    )
+    .map((tx) => tx.invoice_close)
+    .sort();
+  const minLinkedClose = linkedCloses[0] ?? null;
+  const maxLinkedClose = linkedCloses[linkedCloses.length - 1] ?? null;
+  let monthsBack = Math.max(0, (refYear - firstYear) * 12 + refMonth - firstMonth);
+  if (minLinkedClose) {
+    const [ly, lm] = minLinkedClose.split('-').map(Number);
+    monthsBack = Math.max(monthsBack, (refYear - ly) * 12 + (refMonth - lm) + 2);
+  }
   const historyCount = Math.max(count + 1, monthsBack + 2);
-  const cycles = cardCycles(card, refISO, historyCount);
+  let futureCount = 1;
+  if (maxLinkedClose) {
+    const [ly, lm] = maxLinkedClose.split('-').map(Number);
+    futureCount = Math.max(1, (ly - refYear) * 12 + (lm - refMonth) + 1);
+  }
+  const cycles = cardCycles(card, refISO, historyCount, futureCount);
   const closed = cycles.filter((cycle) => cycle.closed); // mais recente primeiro
   const upcoming = cycles
     .filter((cycle) => !cycle.closed)
@@ -1706,12 +1831,20 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
 
   const round = (value) => Math.round(value * 100) / 100;
 
+  // Despesa com fatura escolhida vai direto para o ciclo; sem vínculo
+  // (legado/importado), vale o mês da data = mês do vencimento (fatura do
+  // mês calendário — a data nunca empurra para o mês seguinte).
+  const inCycle = (tx, cycle) =>
+    tx.invoice_close
+      ? tx.invoice_close === cycle.closeISO
+      : String(tx.payment_date || '').slice(0, 7) === String(cycle.dueISO || '').slice(0, 7);
+
   // — faturas fechadas (antiga → nova: pagamento vinculado + FIFO histórico) —
   let remaining = fifoPool;
   const invoices = [];
   [...closed].reverse().forEach((cycle) => {
     const rows = expenses
-      .filter((tx) => tx.payment_date >= cycle.startISO && tx.payment_date <= cycle.closeISO)
+      .filter((tx) => inCycle(tx, cycle))
       .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
     const total = round(rows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0));
     const billable = Math.max(0, total);
@@ -1737,69 +1870,149 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     invoices.push({ ...cycle, transactions: rows, total, refunds, paid, openAmount, status });
   });
   invoices.reverse(); // mais recente primeiro (UI)
-  const openInvoices = invoices.filter((invoice) => Number(invoice.openAmount) > 0);
-  const oldestOpenInvoice = openInvoices[openInvoices.length - 1] ?? null;
 
-  // — fatura corrente (desde o último fechamento) —
-  const lastClosed = closed.length > 0 ? closed[0] : null;
-  const currentStart = lastClosed ? plusDaysISO(lastClosed.closeISO, 1) : null;
-  const currentRows = expenses
-    .filter((tx) => !currentStart || tx.payment_date >= currentStart)
-    .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
-  const currentTotal = round(
-    currentRows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
-  );
-  const currentCloseISO = upcoming.length > 0 ? upcoming[0].closeISO : null;
-  // Pagamento agendado na fatura corrente (invoice_close = próximo fechamento)
-  // zera o em aberto na hora; o que sobrar do FIFO histórico também reduz.
-  const currentBillable = Math.max(0, currentTotal);
-  const currentPaid = round(
-    Math.min(
-      currentBillable,
-      (currentCloseISO ? boundByClose[currentCloseISO] || 0 : 0) + remaining
-    )
-  );
-  const currentOpen = round(Math.max(0, currentBillable - currentPaid));
+  // — fatura corrente = a do MÊS (rotulada pelo vencimento) —
+  // Em outubro, corrente = Outubro (vence 07/10), não o ciclo aberto
+  // (Novembro, fecha 30/10). Pode estar PAGA (foi paga no vencimento).
+  const currentCycle =
+    cycles.find((cycle) => String(cycle.dueISO || '').slice(0, 7) === refMonthKey) ??
+    upcoming[0] ??
+    closed[0] ??
+    null;
+  const currentCloseISO = currentCycle?.closeISO ?? null;
+  const currentIsClosed = !!currentCycle?.closed;
+
+  // — faturas futuras com despesa vinculada —
+  // Lista separada (fora das fechadas): o em aberto entra no openTotal
+  // (limite já comprometido), mas não viram "ativa" nem entram no FIFO
+  // (só pagamento vinculado as quita, até o ciclo chegar). A corrente
+  // nunca entra aqui, mesmo sendo futura.
+  const upcomingInvoices = upcoming
+    .filter((cycle) => cycle.closeISO !== currentCloseISO)
+    .map((cycle) => {
+      const rows = expenses
+        .filter((tx) => tx.invoice_close === cycle.closeISO)
+        .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
+      if (rows.length === 0) return null;
+      const total = round(rows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0));
+      const billable = Math.max(0, total);
+      const bound = Math.min(boundByClose[cycle.closeISO] || 0, billable);
+      const openAmount = round(Math.max(0, billable - bound));
+      const refunds = round(
+        -rows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
+      );
+      const paid = round(Math.max(0, billable - openAmount));
+      return {
+        ...cycle,
+        future: true,
+        transactions: rows,
+        total,
+        refunds,
+        paid,
+        openAmount,
+        status: openAmount < 0.005 ? 'PAGA' : 'EM_ABERTO',
+      };
+    })
+    .filter(Boolean);
+
+  // Corrente: se o ciclo do mês já fechou, reaproveita o cálculo do FIFO
+  // (pagamento vinculado + FIFO histórico); se ainda está aberto, calcula
+  // como antes (vinculado + sobra do FIFO).
+  let current;
+  const closedMatch = invoices.find((inv) => inv.closeISO === currentCloseISO) ?? null;
+  if (currentIsClosed && closedMatch) {
+    current = {
+      ...closedMatch,
+      kind: 'current',
+      status: closedMatch.total > 0 && closedMatch.openAmount < 0.005 ? 'PAGA' : 'CORRENTE',
+    };
+  } else {
+    const lastClosed = closed.length > 0 ? closed[0] : null;
+    const currentStart = lastClosed ? plusDaysISO(lastClosed.closeISO, 1) : null;
+    void currentStart;
+    const currentRows = expenses
+      .filter((tx) =>
+        tx.invoice_close
+          ? tx.invoice_close === currentCloseISO
+          : String(tx.payment_date || '').slice(0, 7) === refMonthKey
+      )
+      .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
+    const currentTotal = round(
+      currentRows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+    );
+    // Pagamento agendado na fatura corrente zera o em aberto na hora; o
+    // que sobrar do FIFO histórico também reduz.
+    const currentBillable = Math.max(0, currentTotal);
+    const currentPaid = round(
+      Math.min(
+        currentBillable,
+        (currentCloseISO ? boundByClose[currentCloseISO] || 0 : 0) + remaining
+      )
+    );
+    const currentOpen = round(Math.max(0, currentBillable - currentPaid));
+    const currentRefunds = round(
+      -currentRows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
+    );
+    current = {
+      kind: 'current',
+      startISO: currentCycle?.startISO ?? null,
+      closeISO: currentCloseISO,
+      dueISO: currentCycle?.dueISO ?? null,
+      transactions: currentRows,
+      total: currentTotal,
+      refunds: currentRefunds,
+      paid: currentPaid,
+      openAmount: currentOpen,
+      status: currentTotal > 0 && currentOpen < 0.005 ? 'PAGA' : 'CORRENTE',
+    };
+  }
+
+  // A corrente não se repete na lista de fechadas (chip único).
+  const displayInvoices = invoices.filter((inv) => inv.closeISO !== currentCloseISO);
+  const openInvoices = displayInvoices.filter((invoice) => Number(invoice.openAmount) > 0);
+  const oldestOpenInvoice = openInvoices[openInvoices.length - 1] ?? null;
   const openTotal = round(
-    invoices.reduce((sum, invoice) => sum + (Number(invoice.openAmount) || 0), 0) +
-      currentOpen
+    displayInvoices.reduce((sum, invoice) => sum + (Number(invoice.openAmount) || 0), 0) +
+      (Number(current?.openAmount) || 0) +
+      upcomingInvoices.reduce((sum, invoice) => sum + (Number(invoice.openAmount) || 0), 0)
   );
-  const currentRefunds = round(
-    -currentRows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
-  );
-  const current = {
-    kind: 'current',
-    startISO: currentStart,
-    closeISO: currentCloseISO,
-    dueISO: upcoming.length > 0 ? upcoming[0].dueISO : null,
-    transactions: currentRows,
-    total: currentTotal,
-    refunds: currentRefunds,
-    paid: currentPaid,
-    openAmount: currentOpen,
-    status: currentTotal > 0 && currentOpen < 0.005 ? 'PAGA' : 'CORRENTE',
-  };
 
   return {
     current,
-    invoices: invoices.slice(0, count),
+    invoices: [
+      ...displayInvoices.slice(0, count),
+      // Vinculadas antigas fora da janela de exibição: têm movimento e
+      // dono — aparecem depois das recentes, em vez de sumirem.
+      ...displayInvoices
+        .slice(count)
+        .filter(
+          (inv) =>
+            linkedCloses.includes(inv.closeISO) &&
+            (Number(inv.total) > 0 || Number(inv.openAmount) > 0)
+        ),
+    ],
+    upcomingInvoices,
     openTotal,
     oldestOpenInvoice,
   };
 };
 
 /**
- * Payload do pagamento de fatura (total ou parcial): transferência da conta
- * vinculada → cartão, com o valor informado na tela (limitado ao em aberto).
+ * Payload do pagamento de fatura (total ou parcial): DESPESA na conta
+ * vinculada ao cartão (o dinheiro sai de verdade), com o valor informado
+ * na tela (limitado ao em aberto). O cartão não recebe transação própria:
+ * ele só passa a saber "fatura paga + valor pago" pelo vínculo
+ * (`invoice_close`) dessa despesa.
  *
- * - Vencimento futuro → agendamento (PENDENTE no vencimento), como no app
- *   Minhas Finanças: a linha aparece no Extrato da conta e é efetivada quando
- *   o pagamento sair de verdade.
+ * - Vencimento futuro → agendamento (PENDENTE no vencimento): a linha
+ *   aparece no Extrato da conta e é efetivada quando o pagamento sair.
  * - Vencimento já passado (fatura vencida) → pago hoje (PAGO).
  *
  * `invoice_close` grava em qual ciclo (fechamento) esse pagamento entra — a
  * fatura reage na hora, sem depender do FIFO das fechadas antigas. Retorna
- * null quando não há valor em aberto.
+ * null quando não há valor em aberto. Reabrir exclui essa despesa (ela
+ * continua na conta vinculada — o sistema nunca troca de conta; pagar de
+ * outra conta é transferência feita pelo usuário).
  */
 export const buildCardPaymentTx = ({ userId, card, invoice, description, amount }) => {
   const open = Number(invoice?.openAmount) || 0;
@@ -1812,12 +2025,13 @@ export const buildCardPaymentTx = ({ userId, card, invoice, description, amount 
   const scheduled = !!invoice?.dueISO && invoice.dueISO > today;
   return {
     user_id: userId,
-    type: 'TRANSFERENCIA',
+    type: 'DESPESA',
     account_id: card.linked_account_id,
-    transfer_account_id: card.id,
     description: `${description} — ${card.name}`,
     amount: value,
     payment_date: scheduled ? invoice.dueISO : today,
+    due_date: scheduled ? invoice.dueISO : null,
+    effective_date: scheduled ? null : today,
     status: scheduled ? 'PENDENTE' : 'PAGO',
     invoice_close: invoice?.closeISO ?? null,
   };

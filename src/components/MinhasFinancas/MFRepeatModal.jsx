@@ -71,6 +71,7 @@ export default function MFRepeatModal({
   count = 2,
   periodicity = 'MONTHLY',
   amountMode = 'parcela',
+  showAmountToggle = true,
   amount = 0,
   currency = 'BRL',
   onApply,
@@ -150,6 +151,7 @@ export default function MFRepeatModal({
         </div>
 
         <div style={{ ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: '0.6rem' }}>
+          {showAmountToggle && (
           <div style={{ display: 'flex', border: '1px solid var(--glass-border)', borderRadius: 10, overflow: 'hidden' }}>
             {[
               { id: 'total', label: t('minhasfinancas.tx_repeat_total') },
@@ -177,6 +179,7 @@ export default function MFRepeatModal({
               </button>
             ))}
           </div>
+          )}
           <p
             data-testid="mf-repeat-preview"
             style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center' }}
