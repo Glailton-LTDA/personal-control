@@ -240,6 +240,57 @@ beforeEach(async () => {
 });
 
 describe('MFGroupModal', () => {
+  it('filtra as contas pelo nome e aplica seleção em massa só no que está visível', async () => {
+    renderWithProviders(<MFGroupModal user={mockUser} onClose={vi.fn()} />);
+
+    // Lista completa: três contas comuns (nem cartão, nem arquivada)
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-account-acc-nu')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-group-account-acc-reserva')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-group-account-acc-livre')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-group-accounts-selected')).toHaveTextContent(
+      'minhasfinancas.group_accounts_selected'
+    );
+
+    // Filtro por nome reduz a lista ao que corresponde
+    fireEvent.change(screen.getByTestId('mf-group-accounts-search'), {
+      target: { value: 'reserva' },
+    });
+    expect(screen.getByTestId('mf-group-account-acc-reserva')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-group-account-acc-nu')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-group-account-acc-livre')).not.toBeInTheDocument();
+
+    // Seleção em massa marca apenas a conta visível (filtrada)
+    fireEvent.click(screen.getByTestId('mf-group-accounts-select-all'));
+    expect(
+      within(screen.getByTestId('mf-group-account-acc-reserva')).getByRole('checkbox')
+    ).toBeChecked();
+
+    // Voltar o filtro: a filtrada segue marcada, as demais intactas
+    fireEvent.change(screen.getByTestId('mf-group-accounts-search'), {
+      target: { value: '' },
+    });
+    expect(
+      within(screen.getByTestId('mf-group-account-acc-reserva')).getByRole('checkbox')
+    ).toBeChecked();
+    expect(
+      within(screen.getByTestId('mf-group-account-acc-nu')).getByRole('checkbox')
+    ).not.toBeChecked();
+
+    // "Limpar seleção" desmarca o que está visível
+    fireEvent.click(screen.getByTestId('mf-group-accounts-clear'));
+    expect(
+      within(screen.getByTestId('mf-group-account-acc-reserva')).getByRole('checkbox')
+    ).not.toBeChecked();
+
+    // Filtro sem resultado mostra estado vazio
+    fireEvent.change(screen.getByTestId('mf-group-accounts-search'), {
+      target: { value: 'zzz' },
+    });
+    expect(screen.getByTestId('mf-group-accounts-no-results')).toBeInTheDocument();
+  });
+
   it('cria grupo com as flags e vincula só a conta clicada', async () => {
     const onClose = vi.fn();
     const onSaved = vi.fn();

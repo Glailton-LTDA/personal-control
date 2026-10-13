@@ -139,6 +139,34 @@ describe('MFContas', () => {
     expect(screen.getAllByText('R$ 150,00').length).toBeGreaterThan(0);
   });
 
+  it('botões de ação da linha têm tooltip (title) explicando cada ação', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    // Primeiro botão (documento) = Ver extrato; demais: arquivar, editar, excluir
+    expect(screen.getByTestId('mf-statement-account-acc-1')).toHaveAttribute(
+      'title',
+      'minhasfinancas.row_open'
+    );
+    expect(screen.getByTestId('mf-archive-account-acc-1')).toHaveAttribute(
+      'title',
+      'minhasfinancas.archive'
+    );
+    expect(screen.getByTestId('mf-edit-account-acc-1')).toHaveAttribute(
+      'title',
+      'minhasfinancas.edit'
+    );
+    expect(screen.getByTestId('mf-delete-account-acc-1')).toHaveAttribute(
+      'title',
+      'minhasfinancas.delete'
+    );
+  });
+
   it('abre o modal e cria uma nova conta', async () => {
     renderWithProviders(
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
@@ -507,5 +535,79 @@ describe('MFContas', () => {
     expect(chain.update.mock.calls[0][0]).toMatchObject({
       ignore_in_totals: true,
     });
+  });
+
+  it('exibe cards de KPI com saldo consolidado, movimento do mês e previsão', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    // Saldo consolidado das duas contas ativas (100 + 50) + contagem
+    const balance = screen.getByTestId('mf-contas-kpi-balance');
+    expect(balance).toHaveTextContent('R$ 150,00');
+    expect(balance).toHaveTextContent('minhasfinancas.kpi_active_accounts');
+    expect(balance).toHaveTextContent('minhasfinancas.groups_count');
+
+    // Movimento do mês (sem lançamentos no mock: receitas e despesas zeradas)
+    const movement = screen.getByTestId('mf-contas-kpi-movement');
+    expect(movement).toHaveTextContent('minhasfinancas.kpi_movement');
+    expect(movement).toHaveTextContent('R$ 0,00');
+
+    // Previsão de fechamento = saldo sem lançamentos futuros
+    const forecast = screen.getByTestId('mf-contas-kpi-forecast');
+    expect(forecast).toHaveTextContent('R$ 150,00');
+    expect(forecast).toHaveTextContent('minhasfinancas.kpi_projected');
+  });
+
+  it('coluna de transferências é líquida e o pedido do FAB abre nova conta', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    // Cabeçalho com a coluna única "Transferências" (sem crédito/débito)
+    expect(screen.getByText('minhasfinancas.accounts_table_transf')).toBeInTheDocument();
+    expect(
+      screen.queryByText('minhasfinancas.accounts_table_transf_in')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('minhasfinancas.accounts_table_transf_out')
+    ).not.toBeInTheDocument();
+
+    // Subtotais do grupo alinhados às colunas + chip de total
+    expect(screen.getByTestId('mf-group-total-grp-1')).toHaveTextContent('R$ 100,00');
+
+    // FAB global → evento "mf-new-account" abre o modal de nova conta
+    fireEvent(window, new CustomEvent('mf-new-account'));
+    expect(screen.getByTestId('mf-account-modal')).toBeInTheDocument();
+  });
+
+  it('abre o modal para o pedido de nova conta do FAB e o limpa ao fechar', async () => {
+    const { requestNewAccount } = await import('./mfViewState');
+    requestNewAccount();
+
+    const { unmount } = renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    // O pedido sobrevive aos remounts: abre no mount
+    expect(screen.getByTestId('mf-account-modal')).toBeInTheDocument();
+
+    // Fechar o modal descarta o pedido — um remount não reabre
+    fireEvent.click(screen.getByTestId('mf-account-modal'));
+    expect(screen.queryByTestId('mf-account-modal')).not.toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+    expect(screen.queryByTestId('mf-account-modal')).not.toBeInTheDocument();
   });
 });

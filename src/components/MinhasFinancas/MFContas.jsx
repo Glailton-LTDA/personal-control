@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown, X } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown, X, TrendingUp, CalendarClock, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
@@ -25,11 +25,11 @@ import MFTransferModal from './MFTransferModal';
 import MFGroupModal from './MFGroupModal';
 import MFGroupIcon from './MFGroupIcon';
 import MFAccountDetail from './MFAccountDetail';
-import { readDrill, writeDrill } from './mfViewState';
+import { readDrill, writeDrill, hasNewAccountRequest, clearNewAccountRequest } from './mfViewState';
 
 const cellBase = {
-  padding: '0.85rem 1rem',
-  fontSize: '0.9rem',
+  padding: '0.65rem 0.55rem',
+  fontSize: '0.85rem',
   whiteSpace: 'nowrap',
 };
 
@@ -46,8 +46,54 @@ const badgeStyle = {
   whiteSpace: 'nowrap',
 };
 
+/** Caixinha do ícone nos cards de KPI da tela de Contas. */
+const kpiIconBox = {
+  width: 34,
+  height: 34,
+  borderRadius: 10,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'color-mix(in srgb, currentColor 14%, transparent)',
+  flexShrink: 0,
+};
+
+/** Chip de destaque dos cards de KPI ("4 ativas", "Projetado"). */
+const kpiChipStyle = {
+  fontSize: '0.72rem',
+  fontWeight: 800,
+  padding: '0.15rem 0.5rem',
+  borderRadius: 999,
+  color: 'var(--primary)',
+  background: 'color-mix(in srgb, var(--primary) 14%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)',
+};
+
+/** Célula numérica dos cabeçalhos de grupo ("Sem grupo" e grupos). */
+const groupCellStyle = {
+  ...cellBase,
+  textAlign: 'right',
+  borderBottom: '1px solid var(--glass-border)',
+  padding: '0.55rem 0.6rem',
+  fontSize: '0.78rem',
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+};
+
 /** Id sentinela da sanfona de "Sem grupo" (nunca colide com uuid real). */
 const UNGROUPED_ID = 'mf-ungrouped';
+
+/** Paleta do trilho colorido dos cabeçalhos de grupo (cor própria > paleta). */
+const GROUP_ACCENTS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
+
+/** Cor estável por grupo (hash do id) quando o grupo não tem cor própria. */
+const groupAccent = (group) => {
+  if (group?.color) return group.color;
+  const id = String(group?.id ?? '');
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return GROUP_ACCENTS[hash % GROUP_ACCENTS.length];
+};
 
 /**
  * Tela de Contas: tabela por mês (saldo inicial, receitas, despesas,
@@ -59,7 +105,7 @@ export default function MFContas({
   onChangeMonth = () => {},
   showValues = true,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data, isLoading, isError } = useMFMonthSummary(user, monthKey);
   const { data: customTypes = [] } = useMFAccountTypes(user);
   const { data: groups = [] } = useMFGroups(user);
@@ -93,6 +139,25 @@ export default function MFContas({
         row.name.toLowerCase().includes(term)
     );
   }, [rows, search, currency, showArchived]);
+
+  // Base dos cards de KPI: contas ativas da moeda selecionada (a busca
+  // afeta só a tabela — os totais não piscam enquanto o usuário digita).
+  const activeRows = useMemo(
+    () =>
+      rows.filter(
+        (row) => !row.archived_at && (currency === 'all' || row.currency === currency)
+      ),
+    [rows, currency]
+  );
+  const kpis = useMemo(() => {
+    const counted = countableRows(activeRows);
+    return {
+      saldo: groupTotalsByCurrency(counted, 'saldo'),
+      receitas: groupTotalsByCurrency(counted, 'receitas'),
+      despesas: groupTotalsByCurrency(counted, 'despesas'),
+      previsto: groupTotalsByCurrency(counted, 'previsto'),
+    };
+  }, [activeRows]);
 
   // Itens da tabela: visão agrupada (padrão) — cada grupo vira um cabeçalho
   // (sanfona + ícone + nome + contagem + total das contas diretas) com suas
@@ -192,10 +257,80 @@ export default function MFContas({
     }
   }, [selectedId, rows]);
 
+  // Pedido de "nova conta" vindo do FAB global: abre o modal no mount ou
+  // pelo evento. O pedido só é limpo quando o modal fecha — assim ele
+  // sobrevive aos remounts do Dashboard (refreshKey).
+  useEffect(() => {
+    if (hasNewAccountRequest()) {
+      setAccountModal('new');
+      return undefined;
+    }
+    const onRequest = () => setAccountModal('new');
+    window.addEventListener('mf-new-account', onRequest);
+    return () => window.removeEventListener('mf-new-account', onRequest);
+  }, []);
+
   const nativeMoney = (value, rowCurrency) =>
     showValues ? formatMoney(value, rowCurrency) : '•••';
   const totalOf = (field) =>
     formatTotals(groupTotalsByCurrency(countableRows(accounts), field), showValues);
+
+  /** Subtotal de um campo para um conjunto de contas (cabeçalhos de grupo). */
+  const subtotalOf = (list, field) =>
+    formatTotals(groupTotalsByCurrency(countableRows(list), field), showValues);
+
+  // Soma bruta de um mapa por moeda — usada só para decidir o sinal.
+  const sumMap = (map) => Object.values(map).reduce((sum, value) => sum + value, 0);
+
+  /** Transferência líquida de uma linha: crédito − débito, com sinal. */
+  const netCellText = (value, rowCurrency) => {
+    if (!showValues) return '•••';
+    if (value > 0) return `+${formatMoney(value, rowCurrency)}`;
+    if (value < 0) return `−${formatMoney(-value, rowCurrency)}`;
+    return formatMoney(0, rowCurrency);
+  };
+
+  /** Total líquido de transferências de um conjunto de contas (por moeda). */
+  const netTotalsText = (list) => {
+    if (!showValues) return '•••';
+    const counted = countableRows(list);
+    const credit = groupTotalsByCurrency(counted, 'transfCredito');
+    const debit = groupTotalsByCurrency(counted, 'transfDebito');
+    const net = {};
+    new Set([...Object.keys(credit), ...Object.keys(debit)]).forEach((cur) => {
+      net[cur] = (credit[cur] ?? 0) - (debit[cur] ?? 0);
+    });
+    const value = sumMap(net);
+    const magnitude = Object.fromEntries(
+      Object.entries(net).map(([cur, amount]) => [cur, Math.abs(amount)])
+    );
+    const body = formatTotals(magnitude, true);
+    if (value < 0) return `−${body}`;
+    if (value > 0) return `+${body}`;
+    return body;
+  };
+
+  /** "Novembro de 2026" no idioma ativo (rótulo do card de movimento). */
+  const monthLabel = new Intl.DateTimeFormat(i18n.language, {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)) - 1, 1));
+
+  /** Grupos com pelo menos uma conta ativa (subtítulo do card de saldo). */
+  const activeGroupIds = new Set(
+    activeRows.map((row) => row.group_id).filter(Boolean)
+  );
+  const groupsWithAccounts = [...activeGroupIds].filter((id) =>
+    groups.some((group) => group.id === id)
+  ).length;
+
+  // Totais do rodapé da tabela (base: contas listadas, com a busca aplicada).
+  const listedNetTransfer =
+    sumMap(groupTotalsByCurrency(countableRows(accounts), 'transfCredito')) -
+    sumMap(groupTotalsByCurrency(countableRows(accounts), 'transfDebito'));
+  const listedGroupCount = new Set(
+    countableRows(accounts).map((row) => row.group_id).filter(Boolean)
+  ).size;
 
   const handleDelete = (account) => {
     confirmToast(
@@ -229,8 +364,7 @@ export default function MFContas({
     'accounts_table_initial',
     'accounts_table_income',
     'accounts_table_expense',
-    'accounts_table_transf_in',
-    'accounts_table_transf_out',
+    'accounts_table_transf',
     'accounts_table_balance',
     'accounts_table_forecast',
   ];
@@ -269,46 +403,6 @@ export default function MFContas({
             </p>
           </div>
         </div>
-
-        {!selectedRow && (
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <MFCurrencyFilter currencies={currencyOptions} value={currency} onChange={setCurrency} />
-            <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn-secondary"
-            data-testid="mf-new-transfer"
-            onClick={() => setTransferOpen(true)}
-            style={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
-          >
-            <ArrowLeftRight size={16} />
-            {t('minhasfinancas.transfer')}
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            data-testid="mf-new-group"
-            onClick={() => setGroupModalOpen(true)}
-            style={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
-          >
-            <FolderTree size={16} />
-            {t('minhasfinancas.group_new_short')}
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            data-testid="mf-new-account"
-            onClick={() => setAccountModal('new')}
-            style={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
-          >
-            <Plus size={16} />
-            {t('minhasfinancas.new_account')}
-          </button>
-        </div>
       </div>
 
       {/* Drill-down: detalhe da conta ou lista de contas */}
@@ -324,8 +418,156 @@ export default function MFContas({
         />
       ) : (
         <>
-      {/* Busca + lista de arquivadas */}
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Cards de KPI: saldo, movimento do mês e previsão */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+          gap: '1rem',
+        }}
+      >
+        <div
+          className="glass-card"
+          data-testid="mf-contas-kpi-balance"
+          style={{ padding: '1.1rem 1.25rem' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <span style={{ ...kpiIconBox, color: 'var(--primary)' }}>
+              <Wallet size={18} />
+            </span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.kpi_balance')}
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>
+            {isLoading ? '…' : isError ? '—' : formatTotals(kpis.saldo, showValues)}
+          </p>
+          <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={kpiChipStyle}>
+              {t('minhasfinancas.kpi_active_accounts', { count: activeRows.length })}
+            </span>
+            {groupsWithAccounts > 0 && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {t('minhasfinancas.groups_count', { count: groupsWithAccounts })}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="glass-card"
+          data-testid="mf-contas-kpi-movement"
+          style={{ padding: '1.1rem 1.25rem' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <span style={{ ...kpiIconBox, color: '#10b981' }}>
+              <TrendingUp size={18} />
+            </span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.kpi_movement', { month: monthLabel })}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.9rem', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span
+                aria-hidden
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: sumMap(kpis.receitas) > 0 ? 'var(--success, #10b981)' : 'var(--text-muted)',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '1.15rem',
+                  fontWeight: 800,
+                  color: sumMap(kpis.receitas) > 0 ? 'var(--success, #10b981)' : 'var(--text-muted)',
+                }}
+              >
+                {sumMap(kpis.receitas) > 0 && showValues ? '+' : ''}
+                {formatTotals(kpis.receitas, showValues)}
+              </span>
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span
+                aria-hidden
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: sumMap(kpis.despesas) > 0 ? 'var(--danger, #ef4444)' : 'var(--text-muted)',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  color: sumMap(kpis.despesas) > 0 ? 'var(--danger, #ef4444)' : 'var(--text-muted)',
+                }}
+              >
+                {sumMap(kpis.despesas) > 0 && showValues ? '−' : ''}
+                {formatTotals(kpis.despesas, showValues)}
+              </span>
+            </span>
+          </div>
+          <p style={{ margin: '0.55rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {t('minhasfinancas.kpi_movement_hint')}
+          </p>
+        </div>
+
+        <div
+          className="glass-card"
+          data-testid="mf-contas-kpi-forecast"
+          style={{ padding: '1.1rem 1.25rem' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <span style={{ ...kpiIconBox, color: '#06b6d4' }}>
+              <CalendarClock size={18} />
+            </span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.kpi_forecast')}
+            </span>
+          </div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '1.6rem',
+              fontWeight: 800,
+              color: '#06b6d4',
+            }}
+          >
+            {isLoading ? '…' : isError ? '—' : formatTotals(kpis.previsto, showValues)}
+          </p>
+          <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                ...kpiChipStyle,
+                color: '#06b6d4',
+                background: 'rgba(6, 182, 212, 0.12)',
+                border: '1px solid rgba(6, 182, 212, 0.3)',
+              }}
+            >
+              {t('minhasfinancas.kpi_projected')}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.kpi_forecast_hint')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra de ferramentas: busca, visão, moeda/mês e ações */}
+      <div
+        className="glass-card"
+        style={{
+          padding: '0.85rem 1rem',
+          display: 'flex',
+          gap: '0.75rem',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
         <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
           <Search
             size={16}
@@ -376,7 +618,7 @@ export default function MFContas({
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.45rem',
-            padding: '0.6rem 0.95rem',
+            padding: '0.55rem 0.9rem',
             fontSize: '0.82rem',
             background: showArchived
               ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
@@ -399,7 +641,7 @@ export default function MFContas({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.45rem',
-              padding: '0.6rem 0.95rem',
+              padding: '0.55rem 0.9rem',
               fontSize: '0.82rem',
               background: groupedView
                 ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
@@ -412,6 +654,43 @@ export default function MFContas({
             {t('minhasfinancas.accounts_group_view')}
           </button>
         )}
+
+        <span style={{ flex: '1 1 auto' }} />
+        <MFCurrencyFilter currencies={currencyOptions} value={currency} onChange={setCurrency} />
+        <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
+        <span aria-hidden style={{ width: 1, alignSelf: 'stretch', background: 'var(--glass-border)' }} />
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            data-testid="mf-new-transfer"
+            onClick={() => setTransferOpen(true)}
+            style={{ padding: '0.6rem 0.9rem', fontSize: '0.85rem' }}
+          >
+            <ArrowLeftRight size={16} />
+            {t('minhasfinancas.transfer')}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            data-testid="mf-new-group"
+            onClick={() => setGroupModalOpen(true)}
+            style={{ padding: '0.6rem 0.9rem', fontSize: '0.85rem' }}
+          >
+            <FolderTree size={16} />
+            {t('minhasfinancas.group_new_short')}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            data-testid="mf-new-account"
+            onClick={() => setAccountModal('new')}
+            style={{ padding: '0.6rem 0.9rem', fontSize: '0.85rem' }}
+          >
+            <Plus size={16} />
+            {t('minhasfinancas.new_account')}
+          </button>
+        </div>
       </div>
 
       {/* Estados */}
@@ -438,16 +717,29 @@ export default function MFContas({
         </div>
       )}
 
-      {/* Tabela */}
+      {/* Tabela (cabe na largura: colunas fixas, sem scroll lateral) */}
       {(isLoading || accounts.length > 0) && (
-        <div className="glass-card" style={{ padding: '0.5rem', overflowX: 'auto' }}>
+        <div className="glass-card" style={{ padding: '0.5rem 0.75rem', overflowX: 'auto', width: '100%', maxWidth: '100%' }}>
           <table
             style={{
               width: '100%',
+              maxWidth: 1320,
+              margin: '0 auto',
               borderCollapse: 'collapse',
-              minWidth: 860,
+              tableLayout: 'fixed',
             }}
           >
+            <colgroup>
+              <col />
+              <col style={{ width: 102 }} />
+              <col style={{ width: 102 }} />
+              <col style={{ width: 102 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 102 }} />
+              <col style={{ width: 102 }} />
+              {/* 4 botões (~28px) + gaps + padding da célula */}
+              <col style={{ width: 146 }} />
+            </colgroup>
             <thead>
               <tr>
                 {/* Coluna da conta (ícone + nome): sem rótulo */}
@@ -492,7 +784,7 @@ export default function MFContas({
               {isLoading && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={8}
                     style={{
                       ...cellBase,
                       borderBottom: '1px solid var(--glass-border)',
@@ -521,6 +813,9 @@ export default function MFContas({
                   if (item.kind === 'group' || item.kind === 'ungrouped') {
                     const isGroup = item.kind === 'group';
                     const group = item.group;
+                    const itemNet =
+                      sumMap(groupTotalsByCurrency(countableRows(item.rows), 'transfCredito')) -
+                      sumMap(groupTotalsByCurrency(countableRows(item.rows), 'transfDebito'));
                     return (
                       <tr
                         key={isGroup ? `group-${group.id}` : 'ungrouped'}
@@ -531,99 +826,142 @@ export default function MFContas({
                           background: isGroup
                             ? 'color-mix(in srgb, var(--primary) 8%, transparent)'
                             : 'rgba(255, 255, 255, 0.035)',
+                          borderLeft: `3px solid ${
+                            isGroup ? groupAccent(group) : 'var(--glass-border)'
+                          }`,
                         }}
                       >
                         <td
-                          colSpan={9}
                           style={{
                             ...cellBase,
                             borderBottom: '1px solid var(--glass-border)',
-                            padding: '0.55rem 1rem',
+                            padding: '0.55rem 0.6rem',
                             fontWeight: 800,
+                            whiteSpace: 'normal',
+                            minWidth: 0,
                           }}
                         >
                           <span
                             style={{
-                              display: 'flex',
+                              display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.6rem',
-                              justifyContent: 'space-between',
+                              gap: '0.55rem',
+                              minWidth: 0,
+                              flexWrap: 'wrap',
+                              paddingLeft: `${item.depth * 1.1}rem`,
                             }}
                           >
-                            <span
+                            <button
+                              type="button"
+                              data-testid={
+                                isGroup ? `mf-group-fold-${group.id}` : 'mf-ungrouped-fold'
+                              }
+                              aria-expanded={!folded.has(isGroup ? group.id : UNGROUPED_ID)}
+                              aria-label={t(
+                                folded.has(isGroup ? group.id : UNGROUPED_ID)
+                                  ? 'minhasfinancas.group_show_accounts'
+                                  : 'minhasfinancas.group_hide_accounts'
+                              )}
+                              title={t(
+                                folded.has(isGroup ? group.id : UNGROUPED_ID)
+                                  ? 'minhasfinancas.group_show_accounts'
+                                  : 'minhasfinancas.group_hide_accounts'
+                              )}
+                              onClick={() => toggleFold(isGroup ? group.id : UNGROUPED_ID)}
                               style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
                                 display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.55rem',
-                                minWidth: 0,
-                                paddingLeft: `${item.depth * 1.1}rem`,
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
                               }}
                             >
-                              <button
-                                type="button"
-                                data-testid={
-                                  isGroup ? `mf-group-fold-${group.id}` : 'mf-ungrouped-fold'
-                                }
-                                aria-expanded={!folded.has(isGroup ? group.id : UNGROUPED_ID)}
-                                aria-label={t(
-                                  folded.has(isGroup ? group.id : UNGROUPED_ID)
-                                    ? 'minhasfinancas.group_show_accounts'
-                                    : 'minhasfinancas.group_hide_accounts'
-                                )}
-                                onClick={() => toggleFold(isGroup ? group.id : UNGROUPED_ID)}
+                              <ChevronDown
+                                size={16}
                                 style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: 0,
-                                  display: 'inline-flex',
-                                  cursor: 'pointer',
-                                  color: 'var(--text-muted)',
+                                  transform: folded.has(isGroup ? group.id : UNGROUPED_ID)
+                                    ? 'rotate(-90deg)'
+                                    : 'none',
+                                  transition: 'transform 0.15s',
                                 }}
-                              >
-                                <ChevronDown
-                                  size={16}
-                                  style={{
-                                    transform: folded.has(isGroup ? group.id : UNGROUPED_ID)
-                                      ? 'rotate(-90deg)'
-                                      : 'none',
-                                    transition: 'transform 0.15s',
-                                  }}
-                                />
-                              </button>
-                              {isGroup ? (
-                                <MFGroupIcon
-                                  icon={group.icon}
-                                  name={group.name}
-                                  color={group.color}
-                                  size={17}
-                                />
-                              ) : (
-                                <FolderTree size={16} style={{ color: 'var(--text-muted)' }} />
-                              )}
-                              <span>
-                                {isGroup ? group.name : t('minhasfinancas.group_ungrouped')}
-                              </span>
-                              <span
-                                style={badgeStyle}
-                                data-testid={
-                                  isGroup ? `mf-group-count-${group.id}` : 'mf-ungrouped-count'
-                                }
-                              >
-                                {t('minhasfinancas.group_count', { count: item.count })}
-                              </span>
+                              />
+                            </button>
+                            {isGroup ? (
+                              <MFGroupIcon
+                                icon={group.icon}
+                                name={group.name}
+                                color={group.color}
+                                size={17}
+                              />
+                            ) : (
+                              <FolderTree size={16} style={{ color: 'var(--text-muted)' }} />
+                            )}
+                            <span>
+                              {isGroup ? group.name : t('minhasfinancas.group_ungrouped')}
                             </span>
                             <span
-                              style={{ fontWeight: 800 }}
+                              style={badgeStyle}
                               data-testid={
-                                isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'
+                                isGroup ? `mf-group-count-${group.id}` : 'mf-ungrouped-count'
                               }
                             >
-                              {formatTotals(
-                                groupTotalsByCurrency(countableRows(item.rows), 'saldo'),
-                                showValues
-                              )}
+                              {t('minhasfinancas.group_count', { count: item.count })}
                             </span>
                           </span>
+                        </td>
+                        <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
+                          {subtotalOf(item.rows, 'initial_balance')}
+                        </td>
+                        <td style={{ ...groupCellStyle, color: 'var(--success, #10b981)' }}>
+                          {subtotalOf(item.rows, 'receitas')}
+                        </td>
+                        <td style={{ ...groupCellStyle, color: 'var(--danger, #ef4444)' }}>
+                          {subtotalOf(item.rows, 'despesas')}
+                        </td>
+                        <td
+                          style={{
+                            ...groupCellStyle,
+                            color:
+                              itemNet > 0
+                                ? 'var(--success, #10b981)'
+                                : itemNet < 0
+                                  ? 'var(--danger, #ef4444)'
+                                  : 'var(--text-muted)',
+                          }}
+                        >
+                          {netTotalsText(item.rows)}
+                        </td>
+                        <td style={{ ...groupCellStyle, fontWeight: 800 }}>
+                          <span
+                            style={{
+                              ...badgeStyle,
+                              fontWeight: 800,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: 8,
+                              color: 'var(--text-main)',
+                            }}
+                            data-testid={
+                              isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'
+                            }
+                          >
+                            {subtotalOf(item.rows, 'saldo')}
+                          </span>
+                        </td>
+                        <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
+                          {subtotalOf(item.rows, 'previsto')}
+                        </td>
+                        <td
+                          style={{
+                            ...groupCellStyle,
+                            textAlign: 'center',
+                            fontSize: '0.68rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {t('minhasfinancas.total')}
                         </td>
                       </tr>
                     );
@@ -632,6 +970,8 @@ export default function MFContas({
                   const row = item.row;
                   const info = accountTypeInfo(row.account_type, customTypes);
                   const typeLabel = info.builtin ? t(info.key) : info.label;
+                  const rowNetTransfer =
+                    (row.transfCredito ?? 0) - (row.transfDebito ?? 0);
                   return (
                   <tr
                     key={row.id}
@@ -647,47 +987,62 @@ export default function MFContas({
                         borderBottom: '1px solid var(--glass-border)',
                         fontWeight: 700,
                         textAlign: 'left',
+                        whiteSpace: 'normal',
+                        minWidth: 0,
                       }}
                     >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
                         <MFAccountIcon
                           account={row}
-                          size={22}
+                          size={26}
                           data-testid={`mf-account-icon-${row.id}`}
                         />
-                        <button
-                          type="button"
-                          data-testid={`mf-open-account-${row.id}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSelectedId(row.id);
-                          }}
+                        <span
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            font: 'inherit',
-                            fontWeight: 700,
-                            color: 'inherit',
-                            cursor: 'pointer',
-                            textAlign: 'left',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.3rem',
+                            minWidth: 0,
                           }}
                         >
-                          {row.name}
-                        </button>
-                        <span style={badgeStyle} data-testid="mf-account-type-badge">
-                          <span aria-hidden>{info.icon}</span>
-                          {typeLabel}
-                        </span>
-                        <span style={badgeStyle} data-testid="mf-account-currency-badge">
-                          <span aria-hidden>{currencyFlag(row.currency)}</span>
-                          {row.currency}
-                        </span>
-                        {row.archived_at && (
-                          <span style={badgeStyle} data-testid="mf-account-archived-badge">
-                            {t('minhasfinancas.account_archived')}
+                          <button
+                            type="button"
+                            data-testid={`mf-open-account-${row.id}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedId(row.id);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: 0,
+                              font: 'inherit',
+                              fontWeight: 700,
+                              color: 'inherit',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              whiteSpace: 'normal',
+                              overflowWrap: 'anywhere',
+                            }}
+                          >
+                            {row.name}
+                          </button>
+                          <span style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <span style={badgeStyle} data-testid="mf-account-type-badge">
+                              <span aria-hidden>{info.icon}</span>
+                              {typeLabel}
+                            </span>
+                            <span style={badgeStyle} data-testid="mf-account-currency-badge">
+                              <span aria-hidden>{currencyFlag(row.currency)}</span>
+                              {row.currency}
+                            </span>
+                            {row.archived_at && (
+                              <span style={badgeStyle} data-testid="mf-account-archived-badge">
+                                {t('minhasfinancas.account_archived')}
+                              </span>
+                            )}
                           </span>
-                        )}
+                        </span>
                       </span>
                     </td>
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)' }}>
@@ -699,11 +1054,20 @@ export default function MFContas({
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--danger, #ef4444)' }}>
                       {nativeMoney(row.despesas, row.currency)}
                     </td>
-                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--success, #10b981)' }}>
-                      {nativeMoney(row.transfCredito, row.currency)}
-                    </td>
-                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--danger, #ef4444)' }}>
-                      {nativeMoney(row.transfDebito, row.currency)}
+                    <td
+                      style={{
+                        ...cellBase,
+                        textAlign: 'right',
+                        borderBottom: '1px solid var(--glass-border)',
+                        color:
+                          rowNetTransfer > 0
+                            ? 'var(--success, #10b981)'
+                            : rowNetTransfer < 0
+                              ? 'var(--danger, #ef4444)'
+                              : 'var(--text-muted)',
+                      }}
+                    >
+                      {netCellText(rowNetTransfer, row.currency)}
                     </td>
                     <td
                       style={{
@@ -719,43 +1083,62 @@ export default function MFContas({
                       {nativeMoney(row.previsto, row.currency)}
                     </td>
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)' }}>
-                      <span style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                      <span style={{ display: 'inline-flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={t('minhasfinancas.row_open')}
+                          title={t('minhasfinancas.row_open')}
+                          data-testid={`mf-statement-account-${row.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedId(row.id);
+                          }}
+                          style={{ padding: '0.35rem' }}
+                        >
+                          <FileText size={15} />
+                        </button>
                         <button
                           type="button"
                           className="icon-btn"
                           aria-label={t(row.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive')}
+                          title={t(row.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive')}
                           data-testid={`mf-archive-account-${row.id}`}
                           onClick={(event) => {
                             event.stopPropagation();
                             handleArchive(row);
                           }}
-                          style={{ color: row.archived_at ? 'var(--success, #10b981)' : undefined }}
+                          style={{ padding: '0.35rem', color: row.archived_at ? 'var(--success, #10b981)' : undefined }}
                         >
-                          {row.archived_at ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                          {row.archived_at ? <ArchiveRestore size={15} /> : <Archive size={15} />}
                         </button>
                         <button
                           type="button"
                           className="icon-btn"
                           aria-label={t('minhasfinancas.edit')}
+                          title={t('minhasfinancas.edit')}
                           data-testid={`mf-edit-account-${row.id}`}
                           onClick={(event) => {
                             event.stopPropagation();
                             setAccountModal(row);
                           }}
+                          style={{ padding: '0.35rem' }}
                         >
-                          <Pencil size={16} />
+                          <Pencil size={15} />
                         </button>
                         <button
                           type="button"
                           className="icon-btn"
                           aria-label={t('minhasfinancas.delete')}
+                          title={t('minhasfinancas.delete')}
                           data-testid={`mf-delete-account-${row.id}`}
                           onClick={(event) => {
                             event.stopPropagation();
                             handleDelete(row);
                           }}
+                          style={{ padding: '0.35rem' }}
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </span>
                     </td>
@@ -776,7 +1159,32 @@ export default function MFContas({
                       color: 'var(--text-muted)',
                     }}
                   >
-                    {t('minhasfinancas.total')}
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'baseline',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {t('minhasfinancas.total')}
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          letterSpacing: 0,
+                        }}
+                      >
+                        (
+                        {t('minhasfinancas.accounts_count', {
+                          count: countableRows(accounts).length,
+                        })}
+                        {listedGroupCount > 0 &&
+                          ` · ${t('minhasfinancas.groups_count', { count: listedGroupCount })}`}
+                        )
+                      </span>
+                    </span>
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', color: 'var(--text-muted)' }}>
                     {totalOf('initial_balance')}
@@ -787,11 +1195,20 @@ export default function MFContas({
                   <td style={{ ...cellBase, textAlign: 'right', color: 'var(--danger, #ef4444)', fontWeight: 700 }}>
                     {totalOf('despesas')}
                   </td>
-                  <td style={{ ...cellBase, textAlign: 'right', color: 'var(--success, #10b981)', fontWeight: 700 }}>
-                    {totalOf('transfCredito')}
-                  </td>
-                  <td style={{ ...cellBase, textAlign: 'right', color: 'var(--danger, #ef4444)', fontWeight: 700 }}>
-                    {totalOf('transfDebito')}
+                  <td
+                    style={{
+                      ...cellBase,
+                      textAlign: 'right',
+                      fontWeight: 700,
+                      color:
+                        listedNetTransfer > 0
+                          ? 'var(--success, #10b981)'
+                          : listedNetTransfer < 0
+                            ? 'var(--danger, #ef4444)'
+                            : 'var(--text-muted)',
+                    }}
+                  >
+                    {netTotalsText(accounts)}
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800 }}>
                     {totalOf('saldo')}
@@ -813,7 +1230,10 @@ export default function MFContas({
         isOpen={accountModal !== null}
         account={accountModal && accountModal !== 'new' ? accountModal : null}
         user={user}
-        onClose={() => setAccountModal(null)}
+        onClose={() => {
+          clearNewAccountRequest();
+          setAccountModal(null);
+        }}
       />
       {groupModalOpen && (
         <MFGroupModal user={user} onClose={() => setGroupModalOpen(false)} />

@@ -2123,6 +2123,14 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
     }
     const open = Number(invoice.openAmount) || 0;
     if (mirror) {
+      // Corrida agendador × usuário: um pagamento manual entrou junto do
+      // espelho (parcial feita enquanto o agendamento era gravado). O
+      // usuário assumiu a fatura — apaga o espelho e sai de cena (mesma
+      // régua de "pagamento seu" logo abaixo), sem duplicar o em aberto.
+      if (boundRows.some((tx) => tx.id !== mirror.id)) {
+        deletes.push(mirror.id);
+        return;
+      }
       const patch = {};
       const target = roundMoney(open + (Number(mirror.amount) || 0));
       if (Math.abs((Number(mirror.amount) || 0) - target) > 0.005) {
@@ -2156,6 +2164,12 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
 };
 
 let mfScheduleRunning = false;
+
+/**
+ * Ciclos cujo espelho já foi criado há pouco (60s) — evita duplicar quando
+ * uma remount reavalia o plano com o cache ainda sem o espelho.
+ */
+const mfScheduledCloses = new Map();
 
 /**
  * Item 30 — agendador do pagamento-espelho: para cada cartão com conta
@@ -2216,15 +2230,37 @@ export function useMFScheduleCardPayments(user) {
         ) {
           return;
         }
-        if (creates.length > 0) {
+        // Dedupe: uma remount reavalia o plano com o cache ainda sem o
+        // espelho (o invalidar é adiado 750ms) e recriaria a mesma fatura.
+        // O guard expira em 60s e libera quando os dados já mostram um
+        // pagamento vinculado ao ciclo.
+        const nowMs = Date.now();
+        const freshCreates = [];
+        creates.forEach((row) => {
+          const last = mfScheduledCloses.get(row.invoice_close);
+          if (last && nowMs - last < 60000) return;
+          mfScheduledCloses.set(row.invoice_close, nowMs);
+          freshCreates.push(row);
+        });
+        const releaseCloses = new Set();
+        transactions.forEach((tx) => {
+          if (tx.type === 'DESPESA' && tx.status !== 'CANCELADO' && tx.invoice_close) {
+            releaseCloses.add(tx.invoice_close);
+          }
+        });
+        releaseCloses.forEach((closeISO) => mfScheduledCloses.delete(closeISO));
+        if (freshCreates.length === 0 && updates.length === 0 && deletes.length === 0) {
+          return;
+        }
+        if (freshCreates.length > 0) {
           await mfMutate({
             table: 'mf_transactions',
             action: 'insert',
-            payload: creates,
+            payload: freshCreates,
             run: async () => {
               const { data, error } = await supabase
                 .from('mf_transactions')
-                .insert(creates)
+                .insert(freshCreates)
                 .select();
               if (error) throw error;
               return data ?? [];
@@ -2295,50 +2331,69 @@ export function usePayCardInvoice() {
         .eq('invoice_close', invoice.closeISO)
         .eq('status', 'PENDENTE');
       if (error) throw error;
+      const rows = (data ?? []).filter(
+        (row) =>
+          row.account_id === card.linked_account_id &&
+          row.type === 'DESPESA' &&
+          row.invoice_close === invoice.closeISO &&
+          row.status === 'PENDENTE'
+      );
       const existing =
-        (data ?? [])
-          .filter(
-            (row) =>
-              row.account_id === card.linked_account_id &&
-              row.type === 'DESPESA' &&
-              row.invoice_close === invoice.closeISO &&
-              row.status === 'PENDENTE'
-          )
-          .sort((a, b) =>
-            String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
-          )[0] ?? null;
+        rows.sort((a, b) =>
+          String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
+        )[0] ?? null;
+      // Espelhos automáticos sobrando (corrida agendador × pagamento): o
+      // usuário assumiu a fatura — a linha dele fica e os duplicados somem.
+      const superseded = rows.filter(
+        (row) => row.notes === MF_INVOICE_PAYMENT_NOTE && row.id !== (existing?.id ?? null)
+      );
       const isFull = (Number(payload.amount) || 0) >= (Number(payable) || 0) - 0.005;
       const patch = { ...payload, notes: isFull ? MF_INVOICE_PAYMENT_NOTE : null };
-      if (existing) {
-        return mfMutate({
+      const result = existing
+        ? await mfMutate({
+            table: 'mf_transactions',
+            action: 'update',
+            id: existing.id,
+            payload: patch,
+            run: async () => {
+              const { data: updated, error: updateError } = await supabase
+                .from('mf_transactions')
+                .update(patch)
+                .eq('id', existing.id)
+                .select();
+              if (updateError) throw updateError;
+              return updated ?? [];
+            },
+          })
+        : await mfMutate({
+            table: 'mf_transactions',
+            action: 'insert',
+            payload: [patch],
+            run: async () => {
+              const { data: inserted, error: insertError } = await supabase
+                .from('mf_transactions')
+                .insert([patch])
+                .select();
+              if (insertError) throw insertError;
+              return inserted ?? [];
+            },
+          });
+      for (const row of superseded) {
+        await mfMutate({
           table: 'mf_transactions',
-          action: 'update',
-          id: existing.id,
-          payload: patch,
+          action: 'delete',
+          id: row.id,
           run: async () => {
-            const { data: updated, error: updateError } = await supabase
+            const { error: delError } = await supabase
               .from('mf_transactions')
-              .update(patch)
-              .eq('id', existing.id)
-              .select();
-            if (updateError) throw updateError;
-            return updated ?? [];
+              .delete()
+              .eq('id', row.id);
+            if (delError) throw delError;
+            return row.id;
           },
         });
       }
-      return mfMutate({
-        table: 'mf_transactions',
-        action: 'insert',
-        payload: [patch],
-        run: async () => {
-          const { data: inserted, error: insertError } = await supabase
-            .from('mf_transactions')
-            .insert([patch])
-            .select();
-          if (insertError) throw insertError;
-          return inserted ?? [];
-        },
-      });
+      return result;
     },
     onSuccess: invalidate,
   });

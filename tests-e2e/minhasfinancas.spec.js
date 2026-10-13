@@ -287,14 +287,15 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(page.getByTestId('mf-tx-screen')).toBeHidden();
   });
 
-  test('FAB "+" global: 4 opções, abre modal e volta ao fechar', async ({ page }) => {
+  test('FAB "+" global: 5 opções, nova conta em outra aba e modal de lançamento', async ({ page }) => {
     await login(page);
     await openMinhasFinancas(page);
 
-    // FAB presente no Resumo → menu com as 4 opções (estorno é só do cartão)
+    // FAB presente no Resumo → menu com as 5 opções (estorno é só do cartão)
     await expect(page.getByTestId('mf-fab-add')).toBeVisible();
     await page.getByTestId('mf-fab-add').click();
     await expect(page.getByTestId('mf-fab-menu')).toBeVisible();
+    await expect(page.getByTestId('mf-add-opt-account')).toBeVisible();
     await expect(page.getByTestId('mf-add-opt-expense')).toBeVisible();
     await expect(page.getByTestId('mf-add-opt-cardExpense')).toBeVisible();
     await expect(page.getByTestId('mf-add-opt-income')).toBeVisible();
@@ -309,6 +310,15 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
 
     await page.getByTestId('mf-tx-cancel').click();
     await expect(page.getByTestId('mf-tx-screen')).toBeHidden();
+    await expect(page.getByTestId('mf-fab-add')).toBeVisible();
+
+    // "Nova conta" leva para a aba Contas com o modal já aberto
+    await page.getByTestId('mf-fab-add').click();
+    await page.getByTestId('mf-add-opt-account').click();
+    await expect(page.getByTestId('mf-contas')).toBeVisible();
+    await expect(page.getByTestId('mf-account-modal')).toBeVisible();
+    await page.getByTestId('mf-account-modal').click({ position: { x: 5, y: 5 } });
+    await expect(page.getByTestId('mf-account-modal')).toBeHidden();
     await expect(page.getByTestId('mf-fab-add')).toBeVisible();
 
     // FAB acompanha todas as telas do módulo (Extrato incluso)
