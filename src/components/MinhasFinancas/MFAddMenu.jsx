@@ -1,30 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  ArrowLeftRight,
-  CreditCard,
-  MinusCircle,
-  Plus,
-  PlusCircle,
-  RotateCcw,
-} from 'lucide-react';
-
-/**
- * Opções do menu "+" — mesmos ícones/cores do app original:
- * despesa (− vermelho), despesa no cartão (💳), receita (+ verde),
- * transferência (⇄ índigo) e estorno (↺ verde).
- */
-const MF_ADD_OPTIONS = {
-  expense: { Icon: MinusCircle, color: '#ef4444', labelKey: 'minhasfinancas.add_expense' },
-  cardExpense: { Icon: CreditCard, color: '#3b82f6', labelKey: 'minhasfinancas.add_card_expense' },
-  income: { Icon: PlusCircle, color: '#10b981', labelKey: 'minhasfinancas.add_income' },
-  transfer: { Icon: ArrowLeftRight, color: '#6366f1', labelKey: 'minhasfinancas.add_transfer' },
-  estorno: { Icon: RotateCcw, color: '#10b981', labelKey: 'minhasfinancas.add_estorno' },
-};
-
-/** Menu completo: FAB global e botão da tela de Lançamentos. */
-const MF_ADD_ALL = ['expense', 'cardExpense', 'income', 'transfer'];
+import { Plus } from 'lucide-react';
+import { MF_ADD_ALL, MF_ADD_OPTIONS } from './mfAddMenuData';
 
 /** FAB circular fixo (só no módulo Minhas Finanças). */
 const FAB_STYLE = {

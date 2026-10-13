@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MFAddMenu from './MFAddMenu';
+import { MF_ADD_FAB } from './mfAddMenuData';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -35,6 +36,28 @@ describe('MFAddMenu — menu "+" do módulo Minhas Finanças', () => {
     fireEvent.click(screen.getByTestId('mf-add-opt-income'));
     expect(onSelect).toHaveBeenCalledWith('income');
     expect(screen.queryByTestId('mf-add-menu')).not.toBeInTheDocument();
+  });
+
+  it('itens do FAB do módulo incluem "Nova conta" antes das opções de lançamento', () => {
+    const onSelect = vi.fn();
+    render(
+      <MFAddMenu
+        items={MF_ADD_FAB}
+        onSelect={onSelect}
+        triggerTestId="mf-fab-add"
+        testId="mf-fab-menu"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('mf-fab-add'));
+    expect(screen.getByTestId('mf-add-opt-account')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-add-opt-expense')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-add-opt-transfer')).toBeInTheDocument();
+    // "Nova conta" é exclusiva do FAB (o botão da tela de Lançamentos não tem)
+    expect(MF_ADD_FAB[0]).toBe('account');
+
+    fireEvent.click(screen.getByTestId('mf-add-opt-account'));
+    expect(onSelect).toHaveBeenCalledWith('account');
   });
 
   it('respeita os itens contextuais (detalhe do cartão: 2 opções)', () => {

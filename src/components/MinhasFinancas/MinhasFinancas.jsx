@@ -15,6 +15,7 @@ import MFExtrato from './MFExtrato';
 import MFPlaceholder from './MFPlaceholder';
 import MFSelect from './MFSelect';
 import MFAddMenu from './MFAddMenu';
+import { MF_ADD_FAB } from './mfAddMenuData';
 import MFTransacaoScreen from './MFTransacaoScreen';
 import MFTransferModal from './MFTransferModal';
 import {
@@ -26,7 +27,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import { MFProfileContext } from '../../hooks/mfProfileContext';
 import { SyncEngine } from '../../lib/offline/SyncEngine';
-import { readMonthKey, writeMonthKey } from './mfViewState';
+import { readMonthKey, writeMonthKey, requestNewAccount, clearNewAccountRequest } from './mfViewState';
 
 const PROFILE_STORAGE_KEY = 'mf_active_profile';
 
@@ -45,6 +46,11 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
   useEffect(() => {
     writeMonthKey(monthKey);
   }, [monthKey]);
+  // Saiu da aba Contas: descarta pedido pendente de "nova conta" do FAB
+  // (senão o modal abriria sozinho numa próxima visita à tela).
+  useEffect(() => {
+    if (mode !== 'accounts') clearNewAccountRequest();
+  }, [mode]);
   const [activeProfile, setActiveProfile] = useState(() => {
     try {
       return localStorage.getItem(PROFILE_STORAGE_KEY) || null;
@@ -78,10 +84,25 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
     };
   }, []);
 
+  /** Nova conta troca de aba e pede a tela de Contas abrir o modal. */
+  const openNewAccount = () => {
+    requestNewAccount();
+    window.dispatchEvent(
+      new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas-accounts' } })
+    );
+    // Evento para quem JÁ está na aba Contas; se a aba ainda vai montar,
+    // o pedido fica pendente e é consumido no mount da tela.
+    window.dispatchEvent(new CustomEvent('mf-new-account'));
+  };
+
   /** Transferência abre o modal; os demais tipos abrem a tela de criação. */
   const handleAdd = (kind) => {
     if (kind === 'transfer') {
       setTransferOpen(true);
+      return;
+    }
+    if (kind === 'account') {
+      openNewAccount();
       return;
     }
     setAddKind(kind);
@@ -165,11 +186,12 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
             />
           </div>
         )}
-        {/* FAB "+" do módulo (Despesa · Despesa cartão · Receita ·
-            Transferência) — escondido em detalhe/2ª tela */}
+        {/* FAB "+" do módulo (Nova conta · Despesa · Despesa cartão ·
+            Receita · Transferência) — escondido em detalhe/2ª tela */}
         {!fabHidden && (
           <MFAddMenu
             variant="fab"
+            items={MF_ADD_FAB}
             onSelect={handleAdd}
             triggerTestId="mf-fab-add"
             testId="mf-fab-menu"

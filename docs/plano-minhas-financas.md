@@ -1629,3 +1629,54 @@ Itens ativos, na ordem de atendimento:
       para flip; `src/tests/setup.js` trocou `process` por
       `globalThis.process` (lint `no-undef` pré-existente do Fase E).
       Gates verdes: **ESLint 0 · Vitest 543/543 · E2E 42/42**.
+
+**Melhorias da tela de Contas (MF) — concluídas em 13/10/2026 (aguarda validação com Ctrl+Shift+R)**
+- Requisito do usuário: (1) filtro de contas no modal de criar grupo;
+  (2) redesign da tela de Contas conforme mockup/print.
+- **Modal de grupo**: busca (`mf-group-accounts-search`) filtra a
+  lista, ações em massa "Selecionar visíveis"/"Limpar" sobre o
+  resultado filtrado (`mf-group-accounts-select-all`/`clear`),
+  contador (`mf-group-accounts-selected`) e estado sem resultados
+  (`mf-group-accounts-no-results`); lista com scroll (maxHeight 220).
+- **Contas redesenhada**: 3 cards de KPI (Saldo, Movimento do mês,
+  Previsão) com chips de contagem; toolbar única (busca, Arquivadas,
+  Agrupadas, moeda, mês, Transferir, Novo grupo, Nova conta); tabela
+  de 8 colunas com **Transf. líquida** (crédito − débito — decisão do
+  usuário), cabeçalhos de grupo `<tr>` com subtotais por coluna +
+  trilho colorido (`group.color` ou hash do id em `GROUP_ACCENTS`),
+  nome da conta em 2 linhas (avatar + chips tipo/moeda), botão Ver
+  extrato (`mf-statement-account-*`) e rodapé Total (contas/grupos).
+  Todos os testids/semântica existentes mantidos.
+- **FAB global "+" com "Nova conta"**: menu com 5 opções
+  (`MF_ADD_FAB`, conta primeiro em `mfAddMenuData.js`); FAB próprio da
+  tela de Contas removido; handoff entre abas via
+  `requestNewAccount`/`has/clearNewAccountRequest` (`mfViewState`) +
+  evento `window 'mf-new-account'` — o pedido fica **pendente até o
+  modal fechar** (sobrevive aos remounts do Dashboard por
+  `key={activeTab + refreshKey}` — consumir no mount bastava não:
+  perdia o estado) e é descartado ao sair da aba Contas.
+- **Fix do flake "pagamento de fatura"** (falhava ~50%): a remount ao
+  trocar de aba reavaliava o agendador com o cache ainda sem o
+  espelho e **duplicava o agendamento**; o pagamento parcial atualizava
+  só um dos espelhos e o EM ABERTO zerava (300 − 150 − 300 → 0).
+  Correções: guard por `invoice_close` (60 s, libera quando os dados
+  já mostram vínculo) no agendador, `usePayCardInvoice` apaga
+  espelhos duplicados da mesma fatura junto do pagamento, e o planner
+  apaga o espelho quando existe pagamento manual junto (corrida
+  agendador × usuário).
+- Testes: `MFContas` +3 (KPIs, coluna líquida, handoff do FAB),
+  `MFAccountGroups` +1 (filtro + seleção em massa), `MFAddMenu` +1
+  (`MF_ADD_FAB`), planner +1 (espelho + manual); E2E do FAB
+  atualizado (5 opções + handoff → modal de conta). Gates verdes:
+  **ESLint 0 · Vitest 549/549 · E2E 42/42** (fatura repetida 8× sem
+  falha).
+- **Ajuste pós-validação (13/10/2026)**: tabela sem scroll lateral
+  (`tableLayout: fixed` + `colgroup`, sem `min-width`, células e
+  botões compactos, nome com quebra) e `title` (tooltip) nos 4 botões
+  de ação da linha — o primeiro (documento) é **Ver extrato** — e na
+  sanfona dos grupos. Teste +1 (`MFContas`: titles dos botões);
+  E2E do módulo 9/9.
+- **Ajuste pós-validação 2 (13/10/2026)**: coluna Ações com 130px (os 4
+  botões cabem numa linha só) e tabela com `max-width: 1320` centrada
+  — some o vão entre o nome da conta e o Saldo Inicial em telas
+  largas. E2E do módulo 9/9.

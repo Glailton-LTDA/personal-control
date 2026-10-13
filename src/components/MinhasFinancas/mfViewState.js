@@ -102,3 +102,24 @@ export function clearInvoiceSel() {
     /* melhor esforço */
   }
 }
+
+/**
+ * Pedido de "nova conta" vindo do FAB global. Fica pendente até o modal
+ * da Conta ser FECHADO (não se consome no mount): o Dashboard remonta as
+ * telas quando o `refreshKey` muda e o pedido precisa sobreviver a isso.
+ * A tela de Contas abre o modal no mount ou ao receber 'mf-new-account';
+ * o MinhasFinancas descarta o pedido ao sair da aba Contas.
+ */
+let pendingNewAccount = false;
+
+export function requestNewAccount() {
+  pendingNewAccount = true;
+}
+
+export function hasNewAccountRequest() {
+  return pendingNewAccount;
+}
+
+export function clearNewAccountRequest() {
+  pendingNewAccount = false;
+}

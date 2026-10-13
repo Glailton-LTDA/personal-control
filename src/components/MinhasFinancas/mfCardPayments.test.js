@@ -817,6 +817,38 @@ describe('planInvoicePaymentSync — espelho de fatura (item 30)', () => {
     expect(out.updates).toEqual([{ id: 'm1', patch: { amount: 2453.64 } }]);
   });
 
+  it('espelho + pagamento manual (corrida) → apaga o espelho, sem duplicar', () => {
+    const out = plan({
+      invoice: { openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+        {
+          id: 'user-partial',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 500,
+          payment_date: '2026-10-20',
+        },
+      ],
+    });
+    // O usuário pagou a fatura (parcial/manual): o espelho é apagado e o
+    // planner não mexe no pagamento dele.
+    expect(out.creates).toEqual([]);
+    expect(out.updates).toEqual([]);
+    expect(out.deletes).toEqual(['m1']);
+  });
+
   it('espelho marcado e vencido → promove PENDENTE → PAGO no vencimento', () => {
     const out = plan({
       today: '2026-10-21',

@@ -91,6 +91,7 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
   const [iconOpen, setIconOpen] = useState(false);
   const [iconTab, setIconTab] = useState('emoji'); // 'emoji' | 'banks'
   const [brandQuery, setBrandQuery] = useState('');
+  const [accountQuery, setAccountQuery] = useState('');
   const [saving, setSaving] = useState(false);
 
   if (!user) return null;
@@ -224,6 +225,24 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
       (account) => account.account_type !== 'CARTAO' && !account.archived_at
     )
     .sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+
+  // Filtro da lista de contas (por nome) + ações em massa sobre o que
+  // está visível — só mexe no rascunho de vínculo (membership).
+  const accountQueryKey = accountQuery.trim().toLowerCase();
+  const filteredAccounts = accountQueryKey
+    ? sortedAccounts.filter((account) =>
+        String(account.name).toLowerCase().includes(accountQueryKey)
+      )
+    : sortedAccounts;
+  const bulkMembership = (value) =>
+    setMembership((prev) => {
+      const next = { ...prev };
+      filteredAccounts.forEach((account) => {
+        next[account.id] = value;
+      });
+      return next;
+    });
+  const selectedCount = sortedAccounts.filter((account) => isMember(account)).length;
 
   return createPortal(
     <div className="modal-overlay" data-testid="mf-group-modal" onClick={onClose}>
@@ -529,7 +548,79 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
           >
             {t('minhasfinancas.group_accounts_hint')}
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+          {/* Filtro + ações em massa sobre as contas filtradas */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+              margin: '0 0 0.5rem',
+            }}
+          >
+            <div style={{ position: 'relative', flex: '1 1 160px' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: '0.7rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)',
+                }}
+              />
+              <input
+                type="text"
+                className="glass-input"
+                data-testid="mf-group-accounts-search"
+                value={accountQuery}
+                onChange={(event) => setAccountQuery(event.target.value)}
+                placeholder={t('minhasfinancas.group_accounts_search')}
+                style={{ padding: '0.45rem 0.7rem 0.45rem 2rem', fontSize: '0.82rem' }}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-cancel"
+              data-testid="mf-group-accounts-select-all"
+              disabled={filteredAccounts.length === 0}
+              onClick={() => bulkMembership(true)}
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}
+            >
+              {t('minhasfinancas.group_accounts_select_all')}
+            </button>
+            <button
+              type="button"
+              className="btn-cancel"
+              data-testid="mf-group-accounts-clear"
+              disabled={filteredAccounts.length === 0}
+              onClick={() => bulkMembership(false)}
+              style={{ padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}
+            >
+              {t('minhasfinancas.group_accounts_clear')}
+            </button>
+            <span
+              data-testid="mf-group-accounts-selected"
+              style={{
+                marginLeft: 'auto',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                color: selectedCount > 0 ? 'var(--primary)' : 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t('minhasfinancas.group_accounts_selected', { count: selectedCount })}
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.15rem',
+              maxHeight: 220,
+              overflowY: 'auto',
+            }}
+          >
             {sortedAccounts.length === 0 && (
               <p
                 data-testid="mf-group-accounts-empty"
@@ -538,7 +629,15 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
                 {t('minhasfinancas.accounts_count', { count: 0 })}
               </p>
             )}
-            {sortedAccounts.map((account) => (
+            {sortedAccounts.length > 0 && filteredAccounts.length === 0 && (
+              <p
+                data-testid="mf-group-accounts-no-results"
+                style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0' }}
+              >
+                {t('common.no_results')}
+              </p>
+            )}
+            {filteredAccounts.map((account) => (
               <label
                 key={account.id}
                 data-testid={`mf-group-account-${account.id}`}
