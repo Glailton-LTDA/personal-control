@@ -53,5 +53,8 @@ artifacts/
 # Scratch / Temporary scripts
 scratch/
 
+# Local database backups (large, never commit)
+backup/
+
 opencode.json
 

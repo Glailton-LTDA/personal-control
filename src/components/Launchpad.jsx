@@ -10,12 +10,14 @@ import {
   LogOut,
   ChevronRight,
   Coins,
-  Music
+  Music,
+  Wallet
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const moduleData = {
   finances: { color: '#6366f1', icon: Coins },
+  minhasfinancas: { color: '#06b6d4', icon: Wallet },
   cars: { color: '#3b82f6', icon: Car },
   investments: { color: '#10b981', icon: TrendingUp },
   trips: { color: '#a855f7', icon: Plane },
@@ -27,6 +29,7 @@ const moduleData = {
 const getModuleInitialTab = (id) => {
   if (id === 'launchpad') return 'launchpad';
   if (id === 'finances') return 'finances-dashboard';
+  if (id === 'minhasfinancas') return 'minhasfinancas-resumo';
   if (id === 'cars') return 'cars-list';
   if (id === 'investments') return 'investments-dashboard';
   if (id === 'trips') return 'trips-list';
