@@ -194,4 +194,22 @@ describe('MFTransferModal — transferência recorrente (Fase D)', () => {
       parent_transaction_id: 'created-0',
     });
   });
+
+  it('calculadora ao lado do valor abre e preenche o campo', () => {
+    renderModal();
+    fireEvent.click(screen.getByTestId('mf-transfer-amount-calc'));
+    expect(screen.getByTestId('mf-transfer-calc')).toBeInTheDocument();
+
+    // 25 + 50 = 75 (operações + vírgula + ✓)
+    fireEvent.click(screen.getByTestId('mf-calc-clear'));
+    fireEvent.click(screen.getByTestId('mf-calc-2'));
+    fireEvent.click(screen.getByTestId('mf-calc-5'));
+    fireEvent.click(screen.getByTestId('mf-calc-op-add'));
+    fireEvent.click(screen.getByTestId('mf-calc-5'));
+    fireEvent.click(screen.getByTestId('mf-calc-0'));
+    fireEvent.click(screen.getByTestId('mf-calc-confirm'));
+
+    expect(screen.queryByTestId('mf-transfer-calc')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-transfer-amount')).toHaveValue('75,00');
+  });
 });

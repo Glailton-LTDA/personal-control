@@ -1197,4 +1197,27 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.queryByTestId('mf-tx-screen')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
   });
+
+  it('calculadora ao lado do valor abre, calcula e preenche o campo', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-tx-amount-calc'));
+    expect(screen.getByTestId('mf-tx-calc')).toBeInTheDocument();
+
+    // 9 × 2 = 18
+    fireEvent.click(screen.getByTestId('mf-calc-clear'));
+    fireEvent.click(screen.getByTestId('mf-calc-9'));
+    fireEvent.click(screen.getByTestId('mf-calc-op-mul'));
+    fireEvent.click(screen.getByTestId('mf-calc-2'));
+    fireEvent.click(screen.getByTestId('mf-calc-confirm'));
+
+    expect(screen.queryByTestId('mf-tx-calc')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-amount')).toHaveValue('18,00');
+  });
 });

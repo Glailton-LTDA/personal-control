@@ -506,4 +506,58 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     fireEvent.click(screen.getByTestId('mf-tx-detail-edit'));
     expect(onEditFull).toHaveBeenCalledWith(expect.objectContaining({ id: 'tx-1' }));
   });
+
+  it('clicar no valor abre a calculadora e o ✓ altera o valor (avulso)', async () => {
+    renderModal({ installments_total: null, installments_current: null });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-amount')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-amount'));
+    expect(screen.getByTestId('mf-tx-detail-calc')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-detail-calc-title')).toHaveTextContent(
+      'minhasfinancas.calc_current_value'
+    );
+    // limpa e digita 123 (o valor atual vinha de partida)
+    fireEvent.click(screen.getByTestId('mf-calc-clear'));
+    fireEvent.click(screen.getByTestId('mf-calc-1'));
+    fireEvent.click(screen.getByTestId('mf-calc-2'));
+    fireEvent.click(screen.getByTestId('mf-calc-3'));
+    expect(screen.getByTestId('mf-tx-detail-calc-display')).toHaveTextContent('123');
+    fireEvent.click(screen.getByTestId('mf-calc-confirm'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.from('mf_transactions').update).toHaveBeenCalledWith({ amount: 123 });
+    });
+    const toast = (await import('react-hot-toast')).default;
+    expect(toast.success).toHaveBeenCalledWith('minhasfinancas.tx_detail_value_updated');
+    expect(screen.queryByTestId('mf-tx-detail-calc')).not.toBeInTheDocument();
+  });
+
+  it('parcelada: ✓ da calculadora pergunta o escopo e "todas" aplica na série', async () => {
+    renderModal();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-amount')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-amount'));
+    fireEvent.click(screen.getByTestId('mf-calc-clear'));
+    fireEvent.click(screen.getByTestId('mf-calc-7'));
+    fireEvent.click(screen.getByTestId('mf-calc-7'));
+    fireEvent.click(screen.getByTestId('mf-calc-7'));
+    fireEvent.click(screen.getByTestId('mf-calc-confirm'));
+    // série: o escopo só aparece DEPOIS do ✓ (fluxo do print)
+    expect(screen.queryByTestId('mf-tx-detail-calc')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-detail-scope')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-tx-detail-scope-all'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.from('mf_transactions').update).toHaveBeenCalledWith({ amount: 777 });
+    });
+    expect(supabase.from('mf_transactions').in).toHaveBeenCalledWith('id', [
+      'tx-1',
+      'tx-2',
+      'tx-3',
+    ]);
+  });
 });

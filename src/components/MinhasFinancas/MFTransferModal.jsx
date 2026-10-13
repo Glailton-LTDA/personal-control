@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowLeftRight } from 'lucide-react';
+import { X, ArrowLeftRight, Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useCreateTransfer, useCreateMFTransaction, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney } from '../../hooks/useMinhasFinancas';
 import MFSelect from './MFSelect';
 import MFRepeatModal from './MFRepeatModal';
+import MFCalculator from './MFCalculator';
 
 /**
  * Modal de transferência entre contas (mf_transactions.type = 'TRANSFERENCIA').
@@ -21,6 +22,7 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
   const [saving, setSaving] = useState(false);
   const [repeat, setRepeat] = useState(null); // null | { initial, count, periodicity }
   const [repeatOpen, setRepeatOpen] = useState(false);
+  const [amountCalcOpen, setAmountCalcOpen] = useState(false);
   const [form, setForm] = useState({
     from: '',
     to: '',
@@ -243,17 +245,43 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
                 <label>
                   {t('minhasfinancas.transfer_amount')} ({originCurrency})
                 </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  required
-                  value={form.amount}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, amount: maskAmount(event.target.value) }))
-                  }
-                  placeholder="0,00"
-                  data-testid="mf-transfer-amount"
-                />
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'stretch' }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={form.amount}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, amount: maskAmount(event.target.value) }))
+                    }
+                    placeholder="0,00"
+                    data-testid="mf-transfer-amount"
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    data-testid="mf-transfer-amount-calc"
+                    aria-label={t('minhasfinancas.calc_title')}
+                    title={t('minhasfinancas.calc_title')}
+                    onClick={() => setAmountCalcOpen(true)}
+                    style={{ flexShrink: 0 }}
+                  >
+                    <Calculator size={16} />
+                  </button>
+                </div>
+                {amountCalcOpen && (
+                  <MFCalculator
+                    testId="mf-transfer-calc"
+                    title={t('minhasfinancas.calc_title')}
+                    initial={form.amount}
+                    onConfirm={(value) => {
+                      setForm((prev) => ({ ...prev, amount: value }));
+                      setAmountCalcOpen(false);
+                    }}
+                    onClose={() => setAmountCalcOpen(false)}
+                  />
+                )}
               </div>
               <div className="input-group">
                 <label>{t('minhasfinancas.transfer_date')}</label>

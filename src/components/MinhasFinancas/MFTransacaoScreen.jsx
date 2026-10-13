@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Receipt, Eye, Trash2, Plus, Tag, X } from 'lucide-react';
+import { Receipt, Eye, Trash2, Plus, Tag, X, Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
@@ -35,6 +35,7 @@ import MFSelect from './MFSelect';
 import MFCategorySelect from './MFCategorySelect';
 import MFRepeatModal from './MFRepeatModal';
 import MFChoiceDialog from './MFChoiceDialog';
+import MFCalculator from './MFCalculator';
 
 /** Atalho de navegação (mesmo evento usado pelo Resumo). */
 const goTo = (tab) =>
@@ -144,6 +145,7 @@ export default function MFTransacaoScreen({
   const [newTag, setNewTag] = useState('');
   const [tagsOpen, setTagsOpen] = useState(false);
   const [categoryTouched, setCategoryTouched] = useState(false);
+  const [amountCalcOpen, setAmountCalcOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   // Repetição na criação: 'none' (lançamento único) | 'repeat'
@@ -950,16 +952,42 @@ export default function MFTransacaoScreen({
         <div style={{ ...screenGrid, marginBottom: '1rem' }}>
           <div className="input-group">
             <label>{t('minhasfinancas.tx_amount_label')}</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={form.amount}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, amount: maskAmount(event.target.value) }))
-              }
-              placeholder="0,00"
-              data-testid="mf-tx-amount"
-            />
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'stretch' }}>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.amount}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, amount: maskAmount(event.target.value) }))
+                }
+                placeholder="0,00"
+                data-testid="mf-tx-amount"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <button
+                type="button"
+                className="icon-btn"
+                data-testid="mf-tx-amount-calc"
+                aria-label={t('minhasfinancas.calc_title')}
+                title={t('minhasfinancas.calc_title')}
+                onClick={() => setAmountCalcOpen(true)}
+                style={{ flexShrink: 0 }}
+              >
+                <Calculator size={16} />
+              </button>
+            </div>
+            {amountCalcOpen && (
+              <MFCalculator
+                testId="mf-tx-calc"
+                title={t('minhasfinancas.calc_title')}
+                initial={form.amount}
+                onConfirm={(value) => {
+                  setForm((prev) => ({ ...prev, amount: value }));
+                  setAmountCalcOpen(false);
+                }}
+                onClose={() => setAmountCalcOpen(false)}
+              />
+            )}
           </div>
           <div className="input-group">
             <label>{t('minhasfinancas.tx_account_label')}</label>

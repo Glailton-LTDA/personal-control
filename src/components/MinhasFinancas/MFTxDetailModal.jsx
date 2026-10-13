@@ -29,7 +29,6 @@ import {
   orderSeries,
   formatMoney,
   parseMoney,
-  maskAmount,
   toISODate,
   monthRefISO,
   currentMonthKey,
@@ -38,6 +37,7 @@ import {
   cardExpenseMonth,
 } from '../../hooks/useMinhasFinancas';
 import MFChoiceDialog from './MFChoiceDialog';
+import MFCalculator from './MFCalculator';
 import MFCategorySelect from './MFCategorySelect';
 import MFAccountIcon from './MFAccountIcon';
 import MFAccountSelect from './MFAccountSelect';
@@ -47,6 +47,7 @@ import MFAnticipateModal from './MFAnticipateModal';
 
 const INV_STATUS = {
   PAGA: { key: 'minhasfinancas.card_status_paid', color: '#10b981' },
+  AGENDADA: { key: 'minhasfinancas.card_status_scheduled', color: 'var(--primary)' },
   EM_ABERTO: { key: 'minhasfinancas.card_status_open', color: '#f59e0b' },
   VENCIDA: { key: 'minhasfinancas.card_status_overdue', color: '#ef4444' },
   CORRENTE: { key: 'minhasfinancas.card_status_current', color: 'var(--primary)' },
@@ -120,8 +121,8 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const [quickOpen, setQuickOpen] = useState(false);
   const [showParcels, setShowParcels] = useState(false);
   const [scopeAction, setScopeAction] = useState(null); // { action }
-  const [valueOpen, setValueOpen] = useState(null); // { scope }
-  const [newValue, setNewValue] = useState('');
+  const [calcOpen, setCalcOpen] = useState(false); // calculadora de valor
+  const [pendingValue, setPendingValue] = useState(''); // valor confirmado aguardando escopo
   // Duplicar como outra natureza: 'card' | 'transfer' | 'comp'.
   const [dupeSub, setDupeSub] = useState(false);
   const [dupeScopeKind, setDupeScopeKind] = useState(null); // kind aguardando escopo (comp)
@@ -150,7 +151,8 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     setQuickOpen(false);
     setShowParcels(false);
     setScopeAction(null);
-    setValueOpen(null);
+    setCalcOpen(false);
+    setPendingValue('');
     setDupeScopeKind(null);
     setDupeForm(null);
     setDupeTarget('');
@@ -255,6 +257,11 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
 
   const askScopeOrRun = (action) => {
     setMenuOpen(false);
+    if (action === 'value') {
+      // Calculadora primeiro; o escopo da série é perguntado depois do ✓.
+      setCalcOpen(true);
+      return;
+    }
     if (needsScope && action !== 'anticipate') {
       setScopeAction({ action });
       return;
@@ -267,13 +274,21 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     setScopeAction(null);
     if (!action) return;
     if (action === 'value') {
-      setNewValue(
-        tx.amount != null ? Math.abs(Number(tx.amount)).toFixed(2).replace('.', ',') : ''
-      );
-      setValueOpen({ scope: key });
+      runAction('value', key, pendingValue);
       return;
     }
     runAction(action, key);
+  };
+
+  /** ✓ da calculadora: série pergunta escopo; avulso aplica na hora. */
+  const onValueConfirm = (value) => {
+    setCalcOpen(false);
+    setPendingValue(value);
+    if (needsScope) {
+      setScopeAction({ action: 'value' });
+      return;
+    }
+    runAction('value', 'one', value);
   };
 
   /** "Outubro, 2026" no idioma do app (rótulos de fatura). */
@@ -477,7 +492,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     }
   };
 
-  const runAction = async (action, scope) => {
+  const runAction = async (action, scope, valueOverride) => {
     if (action === 'delete') {
       if (tx.is_fixed) {
         try {
@@ -532,7 +547,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     setSaving(true);
     try {
       if (action === 'value') {
-        const amount = parseMoney(newValue);
+        const amount = parseMoney(valueOverride ?? '');
         if (!(amount > 0)) {
           toast.error(t('minhasfinancas.tx_amount_required'));
           return;
@@ -543,7 +558,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
           patch: { amount: Number(tx.amount) < 0 ? -amount : amount },
         });
         toast.success(t('minhasfinancas.tx_detail_value_updated'));
-        setValueOpen(null);
+        setPendingValue('');
       } else if (action === 'duplicate') {
         // Legado: substituído pelo submenu (como cartão/transferência/
         // compensação). Mantido por segurança: copia avulsa na origem.
@@ -917,12 +932,32 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
             >
               {tx.description}
             </div>
-            <div
+            <button
+              type="button"
               data-testid="mf-tx-detail-amount"
-              style={{ fontWeight: 800, fontSize: '1.25rem', color: tx.type === 'RECEITA' ? '#10b981' : '#ef4444', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+              aria-label={t('minhasfinancas.calc_edit_value')}
+              title={t('minhasfinancas.calc_edit_value')}
+              onClick={() => {
+                setMenuOpen(false);
+                setCalcOpen(true);
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                font: 'inherit',
+                fontWeight: 800,
+                fontSize: '1.25rem',
+                color: tx.type === 'RECEITA' ? '#10b981' : '#ef4444',
+                textAlign: 'right',
+                fontVariantNumeric: 'tabular-nums',
+              }}
             >
               {money(Math.abs(Number(tx.amount) || 0))}
-            </div>
+            </button>
           </div>
           <button
             type="button"
@@ -1557,34 +1592,17 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
           </div>
         )}
 
-        {/* Alterar valor */}
-        {valueOpen && (
-          <div className="modal-overlay" data-testid="mf-tx-detail-value" onClick={() => setValueOpen(null)}>
-            <div className="glass-card modal-content" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 380 }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 800 }}>
-                {t('minhasfinancas.tx_detail_new_value')}
-              </h3>
-              <div className="input-group" style={{ marginBottom: '1rem' }}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={newValue}
-                  data-testid="mf-tx-detail-value-input"
-                  onChange={(event) => setNewValue(maskAmount(event.target.value))}
-                  placeholder="0,00"
-                  style={{ fontSize: '1.3rem', fontWeight: 800, textAlign: 'center' }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
-                <button type="button" className="btn-cancel" data-testid="mf-tx-detail-value-cancel" onClick={() => setValueOpen(null)} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
-                  {t('minhasfinancas.cancel')}
-                </button>
-                <button type="button" className="btn-primary" data-testid="mf-tx-detail-value-save" disabled={saving} onClick={() => runAction('value', valueOpen.scope)} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
-                  {t('minhasfinancas.save')}
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Alterar valor: calculadora (escopo da série vem depois do ✓) */}
+        {calcOpen && (
+          <MFCalculator
+            testId="mf-tx-detail-calc"
+            title={t('minhasfinancas.calc_current_value', {
+              value: money(Math.abs(Number(tx.amount) || 0)),
+            })}
+            initial={Math.abs(Number(tx.amount) || 0).toFixed(2).replace('.', ',')}
+            onConfirm={onValueConfirm}
+            onClose={() => setCalcOpen(false)}
+          />
         )}
 
         {/* Antecipar parcelas (cartão parcelado; genérico nas demais) */}
