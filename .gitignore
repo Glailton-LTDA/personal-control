@@ -56,5 +56,8 @@ scratch/
 # Local database backups (large, never commit)
 backup/
 
+# Extratos/exportações do usuário (dados locais, nunca commitar)
+docs/Extratos/
+
 opencode.json
 

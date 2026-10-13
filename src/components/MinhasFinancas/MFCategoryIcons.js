@@ -31,6 +31,8 @@ export const MF_CATEGORY_ICONS = [
   '🇨🇱', '🇵🇾', '🇪🇸', '🇮🇹', '🇯🇵', '🇨🇳', 'R$', 'US$',
   '€', '🍳', '👔', '👖', '🩳', '🤵', '👦', '🧓',
   '👴', '👵', '👪', '👨‍👩‍👧‍👦', '👨‍👩‍👦', '👩‍👧‍👦', '👨‍👧‍👦', '👚',
+  '⚙️', '🔩', '🪛', '🛠️', '🔨', '🪚', '🛞', '🛢️',
+  '🔑', '🔒', '🪡', '🔌', '🚘', '🧱', '🪜', '🚰',
 ];
 
 /**
@@ -62,10 +64,10 @@ export const MF_ICON_KEYWORDS = {
   '💳': 'cartao credito debito',
   '🏠': 'casa moradia lar aluguel',
   '🏡': 'casa jardim quintal',
-  '🔧': 'manutencao conserto ferramenta reforma obra',
+  '🔧': 'manutencao conserto ferramenta reforma obra oficina mecanico chave reparo',
   '💡': 'luz lampada energia ideia conta de luz',
   '🧹': 'limpeza faxina diarista',
-  '🚗': 'carro automovel veiculo',
+  '🚗': 'carro automovel veiculo oficina revisao mecanico',
   '🚌': 'onibus transporte passagem',
   '🚲': 'bike bicicleta',
   '✈️': 'viagem aviao passagem ferias turismo',
@@ -115,7 +117,7 @@ export const MF_ICON_KEYWORDS = {
   '🚿': 'banho chuveiro encanador',
   '⛽': 'combustivel gasolina etanol diesel posto bomba fuel abastecer',
   '🏗️': 'obra construcao reforma pedreiro',
-  '🧰': 'ferramenta caixa manutencao conserto',
+  '🧰': 'ferramenta caixa manutencao conserto oficina mecanico',
   '🛡️': 'seguro protecao',
   '🚕': 'taxi uber corrida aplicativo',
   '🚆': 'trem metro cptm',
@@ -267,6 +269,22 @@ export const MF_ICON_KEYWORDS = {
   '👩‍👧‍👦': 'familia mae filho filha',
   '👨‍👧‍👦': 'familia pai filho filha',
   '👚': 'blusa camisa roupa moda feminina',
+  '⚙️': 'engrenagem mecanica motor oficina gear',
+  '🔩': 'parafuso porca rosca ferramenta montagem',
+  '🪛': 'chave de fenda fenda philips ferramenta conserto screwdriver',
+  '🛠️': 'martelo chave ferramenta obra conserto reparo taller tools',
+  '🔨': 'martelo prego obra marcenaria ferramenta',
+  '🪚': 'serrote serra madeira marceneiro corte ferramenta',
+  '🛞': 'pneu roda estepe alinhamento balanceamento borracharia',
+  '🛢️': 'oleo lubrificante troca de oleo barril combustivel',
+  '🔑': 'chave chaveiro copia fechadura porta',
+  '🔒': 'cadeado fechadura seguranca chaveiro tranca',
+  '🪡': 'agulha costura costureira linha bordado conserto roupa',
+  '🔌': 'plug tomada eletricista energia eletrica',
+  '🚘': 'carro oficina mecanico revisao automovel',
+  '🧱': 'tijolo bloco pedreiro obra construcao reforma cimento',
+  '🪜': 'escada pintor reforma limpeza pintura altura',
+  '🚰': 'torneira agua pia encanador hidraulica vazamento',
 };
 
 /** Busca de ícone: termo normalizado (sem acento/caixa) nas palavras-chave. */

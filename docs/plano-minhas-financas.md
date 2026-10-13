@@ -1676,7 +1676,14 @@ Itens ativos, na ordem de atendimento:
   de ação da linha — o primeiro (documento) é **Ver extrato** — e na
   sanfona dos grupos. Teste +1 (`MFContas`: titles dos botões);
   E2E do módulo 9/9.
-- **Ajuste pós-validação 2 (13/10/2026)**: coluna Ações com 130px (os 4
-  botões cabem numa linha só) e tabela com `max-width: 1320` centrada
+- **Ajuste pós-validação 2 (13/10/2026)**: coluna Ações com 146px (os 4
+  botões cabem numa linha só — a conta inicial de 130px esquecia o
+  padding da célula) e tabela com `max-width: 1320` centrada
   — some o vão entre o nome da conta e o Saldo Inicial em telas
   largas. E2E do módulo 9/9.
+- **Ajuste pós-validação 3 (13/10/2026)**: pasta `docs/Extratos/`
+  removida do git (eram extratos/exportações locais — `rm --cached` +
+  `.gitignore`, arquivos preservados); +16 ícones de categoria de
+  oficina/conserto (engrenagem, parafuso, chave de fenda, martelo,
+  serrote, pneu, óleo, chaveiro, cadeado, costura, eletricista,
+  tijolo, escada, torneira) com busca por palavra-chave.

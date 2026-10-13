@@ -297,6 +297,34 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
     expect(screen.getByTestId('mf-cat-modal-glyph-fridge')).toBeInTheDocument();
   });
 
+  it('busca encontra ícones de oficina e conserto (fenda, pneu, chaveiro)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-cat-new')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-cat-new'));
+    const search = screen.getByTestId('mf-cat-modal-icon-search');
+
+    fireEvent.change(search, { target: { value: 'oficina' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🔧');
+
+    fireEvent.change(search, { target: { value: 'fenda' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🪛');
+
+    fireEvent.change(search, { target: { value: 'pneu' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🛞');
+
+    fireEvent.change(search, { target: { value: 'chaveiro' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🔑');
+
+    fireEvent.change(search, { target: { value: 'parafuso' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🔩');
+
+    fireEvent.change(search, { target: { value: 'torneira' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🚰');
+  });
+
   it('permite escolher marca de banco como ícone da categoria', async () => {
     renderScreen();
     await waitFor(() => {
