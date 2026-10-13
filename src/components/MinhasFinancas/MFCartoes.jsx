@@ -286,6 +286,7 @@ export default function MFCartoes({ user, showValues = true }) {
               // de recalcular um saldo paralelo que divergia do detalhe.
               const open = Math.max(0, Number(built.openTotal) || 0);
               const currentOpen = Number(built.current.openAmount) || 0;
+              const currentPending = Number(built.current.pendingBound) || 0;
               const used = open;
               const limit = item.credit_limit != null ? Number(item.credit_limit) : null;
               const available = limit != null ? limit - used : null;
@@ -561,7 +562,7 @@ export default function MFCartoes({ user, showValues = true }) {
                         {cardMoney(total)}
                       </div>
                     </div>
-                    {total > 0 && currentOpen <= 0 && (
+                    {total > 0 && currentOpen <= 0 && currentPending <= 0.005 && (
                       <span
                         data-testid={`mf-card-fatura-paid-${item.id}`}
                         style={{
@@ -574,18 +575,36 @@ export default function MFCartoes({ user, showValues = true }) {
                         {t('minhasfinancas.card_status_paid')}
                       </span>
                     )}
-                    {currentOpen > 0 && (
+                    {/* Fatura coberta só por pagamento PENDENTE (item 30):
+                        chip Agendada + o Pagar continua à mão — confirmar
+                        reajusta o MESMO agendado (ou paga antes). */}
+                    {total > 0 && currentOpen <= 0 && currentPending > 0.005 && (
+                      <span
+                        data-testid={`mf-card-fatura-scheduled-${item.id}`}
+                        style={{
+                          ...badgeChip,
+                          color: 'var(--primary)',
+                          borderColor: 'color-mix(in srgb, var(--primary) 45%, transparent)',
+                          background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+                        }}
+                      >
+                        {t('minhasfinancas.card_status_scheduled')}
+                      </span>
+                    )}
+                    {(currentOpen > 0 || currentPending > 0.005) && (
                       <>
-                        <span
-                          style={{
-                            ...badgeChip,
-                            color: 'var(--primary)',
-                            borderColor: 'color-mix(in srgb, var(--primary) 45%, transparent)',
-                            background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
-                          }}
-                        >
-                          {t('minhasfinancas.card_status_current')}
-                        </span>
+                        {currentOpen > 0 && (
+                          <span
+                            style={{
+                              ...badgeChip,
+                              color: 'var(--primary)',
+                              borderColor: 'color-mix(in srgb, var(--primary) 45%, transparent)',
+                              background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+                            }}
+                          >
+                            {t('minhasfinancas.card_status_current')}
+                          </span>
+                        )}
                         <button
                           type="button"
                           className="btn-primary"

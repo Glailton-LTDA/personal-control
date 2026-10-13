@@ -133,10 +133,48 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         });
       }
 
+      if (method === 'PATCH') {
+        // PostgREST identifica as linhas por filtros na query (?id=eq.x).
+        // Sem isto, todo update devolvia 200 sem mudar a store — o item 30
+        // depende do PATCH (reajuste do espelho) de verdade no E2E.
+        const params = new URL(request.url()).searchParams;
+        const filters = [...params.entries()]
+          .filter(([, value]) => value.startsWith('eq.'))
+          .map(([key, value]) => [key, value.slice(3)]);
+        const matches = (row) =>
+          filters.every(([key, value]) => String(row[key] ?? '') === value);
+        const updated = [];
+        store[table] = (store[table] || []).map((row) => {
+          if (!matches(row)) return row;
+          const next = { ...row, ...payload };
+          updated.push(next);
+          return next;
+        });
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS,
+          body: JSON.stringify(wantsObject(request) ? updated[0] ?? {} : updated),
+        });
+      }
+
       if (method === 'DELETE' && incoming.length > 0) {
         const ids = new Set(incoming.map((row) => row.id).filter(Boolean));
         if (ids.size > 0) {
           store[table] = (store[table] || []).filter((row) => !ids.has(row.id));
+        }
+      }
+
+      if (method === 'DELETE') {
+        // supabase-js filtra na query string (?id=eq.x), sem body.
+        const params = new URL(request.url()).searchParams;
+        const filters = [...params.entries()]
+          .filter(([, value]) => value.startsWith('eq.'))
+          .map(([key, value]) => [key, value.slice(3)]);
+        if (filters.length > 0) {
+          store[table] = (store[table] || []).filter(
+            (row) => !filters.every(([key, value]) => String(row[key] ?? '') === value)
+          );
         }
       }
 
@@ -470,9 +508,12 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await page.getByTestId('mf-card-anticipate-confirm').click();
     await expect(page.getByTestId('mf-card-anticipate-modal')).toBeHidden();
 
-    // 3 parcelas mudaram para a mesma fatura (a corrente)
-    await expect.poll(() => patches.length).toBe(3);
-    const closes = patches.map((body) => body.invoice_close);
+    // 3 parcelas mudaram para a mesma fatura (a corrente). Só contam os
+    // PATCHes de movimento (carregam invoice_close): sincronizações do
+    // agendador de fatura (item 30) mandam {amount} e não contam aqui.
+    const movePatches = () => patches.filter((body) => body.invoice_close);
+    await expect.poll(() => movePatches().length).toBe(3);
+    const closes = movePatches().map((body) => body.invoice_close);
     expect(new Set(closes).size).toBe(1);
     expect(closes[0]).toBeTruthy();
     // estorno negativo na fatura destino entrou no store

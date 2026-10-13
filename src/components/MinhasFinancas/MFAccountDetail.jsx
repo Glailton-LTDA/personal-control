@@ -60,6 +60,7 @@ import MFStatementTimeline from './MFStatementTimeline';
 /** Status possíveis de fatura (chips de cartões vinculados). */
 const INVOICE_STATUS = {
   PAGA: { key: 'minhasfinancas.card_status_paid', color: '#10b981' },
+  AGENDADA: { key: 'minhasfinancas.card_status_scheduled', color: 'var(--primary)' },
   EM_ABERTO: { key: 'minhasfinancas.card_status_open', color: '#f59e0b' },
   VENCIDA: { key: 'minhasfinancas.card_status_overdue', color: '#ef4444' },
   CORRENTE: { key: 'minhasfinancas.card_status_current', color: 'var(--primary)' },
@@ -883,9 +884,11 @@ export default function MFAccountDetail({
             {linkedInvoices.map(({ card, active }) => {
               const status = INVOICE_STATUS[active.status] ?? INVOICE_STATUS.CORRENTE;
               // Valor da fatura (bruto); o botão Pagar some quando não há
-              // mais em aberto (pagamentos parciais/vinculados reduzem).
+              // mais o que pagar — em aberto OU agendado (item 30: com o
+              // espelho PENDENTE, a confirmação reajusta a MESMA linha).
               const invTotal = Number(active.total) || 0;
-              const owed = Number(active.openAmount) || 0;
+              const owed =
+                (Number(active.openAmount) || 0) + (Number(active.pendingBound) || 0);
               const fmtShort = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—');
               return (
                 <div

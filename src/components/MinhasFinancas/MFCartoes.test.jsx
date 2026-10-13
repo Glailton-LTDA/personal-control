@@ -312,6 +312,56 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(screen.getByTestId('mf-invoice-chip-2026-08-10')).toHaveTextContent('Agosto de 2026');
   });
 
+  it('fatura coberta só por pendente: chip Agendada, Pagar à mão e modal com o valor todo (item 30)', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      { id: 'tx-buy', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-10-02', status: 'PAGO', description: 'Compra' },
+      // espelho do item 30: pendente pelo valor total, vence 20/10
+      { id: 'tx-sched', account_id: 'acc-check', type: 'DESPESA', amount: 500, payment_date: '2026-10-20', status: 'PENDENTE', invoice_close: '2026-10-10', description: 'Pagamento de fatura' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+      });
+
+      // widget: Agendada no lugar de Paga; o Pagar continua à mão
+      expect(screen.getByTestId('mf-card-fatura-scheduled-acc-card')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-card-fatura-paid-acc-card')).not.toBeInTheDocument();
+      expect(screen.getByTestId('mf-card-pay-acc-card')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-invoice-chip-current'));
+
+      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+        'minhasfinancas.card_status_scheduled'
+      );
+      expect(screen.getByTestId('mf-invoice-badge')).toHaveTextContent(
+        'minhasfinancas.inv_status_scheduled'
+      );
+      expect(screen.getByTestId('mf-invoice-summary')).toHaveTextContent(
+        'minhasfinancas.inv_scheduled_amount'
+      );
+      expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
+      // na corrente o botão se chama mf-invoice-anticipate (mesmo fluxo de pagar)
+      expect(screen.getByTestId('mf-invoice-anticipate')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-invoice-reopen')).not.toBeInTheDocument();
+
+      // modal: valor padrão = em aberto + agendado (mesma linha, sem 2º débito)
+      fireEvent.click(screen.getByTestId('mf-invoice-anticipate'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-pay-modal')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('mf-pay-amount')).toHaveValue('500,00');
+    } finally {
+      __mfState.transactions = original;
+    }
+  });
+
   it('widget oferece pagar a fatura vencida quando a corrente zerou (feedback 07/10)', async () => {
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
@@ -564,7 +614,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     );
   });
 
-  it('fatura paga mostra Pagamentos/Despesas, selo Paga e Reabrir exclui o vínculo', async () => {
+  it('fatura paga mostra Pagamentos/Despesas, selo Paga e Reabrir vira PENDENTE sem excluir', async () => {
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
     __mfState.transactions = [
@@ -598,9 +648,13 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       fireEvent.click(screen.getByTestId('mf-invoice-reopen'));
       const { supabase } = await import('../../lib/supabase');
       const txTable = supabase.from('mf_transactions');
+      // Item 30: Reabrir NÃO exclui — faz flip do vínculo PAGO → PENDENTE.
       await waitFor(() => {
-        expect(txTable.delete).toHaveBeenCalled();
+        expect(txTable.update).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'PENDENTE' })
+        );
       });
+      expect(txTable.delete).not.toHaveBeenCalled();
       expect(txTable.eq).toHaveBeenCalledWith('id', 'tx-p1');
       const toast = (await import('react-hot-toast')).default;
       await waitFor(() => {

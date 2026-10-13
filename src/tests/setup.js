@@ -5,7 +5,10 @@ import React from 'react';
 
 // Tolerância de waitFor/findBy configurável (máquina lenta/CI):
 // VITEST_ASYNC_TIMEOUT=30000 — sem a variável, o padrão 1000 é mantido.
-configure({ asyncUtilTimeout: Number(process.env.VITEST_ASYNC_TIMEOUT) || 1000 });
+// globalThis.process: o flat config do ESLint só dá globals de browser.
+configure({
+  asyncUtilTimeout: Number(globalThis.process?.env?.VITEST_ASYNC_TIMEOUT) || 1000,
+});
 
 // Extends Vitest's expect with React Testing Library matchers
 expect.extend(matchers);

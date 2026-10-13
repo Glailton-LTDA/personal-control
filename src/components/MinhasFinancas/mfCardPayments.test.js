@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -59,7 +59,9 @@ describe('buildCardInvoices — pagamento vinculado (invoice_close)', () => {
 
     expect(current.total).toBe(500);
     expect(current.openAmount).toBe(0); // em aberto zera na hora do registro
-    expect(current.status).toBe('PAGA');
+    // Coberta só por PENDENTE = AGENDADA (item 30): vence e vira PAGA; o
+    // Reabrir devolve o pendente sem excluir.
+    expect(current.status).toBe('AGENDADA');
   });
 
   it('pagamento parcial vinculado deixa o saldo na fatura corrente', () => {
@@ -691,5 +693,207 @@ describe('planCardAnticipation — antecipar parcelas de cartão', () => {
     expect(isParceladaTx({ installments_total: 1 })).toBe(false);
     expect(isParceladaTx({})).toBe(false);
     expect(isParceladaTx(null)).toBe(false);
+  });
+});
+
+/**
+ * Item 30 — espelho do pagamento de fatura: o agendador cria/revaloriza/promove
+ * a despesa que reflete a fatura na conta vinculada. O plano é puro e aqui
+ * exercitamos cada decisão: cria futuro/vencido, não duplica pagamento seu,
+ * sincroniza valor, promove vencido, respeita o Reabrir (sem marcador) e
+ * apaga quando a fatura zera.
+ */
+describe('planInvoicePaymentSync — espelho de fatura (item 30)', () => {
+  const cardPlan = {
+    id: 'acc-card',
+    linked_account_id: 'acc-1',
+    name: 'C6',
+    closing_day: 10,
+    due_day: 20,
+  };
+  const invoice = (over) => ({
+    closeISO: '2026-10-10',
+    dueISO: '2026-10-20',
+    total: 2453.64,
+    openAmount: 2453.64,
+    ...over,
+  });
+  const plan = (over = {}) =>
+    planInvoicePaymentSync({
+      userId: 'user-1',
+      card: cardPlan,
+      invoices: [invoice(over.invoice)],
+      transactions: over.transactions ?? [],
+      today: over.today ?? '2026-10-13',
+    });
+
+  it('sem pagamento vinculado e vencimento futuro → cria PENDENTE no vencimento', () => {
+    const out = plan();
+    expect(out.updates).toEqual([]);
+    expect(out.deletes).toEqual([]);
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0]).toMatchObject({
+      user_id: 'user-1',
+      type: 'DESPESA',
+      account_id: 'acc-1',
+      amount: 2453.64,
+      status: 'PENDENTE',
+      payment_date: '2026-10-20',
+      due_date: '2026-10-20',
+      effective_date: null,
+      invoice_close: '2026-10-10',
+      notes: MF_INVOICE_PAYMENT_NOTE,
+    });
+    expect(out.creates[0].description).toContain('C6');
+  });
+
+  it('fatura já vencida → cria PAGO na data do vencimento (entra no mês certo)', () => {
+    const out = plan({ today: '2026-11-02' });
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0]).toMatchObject({
+      status: 'PAGO',
+      payment_date: '2026-10-20',
+      effective_date: '2026-10-20',
+      due_date: null,
+    });
+  });
+
+  it('fatura vinda do buildCardInvoices usa o em aberto (já com FIFO/parciais)', () => {
+    const { current } = buildCardInvoices({
+      card: cardPlan,
+      refISO: '2026-10-06',
+      transactions: [
+        purchase({ id: 'c1', account_id: 'acc-card', payment_date: '2026-10-02', amount: 500 }),
+      ],
+    });
+    const out = planInvoicePaymentSync({
+      userId: 'user-1',
+      card: cardPlan,
+      invoices: [current],
+      transactions: [],
+      today: '2026-10-13',
+    });
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0].amount).toBe(500);
+    expect(out.creates[0].invoice_close).toBe('2026-10-10');
+  });
+
+  it('pagamento seu vinculado (sem marcador) → não cria nem revaloriza', () => {
+    const out = plan({
+      invoice: { openAmount: 1953.64 },
+      transactions: [
+        {
+          id: 'user-partial',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 500,
+          payment_date: '2026-10-20',
+        },
+      ],
+    });
+    expect(out).toEqual({ creates: [], updates: [], deletes: [] });
+  });
+
+  it('espelho desatualizado → sincroniza o valor com o em aberto atual', () => {
+    const out = plan({
+      invoice: { openAmount: 453.64 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 2000,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.creates).toEqual([]);
+    // 453.64 (o que falta) + 2000 (espelho) = valor atual da fatura
+    expect(out.updates).toEqual([{ id: 'm1', patch: { amount: 2453.64 } }]);
+  });
+
+  it('espelho marcado e vencido → promove PENDENTE → PAGO no vencimento', () => {
+    const out = plan({
+      today: '2026-10-21',
+      invoice: { openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.creates).toEqual([]);
+    expect(out.updates).toEqual([
+      { id: 'm1', patch: { status: 'PAGO', effective_date: '2026-10-20' } },
+    ]);
+  });
+
+  it('Reabrir limpou o marcador → linha vira intocável (nem re-promove)', () => {
+    const out = plan({
+      today: '2026-10-21',
+      invoice: { openAmount: 0 },
+      transactions: [
+        {
+          id: 'r1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE', // Reabrir: PAGO → PENDENTE e marcador limpo
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: null,
+        },
+      ],
+    });
+    expect(out).toEqual({ creates: [], updates: [], deletes: [] });
+  });
+
+  it('fatura zerada (só estornos) → apaga o espelho', () => {
+    const out = plan({
+      invoice: { total: 0, openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 100,
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.creates).toEqual([]);
+    expect(out.updates).toEqual([]);
+    expect(out.deletes).toEqual(['m1']);
+  });
+
+  it('pagamento CANCELADO não conta como vínculo → recria o espelho', () => {
+    const out = plan({
+      transactions: [
+        {
+          id: 'c1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'CANCELADO',
+          amount: 2453.64,
+        },
+      ],
+    });
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0].status).toBe('PENDENTE');
   });
 });

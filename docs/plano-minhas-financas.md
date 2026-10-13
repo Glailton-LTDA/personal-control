@@ -1539,9 +1539,93 @@ Itens ativos, na ordem de atendimento:
     entre `invoice_close`/`due_day` e o status calculado (antes do
     vencimento o status deveria ser "em aberto/aguardando", não
     vencida). Corrigir a regra + teste de regressão.
-29. **Calculadora no valor** (melhoria pedida 12/10): (a) clicar no
-    valor nos Detalhes abre uma calculadora (C, %, ÷ × − +, backspace,
-    00, vírgula ✓); ao confirmar altera o valor e, se a transação for
-    de série, pergunta o escopo ("Alterar apenas esta" / "Alterar esta
-    e as próximas" / "todas"); (b) o editor de novo lançamento ganha
-    botão de calculadora ao lado do campo Valor (e Encargos/Desconto).
+29. ~~Calculadora no valor (melhoria pedida 12/10)~~ — **concluído
+    (aguarda validação no app com Ctrl+Shift+R)**:
+    - Componente novo **`MFCalculator`** (portal no body): display com
+      expressão + teclado `C · % · ⌫ · ÷ / 7 8 9 × / 4 5 6 − / 1 2 3 +
+      / 00 0 , ✓`; `%` respeita o operador pendente (± usa % do
+      acumulado), `✓` devolve `1234,56`; chaves i18n `calc_title`,
+      `calc_current_value` ("O valor atual é {{value}}"),
+      `calc_edit_value`, `calc_clear`, `calc_backspace`,
+      `calc_percent`, `calc_confirm` (pt/en/es).
+    - **Detalhes**: o valor do resumo virou botão
+      (`mf-tx-detail-amount`) que abre a calculadora com o valor atual
+      como partida; o ✓ altera na hora (avulso) e, em série, **depois**
+      pergunta o escopo (só esta / esta e próximas / todas — mesma
+      `MFChoiceDialog` da exclusão); menu ⋮ "Alterar Valor" usa o mesmo
+      fluxo (calculadora → escopo); o modal de input de valor antigo
+      saiu.
+    - **Criação de lançamento**: botão 🧮 ao lado do campo Valor
+      (`mf-tx-amount-calc`), resultado preenche o campo.
+    - **Transferência**: botão 🧮 ao lado do valor
+      (`mf-transfer-amount-calc`). Campos "Encargos/Desconto" do print
+      não existem no editor — confirmar com o usuário se quer criá-los.
+    - Testes +4 (`MFTxDetailModal` 2: avulso aplica na hora, parcelada
+      pede escopo depois do ✓ com "todas" na série inteira;
+      `MFTransacoes` 1: 9×2 preenche 18,00; `MFTransferModal` 1:
+      25+50 preenche 75,00); gates verdes (ESLint 0 · 3 arquivos
+      53/53).
+30. **Pagamento de fatura automático / espelho por cartão (item 30)**
+    — **concluído (aguarda validação no app com Ctrl+Shift+R)**:
+    - Requisito: conta com cartão vinculado deve criar despesa pendente
+      pelo valor da fatura no vencimento (ex.: C6, R$ 2.453,64 em
+      20/10) para a Previsão refletir. Decisões do usuário: **fatura
+      vencida nunca fica sem pagar** (vira PAGO **na data do
+      vencimento** — backfill no mês certo, não "hoje") e **Reabrir não
+      exclui nada** (flip PAGO→PENDENTE com o valor atual; o valor da
+      fatura é sincronizado continuamente até o fechamento, e o
+      fechamento também pode mudar).
+    - **Modelo "espelho" (Design B)**: uma DESPESA com `invoice_close`
+      na conta vinculada, marcada em `notes`
+      (`MF_INVOICE_PAYMENT_NOTE = 'Agendado automaticamente (fatura)'`).
+      Plano puro `planInvoicePaymentSync`: cria **só se nenhum**
+      pagamento vinculado não-cancelado existir (futuro → PENDENTE no
+      vencimento; vencido → PAGO no vencimento); sincroniza
+      `amount = em aberto + espelho` (fixed point — `openAmount` já
+      desconta FIFO/parciais); promove PENDENTE→PAGO quando
+      `dueISO <= hoje` (nunca PAGO→PENDENTE automático); apaga o
+      espelho se a fatura zerar; pagamento seu (parcial, sem marcador)
+      é intocável — nunca duplica nem revaloriza.
+    - **Agendador `useMFScheduleCardPayments(user)`** no container:
+      roda quando contas/lançamentos mudam, guarda global
+      anti-sobreposição, best-effort (erro não derruba o módulo),
+      **pula em `MODE === 'test'`** (a unidade cobre o plano puro; o
+      E2E roda em dev e exercita o caminho real), só cartões
+      não-arquivados com conta vinculada **no mesmo escopo de perfis**
+      da tela, `count: 60` no `buildCardInvoices`.
+    - **Badge/status `AGENDADA`** (novo): fatura coberta **só** por
+      PENDENTE; `openAmount` permanece inalterado (em aberto zera com
+      qualquer vínculo — invariant do E2E "modal parcial");
+      `invIsPaid = coberta && pendingBound < 0.005`,
+      `invIsScheduled = coberta && pendingBound >= 0.005`. Chip
+      "Agendada" no widget (`mf-card-fatura-scheduled-*`) e no detalhe,
+      título `inv_title_scheduled`, linha "Pagamento agendado", e
+      `AGENDADA` nos mapas `STATUS` (MFCardInvoices), `INVOICE_STATUS`
+      (MFAccountDetail) e `INV_STATUS` (MFTxDetailModal).
+    - **Pagar fatura**: gate `payable = em aberto + agendado` em
+      widget, detalhe da fatura e conta vinculada; `MFPaymentModal`
+      usa `payable` no default/cap/no rótulo "Em aberto" e confirma
+      via **`usePayCardInvoice`** — busca despesa PENDENTE vinculada
+      e faz **update** (um único débito por fatura); valor total →
+      mantém o marcador (agendador volta a sincronizar/promover);
+      parcial → **remove o marcador** (a linha passa a ser sua e o em
+      aberto mostra o resto).
+    - **Reabrir** virou flip de status sem excluir: PAGO→PENDENTE +
+      `effective_date` limpo + **marcador removido** (depois disso o
+      agendador não re-promove nem re-sincroniza — a linha é sua); o
+      valor já é o atual porque isto só aparece com a fatura coberta
+      (em aberto = 0 ⇒ espelho = valor da fatura).
+    - i18n (pt/en/es): `card_status_scheduled`,
+      `inv_status_scheduled`, `inv_title_scheduled`,
+      `inv_scheduled_amount` + `card_reopen_confirm` reescrito (flip,
+      não exclui).
+    - Mock E2E `mf_*`: **handler de PATCH** (PostgREST filtra por
+      query `?id=eq.x`) e **DELETE por query** — antes o update
+      devolvia 200 sem mudar a store; teste de antecipar agora filtra
+      PATCHes com `invoice_close` (sincronizações do agendador mandam
+      só `{amount}`).
+    - Testes: planner +9 (`mfCardPayments.test.js`), chip Agendada +
+      modal `payable` (`MFCartoes` +1), teste de Reabrir reescrito
+      para flip; `src/tests/setup.js` trocou `process` por
+      `globalThis.process` (lint `no-undef` pré-existente do Fase E).
+      Gates verdes: **ESLint 0 · Vitest 543/543 · E2E 42/42**.

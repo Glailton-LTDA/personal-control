@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Wallet, Check, Lock, LockOpen, RotateCcw } from 'lucide-react';
+import { Wallet, Check, Clock, Lock, LockOpen, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
   useMFAllTransactions,
   useMFCategories,
-  useDeleteMFTransaction,
+  useUpdateMFTransaction,
+  MF_INVOICE_PAYMENT_NOTE,
   buildCardInvoices,
   formatMoney,
   formatMonthLabel,
@@ -21,6 +22,7 @@ import { readInvoiceSel, writeInvoiceSel } from './mfViewState';
 
 const STATUS = {
   PAGA: { key: 'minhasfinancas.card_status_paid', color: '#10b981' },
+  AGENDADA: { key: 'minhasfinancas.card_status_scheduled', color: 'var(--primary)' },
   EM_ABERTO: { key: 'minhasfinancas.card_status_open', color: '#f59e0b' },
   VENCIDA: { key: 'minhasfinancas.card_status_overdue', color: '#ef4444' },
   CORRENTE: { key: 'minhasfinancas.card_status_current', color: 'var(--primary)' },
@@ -129,24 +131,34 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   const invPaid = Number(activeInvoice?.paid) || 0;
   const invOpen = Number(activeInvoice?.openAmount) || 0;
   const invGross = invTotal + invRefunds;
-  const invIsPaid = invOpen < 0.005;
-  const invIsPartial = !invIsPaid && invPaid > 0.005;
+  const invPending = Number(activeInvoice?.pendingBound) || 0;
+  // Coberta = em aberto zerado. Paga de verdade = coberta SEM pendente
+  // aguardando (item 30): com pagamento vinculado PENDENTE, a fatura está
+  // AGENDADA — vence e o agendador promove a PAGA; Reabrir devolve a PENDENTE.
+  const invCovered = invOpen < 0.005;
+  const invIsScheduled = invCovered && invPending > 0.005;
+  const invIsPaid = invCovered && !invIsScheduled;
+  const invIsPartial = !invCovered && invPaid > 0.005;
   const invIsClosed = selectedInvoice !== 'current';
   const invIsFuture = !!activeInvoice?.future;
   const invBadge = invIsPaid
     ? { key: 'minhasfinancas.inv_status_paid', color: '#10b981', Icon: Check }
-    : invIsClosed && !invIsFuture && !invIsPartial
-      ? { key: 'minhasfinancas.inv_status_closed', color: '#ef4444', Icon: Lock }
-      : { key: 'minhasfinancas.inv_status_open', color: 'var(--primary)', Icon: LockOpen };
+    : invIsScheduled
+      ? { key: 'minhasfinancas.inv_status_scheduled', color: 'var(--primary)', Icon: Clock }
+      : invIsClosed && !invIsFuture && !invIsPartial
+        ? { key: 'minhasfinancas.inv_status_closed', color: '#ef4444', Icon: Lock }
+        : { key: 'minhasfinancas.inv_status_open', color: 'var(--primary)', Icon: LockOpen };
   const invTitle = invIsPaid
     ? t('minhasfinancas.inv_title_paid')
-    : invIsPartial
+    : invIsScheduled
+      ? t('minhasfinancas.inv_title_scheduled')
+      : invIsPartial
       ? t('minhasfinancas.inv_title_partial')
       : selectedInvoice === 'current'
         ? t('minhasfinancas.card_current')
         : t('minhasfinancas.inv_title_open');
 
-  const deleteTx = useDeleteMFTransaction();
+  const updateTx = useUpdateMFTransaction();
   // Pagamentos atribuíveis à fatura (vínculo invoice_close) — só eles podem
   // ser removidos pelo "Reabrir". Modelo novo: DESPESA na conta vinculada;
   // modelo antigo (TRANSFERENCIA → cartão) segue contado. O que veio por
@@ -165,20 +177,37 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
     [transactions, card.id, card.linked_account_id, activeInvoice?.closeISO]
   );
 
-  /** Reabrir: exclui os pagamentos vinculados — a fatura volta a em aberto. */
+  /**
+   * Reabrir (item 30): NÃO exclui nada — o pagamento vinculado PAGO volta
+   * para PENDENTE e o espelho perde o marcador automático (o agendador não
+   * re-promove nem re-sincroniza depois: a linha fica sua). O valor já é o
+   * atual da fatura: o espelho é sincronizado continuamente e este botão só
+   * aparece com a fatura coberta (em aberto = 0), ou seja, com pagamento
+   * igual ao valor da fatura na hora.
+   */
   const handleReopen = () => {
-    if (linkedPayments.length === 0) return;
+    const flipable = linkedPayments.filter((row) => row.status === 'PAGO');
+    if (flipable.length === 0) return;
     confirmToast(
-      t('minhasfinancas.card_reopen_confirm', { count: linkedPayments.length }),
+      t('minhasfinancas.card_reopen_confirm', { count: flipable.length }),
       async () => {
         try {
-          await Promise.all(linkedPayments.map((row) => deleteTx.mutateAsync(row.id)));
+          await Promise.all(
+            flipable.map((row) =>
+              updateTx.mutateAsync({
+                id: row.id,
+                status: 'PENDENTE',
+                effective_date: null,
+                notes: row.notes === MF_INVOICE_PAYMENT_NOTE ? null : row.notes,
+              })
+            )
+          );
           toast.success(t('minhasfinancas.card_reopened'));
         } catch {
           toast.error(t('minhasfinancas.save_error'));
         }
       },
-      { danger: true, confirmText: t('minhasfinancas.delete') }
+      { danger: true, confirmText: t('minhasfinancas.card_reopen') }
     );
   };
 
@@ -345,6 +374,17 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                         <strong style={{ color: '#ef4444' }}>{money(invGross)}</strong>
                       </span>
                     </>
+                  ) : invIsScheduled ? (
+                    <>
+                      <span>
+                        {t('minhasfinancas.inv_scheduled_amount')}:{' '}
+                        <strong style={{ color: 'var(--primary)' }}>{money(invPending)}</strong>
+                      </span>
+                      <span>
+                        {t('minhasfinancas.inv_month_expenses')}:{' '}
+                        <strong style={{ color: '#ef4444' }}>{money(invGross)}</strong>
+                      </span>
+                    </>
                   ) : (
                     <>
                       <span>
@@ -370,10 +410,10 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                       gap: '0.35rem',
                       fontSize: '1.3rem',
                       fontWeight: 800,
-                      color: invIsPaid ? '#10b981' : '#ef4444',
+                      color: invIsPaid || invIsScheduled ? '#10b981' : '#ef4444',
                     }}
                   >
-                    {invIsPaid && <Check size={20} />}
+                    {(invIsPaid || invIsScheduled) && <Check size={20} />}
                     <span data-testid="mf-invoice-open">{money(invOpen)}</span>
                   </div>
                 </div>

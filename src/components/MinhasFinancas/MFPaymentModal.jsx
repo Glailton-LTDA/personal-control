@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  useCreateMFTransaction,
+  usePayCardInvoice,
   buildCardPaymentTx,
   parseMoney,
   maskAmount,
@@ -21,21 +21,26 @@ import {
  */
 export default function MFPaymentModal({ card, invoice, user, onClose }) {
   const { t } = useTranslation();
-  const createTx = useCreateMFTransaction();
+  const payInvoice = usePayCardInvoice();
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
 
   const open = Number(invoice?.openAmount) || 0;
+  const pendingBound = Number(invoice?.pendingBound) || 0;
+  // Quanto ainda pode ser pago/realocado: em aberto + o que já está agendado
+  // (espelho, item 30). Com a fatura agendada, confirmar reajusta A MESMA
+  // linha — nunca um segundo débito.
+  const payable = Math.round((open + pendingBound) * 100) / 100;
 
   // Padrão: valor integral da fatura (máscara de centavos).
   useEffect(() => {
-    setAmount(open > 0 ? open.toFixed(2).replace('.', ',') : '');
-  }, [open]);
+    setAmount(payable > 0 ? payable.toFixed(2).replace('.', ',') : '');
+  }, [payable]);
 
   if (!card || !invoice) return null;
 
   const value = parseMoney(amount);
-  const invalid = !(value > 0) || value > open + 0.004;
+  const invalid = !(value > 0) || value > payable + 0.004;
   const today = toISODate(new Date());
   const scheduled = !!invoice.dueISO && invoice.dueISO > today;
   const formatDate = (iso) => {
@@ -50,7 +55,7 @@ export default function MFPaymentModal({ card, invoice, user, onClose }) {
       const payload = buildCardPaymentTx({
         userId: user.id,
         card,
-        invoice,
+        invoice: { ...invoice, openAmount: payable },
         amount: value,
         description: t('minhasfinancas.card_payment'),
       });
@@ -58,7 +63,7 @@ export default function MFPaymentModal({ card, invoice, user, onClose }) {
         setSaving(false);
         return;
       }
-      await createTx.mutateAsync(payload);
+      await payInvoice.mutateAsync({ card, invoice, payload, payable });
       toast.success(t('minhasfinancas.card_paid_toast'));
       onClose();
     } catch {
@@ -132,7 +137,7 @@ export default function MFPaymentModal({ card, invoice, user, onClose }) {
           />
           <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
             {t('minhasfinancas.card_open_amount')}:{' '}
-            {formatMoney(open, card.currency || 'BRL')}
+            {formatMoney(payable, card.currency || 'BRL')}
           </small>
         </div>
 

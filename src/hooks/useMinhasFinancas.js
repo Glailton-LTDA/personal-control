@@ -1774,11 +1774,18 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     .sort((a, b) => a.payment_date.localeCompare(b.payment_date));
 
   const boundByClose = {};
+  // Só o que está coberto por pagamento VINCULADO ainda PENDENTE — separa
+  // "fatura agendada" (espelho/travado no vencimento) de "fatura paga de
+  // verdade" (PAGO) na hora de rotular o status (item 30).
+  const pendingByClose = {};
   let fifoPool = 0;
   payments.forEach((tx) => {
     const value = Number(tx.amount) || 0;
     if (tx.invoice_close) {
       boundByClose[tx.invoice_close] = (boundByClose[tx.invoice_close] || 0) + value;
+      if (tx.status === 'PENDENTE') {
+        pendingByClose[tx.invoice_close] = (pendingByClose[tx.invoice_close] || 0) + value;
+      }
     } else if (tx.type === 'TRANSFERENCIA') {
       fifoPool += value;
     }
@@ -1862,15 +1869,22 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       Math.max(0, rawBound - billable) +
       Math.max(0, -total);
     const openAmount = round(Math.max(0, billable - bound - fromFifo));
+    const pendingBound = round(Math.min(pendingByClose[cycle.closeISO] || 0, billable));
     const status =
-      openAmount < 0.005 ? 'PAGA' : cycle.dueISO < refISO ? 'VENCIDA' : 'EM_ABERTO';
+      openAmount < 0.005
+        ? pendingBound > 0.005
+          ? 'AGENDADA'
+          : 'PAGA'
+        : cycle.dueISO < refISO
+          ? 'VENCIDA'
+          : 'EM_ABERTO';
     // Estornos (valores negativos na fatura) e o já pago (alocado) — bloco
     // "Fatura/Estornos/Pagamentos" do app original.
     const refunds = round(
       -rows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
     );
     const paid = round(Math.max(0, billable - openAmount));
-    invoices.push({ ...cycle, transactions: rows, total, refunds, paid, openAmount, status });
+    invoices.push({ ...cycle, transactions: rows, total, refunds, paid, openAmount, pendingBound, status });
   });
   invoices.reverse(); // mais recente primeiro (UI)
 
@@ -1901,6 +1915,7 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       const billable = Math.max(0, total);
       const bound = Math.min(boundByClose[cycle.closeISO] || 0, billable);
       const openAmount = round(Math.max(0, billable - bound));
+      const pendingBound = round(Math.min(pendingByClose[cycle.closeISO] || 0, billable));
       const refunds = round(
         -rows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
       );
@@ -1913,7 +1928,9 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
         refunds,
         paid,
         openAmount,
-        status: openAmount < 0.005 ? 'PAGA' : 'EM_ABERTO',
+        pendingBound,
+        status:
+          openAmount < 0.005 ? (pendingBound > 0.005 ? 'AGENDADA' : 'PAGA') : 'EM_ABERTO',
       };
     })
     .filter(Boolean);
@@ -1927,7 +1944,12 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     current = {
       ...closedMatch,
       kind: 'current',
-      status: closedMatch.total > 0 && closedMatch.openAmount < 0.005 ? 'PAGA' : 'CORRENTE',
+      status:
+        closedMatch.total > 0 && closedMatch.openAmount < 0.005
+          ? (closedMatch.pendingBound || 0) > 0.005
+            ? 'AGENDADA'
+            : 'PAGA'
+          : 'CORRENTE',
     };
   } else {
     const lastClosed = closed.length > 0 ? closed[0] : null;
@@ -1953,6 +1975,9 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       )
     );
     const currentOpen = round(Math.max(0, currentBillable - currentPaid));
+    const currentPendingBound = round(
+      Math.min(pendingByClose[currentCloseISO] || 0, currentBillable)
+    );
     const currentRefunds = round(
       -currentRows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
     );
@@ -1966,7 +1991,13 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       refunds: currentRefunds,
       paid: currentPaid,
       openAmount: currentOpen,
-      status: currentTotal > 0 && currentOpen < 0.005 ? 'PAGA' : 'CORRENTE',
+      pendingBound: currentPendingBound,
+      status:
+        currentTotal > 0 && currentOpen < 0.005
+          ? currentPendingBound > 0.005
+            ? 'AGENDADA'
+            : 'PAGA'
+          : 'CORRENTE',
     };
   }
 
@@ -2039,6 +2070,279 @@ export const buildCardPaymentTx = ({ userId, card, invoice, description, amount 
     invoice_close: invoice?.closeISO ?? null,
   };
 };
+
+/**
+ * Marcador do pagamento-espelho (item 30): a despesa que o agendador cria e
+ * mantém como reflexo da fatura na conta vinculada — valor sempre igual ao
+ * que falta cobrir (a fatura muda até o fechamento e o fechamento também
+ * pode mudar) e promovida para PAGO quando o vencimento passa ("não existe
+ * fatura vencida não paga"). Vive em `notes` (nota visível na UI); o
+ * "Reabrir" limpa o marcador e a linha passa a ser só do usuário — o
+ * agendador não toca mais (nem re-promove nem re-sincroniza).
+ */
+export const MF_INVOICE_PAYMENT_NOTE = 'Agendado automaticamente (fatura)';
+
+const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
+/**
+ * Item 30 — plano de sincronização do pagamento de fatura de um cartão
+ * (puro, sem I/O — testável direto):
+ *
+ * - fatura com valor e SEM nenhum pagamento vinculado não cancelado → cria o
+ *   espelho: vencimento futuro = PENDENTE no vencimento; já vencido = PAGO
+ *   na data do vencimento (entra no mês certo, sem fingir saldo "hoje");
+ * - espelho existente → sincroniza o valor com o que falta cobrir
+ *   (`openAmount` já desconta FIFO/parciais + o próprio espelho) e, se
+ *   marcado automaticamente e vencido, promove PENDENTE → PAGO;
+ * - pagamento criado por você (parcial/manual, sem marcador) → intocável:
+ *   não duplica e não revaloriza;
+ * - fatura zerada (só estornos) → apaga o espelho.
+ */
+export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, today }) => {
+  const creates = [];
+  const updates = [];
+  const deletes = [];
+  const seen = new Set();
+  (invoices || []).forEach((invoice) => {
+    if (!invoice?.closeISO || !invoice?.dueISO) return;
+    if (seen.has(invoice.closeISO)) return;
+    seen.add(invoice.closeISO);
+    const billable = Math.max(0, Number(invoice.total) || 0);
+    const boundRows = (transactions || []).filter(
+      (tx) =>
+        tx.type === 'DESPESA' &&
+        tx.account_id === card.linked_account_id &&
+        tx.invoice_close === invoice.closeISO &&
+        tx.status !== 'CANCELADO'
+    );
+    const mirror =
+      boundRows.find((tx) => tx.notes === MF_INVOICE_PAYMENT_NOTE) ?? null;
+    if (!(billable > 0)) {
+      if (mirror) deletes.push(mirror.id);
+      return;
+    }
+    const open = Number(invoice.openAmount) || 0;
+    if (mirror) {
+      const patch = {};
+      const target = roundMoney(open + (Number(mirror.amount) || 0));
+      if (Math.abs((Number(mirror.amount) || 0) - target) > 0.005) {
+        patch.amount = target;
+      }
+      if (invoice.dueISO <= today && mirror.status === 'PENDENTE') {
+        patch.status = 'PAGO';
+        patch.effective_date = invoice.dueISO;
+      }
+      if (Object.keys(patch).length > 0) updates.push({ id: mirror.id, patch });
+      return;
+    }
+    if (boundRows.length > 0) return; // pagamento seu (parcial/manual) — não mexe
+    if (!(open > 0.005)) return; // coberto só por FIFO/transferência antiga
+    const scheduled = invoice.dueISO > today;
+    creates.push({
+      user_id: userId,
+      type: 'DESPESA',
+      account_id: card.linked_account_id,
+      description: `Pagamento de fatura — ${card.name}`,
+      amount: roundMoney(open),
+      payment_date: invoice.dueISO,
+      due_date: scheduled ? invoice.dueISO : null,
+      effective_date: scheduled ? null : invoice.dueISO,
+      status: scheduled ? 'PENDENTE' : 'PAGO',
+      invoice_close: invoice.closeISO,
+      notes: MF_INVOICE_PAYMENT_NOTE,
+    });
+  });
+  return { creates, updates, deletes };
+};
+
+let mfScheduleRunning = false;
+
+/**
+ * Item 30 — agendador do pagamento-espelho: para cada cartão com conta
+ * vinculada, aplica planInvoicePaymentSync em todas as faturas (corrente,
+ * fechadas e futuras). Roda quando contas/lançamentos mudam, é idempotente
+ * (só grava quando há diferença) e best-effort (erro não derruba o módulo).
+ * Fora do modo teste: a unidade cobre o plano puro e o E2E roda em dev com
+ * o mock, exercitando o caminho real. Só enxerga cartões cuja conta
+ * vinculada está no mesmo escopo de perfis da tela — nunca grava pagamento
+ * fora do recorte visível.
+ */
+export function useMFScheduleCardPayments(user) {
+  const queryClient = useQueryClient();
+  const { data: accounts } = useMFAccounts(user);
+  const { data: transactions } = useMFAllTransactions(user);
+  useEffect(() => {
+    if (!user?.id || import.meta.env.MODE === 'test') return undefined;
+    if (mfScheduleRunning || !accounts || !transactions) return undefined;
+    const accountIds = new Set(accounts.map((row) => row.id));
+    const cards = accounts.filter(
+      (row) =>
+        row.account_type === 'CARTAO' &&
+        row.linked_account_id &&
+        accountIds.has(row.linked_account_id) &&
+        !row.archived_at
+    );
+    if (cards.length === 0) return undefined;
+    let cancelled = false;
+    (async () => {
+      mfScheduleRunning = true;
+      try {
+        const today = toISODate(new Date());
+        const creates = [];
+        const updates = [];
+        const deletes = [];
+        cards.forEach((card) => {
+          const { current, invoices, upcomingInvoices = [] } = buildCardInvoices({
+            card,
+            transactions,
+            refISO: today,
+            monthKey: currentMonthKey(),
+            count: 60,
+          });
+          const plan = planInvoicePaymentSync({
+            userId: user.id,
+            card,
+            invoices: [current, ...invoices, ...upcomingInvoices],
+            transactions,
+            today,
+          });
+          creates.push(...plan.creates);
+          updates.push(...plan.updates);
+          deletes.push(...plan.deletes);
+        });
+        if (
+          cancelled ||
+          (creates.length === 0 && updates.length === 0 && deletes.length === 0)
+        ) {
+          return;
+        }
+        if (creates.length > 0) {
+          await mfMutate({
+            table: 'mf_transactions',
+            action: 'insert',
+            payload: creates,
+            run: async () => {
+              const { data, error } = await supabase
+                .from('mf_transactions')
+                .insert(creates)
+                .select();
+              if (error) throw error;
+              return data ?? [];
+            },
+          });
+        }
+        for (const { id, patch } of updates) {
+          await mfMutate({
+            table: 'mf_transactions',
+            action: 'update',
+            id,
+            payload: patch,
+            run: async () => {
+              const { data, error } = await supabase
+                .from('mf_transactions')
+                .update(patch)
+                .eq('id', id)
+                .select()
+                .single();
+              if (error) throw error;
+              return data;
+            },
+          });
+        }
+        for (const id of deletes) {
+          await mfMutate({
+            table: 'mf_transactions',
+            action: 'delete',
+            id,
+            run: async () => {
+              const { error } = await supabase.from('mf_transactions').delete().eq('id', id);
+              if (error) throw error;
+              return id;
+            },
+          });
+        }
+        if (!cancelled) queryClient.invalidateQueries();
+      } catch {
+        /* agendador é best-effort */
+      } finally {
+        mfScheduleRunning = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, accounts, transactions, queryClient]);
+}
+
+/**
+ * Confirmação do modal de pagamento (item 30): se já existe despesa PENDENTE
+ * vinculada à fatura na conta do cartão (o espelho), ATUALIZA aquela linha —
+ * um único débito por fatura. Valor total → marcador automático (o agendador
+ * volta a sincronizar/promover); parcial → marcador sai: a linha é sua e o
+ * em aberto continua mostrando o resto. O eq() estreita no servidor e a
+ * triagem repetida no cliente cobre o mock do E2E, que devolve a tabela
+ * inteira no GET.
+ */
+export function usePayCardInvoice() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: async ({ card, invoice, payload, payable }) => {
+      const { data, error } = await supabase
+        .from('mf_transactions')
+        .select('*')
+        .eq('account_id', card.linked_account_id)
+        .eq('type', 'DESPESA')
+        .eq('invoice_close', invoice.closeISO)
+        .eq('status', 'PENDENTE');
+      if (error) throw error;
+      const existing =
+        (data ?? [])
+          .filter(
+            (row) =>
+              row.account_id === card.linked_account_id &&
+              row.type === 'DESPESA' &&
+              row.invoice_close === invoice.closeISO &&
+              row.status === 'PENDENTE'
+          )
+          .sort((a, b) =>
+            String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
+          )[0] ?? null;
+      const isFull = (Number(payload.amount) || 0) >= (Number(payable) || 0) - 0.005;
+      const patch = { ...payload, notes: isFull ? MF_INVOICE_PAYMENT_NOTE : null };
+      if (existing) {
+        return mfMutate({
+          table: 'mf_transactions',
+          action: 'update',
+          id: existing.id,
+          payload: patch,
+          run: async () => {
+            const { data: updated, error: updateError } = await supabase
+              .from('mf_transactions')
+              .update(patch)
+              .eq('id', existing.id)
+              .select();
+            if (updateError) throw updateError;
+            return updated ?? [];
+          },
+        });
+      }
+      return mfMutate({
+        table: 'mf_transactions',
+        action: 'insert',
+        payload: [patch],
+        run: async () => {
+          const { data: inserted, error: insertError } = await supabase
+            .from('mf_transactions')
+            .insert([patch])
+            .select();
+          if (insertError) throw insertError;
+          return inserted ?? [];
+        },
+      });
+    },
+    onSuccess: invalidate,
+  });
+}
 
 /**
  * Payload do estorno: lançamento negativo que anula o valor do original
