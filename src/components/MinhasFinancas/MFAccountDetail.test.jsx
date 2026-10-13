@@ -328,6 +328,18 @@ describe('MFAccountDetail', () => {
     clearInvoiceSel();
   });
 
+  /** Linha → modal Detalhes → Editar → tela completa. */
+  const openDetailEdit = async (rowTestId) => {
+    fireEvent.click(screen.getByTestId(rowTestId));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-edit'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+    });
+  };
+
 
   it('abre a tela de lancamento ao clicar numa linha da timeline', async () => {
     renderDetail();
@@ -336,9 +348,7 @@ describe('MFAccountDetail', () => {
       expect(screen.getByTestId('mf-timeline-item-tx-pending')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId('mf-timeline-item-tx-pending'));
-
-    expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+    await openDetailEdit('mf-timeline-item-tx-pending');
   });
 
   it('abre a tela de novo lancamento ja com a conta pre-preenchida', async () => {
@@ -487,12 +497,9 @@ describe('MFAccountDetail', () => {
     if (!screen.queryByTestId('mf-card-tx-row')) {
       fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-10-10'));
     }
-    fireEvent.click(screen.getByTestId('mf-card-tx-row'));
+    await openDetailEdit('mf-card-tx-row');
 
     // Mesmo fluxo dos demais lançamentos: MFTransacaoScreen pré-preenchida
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
-    });
     expect(screen.getByTestId('mf-tx-description')).toHaveValue('Compra no cartão');
 
     // Volta do detalhe
@@ -627,8 +634,7 @@ describe('MFAccountDetail', () => {
     // sem o botão na lista — só no formulário
     expect(screen.queryByTestId('mf-tx-delete')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-timeline-item-tx-paid'));
-    expect(await screen.findByTestId('mf-tx-screen')).toBeInTheDocument();
+    await openDetailEdit('mf-timeline-item-tx-paid');
     expect(screen.getByTestId('mf-tx-delete')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-tx-delete'));

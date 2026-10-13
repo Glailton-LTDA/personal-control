@@ -196,6 +196,18 @@ const openAdd = (kind = 'expense') => {
   fireEvent.click(screen.getByTestId(`mf-add-opt-${kind}`));
 };
 
+/** Lápis da linha → modal Detalhes → Editar → tela completa. */
+const openDetailEdit = async (rowTestId) => {
+  fireEvent.click(screen.getByTestId(rowTestId));
+  await waitFor(() => {
+    expect(screen.getByTestId('mf-tx-detail')).toBeInTheDocument();
+  });
+  fireEvent.click(screen.getByTestId('mf-tx-detail-edit'));
+  await waitFor(() => {
+    expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+  });
+};
+
 describe('Tela de Lançamentos (Fase 3)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -605,10 +617,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
         expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(5);
       });
 
-      fireEvent.click(screen.getByTestId('mf-tx-edit-tx-3'));
-      await waitFor(() => {
-        expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
-      });
+      await openDetailEdit('mf-tx-edit-tx-3');
 
       fireEvent.click(screen.getByTestId('mf-tx-delete'));
       await waitFor(() => {
@@ -757,8 +766,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
     });
 
-    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-3'));
-    expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+    await openDetailEdit('mf-tx-edit-tx-3');
     expect(screen.getByTestId('mf-tx-description')).toHaveValue('Curso online');
     // Parcela existente não mostra o campo de parcelas
     expect(screen.queryByTestId('mf-tx-installments')).not.toBeInTheDocument();
@@ -1015,6 +1023,56 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(popover.querySelectorAll('[role="option"]')).toHaveLength(26);
   });
 
+  it('"Despesa cartão" parcelada ancora as filhas na fatura da cabeça', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('cardExpense');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-account')).toHaveTextContent('Cartão Visa');
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Vacina ancorada' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '186,84' } });
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-08-27' },
+    });
+    // Cartão do mock sem closing_day → C=1: cabeça vai para setembro/2026
+    // (fecha 01/09) mesmo lançada em agosto
+    fireEvent.click(screen.getByTestId('mf-tx-invoice'));
+    fireEvent.click(screen.getByTestId('mf-tx-invoice-option-2026-09-01'));
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-open'));
+    fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
+    // fecha o aviso de fatura fechada (setembro já fechou)
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-closed-invoice')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-closed-invoice-option-continue'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    // cabeça em setembro, filha em outubro (não colidem na mesma fatura)
+    expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
+      invoice_close: '2026-09-01',
+      installments_current: 1,
+      installments_total: 2,
+    });
+    expect(chain.insert.mock.calls[1][0][0]).toMatchObject({
+      invoice_close: '2026-10-01',
+      installments_current: 2,
+      installments_total: 2,
+      payment_date: '2026-09-27',
+    });
+    localStorage.removeItem('mf_closed_invoice_warn_off');
+  });
+
   it('"Despesa cartão" parcelada grava cabeça e filhas como PAGO com fatura vinculada', async () => {
     renderScreen();
     await waitFor(() => {
@@ -1067,18 +1125,12 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
 
     // tx-2 é avulso (recurrence NONE) → pode virar série na edição
-    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-2'));
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
-    });
+    await openDetailEdit('mf-tx-edit-tx-2');
     expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('mf-tx-back'));
 
     // tx-3 já é parcela (2/12) → repetição não aparece
-    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-3'));
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-tx-type-badge')).toBeInTheDocument();
-    });
+    await openDetailEdit('mf-tx-edit-tx-3');
     expect(screen.queryByTestId('mf-tx-repeat')).not.toBeInTheDocument();
   });
 
@@ -1087,10 +1139,8 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
     });
 
-    fireEvent.click(screen.getByTestId('mf-tx-edit-tx-2'));
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
-    });
+    await openDetailEdit('mf-tx-edit-tx-2');
+    expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('mf-tx-repeat-open'));
     fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
     fireEvent.click(screen.getByTestId('mf-tx-save'));

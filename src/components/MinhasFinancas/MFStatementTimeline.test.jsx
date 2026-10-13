@@ -198,6 +198,23 @@ describe('MFStatementTimeline', () => {
     expect(screen.getByTestId('mf-timeline-empty')).toBeInTheDocument();
   });
 
+  it('x limpa a busca e mostra tudo de novo', async () => {
+    renderTimeline();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-timeline-search-clear')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('mf-timeline-search'), { target: { value: 'luz' } });
+    expect(screen.queryByTestId('mf-timeline-item-tx-d')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-timeline-search-clear'));
+    expect(screen.getByTestId('mf-timeline-search')).toHaveValue('');
+    expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-timeline-search-clear')).not.toBeInTheDocument();
+  });
+
   it('efetiva o pendente pela linha', async () => {
     renderTimeline();
 

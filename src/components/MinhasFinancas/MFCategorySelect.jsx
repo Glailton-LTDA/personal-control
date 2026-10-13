@@ -186,8 +186,27 @@ export default function MFCategorySelect({
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t('minhasfinancas.select_search')}
               autoFocus
-              style={{ padding: '0.5rem 0.75rem 0.5rem 2rem', fontSize: '0.85rem', width: '100%' }}
+              style={{ padding: '0.5rem 2.1rem 0.5rem 2rem', fontSize: '0.85rem', width: '100%' }}
             />
+            {search !== '' && (
+              <button
+                type="button"
+                className="icon-btn"
+                data-testid={`${testId}-search-clear`}
+                aria-label={t('minhasfinancas.search_clear')}
+                title={t('minhasfinancas.search_clear')}
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: '0.35rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  padding: '0.25rem',
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           <div style={{ overflowY: 'auto', maxHeight: 260 }}>

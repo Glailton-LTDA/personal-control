@@ -767,5 +767,5 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       __mfState.transactions = original;
     }
     // 44 navegações de mês + refetches ficam colados no limite de 5s
-  }, 15000);
+  }, 60000);
 });

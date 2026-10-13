@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -634,5 +634,62 @@ describe('fatura corrente = fatura do mês (vencimento), com pagamento como desp
       ],
     });
     expect(current.total).toBe(0);
+  });
+});
+
+describe('planCardAnticipation — antecipar parcelas de cartão', () => {
+  // 1000 em 4x: nov 1/4, dez 2/4, jan 3/4, fev 4/4 (exemplo do usuário).
+  const series4x = () => [
+    { id: 'p1', payment_date: '2026-11-10', amount: 250, invoice_close: '2026-10-30', installments_current: 1, installments_total: 4 },
+    { id: 'p2', payment_date: '2026-12-10', amount: 250, invoice_close: '2026-11-30', installments_current: 2, installments_total: 4 },
+    { id: 'p3', payment_date: '2027-01-10', amount: 250, invoice_close: '2026-12-30', installments_current: 3, installments_total: 4 },
+    { id: 'p4', payment_date: '2027-02-10', amount: 250, invoice_close: '2027-01-30', installments_current: 4, installments_total: 4 },
+  ];
+
+  it('antecipar 1: 2/4 vai ao destino, 3/4 e 4/4 sobem (shift reverso)', () => {
+    const { moves, moved, shifted } = planCardAnticipation({
+      series: series4x(),
+      anchorId: 'p1',
+      count: 1,
+      targetClose: '2026-10-30',
+    });
+    expect(moved.map((row) => row.id)).toEqual(['p2']);
+    expect(shifted.map((row) => row.id)).toEqual(['p3', 'p4']);
+    expect(moves).toEqual([
+      { id: 'p2', invoice_close: '2026-10-30' },
+      { id: 'p3', invoice_close: '2026-11-30' },
+      { id: 'p4', invoice_close: '2026-12-30' },
+    ]);
+  });
+
+  it('antecipar todas esvazia as faturas futuras', () => {
+    const { moves, moved, shifted } = planCardAnticipation({
+      series: series4x(),
+      anchorId: 'p1',
+      count: 3,
+      targetClose: '2026-10-30',
+    });
+    expect(moved.map((row) => row.id)).toEqual(['p2', 'p3', 'p4']);
+    expect(shifted).toEqual([]);
+    expect(moves.every((move) => move.invoice_close === '2026-10-30')).toBe(true);
+  });
+
+  it('conta além das restantes limita a todas; zero ou sem destino não move', () => {
+    const over = planCardAnticipation({
+      series: series4x(),
+      anchorId: 'p1',
+      count: 9,
+      targetClose: '2026-10-30',
+    });
+    expect(over.moved).toHaveLength(3);
+    expect(planCardAnticipation({ series: series4x(), anchorId: 'p1', count: 0, targetClose: '2026-10-30' }).moves).toEqual([]);
+    expect(planCardAnticipation({ series: series4x(), anchorId: 'p1', count: 1, targetClose: '' }).moves).toEqual([]);
+  });
+
+  it('isParceladaTx: só série N/M com total > 1', () => {
+    expect(isParceladaTx({ installments_total: 4 })).toBe(true);
+    expect(isParceladaTx({ installments_total: 1 })).toBe(false);
+    expect(isParceladaTx({})).toBe(false);
+    expect(isParceladaTx(null)).toBe(false);
   });
 });

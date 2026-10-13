@@ -23,6 +23,8 @@ import {
   Zap,
   Users,
   Sprout,
+  WashingMachine,
+  Refrigerator,
 } from 'lucide-react';
 
 /**
@@ -220,4 +222,39 @@ export const MF_GLYPH_ICONS = {
   energy: Zap,
   family: Users,
   farm: Sprout,
+  washer: WashingMachine,
+  fridge: Refrigerator,
+};
+
+/**
+ * Busca dos glifos em português (o seletor normaliza o termo com
+ * mfNormalize) — ex.: "maquina de lavar" → glyph:washer.
+ */
+export const MF_GLYPH_KEYWORDS = {
+  landmark: 'banco tesouro financas',
+  piggy: 'cofre cofrinho poupanca',
+  invest: 'investimento renda fixa',
+  bolsa: 'acoes bolsa mercado',
+  cash: 'dinheiro dinheiro em especie',
+  crypto: 'cripto bitcoin criptomoeda',
+  wallet: 'carteira',
+  card: 'cartao credito debito',
+  globe: 'mundo internacional pais',
+  work: 'trabalho emprego escritorio',
+  realestate: 'imovel apartamento terreno',
+  coins: 'moedas troco',
+  dollar: 'dolar moeda',
+  rocket: 'startup lancamento crescimento',
+  home: 'casa lar moradia',
+  car: 'carro automovel veiculo',
+  plane: 'viagem aviao aeroporto passagem',
+  shopping: 'compras loja varejo',
+  gift: 'presente premio',
+  study: 'estudo escola curso faculdade',
+  health: 'saude medico hospital plano',
+  energy: 'energia luz eletrica conta de luz',
+  family: 'familia pessoas convivio',
+  farm: 'fazenda campo roca agricultura',
+  washer: 'maquina de lavar lavanderia roupa',
+  fridge: 'geladeira refrigerador freezer congelador',
 };

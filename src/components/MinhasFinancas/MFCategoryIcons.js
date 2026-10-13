@@ -29,7 +29,8 @@ export const MF_CATEGORY_ICONS = [
   '🐼', '🦁', '🍽️', '🌊', '🏞️', '🪕', '👨', '👩',
   '🧒', '👧', '🇧🇷', '🇺🇸', '🇪🇺', '🇵🇹', '🇦🇷', '🇺🇾',
   '🇨🇱', '🇵🇾', '🇪🇸', '🇮🇹', '🇯🇵', '🇨🇳', 'R$', 'US$',
-  '€', '🍳',
+  '€', '🍳', '👔', '👖', '🩳', '🤵', '👦', '🧓',
+  '👴', '👵', '👪', '👨‍👩‍👧‍👦', '👨‍👩‍👦', '👩‍👧‍👦', '👨‍👧‍👦', '👚',
 ];
 
 /**
@@ -252,6 +253,20 @@ export const MF_ICON_KEYWORDS = {
   'US$': 'dolar americano eua moeda dinheiro usd',
   '€': 'euro europa moeda dinheiro eur',
   '🍳': 'frigideira fritura ovo cozinha fogao',
+  '👔': 'gravata camisa social trabalho formatura',
+  '👖': 'calca jeans roupa moda',
+  '🩳': 'bermuda shorts roupa moda praia',
+  '🤵': 'terno smoking noivo formatura noivado',
+  '👦': 'menino filho crianca',
+  '🧓': 'avo idoso',
+  '👴': 'avo idoso',
+  '👵': 'avo idosa',
+  '👪': 'familia pai mae filho',
+  '👨‍👩‍👧‍👦': 'familia pai mae filho filha',
+  '👨‍👩‍👦': 'familia pai mae filho',
+  '👩‍👧‍👦': 'familia mae filho filha',
+  '👨‍👧‍👦': 'familia pai filho filha',
+  '👚': 'blusa camisa roupa moda feminina',
 };
 
 /** Busca de ícone: termo normalizado (sem acento/caixa) nas palavras-chave. */

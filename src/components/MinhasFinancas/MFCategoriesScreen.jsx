@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
@@ -327,8 +327,27 @@ export default function MFCategoriesScreen({ user, onBack }) {
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('minhasfinancas.cat_search')}
             aria-label={t('minhasfinancas.cat_search')}
-            style={{ width: '100%', padding: '0.55rem 0.8rem 0.55rem 2.1rem', fontSize: '0.88rem' }}
+            style={{ width: '100%', padding: '0.55rem 2.2rem 0.55rem 2.1rem', fontSize: '0.88rem' }}
           />
+          {search !== '' && (
+            <button
+              type="button"
+              className="icon-btn"
+              data-testid="mf-cat-search-clear"
+              aria-label={t('minhasfinancas.search_clear')}
+              title={t('minhasfinancas.search_clear')}
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: '0.45rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                padding: '0.25rem',
+              }}
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
 
         {/* Árvore */}

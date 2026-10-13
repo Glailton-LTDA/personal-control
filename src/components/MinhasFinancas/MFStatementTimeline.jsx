@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight, Send } from 'lucide-react';
+import { ArrowLeftRight, Send, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNotificationSettings } from '../../hooks/useFinance';
 import {
@@ -101,7 +101,10 @@ export default function MFStatementTimeline({
   const formatDay = (iso) => {
     const date = parseISODate(iso);
     const weekday = new Intl.DateTimeFormat(i18n.language, { weekday: 'long' }).format(date);
-    return `${date.getDate()} • ${weekday}`;
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yy = String(date.getFullYear()).slice(2);
+    return `${dd}/${mm}/${yy} • ${weekday}`;
   };
 
   /** Efetiva um lançamento agendado (PENDENTE) — igual ao Extrato. */
@@ -149,15 +152,36 @@ export default function MFStatementTimeline({
 
   return (
     <div data-testid="mf-timeline" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      <input
-        type="text"
-        className="glass-input"
-        data-testid="mf-timeline-search"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder={t('minhasfinancas.timeline_search')}
-        style={{ width: '100%', padding: '0.5rem 0.8rem', fontSize: '0.85rem' }}
-      />
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          className="glass-input"
+          data-testid="mf-timeline-search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t('minhasfinancas.timeline_search')}
+          style={{ width: '100%', padding: '0.5rem 2.2rem 0.5rem 0.8rem', fontSize: '0.85rem' }}
+        />
+        {search !== '' && (
+          <button
+            type="button"
+            className="icon-btn"
+            data-testid="mf-timeline-search-clear"
+            aria-label={t('minhasfinancas.timeline_search_clear')}
+            title={t('minhasfinancas.timeline_search_clear')}
+            onClick={() => setSearch('')}
+            style={{
+              position: 'absolute',
+              right: '0.4rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              padding: '0.25rem',
+            }}
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
 
       {isLoading ? (
         <div

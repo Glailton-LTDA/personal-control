@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Receipt, ArrowRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { supabase } from '../../lib/supabase';
 import {
   useMFStatement,
   useMFCategories,
@@ -16,6 +17,8 @@ import MFMonthNav from './MFMonthNav';
 import MFCurrencyFilter from './MFCurrencyFilter';
 import MFSelect from './MFSelect';
 import MFCategoryAvatar from './MFCategoryAvatar';
+import MFTransacaoScreen from './MFTransacaoScreen';
+import MFTxDetailModal from './MFTxDetailModal';
 
 /**
  * Extrato do mês: movimentações agrupadas com saldo corrente,
@@ -31,6 +34,10 @@ export default function MFExtrato({
   const { t, i18n } = useTranslation();
   const [accountFilter, setAccountFilter] = useState('all');
   const [currency, setCurrency] = useState('all');
+  // Detalhes do lançamento (resumo + menu ⋮; editar abre a tela).
+  const [detailTx, setDetailTx] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [screenOpen, setScreenOpen] = useState(false);
   const { data, isLoading, isError } = useMFStatement(
     user,
     monthKey,
@@ -66,6 +73,28 @@ export default function MFExtrato({
     t(`minhasfinancas.status_${String(status).toLowerCase()}`);
 
   const updateTx = useUpdateMFTransaction();
+
+  /** Abre os Detalhes (busca os vínculos de tag direto). */
+  const openTx = async (tx) => {
+    let tagIds = [];
+    try {
+      const { data } = await supabase
+        .from('mf_transaction_tags')
+        .select('tag_id')
+        .eq('transaction_id', tx.id);
+      tagIds = (data ?? []).map((row) => row.tag_id);
+    } catch {
+      tagIds = [];
+    }
+    setDetailTx({ ...tx, tagIds });
+  };
+
+  /** Do modal Detalhes → tela completa de edição. */
+  const openFullEdit = (tx) => {
+    setDetailTx(null);
+    setEditing(tx);
+    setScreenOpen(true);
+  };
 
   /** Efetiva um lançamento agendado (PENDENTE): o dinheiro saiu de fato. */
   const handleSettle = async (tx) => {
@@ -218,12 +247,24 @@ export default function MFExtrato({
                 <div
                   key={tx.id}
                   data-testid="mf-statement-item"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openTx(tx)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openTx(tx);
+                    }
+                  }}
+                  className="table-row-hover"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.9rem',
                     padding: '0.7rem 0',
                     borderBottom: '1px dashed var(--glass-border)',
+                    cursor: 'pointer',
                   }}
                 >
                   {category ? (
@@ -315,7 +356,10 @@ export default function MFExtrato({
                         type="button"
                         className="btn-primary"
                         data-testid="mf-statement-settle"
-                        onClick={() => handleSettle(tx)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleSettle(tx);
+                        }}
                         style={{
                           marginTop: '0.35rem',
                           fontSize: '0.7rem',
@@ -331,6 +375,28 @@ export default function MFExtrato({
             })}
           </div>
         ))}
+      {/* Detalhes do lançamento (resumo + menu ⋮) */}
+      {detailTx && (
+        <MFTxDetailModal
+          tx={detailTx}
+          tagIds={detailTx.tagIds || []}
+          user={user}
+          onClose={() => setDetailTx(null)}
+          onEditFull={openFullEdit}
+        />
+      )}
+      {/* Tela completa de edição */}
+      {screenOpen && (
+        <MFTransacaoScreen
+          tx={editing}
+          user={user}
+          accountScope="all"
+          onClose={() => {
+            setScreenOpen(false);
+            setEditing(null);
+          }}
+        />
+      )}
     </div>
   );
 }

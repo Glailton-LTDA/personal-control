@@ -1476,3 +1476,72 @@ Itens ativos, na ordem de atendimento:
       nov (2026-10-30). Testes atualizados ao modelo (corrente do
       mês, fallback por mês, DESPESA) +3 novos;
       gates verdes (ESLint 0 · Vitest 67/501 · E2E 41/41 `--workers=1`).
+    - **Fase E — modal Detalhes + antecipar parcelas de cartão (rodada
+      12/10, IMPLEMENTADO, sem commit)**: clique na despesa abre
+      `MFTxDetailModal` (resumo, edição rápida com o mesmo seletor de
+      tags da criação — criar nova tag incluso, toggle Pendente,
+      lápis/lixeira/⋮); vale para QUALQUER transação (Transações,
+      timeline do detalhe, fatura e Extrato — linhas do Extrato
+      clicáveis); menu ⋮ com Editar/Excluir/Alterar Valor/Duplicar
+      (submenu só em DESPESA: como Despesa de cartão/Transferência/
+      Compensação-espelho, com destino + escopo)/Visualizar parcelas/
+      Antecipar (só se parcelada)/Transformar em débito/Mover p/
+      próxima fatura/Estornar (só cartão)/Efetivada-toggle (só
+      transferência); transferência mostra Situação, Data de
+      Efetivação e bloco de→para; escopo só-esta/daqui-em-diante/
+      todas; `Antecipar` abre `MFCardAnticipateModal` (N + desconto +
+      fatura destino, `planCardAnticipation` com shift reverso,
+      parcelas mantêm o valor, desconto vira estorno separado) ou o
+      genérico fora do cartão; atalho antecipar da lista roteia p/ o
+      modal do cartão; Visualizar parcelas em modal dedicado (N/M,
+      data, fatura, status, valor; avisa "X de N" em série órfã);
+      timeline com data completa no cabeçalho do dia ("13/08/26 •
+      quinta-feira"); filhas mensais ancoradas na fatura da cabeça
+      (cabeça à frente não colide: 1/10 em set, 2/10 em out — antes a
+      2/10 caía no mês dela e duplicava na fatura; reparo Vacinas
+      2–10/10 +1 mês);
+      testes +22 (`planCardAnticipation` 4, modais 17, E2E 1);
+      gates verdes (ESLint 0 · Vitest 69/523 · E2E 42/42 `--workers=1`).
+      Detalhes do plano original e respostas do usuário (12/10):
+      parcela mantém o valor, desconto vira estorno separado na
+      fatura destino; Alterar/Duplicar/Mover/Transformar com escopo
+      só-esta/daqui-em-diante/todas; Antecipar só se parcelada.
+    - **Busca com X + ícones de categoria (rodada 12/10, rodada 3,
+      IMPLEMENTADO, sem commit)**: (a) **X para limpar filtro** em 6
+      campos de busca do MF — cronologia
+      (`mf-statement-search-clear`), tela de categorias
+      (`mf-cat-search-clear`), seletor de categoria
+      (`mf-tx-category-search-clear`), busca de ícone do modal
+      (`mf-cat-modal-icon-search-clear`), Transações
+      (`mf-tx-search-clear`) e Contas (`mf-accounts-search-clear`);
+      chave i18n `search_clear` (pt/en/es). (b) **Ícones de categoria
+      expandidos**: emojis novos na grade `MF_CATEGORY_ICONS` — calça
+      👖, bermuda 🩳, terno 🤵, gravata 👔, blusa 👚, família
+      👪👨‍👩‍👧‍👦👨‍👩‍👦👩‍👧‍👦👨‍👧‍👦 + 👦🧓👴👵 — com palavras-chave em
+      `MF_ICON_KEYWORDS`. (c) **Glifos novo-especial**: `washer`
+      (`WashingMachine`) e `fridge` (`Refrigerator`) no
+      `MF_GLYPH_ICONS` + mapa `MF_GLYPH_KEYWORDS` (busca em pt,
+      ex.: "geladeira" acha `glyph:fridge`). (d) **Marcas de banco
+      como ícone de categoria** (pedido do usuário): o seletor do
+      modal ganhou seções de marcas (`mf-cat-modal-brand-<marca>`) e
+      glifos (`mf-cat-modal-glyph-<chave>`) além dos emojis, tudo
+      filtrado pela mesma busca; `MFCategoryAvatar` renderiza
+      `brand:`/`glyph:` delegando ao `MFAccountIcon` (logotipo SVG
+      embutido, como contas/grupos já faziam).
+      Testes +4 (`MFCategoriesScreen` 3: busca de novos ícones,
+      marca de banco salva, X da busca de ícone; `MFCategorySelect` 1:
+      X limpa o filtro); gates parciais verdes (ESLint 0 · categorias
+      16/16 · seletor 6/6 · transações/contas/extrato/timeline/config
+      verdes).
+28. **Fatura marcada como vencida antes do vencimento** (task do usuário
+    12/10): investigar por que uma fatura aparece **VENCIDA** mesmo
+    quando a data de vencimento ainda não chegou — provável confusão
+    entre `invoice_close`/`due_day` e o status calculado (antes do
+    vencimento o status deveria ser "em aberto/aguardando", não
+    vencida). Corrigir a regra + teste de regressão.
+29. **Calculadora no valor** (melhoria pedida 12/10): (a) clicar no
+    valor nos Detalhes abre uma calculadora (C, %, ÷ × − +, backspace,
+    00, vírgula ✓); ao confirmar altera o valor e, se a transação for
+    de série, pergunta o escopo ("Alterar apenas esta" / "Alterar esta
+    e as próximas" / "todas"); (b) o editor de novo lançamento ganha
+    botão de calculadora ao lado do campo Valor (e Encargos/Desconto).

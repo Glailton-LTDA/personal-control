@@ -400,6 +400,89 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     expect(paid.invoice_close).toBeTruthy();
   });
 
+  test('antecipar parcelas do cartão move as futuras e lança o estorno', async ({ page }) => {
+    const today = localISO();
+    const plusMonth = (iso, n) => {
+      const [y, m, d] = iso.split('-').map(Number);
+      const date = new Date(y, m - 1 + n, d);
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${date.getFullYear()}-${mm}-${dd}`;
+    };
+    const card = {
+      id: 'acc-e2e-card',
+      name: 'Visa E2E',
+      account_type: 'CARTAO',
+      currency: 'BRL',
+      closing_day: 10,
+      due_day: 20,
+      credit_limit: 5000,
+      linked_account_id: 'acc-e2e',
+      sort_order: 2,
+    };
+
+    await login(page);
+    // Parcelado 4x de 250 a partir de hoje (sem vínculo: cada uma na sua fatura)
+    page.mfStore.mf_accounts.push(card);
+    page.mfStore.mf_transactions = [1, 2, 3, 4].map((n) => ({
+      id: `tx-e2e-${n}`,
+      account_id: 'acc-e2e-card',
+      type: 'DESPESA',
+      description: 'Parcela E2E',
+      amount: 250,
+      payment_date: plusMonth(today, n - 1),
+      status: 'PAGO',
+      installments_current: n,
+      installments_total: 4,
+      parent_transaction_id: n === 1 ? null : 'tx-e2e-1',
+    }));
+    await openMinhasFinancas(page);
+
+    const patches = [];
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/rest/v1/mf_transactions') &&
+        request.method() === 'PATCH'
+      ) {
+        try {
+          patches.push(JSON.parse(request.postData() || '{}'));
+        } catch {
+          /* ignora */
+        }
+      }
+    });
+
+    await page.getByTestId('sidebar-sub-item-minhasfinancas-cards').click();
+    await expect(page.getByTestId('mf-cartoes')).toBeVisible();
+    await page.getByTestId('mf-open-card-acc-e2e-card').click();
+    await expect(page.getByTestId('mf-acct-det-invoices')).toBeVisible();
+
+    // Linha da 1/4 (fatura corrente) → Detalhes → ⋮ → Antecipar parcelas
+    await page.getByTestId('mf-card-tx-row').first().click();
+    await expect(page.getByTestId('mf-tx-detail')).toBeVisible();
+    await page.getByTestId('mf-tx-detail-menu').click();
+    await page.getByTestId('mf-tx-detail-menu-anticipate').click();
+    await expect(page.getByTestId('mf-card-anticipate-modal')).toBeVisible();
+    await expect(page.getByTestId('mf-card-anticipate-count')).toHaveValue('3');
+
+    // Desconto de R$ 5,00 vira estorno separado na fatura destino
+    await page.getByTestId('mf-card-anticipate-discount').fill('500');
+    await page.getByTestId('mf-card-anticipate-confirm').click();
+    await expect(page.getByTestId('mf-card-anticipate-modal')).toBeHidden();
+
+    // 3 parcelas mudaram para a mesma fatura (a corrente)
+    await expect.poll(() => patches.length).toBe(3);
+    const closes = patches.map((body) => body.invoice_close);
+    expect(new Set(closes).size).toBe(1);
+    expect(closes[0]).toBeTruthy();
+    // estorno negativo na fatura destino entrou no store
+    const estorno = page.mfStore.mf_transactions.find(
+      (tx) => tx.type === 'DESPESA' && Number(tx.amount) === -5
+    );
+    expect(estorno).toBeTruthy();
+    expect(estorno.invoice_close).toBe(closes[0]);
+  });
+
   test('Felix recebe sugestão e responde no chat', async ({ page }) => {
     const sentBodies = [];
     page.on('request', (request) => {

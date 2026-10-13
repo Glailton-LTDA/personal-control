@@ -10,6 +10,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ### Alterado
 - **Modelo de fatura de cartão**: despesa pertence à fatura escolhida (data é só rótulo, default = fatura do mês); "Fatura corrente" = fatura do mês calendário (rotulada pelo vencimento, pode estar PAGA); detalhe mostra Fechamento + Vencimento; pagamento vira DESPESA na conta vinculada, sem transação no cartão; cartão sem bloco de saldo/transferências na movimentação, extrato e timeline.
+- **Detalhes do lançamento + antecipação de cartão**: clique na despesa abre o modal Detalhes (resumo, edição rápida com criar tag, toggle Pendente, menu ⋮ com 9 ações e escopo de série) em qualquer transação (Transações, timeline, fatura, Extrato); Duplicar vira submenu só em despesa (como cartão/transferência/compensação); transferência mostra de→para; antecipar move N parcelas à fatura destino com shift reverso e estorno separado do desconto (só se parcelada).
+- **Busca com X para limpar**: cronologia, tela de categorias, seletor de categoria, busca de ícone do modal, Transações e Contas ganham o botão × ao lado do campo de busca.
+- **Mais ícones de categoria**: emojis novos (calça 👖, bermuda 🩳, terno 🤵, família 👪👨‍👩‍👧‍👦👨‍👩‍👦👩‍👧‍👦👨‍👧‍👦 e outros) com palavras-chave em pt/en/es; glifos máq. de lavar e geladeira; e **marcas de banco** (SVGs de `public/mf-brands`) agora podem ser escolhidas como ícone de categoria (gravado como `brand:<chave>`, render pelo `MFAccountIcon`).
+- **Resumo do Detalhes**: linha de Tags com chips e Categoria/Subcategoria como pílulas coloridas; cabeçalho do dia da cronologia com data completa ("13/08/26 • quinta-feira"); filhas mensais de série de cartão ancoram na fatura da cabeça + N.
 - **Anti-duplicada**: criar série fixa/parcelada/repetida com mesmo nome no mês pede confirmação.
 
 ## [1.7.1] - 2026-07-17

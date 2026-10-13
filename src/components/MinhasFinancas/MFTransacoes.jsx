@@ -12,6 +12,7 @@ import {
   FastForward,
   Loader2,
   Send,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
@@ -43,6 +44,8 @@ import MFMonthNav from './MFMonthNav';
 import MFCurrencyFilter from './MFCurrencyFilter';
 import MFTransacaoScreen from './MFTransacaoScreen';
 import MFAnticipateModal from './MFAnticipateModal';
+import MFCardAnticipateModal from './MFCardAnticipateModal';
+import MFTxDetailModal from './MFTxDetailModal';
 import MFSelect from './MFSelect';
 import MFAddMenu from './MFAddMenu';
 import MFTransferModal from './MFTransferModal';
@@ -126,6 +129,9 @@ export default function MFTransacoes({
   const [newKind, setNewKind] = useState(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [anticipateTx, setAnticipateTx] = useState(null);
+  const [cardAnticipateTx, setCardAnticipateTx] = useState(null);
+  // Detalhes do lançamento (modal resumo + menu ⋮; editar abre a tela)
+  const [detailTx, setDetailTx] = useState(null);
   // Diálogo de escolha da série fixa (excluir escopo / contabilizar mês)
   const [choice, setChoice] = useState(null);
 
@@ -424,9 +430,27 @@ export default function MFTransacoes({
   };
 
   const openEdit = (tx) => {
-    setEditing({ ...tx, tagIds: tagIdsByTx[tx.id] || [] });
+    setDetailTx({ ...tx, tagIds: tagIdsByTx[tx.id] || [] });
+  };
+
+  /** Do modal Detalhes → tela completa de edição. */
+  const openFullEdit = (tx) => {
+    setDetailTx(null);
+    setEditing(tx);
     setNewKind(null);
     setScreenOpen(true);
+  };
+
+  /** Antecipar: cartão parcelado usa o modal da fatura; demais, o genérico. */
+  const openAnticipate = (tx) => {
+    if (
+      accountById[tx.account_id]?.account_type === 'CARTAO' &&
+      (Number(tx.installments_total) || 0) > 1
+    ) {
+      setCardAnticipateTx(tx);
+    } else {
+      setAnticipateTx(tx);
+    }
   };
 
   const headers = [
@@ -534,8 +558,27 @@ export default function MFTransacoes({
             placeholder={t('minhasfinancas.tx_search_placeholder')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            style={{ width: '100%', padding: '0.6rem 0.8rem 0.6rem 2.3rem' }}
+            style={{ width: '100%', padding: '0.6rem 2.2rem 0.6rem 2.3rem' }}
           />
+          {search !== '' && (
+            <button
+              type="button"
+              className="icon-btn"
+              data-testid="mf-tx-search-clear"
+              aria-label={t('minhasfinancas.search_clear')}
+              title={t('minhasfinancas.search_clear')}
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: '0.5rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                padding: '0.25rem',
+              }}
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
         <MFSelect
           testId="mf-tx-filter-status"
@@ -984,7 +1027,7 @@ export default function MFTransacoes({
                               data-testid={`mf-tx-anticipate-${tx.id}`}
                               aria-label={t('minhasfinancas.anticipate_action')}
                               title={t('minhasfinancas.anticipate_action')}
-                              onClick={() => setAnticipateTx(tx)}
+                              onClick={() => openAnticipate(tx)}
                             >
                               <FastForward size={15} />
                             </button>
@@ -1047,6 +1090,17 @@ export default function MFTransacoes({
         </div>
       )}
 
+      {/* Detalhes do lançamento (resumo + menu ⋮; editar abre a tela) */}
+      {detailTx && (
+        <MFTxDetailModal
+          tx={detailTx}
+          tagIds={detailTx.tagIds || []}
+          user={user}
+          onClose={() => setDetailTx(null)}
+          onEditFull={openFullEdit}
+        />
+      )}
+
       {/* Antecipação de parcelas: escolher quantas + desconto */}
       {anticipateTx && (
         <MFAnticipateModal
@@ -1054,6 +1108,16 @@ export default function MFTransacoes({
           user={user}
           currency={accountById[anticipateTx.account_id]?.currency || 'BRL'}
           onClose={() => setAnticipateTx(null)}
+        />
+      )}
+
+      {/* Antecipação de parcelas do cartão (entre faturas + estorno) */}
+      {cardAnticipateTx && (
+        <MFCardAnticipateModal
+          tx={cardAnticipateTx}
+          card={accountById[cardAnticipateTx.account_id] ?? null}
+          user={user}
+          onClose={() => setCardAnticipateTx(null)}
         />
       )}
 

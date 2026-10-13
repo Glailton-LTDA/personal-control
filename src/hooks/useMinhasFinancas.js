@@ -86,6 +86,8 @@ export const FIXED_EXTEND_STORAGE = 'mf_fixed_extend_at';
  * `is_fixed = false` encerrou a série ("excluir a partir deste mês")
  * e é ignorada. Cada nova ocorrência clona a ÚLTIMA da série (edições
  * recentes de valor/descrição são replicadas); retorna payloads sem id.
+ * Despesa de cartão com fatura (`invoice_close`) ancora as novas
+ * ocorrências na fatura da última + N (não no mês da data).
  */
 export const planFixedExtensions = (rows, todayISO) => {
   if (!Array.isArray(rows) || rows.length === 0) return [];
@@ -122,6 +124,7 @@ export const planFixedExtensions = (rows, todayISO) => {
         recurrence: 'MONTHLY',
         is_fixed: true,
         parent_transaction_id: head.id,
+        invoice_close: last.invoice_close ? addMonthsISO(last.invoice_close, step) : null,
       });
       step += 1;
       paymentDate = addMonthsISO(last.payment_date, step);
@@ -2077,6 +2080,40 @@ export const buildAnticipateTx = ({ userId, tx, net, description, notes }) => ({
   attachment_path: null,
   recurrence: 'NONE',
 });
+
+/** Despesa parcelada: série com numeração N/M (`installments_total > 1`). */
+export function isParceladaTx(tx) {
+  return (Number(tx?.installments_total) || 0) > 1;
+}
+
+/**
+ * Plano puro da antecipação de parcelas de cartão: N parcelas após a
+ * âncora mudam para a fatura destino; as restantes sobem N posições
+ * (cada uma assume a fatura da N-ésima anterior — "shift reverso"); se
+ * N cobre todas, as faturas futuras esvaziam. Parcelas mantêm o valor
+ * original — o desconto vira estorno separado (montado pelo chamador).
+ * `series` ordenada por nº da parcela; retorna { moves, moved, shifted }.
+ */
+export function planCardAnticipation({ series, anchorId, count, targetClose }) {
+  const ordered = orderSeries(series ?? []);
+  const anchorIdx = Math.max(
+    0,
+    ordered.findIndex((row) => row?.id === anchorId)
+  );
+  const after = ordered.slice(anchorIdx + 1);
+  const n = Math.min(Math.max(Number(count) || 0, 0), after.length);
+  if (!(n > 0) || !targetClose) return { moves: [], moved: [], shifted: [] };
+  const moved = after.slice(0, n);
+  const rest = after.slice(n);
+  const moves = [
+    ...moved.map((row) => ({ id: row.id, invoice_close: targetClose })),
+    ...rest.map((row, index) => ({
+      id: row.id,
+      invoice_close: after[index]?.invoice_close ?? row.invoice_close,
+    })),
+  ];
+  return { moves, moved, shifted: rest };
+}
 
 /** Todos os lançamentos do usuário (janela livre — cartões e relatórios). */
 export function useMFAllTransactions(user) {

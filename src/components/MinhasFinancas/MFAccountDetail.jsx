@@ -47,6 +47,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFTransacaoScreen from './MFTransacaoScreen';
+import MFTxDetailModal from './MFTxDetailModal';
 import MFAccountIcon from './MFAccountIcon';
 import MFCategoryAvatar from './MFCategoryAvatar';
 import MFCardInvoices from './MFCardInvoices';
@@ -132,6 +133,8 @@ export default function MFAccountDetail({
   const deleteMutation = useDeleteAccount();
   const [editing, setEditing] = useState(null);
   const [screenOpen, setScreenOpen] = useState(false);
+  // Detalhes do lançamento (modal resumo + menu ⋮; editar abre a tela).
+  const [detailTx, setDetailTx] = useState(null);
   // Pagamento de fatura de cartão vinculado: { card, invoice } no modal.
   const [paying, setPaying] = useState(null);
   // Opção escolhida no menu "+" contextual (expense | income |
@@ -475,9 +478,9 @@ export default function MFAccountDetail({
 
 
   /**
-   * Abre a tela de edição com as tags do lançamento (linhas do detalhe e
-   * da fatura do cartão). Enquanto os lançamentos do mês não carregam,
-   * busca os vínculos direto — senão o salvar apaga as tags (deleteLinks
+   * Abre os Detalhes do lançamento (linhas do detalhe e da fatura do
+   * cartão). Enquanto os lançamentos do mês não carregam, busca os
+   * vínculos direto — senão o salvar apaga as tags (deleteLinks
    * recria os links a partir de tx.tagIds).
    */
   const openTx = async (tx) => {
@@ -493,7 +496,13 @@ export default function MFAccountDetail({
         tagIds = [];
       }
     }
-    setEditing({ ...tx, tagIds });
+    setDetailTx({ ...tx, tagIds });
+  };
+
+  /** Do modal Detalhes → tela completa de edição. */
+  const openFullEdit = (tx) => {
+    setDetailTx(null);
+    setEditing(tx);
     setScreenOpen(true);
   };
 
@@ -1298,6 +1307,17 @@ export default function MFAccountDetail({
             setScreenOpen(false);
             setAddKind(null);
           }}
+        />
+      )}
+
+      {/* Detalhes do lançamento (resumo + menu ⋮) */}
+      {detailTx && (
+        <MFTxDetailModal
+          tx={detailTx}
+          tagIds={detailTx.tagIds || []}
+          user={user}
+          onClose={() => setDetailTx(null)}
+          onEditFull={openFullEdit}
         />
       )}
     </div>

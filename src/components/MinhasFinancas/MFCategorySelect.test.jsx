@@ -88,6 +88,30 @@ describe('MFCategorySelect — seletor em árvore do lançamento', () => {
     expect(screen.queryByTestId('mf-tx-category-option-cat-1')).not.toBeInTheDocument();
   });
 
+  it('filtra pela busca sem acento, mostra o vazio e limpa com o X', () => {
+    renderSelect();
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+
+    // "alimentacao" sem acento casa com "Alimentação"
+    fireEvent.change(screen.getByTestId('mf-tx-category-search'), {
+      target: { value: 'alimentacao' },
+    });
+    expect(screen.getByTestId('mf-tx-category-option-cat-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-tx-category-option-cat-3')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('mf-tx-category-search'), {
+      target: { value: 'zzz' },
+    });
+    expect(screen.getByTestId('mf-tx-category-none')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-tx-category-option-cat-1')).not.toBeInTheDocument();
+
+    // X limpa o filtro e devolve a árvore inteira
+    fireEvent.click(screen.getByTestId('mf-tx-category-search-clear'));
+    expect(screen.getByTestId('mf-tx-category-search')).toHaveValue('');
+    expect(screen.getByTestId('mf-tx-category-option-cat-1')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-category-option-cat-3')).toBeInTheDocument();
+  });
+
   it('limpa a seleção pela opção Nenhuma', () => {
     const { onChange } = renderSelect({ value: 'cat-1' });
     fireEvent.click(screen.getByTestId('mf-tx-category'));

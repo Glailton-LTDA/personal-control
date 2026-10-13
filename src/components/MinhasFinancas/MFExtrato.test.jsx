@@ -244,4 +244,21 @@ describe('MFExtrato — avatar da categoria', () => {
     // transferência sem categoria → sem avatar (ícone de tipo)
     expect(screen.getAllByTestId('mf-statement-avatar')).toHaveLength(1);
   });
+
+  it('clique na linha abre os Detalhes (qualquer transação)', async () => {
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-statement-item')).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getAllByTestId('mf-statement-item')[1]);
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail')).toBeInTheDocument();
+    });
+    // transferência mostra o título e o de→para
+    expect(screen.getByTestId('mf-tx-detail-title')).toHaveTextContent(
+      'minhasfinancas.tx_detail_transfer'
+    );
+  });
 });

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
@@ -344,8 +344,27 @@ export default function MFContas({
             placeholder={t('minhasfinancas.search_placeholder')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            style={{ paddingLeft: '2.5rem', width: '100%' }}
+            style={{ paddingLeft: '2.5rem', paddingRight: search !== '' ? '2.2rem' : undefined, width: '100%' }}
           />
+          {search !== '' && (
+            <button
+              type="button"
+              className="icon-btn"
+              data-testid="mf-accounts-search-clear"
+              aria-label={t('minhasfinancas.search_clear')}
+              title={t('minhasfinancas.search_clear')}
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: '0.5rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                padding: '0.25rem',
+              }}
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
         <button
           type="button"

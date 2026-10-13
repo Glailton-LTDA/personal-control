@@ -712,14 +712,21 @@ export default function MFTransacaoScreen({
         const created = await createMutation.mutateAsync(rows);
         created.forEach((row) => createdIds.push(row?.id));
       };
-      // Filhas: despesa de cartão entra paga; cada filha leva a fatura
-      // do seu mês (vencimento = mês do lançamento) — a data é só rótulo.
+      // Filhas: despesa de cartão entra paga; cada filha mensal leva a
+      // fatura da cabeça + N (não a do seu mês — a cabeça pode ter sido
+      // colocada à frente, ex.: compra de agosto na fatura de setembro).
+      // Repetição semanal/anual usa a fatura do mês do lançamento.
       // Nas demais contas, futura segue pendente e sem vínculo.
-      const childBase = (over) => ({
+      const childBase = (over, step = 0, monthly = false) => ({
         ...base,
         ...over,
         ...(isCardExpense && over.payment_date && selectedAccount
-          ? { invoice_close: invoiceCloseForDueMonth(selectedAccount, over.payment_date.slice(0, 7)) }
+          ? {
+              invoice_close:
+                monthly && base.invoice_close
+                  ? addMonthsISO(base.invoice_close, step)
+                  : invoiceCloseForDueMonth(selectedAccount, over.payment_date.slice(0, 7)),
+            }
           : { invoice_close: null }),
         status: isCardExpense ? 'PAGO' : 'PENDENTE',
         effective_date: isCardExpense ? over.payment_date : null,
@@ -732,13 +739,17 @@ export default function MFTransacaoScreen({
         const children = [];
         for (let i = 1; i < FIXED_SERIES_COUNT; i += 1) {
           children.push(
-            childBase({
-              payment_date: addMonthsISO(base.payment_date, i),
-              due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
-              recurrence: 'MONTHLY',
-              is_fixed: true,
-              parent_transaction_id: headId,
-            })
+            childBase(
+              {
+                payment_date: addMonthsISO(base.payment_date, i),
+                due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
+                recurrence: 'MONTHLY',
+                is_fixed: true,
+                parent_transaction_id: headId,
+              },
+              i,
+              true
+            )
           );
         }
         await saveChildren(children);
@@ -754,14 +765,18 @@ export default function MFTransacaoScreen({
         const children = [];
         for (let i = 1; i < count; i += 1) {
           children.push(
-            childBase({
-              payment_date: addMonthsISO(base.payment_date, i),
-              due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
-              recurrence: 'NONE',
-              installments_current: initial + i,
-              installments_total: total,
-              parent_transaction_id: headId,
-            })
+            childBase(
+              {
+                payment_date: addMonthsISO(base.payment_date, i),
+                due_date: base.due_date ? addMonthsISO(base.due_date, i) : null,
+                recurrence: 'NONE',
+                installments_current: initial + i,
+                installments_total: total,
+                parent_transaction_id: headId,
+              },
+              i,
+              true
+            )
           );
         }
         await saveChildren(children);

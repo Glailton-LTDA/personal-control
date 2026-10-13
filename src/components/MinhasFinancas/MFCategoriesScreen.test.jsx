@@ -143,8 +143,11 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
     fireEvent.change(screen.getByTestId('mf-cat-search'), { target: { value: 'zzz' } });
     expect(screen.getByTestId('mf-cat-empty')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId('mf-cat-search'), { target: { value: '' } });
+    // X limpa o filtro e mostra a árvore inteira de novo
+    fireEvent.click(screen.getByTestId('mf-cat-search-clear'));
+    expect(screen.getByTestId('mf-cat-search')).toHaveValue('');
     expect(screen.getByTestId('mf-cat-row-cat-1')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-row-cat-3')).toBeInTheDocument();
   });
 
   it('ativa/desativa com cascata nos filhos', async () => {
@@ -264,6 +267,61 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
       target: { value: 'zzz-inexistente' },
     });
     expect(screen.getByTestId('mf-cat-modal-icon-empty')).toBeInTheDocument();
+
+    // X limpa a busca e restaura a grade
+    fireEvent.click(screen.getByTestId('mf-cat-modal-icon-search-clear'));
+    expect(screen.getByTestId('mf-cat-modal-icon-search')).toHaveValue('');
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🍔');
+  });
+
+  it('busca encontra novos ícones (bermuda, terno, família) e glifos (geladeira)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-cat-new')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-cat-new'));
+    const search = screen.getByTestId('mf-cat-modal-icon-search');
+
+    fireEvent.change(search, { target: { value: 'bermuda' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🩳');
+
+    fireEvent.change(search, { target: { value: 'terno' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🤵');
+
+    fireEvent.change(search, { target: { value: 'familia' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('👪');
+
+    // glifo por palavra-chave em pt
+    fireEvent.change(search, { target: { value: 'geladeira' } });
+    expect(screen.getByTestId('mf-cat-modal-glyph-fridge')).toBeInTheDocument();
+  });
+
+  it('permite escolher marca de banco como ícone da categoria', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-cat-new')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-cat-new'));
+    fireEvent.change(screen.getByTestId('mf-cat-modal-icon-search'), {
+      target: { value: 'nubank' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-brand-nubank'));
+    fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
+      target: { value: 'Nubank Heitor' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const categories = supabase.from('mf_categories');
+    await waitFor(() => {
+      expect(categories.insert).toHaveBeenCalled();
+    });
+    expect(categories.insert.mock.calls[0][0]).toMatchObject({
+      name: 'Nubank Heitor',
+      icon: 'brand:nubank',
+    });
   });
 
   it('cria subcategoria pelo + da linha com o pai pré-selecionado', async () => {
