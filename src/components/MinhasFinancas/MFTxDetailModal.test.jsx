@@ -45,6 +45,7 @@ vi.mock('../../lib/supabase', () => {
       lte: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       single: vi.fn(() =>
         makeChain(() => {
           const resolved = typeof result === 'function' ? result() : result;
@@ -538,6 +539,10 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     renderModal();
     await waitFor(() => {
       expect(screen.getByTestId('mf-tx-detail-amount')).toBeInTheDocument();
+    });
+    // série completa carregada (3 × 333,3x = R$ 1.000,00 pagos) antes de agir
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-paid-pending')).toHaveTextContent('R$ 1.000,00');
     });
     fireEvent.click(screen.getByTestId('mf-tx-detail-amount'));
     fireEvent.click(screen.getByTestId('mf-calc-clear'));

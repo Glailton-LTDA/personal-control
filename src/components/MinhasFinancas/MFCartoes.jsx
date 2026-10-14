@@ -4,7 +4,7 @@ import { CreditCard, Plus, Wallet, Archive, ArchiveRestore, Pencil } from 'lucid
 import toast from 'react-hot-toast';
 import {
   useMFAccounts,
-  useMFAllTransactions,
+  useMFAccountTransactions,
   useMFMonthSummary,
   useUpdateAccount,
   buildCardInvoices,
@@ -52,7 +52,11 @@ const badgeChip = {
 export default function MFCartoes({ user, showValues = true }) {
   const { t, i18n } = useTranslation();
   const { data: accounts = [] } = useMFAccounts(user);
-  const { data: transactions = [] } = useMFAllTransactions(user);
+  // Escopo enxuto: cartões + vinculadas (o que a tela calcula).
+  const cardScopeIds = (accounts ?? []).flatMap((row) =>
+    row.account_type === 'CARTAO' ? [row.id, row.linked_account_id] : []
+  );
+  const { data: transactions = [] } = useMFAccountTransactions(user, null, cardScopeIds);
   const updateAccount = useUpdateAccount();
 
   const [currency, setCurrency] = useState('all');

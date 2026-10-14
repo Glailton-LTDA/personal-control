@@ -46,6 +46,7 @@ vi.mock('../../lib/supabase', () => {
       lte: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
@@ -219,8 +220,11 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
 
     // Widget exibe fatura corrente, barra de uso e ações de editar/arquivar
-    expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 1.700,00');
-    expect(screen.getByTestId('mf-card-usage-acc-card')).toBeInTheDocument();
+    // (fatura chega um round-trip após as contas — espera o dado)
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 1.700,00');
+      expect(screen.getByTestId('mf-card-usage-acc-card')).toBeInTheDocument();
+    });
     expect(screen.getByTestId('mf-edit-card-acc-card')).toBeInTheDocument();
     expect(screen.getByTestId('mf-archive-card-acc-card')).toBeInTheDocument();
 
@@ -230,11 +234,14 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
 
     // Fatura corrente: a do mês (vence 20/10) — 2 compras de outubro
-    expect(screen.getByTestId('mf-invoice-chip-current')).toHaveTextContent('R$ 1.700,00');
-    expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
-      'minhasfinancas.card_status_current'
-    );
-    expect(screen.getByTestId('mf-invoice-total')).toHaveTextContent('R$ 1.700,00');
+    // (dados da fatura chegam após montar o drill — espera o valor)
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-chip-current')).toHaveTextContent('R$ 1.700,00');
+      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+        'minhasfinancas.card_status_current'
+      );
+      expect(screen.getByTestId('mf-invoice-total')).toHaveTextContent('R$ 1.700,00');
+    });
     expect(screen.getByTestId('mf-invoice-detail')).toHaveTextContent('10/10/26');
     expect(screen.getAllByTestId('mf-card-tx-row')).toHaveLength(2);
 
@@ -303,10 +310,12 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
 
     fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-08-10'));
 
-    expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
-      'minhasfinancas.card_status_paid'
-    );
-    expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+        'minhasfinancas.card_status_paid'
+      );
+      expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
+    });
     expect(screen.queryByTestId('mf-invoice-pay')).not.toBeInTheDocument();
     // identidade pelo vencimento: fatura de agosto (vence 20/08/26)
     expect(screen.getByTestId('mf-invoice-chip-2026-08-10')).toHaveTextContent('Agosto de 2026');
@@ -327,9 +336,12 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       });
 
       // widget: Agendada no lugar de Paga; o Pagar continua à mão
-      expect(screen.getByTestId('mf-card-fatura-scheduled-acc-card')).toBeInTheDocument();
+      // (chip depende dos lançamentos — espera o dado)
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-fatura-scheduled-acc-card')).toBeInTheDocument();
+        expect(screen.getByTestId('mf-card-pay-acc-card')).toBeInTheDocument();
+      });
       expect(screen.queryByTestId('mf-card-fatura-paid-acc-card')).not.toBeInTheDocument();
-      expect(screen.getByTestId('mf-card-pay-acc-card')).toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
       await waitFor(() => {
@@ -337,16 +349,18 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       });
       fireEvent.click(screen.getByTestId('mf-invoice-chip-current'));
 
-      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
-        'minhasfinancas.card_status_scheduled'
-      );
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+          'minhasfinancas.card_status_scheduled'
+        );
+        expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
+      });
       expect(screen.getByTestId('mf-invoice-badge')).toHaveTextContent(
         'minhasfinancas.inv_status_scheduled'
       );
       expect(screen.getByTestId('mf-invoice-summary')).toHaveTextContent(
         'minhasfinancas.inv_scheduled_amount'
       );
-      expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
       // na corrente o botão se chama mf-invoice-anticipate (mesmo fluxo de pagar)
       expect(screen.getByTestId('mf-invoice-anticipate')).toBeInTheDocument();
       expect(screen.queryByTestId('mf-invoice-reopen')).not.toBeInTheDocument();

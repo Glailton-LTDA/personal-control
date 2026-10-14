@@ -123,6 +123,108 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     return { rows, chartTxs };
   }
 
+  /**
+   * Emula a RPC mf_statement — mesma semântica do computeStatement
+   * (mês da fatura para despesa de cartão vinculada, abertura com o
+   * histórico, saldo corrente por item). Escopo = p_account_ids.
+   */
+  function shiftMonthKey(monthKey, delta) {
+    const [y, m] = String(monthKey || '').split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  }
+
+  function computeStatementRPC(store, monthKey, accountIds) {
+    const [y, m] = String(monthKey || '').split('-').map(Number);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const lastDay = new Date(y, m, 0).getDate();
+    const start = `${monthKey}-01`;
+    const end = `${monthKey}-${pad2(lastDay)}`;
+    const viewMonth = String(monthKey || '').slice(0, 7);
+
+    const allAccounts = store.mf_accounts || [];
+    const byId = new Map(allAccounts.map((acc) => [acc.id, acc]));
+    const scoped = allAccounts.filter(
+      (acc) => !accountIds || accountIds.includes(acc.id)
+    );
+    const scopeIds = new Set(scoped.map((acc) => acc.id));
+    const inScope = (tx) =>
+      scopeIds.has(tx.account_id) || scopeIds.has(tx.transfer_account_id);
+    const scopeIsCard =
+      Array.isArray(accountIds) &&
+      accountIds.length === 1 &&
+      byId.get(accountIds[0])?.account_type === 'CARTAO';
+
+    const cardMonth = (tx) => {
+      const acc = byId.get(tx?.account_id);
+      if (tx?.type === 'DESPESA' && tx.invoice_close && acc?.account_type === 'CARTAO') {
+        const C = Number(acc.closing_day) || 1;
+        const D = Number(acc.due_day) || 10;
+        return shiftMonthKey(String(tx.invoice_close).slice(0, 7), D >= C ? 0 : 1);
+      }
+      return String(tx?.payment_date || '').slice(0, 7);
+    };
+    const scopeDelta = (tx) => {
+      const amount = Number(tx.amount) || 0;
+      if (tx.type === 'TRANSFERENCIA') {
+        let delta = 0;
+        if (scopeIds.has(tx.account_id)) delta -= amount;
+        if (scopeIds.has(tx.transfer_account_id)) delta += amount;
+        return delta;
+      }
+      if (!scopeIds.has(tx.account_id)) return null;
+      return tx.type === 'RECEITA' ? amount : -amount;
+    };
+
+    const txs = store.mf_transactions || [];
+    let opening = scoped.reduce((sum, acc) => sum + (Number(acc.initial_balance) || 0), 0);
+    txs.forEach((tx) => {
+      if (tx.status === 'CANCELADO' || tx.status !== 'PAGO') return;
+      if (scopeIsCard && tx.type === 'TRANSFERENCIA') return;
+      if (cardMonth(tx) >= viewMonth) return;
+      const delta = scopeDelta(tx);
+      if (delta !== null) opening += delta;
+    });
+
+    const monthTxs = txs
+      .filter((tx) => {
+        if (tx.status === 'CANCELADO' || !inScope(tx)) return false;
+        if (scopeIsCard && tx.type === 'TRANSFERENCIA') return false;
+        if (tx.type === 'DESPESA' && tx.invoice_close) {
+          return cardMonth(tx) === viewMonth;
+        }
+        return tx.payment_date >= start && tx.payment_date <= end;
+      })
+      .sort((a, b) =>
+        a.payment_date === b.payment_date
+          ? String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
+          : a.payment_date.localeCompare(b.payment_date)
+      );
+
+    let running = opening;
+    const groups = [];
+    monthTxs.forEach((tx) => {
+      const delta = tx.status === 'PAGO' ? scopeDelta(tx) : 0;
+      if (delta !== null && delta !== 0) running += delta;
+      const last = groups[groups.length - 1];
+      const item = {
+        tx,
+        delta: delta ?? 0,
+        balance: running,
+        currency: byId.get(tx.account_id)?.currency || 'BRL',
+        accountName: byId.get(tx.account_id)?.name ?? '—',
+        transferAccountName:
+          tx.type === 'TRANSFERENCIA'
+            ? byId.get(tx.transfer_account_id)?.name ?? '—'
+            : null,
+      };
+      if (last && last.date === tx.payment_date) last.items.push(item);
+      else groups.push({ date: tx.payment_date, items: [item] });
+    });
+    return { groups, opening };
+  }
+
   /** Desbloqueia o app com a senha mestre padrão para testes. */
   async function unlockApp(page) {
     const unlockModal = page.getByText('Acesso Seguro');
@@ -206,6 +308,23 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
           contentType: 'application/json',
           headers: CORS,
           body: JSON.stringify(computeMonthSummaryRPC(store, body.p_month)),
+        });
+      }
+      if (request.method() === 'POST' && fn === 'mf_statement') {
+        page.mfStatementRpcHits = (page.mfStatementRpcHits || 0) + 1;
+        let body = {};
+        try {
+          body = JSON.parse(request.postData() || '{}');
+        } catch {
+          body = {};
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS,
+          body: JSON.stringify(
+            computeStatementRPC(store, body.p_month, body.p_account_ids)
+          ),
         });
       }
       return route.fulfill({
@@ -525,6 +644,8 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(page.getByTestId('mf-statement-item').first()).toContainText(
       'Almoço E2E spinner'
     );
+    // Extrato veio da RPC agregada (não do full scan client-side)
+    expect(page.mfStatementRpcHits || 0).toBeGreaterThan(0);
   });
 
   test('cria uma conta na tela de Contas', async ({ page }) => {

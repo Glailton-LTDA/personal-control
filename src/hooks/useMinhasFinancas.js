@@ -755,48 +755,80 @@ export function useMFStatement(user, monthKey, accountId = null, currency = 'all
 
       // Perfil: contas filtradas; o escopo client-side (inScope) já
       // esconde movimentações de contas fora do perfil.
-      const [accounts, transactions] = await Promise.all([
-        mfSelect(
-          'mf_accounts',
-          () => {
-            let query = supabase.from('mf_accounts').select('*').order('sort_order');
-            if (profileId) query = query.eq('profile_id', profileId);
-            return query;
-          },
-          { filter: byProfile(profileId), sort: bySortOrder }
-        ),
-        mfSelectAll(
-          'mf_transactions',
-          () => {
-            let query = supabase.from('mf_transactions').select('*');
-            if (accountId) {
-              // Extrato de UMA conta: filtra no servidor pelos dois lados
-              // do lançamento (origem ou destino da transferência). Cai de
-              // ~13 mil linhas para centenas — e o cálculo client-side
-              // abaixo segue idêntico. Sem recorte de data: saldos e
-              // despesas vinculadas futuras precisam do histórico.
-              query = query.or(
-                `account_id.eq.${accountId},transfer_account_id.eq.${accountId}`
-              );
-            } else {
-              query = query.lte('payment_date', end);
-            }
-            return query.order('payment_date').order('id');
-          },
-          {
-            filter: (rows) =>
-              rows.filter((row) =>
-                accountId
-                  ? row.account_id === accountId || row.transfer_account_id === accountId
-                  : row.payment_date <= end
-              ),
-          }
-        ),
-      ]);
+      const accounts = await mfSelect(
+        'mf_accounts',
+        () => {
+          let query = supabase.from('mf_accounts').select('*').order('sort_order');
+          if (profileId) query = query.eq('profile_id', profileId);
+          return query;
+        },
+        { filter: byProfile(profileId), sort: bySortOrder }
+      );
       if (accounts.error) throw accounts.error;
-      if (transactions.error) throw transactions.error;
 
       const accRows = accounts.data ?? [];
+      const scoped = accRows.filter(
+        (acc) =>
+          (!accountId || acc.id === accountId) &&
+          (currency === 'all' || (acc.currency || 'BRL') === currency)
+      );
+      const scopeIds = scoped.map((acc) => acc.id);
+      const currencies = [...new Set(scoped.map((acc) => acc.currency || 'BRL'))];
+      const mixed = currencies.length > 1;
+
+      // Extrato agregado no servidor (RPC mf_statement): evita baixar as
+      // ~13 mil linhas. Offline ou qualquer falha: cálculo local (para
+      // conta única, já filtrado no servidor — ver abaixo).
+      if (!isOffline()) {
+        try {
+          const { data, error } = await supabase.rpc('mf_statement', {
+            p_month: monthKey,
+            p_account_ids: scopeIds,
+            p_profile_id: profileId ?? null,
+          });
+          if (error) throw error;
+          return {
+            groups: data?.groups ?? [],
+            accounts: accRows,
+            scopedAccounts: scoped,
+            currencies,
+            mixed,
+            opening: data?.opening ?? 0,
+          };
+        } catch (err) {
+          if (import.meta.env.DEV) console.warn('[MF] RPC mf_statement falhou; cálculo local', err);
+        }
+      }
+
+      const transactions = await mfSelectAll(
+        'mf_transactions',
+        () => {
+          let query = supabase.from('mf_transactions').select('*');
+          if (accountId) {
+            // Extrato de UMA conta: filtra no servidor pelos dois lados
+            // do lançamento (origem ou destino da transferência). Cai de
+            // ~13 mil linhas para centenas — e o cálculo client-side
+            // abaixo segue idêntico. Sem recorte de data: saldos e
+            // despesas vinculadas futuras precisam do histórico.
+            query = query.or(
+              `account_id.eq.${accountId},transfer_account_id.eq.${accountId}`
+            );
+          } else {
+            query = query.lte('payment_date', end);
+          }
+          return query.order('payment_date').order('id');
+        },
+        {
+          filter: (rows) =>
+            rows.filter((row) =>
+              accountId
+                ? row.account_id === accountId || row.transfer_account_id === accountId
+                : row.payment_date <= end
+            ),
+        }
+      );
+      if (transactions.error) throw transactions.error;
+
       const allTxs = transactions.data ?? [];
 
       const { groups, opening } = computeStatement({
@@ -807,13 +839,6 @@ export function useMFStatement(user, monthKey, accountId = null, currency = 'all
         accountId,
         currency,
       });
-      const scoped = accRows.filter(
-        (acc) =>
-          (!accountId || acc.id === accountId) &&
-          (currency === 'all' || (acc.currency || 'BRL') === currency)
-      );
-      const currencies = [...new Set(scoped.map((acc) => acc.currency || 'BRL'))];
-      const mixed = currencies.length > 1;
 
       return { groups, accounts: accRows, scopedAccounts: scoped, currencies, mixed, opening };
     },
@@ -2239,7 +2264,12 @@ const mfScheduledCloses = new Map();
 export function useMFScheduleCardPayments(user) {
   const queryClient = useQueryClient();
   const { data: accounts } = useMFAccounts(user);
-  const { data: transactions } = useMFAllTransactions(user);
+  // Escopo enxuto: só cartões + contas vinculadas (o planner só enxerga
+  // esse recorte) em vez das ~13 mil linhas de todas as contas.
+  const cardScopeIds = (accounts ?? []).flatMap((row) =>
+    row.account_type === 'CARTAO' ? [row.id, row.linked_account_id] : []
+  );
+  const { data: transactions } = useMFAccountTransactions(user, null, cardScopeIds);
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
     if (mfScheduleRunning || !accounts || !transactions) return undefined;
@@ -2574,15 +2604,12 @@ export function useMFAllTransactions(user) {
  */
 export function useMFAccountTransactions(user, accountId, extraAccountIds = []) {
   const profileId = useMFProfileScope();
-  const idsKey = [...new Set([accountId, ...(extraAccountIds ?? [])])]
-    .filter(Boolean)
-    .sort()
-    .join(',');
+  const ids = [...new Set([accountId, ...(extraAccountIds ?? [])])].filter(Boolean);
+  const idsKey = [...ids].sort().join(',');
   return useQuery({
     queryKey: ['mf-account-transactions', user?.id, idsKey, profileId ?? 'all'],
-    enabled: !!user?.id && !!accountId,
+    enabled: !!user?.id && ids.length > 0,
     queryFn: async () => {
-      const ids = [...new Set([accountId, ...(extraAccountIds ?? [])])].filter(Boolean);
       const inScope = (row) =>
         ids.includes(row.account_id) || ids.includes(row.transfer_account_id);
       const { data, error } = await mfSelectAll(
