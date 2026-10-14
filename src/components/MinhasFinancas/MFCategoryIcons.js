@@ -33,6 +33,8 @@ export const MF_CATEGORY_ICONS = [
   '👴', '👵', '👪', '👨‍👩‍👧‍👦', '👨‍👩‍👦', '👩‍👧‍👦', '👨‍👧‍👦', '👚',
   '⚙️', '🔩', '🪛', '🛠️', '🔨', '🪚', '🛞', '🛢️',
   '🔑', '🔒', '🪡', '🔌', '🚘', '🧱', '🪜', '🚰',
+  '👨‍🔧', '💈', '💇', '🧯', '🧤', '🪣', '⛏️', '🪓',
+  '🧲', '🚧', '🌬️', '❄️', '🖥️', '🔦', '📡', '🛜',
 ];
 
 /**
@@ -285,6 +287,22 @@ export const MF_ICON_KEYWORDS = {
   '🧱': 'tijolo bloco pedreiro obra construcao reforma cimento',
   '🪜': 'escada pintor reforma limpeza pintura altura',
   '🚰': 'torneira agua pia encanador hidraulica vazamento',
+  '👨‍🔧': 'mecanico oficina tecnico profissional conserto',
+  '💈': 'barbearia barbeiro cabeleireiro cabelo barba',
+  '💇': 'cabeleireiro corte de cabelo salao beleza',
+  '🧯': 'extintor incendio seguranca emergencia',
+  '🧤': 'luvas protecao jardinagem obra',
+  '🪣': 'balde limpeza lavar carro',
+  '⛏️': 'picareta obra mineracao cavar',
+  '🪓': 'machado lenha corte',
+  '🧲': 'ima solda forca',
+  '🚧': 'obra sinalizacao conserto rua construcao',
+  '🌬️': 'ventilador ar condicionado vento climatizacao',
+  '❄️': 'gelo ar condicionado refrigeracao frio',
+  '🖥️': 'computador desktop conserto eletronica tecnico',
+  '🔦': 'lanterna eletricista luz',
+  '📡': 'antena televisao instalador sinal',
+  '🛜': 'wifi internet instalador rede',
 };
 
 /** Busca de ícone: termo normalizado (sem acento/caixa) nas palavras-chave. */

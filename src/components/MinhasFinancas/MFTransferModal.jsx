@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, ArrowLeftRight, Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useCreateTransfer, useCreateMFTransaction, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney } from '../../hooks/useMinhasFinancas';
+import { useCreateTransfer, useCreateMFTransaction, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney, FIXED_SERIES_COUNT } from '../../hooks/useMinhasFinancas';
 import MFSelect from './MFSelect';
 import MFRepeatModal from './MFRepeatModal';
 import MFCalculator from './MFCalculator';
@@ -22,6 +22,8 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
   const [saving, setSaving] = useState(false);
   const [repeat, setRepeat] = useState(null); // null | { initial, count, periodicity }
   const [repeatOpen, setRepeatOpen] = useState(false);
+  // Fixa mensal: 12 ocorrências (cabeça + 11 filhas), como na tela de lançamento
+  const [fixedMonthly, setFixedMonthly] = useState(false);
   const [amountCalcOpen, setAmountCalcOpen] = useState(false);
   const [form, setForm] = useState({
     from: '',
@@ -47,6 +49,7 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
     });
     setRepeat(null);
     setRepeatOpen(false);
+    setFixedMonthly(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, accounts.length]);
 
@@ -104,7 +107,27 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
         payment_date: form.payment_date,
         status: 'PAGO',
       };
-      if (!repeat || repeat.count < 2) {
+      if (fixedMonthly) {
+        // Série fixa mensal: cabeça + 11 filhas pendentes vinculadas.
+        const [first] = await createTx.mutateAsync({
+          ...payload,
+          recurrence: 'MONTHLY',
+          is_fixed: true,
+        });
+        const children = [];
+        for (let i = 1; i < FIXED_SERIES_COUNT; i += 1) {
+          children.push({
+            ...payload,
+            payment_date: addMonthsISO(payload.payment_date, i),
+            status: 'PENDENTE',
+            effective_date: null,
+            recurrence: 'MONTHLY',
+            is_fixed: true,
+            parent_transaction_id: first?.id ?? null,
+          });
+        }
+        if (children.length > 0) await createTx.mutateAsync(children);
+      } else if (!repeat || repeat.count < 2) {
         await createTransfer.mutateAsync(payload);
       } else if (repeat.periodicity === 'MONTHLY') {
         // Parcelamento numerado (1/N…): cabeça + filhas pendentes vinculadas.
@@ -301,10 +324,26 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
                   type="button"
                   className="btn-secondary"
                   data-testid="mf-transfer-repeat-open"
-                  onClick={() => setRepeatOpen(true)}
+                  onClick={() => {
+                    setFixedMonthly(false);
+                    setRepeatOpen(true);
+                  }}
                   style={{ fontSize: '0.82rem', padding: '0.45rem 0.8rem' }}
                 >
                   {t('minhasfinancas.tx_repeat_open')}
+                </button>
+                <button
+                  type="button"
+                  className={fixedMonthly ? 'btn-secondary' : 'btn-cancel'}
+                  data-testid="mf-transfer-repeat-fixed"
+                  aria-pressed={fixedMonthly}
+                  onClick={() => {
+                    setFixedMonthly((prev) => !prev);
+                    setRepeat(null);
+                  }}
+                  style={{ fontSize: '0.82rem', padding: '0.45rem 0.8rem' }}
+                >
+                  {t('minhasfinancas.tx_repeat_fixed')}
                 </button>
                 {repeat && (
                   <>
@@ -327,6 +366,11 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
                       <X size={14} />
                     </button>
                   </>
+                )}
+                {fixedMonthly && (
+                  <span data-testid="mf-transfer-fixed-hint" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {t('minhasfinancas.tx_fixed_hint')}
+                  </span>
                 )}
               </div>
             </div>

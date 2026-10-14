@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import {
   Wallet,
   TrendingUp,
@@ -10,6 +11,7 @@ import {
   SlidersHorizontal,
   ChevronUp,
   ChevronDown,
+  ArrowUpDown,
   Eye,
   EyeOff,
   FolderTree,
@@ -35,6 +37,7 @@ import {
   useMFAccountBalances,
   useMFCategories,
   useMFGroups,
+  useUpdateMFGroup,
   budgetSpent,
   budgetLimit,
   goalCurrentAmount,
@@ -195,10 +198,36 @@ export default function MFResumo({
   // Modal de grupo: `null` = fechado; `{ parentId }` = aberto (o "+"
   // do widget cria uma raiz; o drill cria subgrupo do grupo atual).
   const [groupModal, setGroupModal] = useState(null);
+  // Reordenar grupos (raízes) pelos botões ↑/↓ nos cards.
+  const [groupsReordering, setGroupsReordering] = useState(false);
+  const updateGroupMutation = useUpdateMFGroup();
   // Modal de nova conta com o grupo do drill já pré-selecionado
   const [accountModalGroup, setAccountModalGroup] = useState(null);
   // Modal de EDIÇÃO de conta a partir do detalhe (drill ou widget)
   const [accountModalRow, setAccountModalRow] = useState(null);
+
+  /** Reordena grupos-raiz: sobe/desce reescrevendo o sort_order dos
+   * irmãos (vale na Contas também — mesma ordenação). */
+  const moveGroup = async (groupId, direction) => {
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) return;
+    const parentKey = group.parent_id ?? null;
+    const siblings = groups.filter((item) => (item.parent_id ?? null) === parentKey);
+    const index = siblings.findIndex((item) => item.id === groupId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= siblings.length) return;
+    const next = [...siblings];
+    [next[index], next[target]] = [next[target], next[index]];
+    try {
+      await Promise.all(
+        next.map((item, position) =>
+          updateGroupMutation.mutateAsync({ id: item.id, sort_order: position })
+        )
+      );
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+    }
+  };
 
   /** Ids de um grupo + descendentes (totais do subgrupo). */
   const subtreeIds = (rootId) => {
@@ -382,7 +411,7 @@ export default function MFResumo({
       color: '#10b981',
       // Variação só quando o escopo tem uma única moeda (não cruzamos moedas).
       variation: singleCurrency
-        ? variation(sumField(activeRows, 'receitas'), sumField(activeRows, 'receitasPrev'))
+        ? variation(sumField(countedRows, 'receitas'), sumField(countedRows, 'receitasPrev'))
         : undefined,
       favorableWhenUp: true,
     },
@@ -392,7 +421,7 @@ export default function MFResumo({
       valueText: formatTotals(kpis.gasto, showValues),
       color: '#ef4444',
       variation: singleCurrency
-        ? variation(sumField(activeRows, 'despesas'), sumField(activeRows, 'despesasPrev'))
+        ? variation(sumField(countedRows, 'despesas'), sumField(countedRows, 'despesasPrev'))
         : undefined,
       favorableWhenUp: false,
     },
@@ -400,7 +429,7 @@ export default function MFResumo({
       key: 'kpi_forecast',
       icon: CalendarClock,
       valueText: formatTotals(kpis.previsto, showValues),
-      sub: t('minhasfinancas.accounts_count', { count: activeRows.length }),
+      sub: t('minhasfinancas.accounts_count', { count: countedRows.length }),
       color: '#06b6d4',
     },
   ];
@@ -512,6 +541,28 @@ export default function MFResumo({
               <Plus size={14} />
               {t('minhasfinancas.group_new_short')}
             </button>
+            <button
+              type="button"
+              className="btn-cancel"
+              data-testid="mf-groups-reorder-toggle"
+              aria-pressed={groupsReordering}
+              onClick={() => setGroupsReordering((prev) => !prev)}
+              style={{
+                padding: '0.4rem 0.75rem',
+                fontSize: '0.8rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                background: groupsReordering
+                  ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
+                  : undefined,
+                color: groupsReordering ? 'var(--primary)' : undefined,
+                borderColor: groupsReordering ? 'var(--primary)' : undefined,
+              }}
+            >
+              <ArrowUpDown size={14} />
+              {t('minhasfinancas.accounts_reorder')}
+            </button>
           </div>
 
           {roots.length === 0 ? (
@@ -536,7 +587,7 @@ export default function MFResumo({
                 const descendantCount = groups.filter(
                   (item) => item.id !== group.id && ids.has(item.id) && item.show_in_summary
                 ).length;
-                return (
+                const card = (
                   <button
                     key={group.id}
                     type="button"
@@ -554,6 +605,7 @@ export default function MFResumo({
                       textAlign: 'left',
                       font: 'inherit',
                       color: 'var(--text-main)',
+                      width: '100%',
                     }}
                   >
                     <span
@@ -594,12 +646,53 @@ export default function MFResumo({
                     </span>
                     {group.sum_totals ? (
                       <span style={{ fontWeight: 800, fontSize: '0.88rem' }}>
-                        {formatTotals(groupTotalsByCurrency(countableRows(subRows), 'saldo'), showValues)}
+                        {formatTotals(groupTotalsByCurrency(subRows, 'saldo'), showValues)}
                       </span>
                     ) : (
                       <ArrowRight size={15} style={{ color: 'var(--text-muted)' }} />
                     )}
                   </button>
+                );
+                if (!groupsReordering) return card;
+                const position = roots.findIndex((item) => item.id === group.id);
+                const isFirst = position <= 0;
+                const isLast = position < 0 || position >= roots.length - 1;
+                const moveBtn = (dir, testId, label, Icon, disabled) => (
+                  <button
+                    key={testId}
+                    type="button"
+                    className="icon-btn"
+                    aria-label={label}
+                    title={label}
+                    data-testid={testId}
+                    disabled={disabled}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      moveGroup(group.id, dir);
+                    }}
+                    style={{ padding: '0.3rem', opacity: disabled ? 0.3 : 1 }}
+                  >
+                    <Icon size={14} />
+                  </button>
+                );
+                return (
+                  <div
+                    key={group.id}
+                    style={{ display: 'flex', gap: '0.4rem', alignItems: 'stretch' }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>{card}</div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {moveBtn(-1, `mf-group-move-up-${group.id}`, t('minhasfinancas.move_up'), ChevronUp, isFirst)}
+                      {moveBtn(1, `mf-group-move-down-${group.id}`, t('minhasfinancas.move_down'), ChevronDown, isLast)}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -939,16 +1032,16 @@ export default function MFResumo({
                         {t('minhasfinancas.total')}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(countableRows(section.rows), 'receitas'), showValues)}
+                        {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(countableRows(section.rows), 'despesas'), showValues)}
+                        {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(countableRows(section.rows), 'saldo'), showValues)}
+                        {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(countableRows(section.rows), 'previsto'), showValues)}
+                        {formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)}
                       </td>
                     </tr>
                   </tfoot>

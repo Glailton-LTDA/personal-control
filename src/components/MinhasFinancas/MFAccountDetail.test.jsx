@@ -38,6 +38,7 @@ vi.mock('../../lib/supabase', () => {
       lte: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
@@ -349,6 +350,21 @@ describe('MFAccountDetail', () => {
     });
 
     await openDetailEdit('mf-timeline-item-tx-pending');
+  });
+
+  it('busca lançamentos só da conta + cartões vinculados (sem full scan)', async () => {
+    renderDetail();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-pending')).toBeInTheDocument();
+    });
+
+    // acc-1 + os dois cartões vinculados (origem ou destino), nada além
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    expect(chain.or).toHaveBeenCalledWith(
+      'account_id.in.(acc-1,acc-card,acc-card2),transfer_account_id.in.(acc-1,acc-card,acc-card2)'
+    );
   });
 
   it('abre a tela de novo lancamento ja com a conta pre-preenchida', async () => {

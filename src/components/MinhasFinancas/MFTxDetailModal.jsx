@@ -11,7 +11,7 @@ import {
   useMFCategories,
   useMFTags,
   useCreateMFTag,
-  useMFAllTransactions,
+  useMFAccountTransactions,
   useCreateMFTransaction,
   useUpdateMFTransaction,
   useDeleteMFTransaction,
@@ -107,7 +107,6 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: categories = [] } = useMFCategories(user);
   const { data: tags = [] } = useMFTags(user);
-  const { data: allTx = [] } = useMFAllTransactions(user);
   const createMutation = useCreateMFTransaction();
   const updateMutation = useUpdateMFTransaction();
   const deleteMutation = useDeleteMFTransaction();
@@ -169,6 +168,23 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     [categories]
   );
   const account = tx ? (accountById[tx.account_id] ?? null) : null;
+  // Escopo enxuto: conta do lançamento + contrapartes (vinculada e
+  // cartões ligados) em vez das ~13 mil linhas. Cobre a série (mesma
+  // conta), as fixas e a fatura do cartão; séries hipotéticas em outra
+  // conta caem nos fallbacks graceful já existentes.
+  const txScopeIds = useMemo(() => {
+    if (!tx) return [];
+    const ids = new Set([tx.account_id, tx.transfer_account_id]);
+    const acc = accountById[tx.account_id];
+    if (acc?.linked_account_id) ids.add(acc.linked_account_id);
+    accounts.forEach((row) => {
+      if (row.account_type === 'CARTAO' && row.linked_account_id === tx.account_id) {
+        ids.add(row.id);
+      }
+    });
+    return [...ids].filter(Boolean);
+  }, [tx, accounts, accountById]);
+  const { data: allTx = [] } = useMFAccountTransactions(user, null, txScopeIds);
   const isCard = account?.account_type === 'CARTAO';
   const isTransfer = tx?.type === 'TRANSFERENCIA';
   const parcelada = isParceladaTx(tx);

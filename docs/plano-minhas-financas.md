@@ -1687,3 +1687,23 @@ Itens ativos, na ordem de atendimento:
   oficina/conserto (engrenagem, parafuso, chave de fenda, martelo,
   serrote, pneu, óleo, chaveiro, cadeado, costura, eletricista,
   tijolo, escada, torneira) com busca por palavra-chave.
+- **Ciclo 13/10 (fixes + features, branch feat/mf-fixes-polish)**:
+  - **Espelho de fatura futura (bug)**: `buildCardInvoices` ganhou
+    `includeFutureBound` — o agendador passa a enxergar despesas com
+    data futura (parcelas de nov/dez/jan) e cria o espelho de
+    pagamento no vencimento de cada fatura futura (antes só o mês
+    vigente tinha a cobrança agendada). Telas de exibição inalteradas.
+  - **Editar grupo**: botão lápis no cabeçalho de cada grupo da tela
+    Contas abre o MFGroupModal em modo edição (antes só criação).
+  - **Reordenar contas**: toggle "Reordenar" na Contas com ↑/↓ por
+    linha trocando `sort_order` (vale no Resumo e em toda lista).
+  - **Ícones**: +16 de serviços/oficina (mecânico, barbearia,
+    extintor, AR, wifi...) e 6 marcas de marketplace com SVG
+    monograma (Amazon, Shopee, Mercado Livre, AliExpress, Shein,
+    Magalu) em `public/mf-brands`.
+  - Autocomplete da descrição (descrição + categoria + tags, sem
+    valor; ignora acentos) e spinner de atualização no Extrato.
+  - **"Ignorar nos totais" nos lugares certos**: ignorada soma nos
+    grupos/drill/rodapé e sai só dos cards de KPI (somas, contagens,
+    variação e gráficos).
+  - Gates: **ESLint 0 · Vitest 564/564 · E2E 44/44**.

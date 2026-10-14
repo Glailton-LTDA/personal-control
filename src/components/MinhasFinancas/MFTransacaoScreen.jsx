@@ -7,6 +7,7 @@ import { confirmToast } from '../../lib/toast';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { mfMutate } from '../../lib/offline/mfOffline';
 import {
+  useMFAllTransactions,
   useMFAccounts,
   useMFCategories,
   useMFTags,
@@ -31,6 +32,8 @@ import {
   invoiceCloseForDueMonth,
 } from '../../hooks/useMinhasFinancas';
 import MFAccountSelect from './MFAccountSelect';
+import MFCategoryAvatar from './MFCategoryAvatar';
+import { mfNormalize } from './MFCategoryIcons';
 import MFSelect from './MFSelect';
 import MFCategorySelect from './MFCategorySelect';
 import MFRepeatModal from './MFRepeatModal';
@@ -132,6 +135,9 @@ export default function MFTransacaoScreen({
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: categories = [] } = useMFCategories(user);
   const { data: tags = [] } = useMFTags(user);
+  // Histórico para o autocomplete da descrição (criação): já vem do cache
+  // (o agendador usa a mesma query), sem custo extra ao abrir a tela.
+  const { data: allTxs = [] } = useMFAllTransactions(user);
   const createMutation = useCreateMFTransaction();
   const updateMutation = useUpdateMFTransaction();
   const deleteMutation = useDeleteMFTransaction();
@@ -146,6 +152,9 @@ export default function MFTransacaoScreen({
   const [tagsOpen, setTagsOpen] = useState(false);
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [amountCalcOpen, setAmountCalcOpen] = useState(false);
+  // Autocomplete da descrição (só na criação): lista aberta + destaque.
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestIndex, setSuggestIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   // Repetição na criação: 'none' (lançamento único) | 'repeat'
@@ -174,6 +183,8 @@ export default function MFTransacaoScreen({
     setNewTag('');
     setTagsOpen(false);
     setCategoryTouched(false);
+    setSuggestOpen(false);
+    setSuggestIndex(0);
     setRepeatMode('none');
     setRepeatConfig({ initial: 1, count: 2, periodicity: 'MONTHLY', amountMode: 'parcela' });
     setRepeatOpen(false);
@@ -418,6 +429,63 @@ export default function MFTransacaoScreen({
       }
       return next;
     });
+  };
+
+  // Autocomplete da descrição (só na criação, como no app original):
+  // descrições distintas já usadas no mesmo tipo, mais recentes antes.
+  // Escolher preenche descrição + categoria — o valor nunca é copiado.
+  const historySuggestions = useMemo(() => {
+    if (isEdit) return [];
+    const term = mfNormalize(form.description.trim());
+    if (term.length < 2) return [];
+    const seen = new Map();
+    const ordered = [...(allTxs ?? [])].sort((a, b) =>
+      String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
+    );
+    for (const row of ordered) {
+      if (seen.size >= 6) break;
+      if (row.type !== form.type) continue;
+      const name = String(row.description ?? '').trim();
+      if (!name) continue;
+      const key = mfNormalize(name); // ignora acentos/caixa na busca
+      if (key === term || !key.includes(term) || seen.has(key)) continue;
+      seen.set(key, row);
+    }
+    return [...seen.values()];
+  }, [allTxs, form.description, form.type, isEdit]);
+
+  const activeSuggest = Math.min(suggestIndex, Math.max(historySuggestions.length - 1, 0));
+
+  const pickSuggestion = async (row) => {
+    if (!row) return;
+    setForm((prev) => {
+      const next = { ...prev, description: String(row.description ?? '').trim() };
+      if (
+        row.category_id &&
+        visibleCategories.some((cat) => cat.id === row.category_id)
+      ) {
+        next.category_id = row.category_id;
+      }
+      return next;
+    });
+    setCategoryTouched(true);
+    setSuggestOpen(false);
+    // Tags do lançamento original (como no app original) — o valor
+    // continua intacto. Filtro client-side cobre mocks/offline.
+    if (!row.id) return;
+    try {
+      const { data } = await supabase
+        .from('mf_transaction_tags')
+        .select('tag_id')
+        .eq('transaction_id', row.id);
+      const ids = (data ?? [])
+        .filter((link) => link.transaction_id === row.id)
+        .map((link) => link.tag_id)
+        .filter((id) => id && tags.some((tag) => tag.id === id));
+      setTagIds(ids);
+    } catch {
+      /* sem tags: mantém as atuais */
+    }
   };
 
   const handleToggleTag = (tagId) => {
@@ -935,17 +1003,128 @@ export default function MFTransacaoScreen({
       </div>
 
       <form onSubmit={handleSubmit} data-testid="mf-tx-form">
-        {/* Descrição (largura total) */}
-        <div className="input-group" style={{ marginBottom: '1rem' }}>
+        {/* Descrição (largura total) + autocomplete do histórico */}
+        <div className="input-group" style={{ marginBottom: '1rem', position: 'relative' }}>
           <label>{t('minhasfinancas.tx_description_label')}</label>
           <input
             type="text"
             required
             value={form.description}
-            onChange={handleDescriptionChange}
+            onChange={(event) => {
+              handleDescriptionChange(event);
+              setSuggestIndex(0);
+              setSuggestOpen(true);
+            }}
+            onFocus={() => {
+              setSuggestIndex(0);
+              setSuggestOpen(true);
+            }}
+            onBlur={() => setSuggestOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setSuggestOpen(false);
+                return;
+              }
+              if (!suggestOpen || historySuggestions.length === 0) return;
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setSuggestIndex((i) => (i + 1) % historySuggestions.length);
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setSuggestIndex(
+                  (i) => (i - 1 + historySuggestions.length) % historySuggestions.length
+                );
+              } else if (event.key === 'Enter') {
+                event.preventDefault();
+                pickSuggestion(historySuggestions[activeSuggest]);
+              }
+            }}
             placeholder={t('minhasfinancas.tx_description_placeholder')}
             data-testid="mf-tx-description"
+            autoComplete="off"
           />
+          {suggestOpen && historySuggestions.length > 0 && (
+            <div
+              role="listbox"
+              data-testid="mf-tx-suggest"
+              className="glass-card"
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 60,
+                marginTop: '0.25rem',
+                padding: '0.25rem',
+                maxHeight: 248,
+                overflowY: 'auto',
+              }}
+            >
+              {historySuggestions.map((row, index) => {
+                const cat = categories.find((c) => c.id === row.category_id);
+                return (
+                  <div
+                    key={`${String(row.description).toLowerCase()}-${row.category_id ?? 'nocat'}`}
+                    role="option"
+                    aria-selected={index === activeSuggest}
+                    data-testid={`mf-tx-suggest-item-${index}`}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      pickSuggestion(row);
+                    }}
+                    onMouseEnter={() => setSuggestIndex(index)}
+                    className="table-row-hover"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.6rem',
+                      padding: '0.5rem 0.6rem',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      background:
+                        index === activeSuggest
+                          ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
+                          : 'none',
+                    }}
+                  >
+                    {cat ? (
+                      <MFCategoryAvatar category={cat} size={26} />
+                    ) : (
+                      <span
+                        aria-hidden
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          flexShrink: 0,
+                          background: 'var(--glass-border)',
+                        }}
+                      />
+                    )}
+                    <span style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: 'block',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {String(row.description ?? '').trim()}
+                      </span>
+                      {cat && (
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {cat.name}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Valor / Conta / Categoria / Status */}

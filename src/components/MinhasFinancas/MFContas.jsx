@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown, X, TrendingUp, CalendarClock, FileText } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, ArrowLeftRight, Wallet, Archive, ArchiveRestore, FolderTree, Loader2, ChevronDown, ChevronUp, X, TrendingUp, CalendarClock, FileText, ArrowUpDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
@@ -9,6 +9,7 @@ import {
   useMFGroups,
   useDeleteAccount,
   useUpdateAccount,
+  useUpdateMFGroup,
   formatMoney,
   groupTotalsByCurrency,
   countableRows,
@@ -111,6 +112,7 @@ export default function MFContas({
   const { data: groups = [] } = useMFGroups(user);
   const deleteMutation = useDeleteAccount();
   const updateMutation = useUpdateAccount();
+  const updateGroupMutation = useUpdateMFGroup();
 
   const [search, setSearch] = useState('');
   const [currency, setCurrency] = useState('all');
@@ -122,6 +124,10 @@ export default function MFContas({
   const [accountModal, setAccountModal] = useState(null); // null | 'new' | conta
   const [transferOpen, setTransferOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [groupEdit, setGroupEdit] = useState(null); // grupo em edição
+  // Modo reordenar: cada linha mostra ↑/↓ e troca o sort_order com o
+  // vizinho (a mesma ordem vale no Resumo — tudo ordena por sort_order).
+  const [reordering, setReordering] = useState(false);
   const [selectedId, setSelectedId] = useState(null); // drill-down da conta
 
   // A tela Contas lista apenas contas: cartões moram na aba Cartões.
@@ -272,12 +278,14 @@ export default function MFContas({
 
   const nativeMoney = (value, rowCurrency) =>
     showValues ? formatMoney(value, rowCurrency) : '•••';
+  // Rodapé da tabela: soma TUDO que está listado (inclusive "Ignorar nos
+  // totais") — só os cards de KPI excluem as ignoradas.
   const totalOf = (field) =>
-    formatTotals(groupTotalsByCurrency(countableRows(accounts), field), showValues);
+    formatTotals(groupTotalsByCurrency(accounts, field), showValues);
 
   /** Subtotal de um campo para um conjunto de contas (cabeçalhos de grupo). */
   const subtotalOf = (list, field) =>
-    formatTotals(groupTotalsByCurrency(countableRows(list), field), showValues);
+    formatTotals(groupTotalsByCurrency(list, field), showValues);
 
   // Soma bruta de um mapa por moeda — usada só para decidir o sinal.
   const sumMap = (map) => Object.values(map).reduce((sum, value) => sum + value, 0);
@@ -293,9 +301,8 @@ export default function MFContas({
   /** Total líquido de transferências de um conjunto de contas (por moeda). */
   const netTotalsText = (list) => {
     if (!showValues) return '•••';
-    const counted = countableRows(list);
-    const credit = groupTotalsByCurrency(counted, 'transfCredito');
-    const debit = groupTotalsByCurrency(counted, 'transfDebito');
+    const credit = groupTotalsByCurrency(list, 'transfCredito');
+    const debit = groupTotalsByCurrency(list, 'transfDebito');
     const net = {};
     new Set([...Object.keys(credit), ...Object.keys(debit)]).forEach((cur) => {
       net[cur] = (credit[cur] ?? 0) - (debit[cur] ?? 0);
@@ -326,10 +333,10 @@ export default function MFContas({
 
   // Totais do rodapé da tabela (base: contas listadas, com a busca aplicada).
   const listedNetTransfer =
-    sumMap(groupTotalsByCurrency(countableRows(accounts), 'transfCredito')) -
-    sumMap(groupTotalsByCurrency(countableRows(accounts), 'transfDebito'));
+    sumMap(groupTotalsByCurrency(accounts, 'transfCredito')) -
+    sumMap(groupTotalsByCurrency(accounts, 'transfDebito'));
   const listedGroupCount = new Set(
-    countableRows(accounts).map((row) => row.group_id).filter(Boolean)
+    accounts.map((row) => row.group_id).filter(Boolean)
   ).size;
 
   const handleDelete = (account) => {
@@ -355,6 +362,45 @@ export default function MFContas({
         archived_at: archiving ? new Date().toISOString() : null,
       });
       toast.success(t(archiving ? 'minhasfinancas.archived_done' : 'minhasfinancas.unarchived_done'));
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+    }
+  };
+
+  /** Reordena: sobe (−1) ou desce (+1) trocando o sort_order com o vizinho visível. */
+  const moveAccount = async (rowId, direction) => {
+    const index = accounts.findIndex((row) => row.id === rowId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= accounts.length) return;
+    try {
+      await Promise.all([
+        updateMutation.mutateAsync({ id: accounts[index].id, sort_order: target }),
+        updateMutation.mutateAsync({ id: accounts[target].id, sort_order: index }),
+      ]);
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+    }
+  };
+
+  /** Reordena grupos: sobe/desce entre irmãos (mesmo pai). Reescreve a
+   * posição de todos os irmãos — cura o "0 em tudo" que deixava a ordem
+   * alfabética sem controle do usuário. Vale no Resumo também (mesmo sort). */
+  const moveGroup = async (groupId, direction) => {
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) return;
+    const parentKey = group.parent_id ?? null;
+    const siblings = groups.filter((item) => (item.parent_id ?? null) === parentKey);
+    const index = siblings.findIndex((item) => item.id === groupId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= siblings.length) return;
+    const next = [...siblings];
+    [next[index], next[target]] = [next[target], next[index]];
+    try {
+      await Promise.all(
+        next.map((item, position) =>
+          updateGroupMutation.mutateAsync({ id: item.id, sort_order: position })
+        )
+      );
     } catch {
       toast.error(t('minhasfinancas.save_error'));
     }
@@ -444,7 +490,7 @@ export default function MFContas({
           </p>
           <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={kpiChipStyle}>
-              {t('minhasfinancas.kpi_active_accounts', { count: activeRows.length })}
+              {t('minhasfinancas.kpi_active_accounts', { count: countableRows(activeRows).length })}
             </span>
             {groupsWithAccounts > 0 && (
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -654,6 +700,28 @@ export default function MFContas({
             {t('minhasfinancas.accounts_group_view')}
           </button>
         )}
+        <button
+          type="button"
+          className="btn-cancel"
+          data-testid="mf-reorder-toggle"
+          aria-pressed={reordering}
+          onClick={() => setReordering((prev) => !prev)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.55rem 0.9rem',
+            fontSize: '0.82rem',
+            background: reordering
+              ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
+              : undefined,
+            color: reordering ? 'var(--primary)' : undefined,
+            borderColor: reordering ? 'var(--primary)' : undefined,
+          }}
+        >
+          <ArrowUpDown size={14} />
+          {t('minhasfinancas.accounts_reorder')}
+        </button>
 
         <span style={{ flex: '1 1 auto' }} />
         <MFCurrencyFilter currencies={currencyOptions} value={currency} onChange={setCurrency} />
@@ -723,8 +791,7 @@ export default function MFContas({
           <table
             style={{
               width: '100%',
-              maxWidth: 1320,
-              margin: '0 auto',
+              maxWidth: '100%',
               borderCollapse: 'collapse',
               tableLayout: 'fixed',
             }}
@@ -814,8 +881,8 @@ export default function MFContas({
                     const isGroup = item.kind === 'group';
                     const group = item.group;
                     const itemNet =
-                      sumMap(groupTotalsByCurrency(countableRows(item.rows), 'transfCredito')) -
-                      sumMap(groupTotalsByCurrency(countableRows(item.rows), 'transfDebito'));
+                      sumMap(groupTotalsByCurrency(item.rows, 'transfCredito')) -
+                      sumMap(groupTotalsByCurrency(item.rows, 'transfDebito'));
                     return (
                       <tr
                         key={isGroup ? `group-${group.id}` : 'ungrouped'}
@@ -908,6 +975,22 @@ export default function MFContas({
                             >
                               {t('minhasfinancas.group_count', { count: item.count })}
                             </span>
+                            {isGroup && (
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label={t('minhasfinancas.group_edit_action')}
+                                title={t('minhasfinancas.group_edit_action')}
+                                data-testid={`mf-group-edit-${group.id}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setGroupEdit(group);
+                                }}
+                                style={{ padding: '0.2rem', borderRadius: 8 }}
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
                           </span>
                         </td>
                         <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
@@ -961,7 +1044,54 @@ export default function MFContas({
                             color: 'var(--text-muted)',
                           }}
                         >
-                          {t('minhasfinancas.total')}
+                          {reordering && isGroup ? (
+                            <span style={{ display: 'inline-flex', gap: '0.25rem', justifyContent: 'center' }}>
+                              {(() => {
+                                const siblings = groups.filter(
+                                  (item) => (item.parent_id ?? null) === (group.parent_id ?? null)
+                                );
+                                const position = siblings.findIndex((item) => item.id === group.id);
+                                const isFirst = position <= 0;
+                                const isLast = position < 0 || position >= siblings.length - 1;
+                                return (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="icon-btn"
+                                      aria-label={t('minhasfinancas.move_up')}
+                                      title={t('minhasfinancas.move_up')}
+                                      data-testid={`mf-group-move-up-${group.id}`}
+                                      disabled={isFirst}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        moveGroup(group.id, -1);
+                                      }}
+                                      style={{ padding: '0.25rem', opacity: isFirst ? 0.3 : 1 }}
+                                    >
+                                      <ChevronUp size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="icon-btn"
+                                      aria-label={t('minhasfinancas.move_down')}
+                                      title={t('minhasfinancas.move_down')}
+                                      data-testid={`mf-group-move-down-${group.id}`}
+                                      disabled={isLast}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        moveGroup(group.id, 1);
+                                      }}
+                                      style={{ padding: '0.25rem', opacity: isLast ? 0.3 : 1 }}
+                                    >
+                                      <ChevronDown size={14} />
+                                    </button>
+                                  </>
+                                );
+                              })()}
+                            </span>
+                          ) : (
+                            t('minhasfinancas.total')
+                          )}
                         </td>
                       </tr>
                     );
@@ -1083,6 +1213,49 @@ export default function MFContas({
                       {nativeMoney(row.previsto, row.currency)}
                     </td>
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)' }}>
+                      {reordering ? (
+                        <span style={{ display: 'inline-flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                          {(() => {
+                            const accIndex = accounts.findIndex((acc) => acc.id === row.id);
+                            const isFirst = accIndex <= 0;
+                            const isLast = accIndex < 0 || accIndex >= accounts.length - 1;
+                            return (
+                              <>
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  aria-label={t('minhasfinancas.move_up')}
+                                  title={t('minhasfinancas.move_up')}
+                                  data-testid={`mf-move-up-${row.id}`}
+                                  disabled={isFirst}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    moveAccount(row.id, -1);
+                                  }}
+                                  style={{ padding: '0.35rem', opacity: isFirst ? 0.3 : 1 }}
+                                >
+                                  <ChevronUp size={15} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  aria-label={t('minhasfinancas.move_down')}
+                                  title={t('minhasfinancas.move_down')}
+                                  data-testid={`mf-move-down-${row.id}`}
+                                  disabled={isLast}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    moveAccount(row.id, 1);
+                                  }}
+                                  style={{ padding: '0.35rem', opacity: isLast ? 0.3 : 1 }}
+                                >
+                                  <ChevronDown size={15} />
+                                </button>
+                              </>
+                            );
+                          })()}
+                        </span>
+                      ) : (
                       <span style={{ display: 'inline-flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <button
                           type="button"
@@ -1141,6 +1314,7 @@ export default function MFContas({
                           <Trash2 size={15} />
                         </button>
                       </span>
+                      )}
                     </td>
                   </tr>
                   );
@@ -1178,7 +1352,7 @@ export default function MFContas({
                       >
                         (
                         {t('minhasfinancas.accounts_count', {
-                          count: countableRows(accounts).length,
+                          count: accounts.length,
                         })}
                         {listedGroupCount > 0 &&
                           ` · ${t('minhasfinancas.groups_count', { count: listedGroupCount })}`}
@@ -1237,6 +1411,13 @@ export default function MFContas({
       />
       {groupModalOpen && (
         <MFGroupModal user={user} onClose={() => setGroupModalOpen(false)} />
+      )}
+      {groupEdit && (
+        <MFGroupModal
+          group={groupEdit}
+          user={user}
+          onClose={() => setGroupEdit(null)}
+        />
       )}
       <MFTransferModal
         isOpen={transferOpen}

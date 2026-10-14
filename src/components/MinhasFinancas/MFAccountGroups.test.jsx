@@ -349,6 +349,31 @@ describe('MFGroupModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('escolhe a cor do grupo no seletor e salva junto', async () => {
+    renderWithProviders(
+      <MFGroupModal user={mockUser} onClose={vi.fn()} onSaved={vi.fn()} />
+    );
+
+    fireEvent.change(screen.getByTestId('mf-group-name'), { target: { value: 'Viagem' } });
+    // Segunda cor da paleta fica ativa; clicar de novo desmarca (automático)
+    fireEvent.click(screen.getByTestId('mf-group-color-1'));
+    expect(screen.getByTestId('mf-group-color-1')).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByTestId('mf-group-color-1'));
+    expect(screen.getByTestId('mf-group-color-1')).toHaveAttribute('aria-checked', 'false');
+    // Marca de novo e salva junto no payload
+    fireEvent.click(screen.getByTestId('mf-group-color-1'));
+    fireEvent.click(screen.getByTestId('mf-group-save'));
+
+    const calls = await getCalls();
+    await waitFor(() => {
+      expect(groupInserts(calls)).toHaveLength(1);
+    });
+    expect(groupInserts(calls)[0].rows[0]).toMatchObject({
+      name: 'Viagem',
+      color: '#ef4444',
+    });
+  });
+
   it('troca o ícone do grupo por uma marca de banco (com busca)', async () => {
     renderWithProviders(<MFGroupModal user={mockUser} onClose={vi.fn()} onSaved={vi.fn()} />);
 

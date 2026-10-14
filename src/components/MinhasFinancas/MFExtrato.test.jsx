@@ -262,3 +262,52 @@ describe('MFExtrato — avatar da categoria', () => {
     );
   });
 });
+
+describe('MFExtrato - aviso de atualização', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    categoriesMock.mockReturnValue({ data: [], isLoading: false, isError: false });
+  });
+
+  it('mostra spinner no ícone durante o refetch sem esconder a lista', async () => {
+    statementMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      isFetching: true,
+      data: { mixed: false, accounts: [], groups: [] },
+    });
+    renderScreen();
+
+    // ícone do cabeçalho vira spinner (tooltip = chave i18n) e sem tela cheia
+    const badge = screen.getByTestId('mf-extrato-refreshing');
+    expect(badge).toHaveAttribute('title', 'minhasfinancas.statement_updating');
+    expect(badge.querySelector('.animate-spin')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-extrato-loading')).not.toBeInTheDocument();
+  });
+
+  it('no carregamento inicial mostra a tela cheia e esconde a pílula', async () => {
+    statementMock.mockReturnValue({
+      isLoading: true,
+      isError: false,
+      isFetching: true,
+      data: undefined,
+    });
+    renderScreen();
+
+    expect(screen.getByTestId('mf-extrato-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-extrato-refreshing')).not.toBeInTheDocument();
+  });
+
+  it('com dados atualizados o ícone volta ao normal', async () => {
+    statementMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      data: { mixed: false, accounts: [], groups: [] },
+    });
+    renderScreen();
+
+    expect(screen.queryByTestId('mf-extrato-refreshing')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-extrato-empty')).toBeInTheDocument();
+  });
+});

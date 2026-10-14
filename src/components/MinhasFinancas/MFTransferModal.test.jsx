@@ -163,6 +163,50 @@ describe('MFTransferModal — transferência recorrente (Fase D)', () => {
     });
   });
 
+  it('fixa mensal cria cabeça + 11 filhas mensais vinculadas', async () => {
+    renderModal();
+    fillAmount('200,00');
+
+    fireEvent.click(screen.getByTestId('mf-transfer-repeat-fixed'));
+    expect(screen.getByTestId('mf-transfer-repeat-fixed')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('mf-transfer-fixed-hint')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-transfer-confirm'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    const today = toISODate(new Date());
+    const head = chain.insert.mock.calls[0][0];
+    expect(head).toHaveLength(1);
+    expect(head[0]).toMatchObject({
+      type: 'TRANSFERENCIA',
+      amount: 200,
+      status: 'PAGO',
+      payment_date: today,
+      recurrence: 'MONTHLY',
+      is_fixed: true,
+    });
+
+    const children = chain.insert.mock.calls[1][0];
+    expect(children).toHaveLength(11);
+    expect(children[0]).toMatchObject({
+      amount: 200,
+      status: 'PENDENTE',
+      payment_date: addMonthsISO(today, 1),
+      recurrence: 'MONTHLY',
+      is_fixed: true,
+      parent_transaction_id: 'created-0',
+    });
+    expect(children[10]).toMatchObject({
+      payment_date: addMonthsISO(today, 11),
+      parent_transaction_id: 'created-0',
+    });
+  });
+
   it('semanal repete com recurrence e sem numeração', async () => {
     renderModal();
     fillAmount('100,00');

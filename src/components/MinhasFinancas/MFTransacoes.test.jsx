@@ -173,6 +173,17 @@ vi.mock('../../lib/supabase', () => {
   };
 });
 
+// Histórico do autocomplete mockado (o hook real pagina via .range,
+// que o mock do supabase não implementa)
+const allTxMock = vi.fn();
+vi.mock('../../hooks/useMinhasFinancas', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useMFAllTransactions: (...args) => allTxMock(...args),
+  };
+});
+
 const createTestQueryClient = () =>
   new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -209,9 +220,17 @@ const openDetailEdit = async (rowTestId) => {
 };
 
 describe('Tela de Lançamentos (Fase 3)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.setItem('pc_skip_confirmations', 'true');
+    // Default do histórico: as mesmas linhas do mock (o hook real funciona
+    // sem .range — ver mfSelectAll — então os consumidores esperam os dados)
+    const mocked = await import('../../lib/supabase');
+    allTxMock.mockReturnValue({
+      data: mocked.__txRows ?? [],
+      isLoading: false,
+      isError: false,
+    });
   });
 
   afterEach(() => {
@@ -726,6 +745,84 @@ describe('Tela de Lançamentos (Fase 3)', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('mf-tx-category')).toHaveTextContent('Alimentação');
+    });
+  });
+
+  it('autocomplete do histórico preenche descrição + categoria sem tocar no valor', async () => {
+    allTxMock.mockReturnValue({
+      data: [
+        {
+          id: 'tx-1',
+          type: 'DESPESA',
+          description: 'Chocolate',
+          amount: 10,
+          payment_date: '2026-10-01',
+          status: 'PAGO',
+          category_id: 'cat-market',
+          account_id: 'acc-1',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Cho' },
+    });
+
+    // sugestão aparece com descrição + categoria (sem valor)
+    const item = await screen.findByTestId('mf-tx-suggest-item-0');
+    expect(item).toHaveTextContent('Chocolate');
+    expect(item).toHaveTextContent('Supermercado');
+    expect(item).not.toHaveTextContent('10');
+
+    fireEvent.mouseDown(item);
+
+    // descrição e categoria preenchidas; valor continua vazio
+    expect(screen.getByTestId('mf-tx-description')).toHaveValue('Chocolate');
+    expect(screen.getByTestId('mf-tx-category')).toHaveTextContent('Supermercado');
+    expect(screen.getByTestId('mf-tx-amount')).toHaveValue('');
+    expect(screen.queryByTestId('mf-tx-suggest')).not.toBeInTheDocument();
+  });
+
+  it('autocomplete do histórico traz as tags do lançamento original', async () => {
+    allTxMock.mockReturnValue({
+      data: [
+        {
+          id: 'tx-1',
+          type: 'DESPESA',
+          description: 'Chocolate',
+          amount: 10,
+          payment_date: '2026-10-01',
+          status: 'PAGO',
+          category_id: 'cat-market',
+          account_id: 'acc-1',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Cho' },
+    });
+
+    const item = await screen.findByTestId('mf-tx-suggest-item-0');
+    fireEvent.mouseDown(item);
+
+    // tx-1 tem vínculo com tag-home (Casa) no mock: chip de selecionada aparece
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-tag-sel-tag-home')).toBeInTheDocument();
     });
   });
 

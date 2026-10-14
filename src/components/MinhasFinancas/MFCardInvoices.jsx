@@ -4,7 +4,7 @@ import { Wallet, Check, Clock, Lock, LockOpen, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
-  useMFAllTransactions,
+  useMFAccountTransactions,
   useMFCategories,
   useUpdateMFTransaction,
   MF_INVOICE_PAYMENT_NOTE,
@@ -51,7 +51,11 @@ const chipStyle = (active, color) => ({
  */
 export default function MFCardInvoices({ card, user, showValues = true, monthKey = currentMonthKey(), onEditTx = null, onManualTx = null, onOpenTransfer = null }) {
   const { t, i18n } = useTranslation();
-  const { data: transactions = [] } = useMFAllTransactions(user);
+  // Escopo enxuto: o cartão + a conta vinculada (faturas, pagamentos
+  // e vinculados) em vez das ~13 mil linhas de todas as contas.
+  const { data: transactions = [], isLoading: txLoading } = useMFAccountTransactions(user, card.id, [
+    card.linked_account_id,
+  ]);
   const { data: categories = [] } = useMFCategories(user);
   // Fatura selecionada sobrevive ao F5 (por cartão, em qualquer
   // superfície); inválida ou sumida → corrente.
@@ -96,12 +100,15 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
       : [...shownUpcoming, ...shownInvoices].find((inv) => inv.closeISO === selectedInvoice) ??
         current;
   // Seleção salva que sumiu (fatura sem movimento) → volta à corrente.
+  // Espera o carregamento: sem o gate, a primeira pintura (sem dados)
+  // descartava a seleção salva antes do fetch resolver.
   const selectedKnown =
     selectedInvoice === 'current' ||
     [...shownUpcoming, ...shownInvoices].some((inv) => inv.closeISO === selectedInvoice);
   useEffect(() => {
+    if (txLoading) return;
     if (!selectedKnown) setSelectedInvoice('current');
-  }, [selectedKnown]);
+  }, [selectedKnown, txLoading]);
   const cardStatus = STATUS[activeInvoice.status] ?? STATUS.CORRENTE;
   const linkedOk = !!card.linked_account_id;
 
