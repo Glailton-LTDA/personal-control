@@ -53,7 +53,7 @@ import {
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyFilter from './MFCurrencyFilter';
 import MFAccountIcon from './MFAccountIcon';
-import MFGroupIcon from './MFGroupIcon';
+import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
 import MFGroupDrill from './MFGroupDrill';
 import MFGroupModal from './MFGroupModal';
@@ -576,7 +576,7 @@ export default function MFResumo({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
                 gap: '0.9rem',
                 marginTop: '0.9rem',
               }}
@@ -587,71 +587,30 @@ export default function MFResumo({
                 const descendantCount = groups.filter(
                   (item) => item.id !== group.id && ids.has(item.id) && item.show_in_summary
                 ).length;
+                const subtitle =
+                  t('minhasfinancas.accounts_count', { count: subRows.length }) +
+                  (descendantCount > 0
+                    ? ` · ${t('minhasfinancas.groups_count', { count: descendantCount })}`
+                    : '');
                 const card = (
-                  <button
+                  <MFGroupCard
                     key={group.id}
-                    type="button"
-                    data-testid={`mf-group-card-${group.id}`}
-                    onClick={() => setGroupPath([group.id])}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.7rem',
-                      padding: '0.9rem 1rem',
-                      borderRadius: 14,
-                      border: '1px solid var(--glass-border)',
-                      background: 'var(--input-bg)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      font: 'inherit',
-                      color: 'var(--text-main)',
-                      width: '100%',
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: '1.15rem',
-                        background:
-                          'linear-gradient(135deg, color-mix(in srgb, var(--primary) 22%, transparent), color-mix(in srgb, #8b5cf6 18%, transparent))',
-                        border: '1px solid var(--glass-border)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <MFGroupIcon icon={group.icon} name={group.name} size={30} />
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span
-                        style={{
-                          display: 'block',
-                          fontWeight: 700,
-                          fontSize: '0.92rem',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {group.name}
-                      </span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {t('minhasfinancas.accounts_count', { count: subRows.length })}
-                        {descendantCount > 0 &&
-                          ` · ${t('minhasfinancas.groups_count', { count: descendantCount })}`}
-                      </span>
-                    </span>
-                    {group.sum_totals ? (
-                      <span style={{ fontWeight: 800, fontSize: '0.88rem' }}>
-                        {formatTotals(groupTotalsByCurrency(subRows, 'saldo'), showValues)}
-                      </span>
-                    ) : (
-                      <ArrowRight size={15} style={{ color: 'var(--text-muted)' }} />
-                    )}
-                  </button>
+                    icon={group.icon}
+                    name={group.name}
+                    subtitle={subtitle}
+                    total={
+                      group.sum_totals
+                        ? formatTotals(groupTotalsByCurrency(subRows, 'saldo'), showValues)
+                        : null
+                    }
+                    trailing={
+                      group.sum_totals ? null : (
+                        <ArrowRight size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      )
+                    }
+                    onOpen={() => setGroupPath([group.id])}
+                    testId={`mf-group-card-${group.id}`}
+                  />
                 );
                 if (!groupsReordering) return card;
                 const position = roots.findIndex((item) => item.id === group.id);

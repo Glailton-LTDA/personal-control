@@ -4,14 +4,20 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-10-14
+
 ### Alterado
 - **Performance do Minhas Finanças (MF)**: com 13,7 mil lançamentos, cada ação recarregava a tabela inteira 3× (~15 MB). Agora: (1) resumo do mês agregado no servidor (RPC `mf_month_summary`, ~100 linhas); (2) extrato geral agregado no servidor (RPC `mf_statement`: grupos + abertura + saldo corrente); (3) extrato de uma conta, drill-down, tela de cartões, faturas do cartão e modal de lançamento baixam só as contas envolvidas no servidor (`or` por origem/destino — de ~13 mil linhas para centenas, mês ~275 linhas); (4) invalidação pós-mutação restrita às queries `mf-*`. RPCs verificadas nos dados reais (0 divergências) com fallback local/Dexie intacto. Cálculos client-side intactos.
+- **Cards de grupo redesenhados (MF)**: componente único `MFGroupCard` no widget do Resumo e no drill-down (avatar + nome com elipse e tooltip + subtítulo numa linha + total à direita, conforme mockup); grade mais larga; plural corrigido ("1 conta", "1 grupo" via chaves `_one/_other` em pt/en/es).
 
 ### Adicionado
 - **Autocomplete do histórico na descrição (MF)**: ao digitar 2+ letras na criação de um lançamento aparece uma lista (setas ↑/↓, Enter ou clique) com descrições já usadas do mesmo tipo — escolher preenche **descrição, categoria e as tags** do lançamento original, **sem copiar o valor** (como no Minhas Finanças original). A busca ignora acentos e caixa (ex.: "mi" encontra "Mídia"). Fonte: cache de `useMFAllTransactions` (sem request extra); ícone/avatar da categoria em cada sugestão.
 - **Aviso de atualização no Extrato (MF)**: ao criar/editar um lançamento o Extrato recarregava em silêncio (só `isLoading` inicial mostrava algo); agora o `isFetching` em segundo plano transforma o ícone do cabeçalho num spinner (com tooltip, i18n pt/en/es) sem esconder a lista.
 - **Botão Editar nos grupos da tela de Contas (MF)**: o cabeçalho de cada grupo ganhou lápis (`mf-group-edit-*`) abrindo o `MFGroupModal` em modo edição (nome, ícone, contas, flags) — antes só dava para criar grupo, nunca editar.
 - **Reordenar contas (MF)**: toggle "Reordenar" na toolbar da Contas troca as ações por ↑/↓ (`mf-move-up/down-*`), que trocam o `sort_order` com o vizinho — a mesma ordem vale no Resumo e em todo lugar (todas as listas ordenam por `sort_order`).
+- **Reordenar grupos (MF)**: no mesmo modo Reordenar, os cabeçalhos de grupo na Contas e os cards no Resumo ganham ↑/↓ que reescrevem o `sort_order` entre irmãos — fim da ordem alfabética sem controle.
+- **Cor do grupo (MF)**: o modal de grupo ganhou seletor de cor (paleta + automático), aplicada no trilho do cabeçalho — como já era com o ícone.
+- **Fixa mensal na transferência (MF)**: o modal de transferência ganhou a opção "Fixa mensal" (cabeça + 11 filhas vinculadas, como nos lançamentos).
 - **Mais ícones em categorias (MF)**: +16 emojis de oficina/serviços (🧑‍🔧 mecânico, 💈 barbearia, 💇 cabeleireiro, 🧯 extintor, 🧤 luvas, 🪣 balde, ⛏️ picareta, 🪓 machado, 🧲 ímã, 🚧 obra, 🌬️ ventilador/AR, ❄️ refrigeração, 🖥️ informática, 🔦 lanterna, 📡 antena, 🛜 wifi) com busca em pt; 🔌 ganhou "eletricista".
 - **Marcas de marketplace como ícone (MF)**: Amazon, Shopee, Mercado Livre, AliExpress, Shein e Magalu (`brand:<chave>`, SVG monograma em `public/mf-brands`), escolhíveis em categorias, contas e grupos.
 

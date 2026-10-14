@@ -7,6 +7,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupIcon from './MFGroupIcon';
+import MFGroupCard from './MFGroupCard';
 
 /** Ids do subgrupo (raiz + descendentes) — evita ciclo mesmo com dados ruins. */
 const subtreeIds = (rootId, groups) => {
@@ -103,20 +104,6 @@ export default function MFGroupDrill({
       'linear-gradient(135deg, color-mix(in srgb, var(--primary) 30%, transparent), color-mix(in srgb, #8b5cf6 25%, transparent))',
     border: '1px solid var(--glass-border)',
     flexShrink: 0,
-  };
-
-  const childCardStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.7rem',
-    padding: '0.85rem 1rem',
-    borderRadius: 14,
-    border: '1px solid var(--glass-border)',
-    background: 'var(--input-bg)',
-    cursor: 'pointer',
-    textAlign: 'left',
-    font: 'inherit',
-    color: 'var(--text-main)',
   };
 
   return (
@@ -240,7 +227,7 @@ export default function MFGroupDrill({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
               gap: '0.75rem',
             }}
           >
@@ -249,52 +236,20 @@ export default function MFGroupDrill({
               const childRows = rows.filter((row) => childIds.has(row.group_id));
               const childCount = childRows.length;
               return (
-                <button
+                <MFGroupCard
                   key={child.id}
-                  type="button"
-                  data-testid={`mf-group-drill-card-${child.id}`}
-                  onClick={() => onNavigate([...path, child.id])}
-                  style={childCardStyle}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 12,
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: '1.1rem',
-                      background: 'color-mix(in srgb, var(--primary) 14%, transparent)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <MFGroupIcon icon={child.icon} name={child.name} size={27} />
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {child.name}
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      {t('minhasfinancas.accounts_count', { count: childCount })}
-                    </span>
-                  </span>
-                  {child.sum_totals && (
-                    <span style={{ fontWeight: 800, fontSize: '0.88rem' }}>
-                      {formatTotals(groupTotalsByCurrency(childRows, 'saldo'), showValues)}
-                    </span>
-                  )}
-                  <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                </button>
+                  icon={child.icon}
+                  name={child.name}
+                  subtitle={t('minhasfinancas.accounts_count', { count: childCount })}
+                  total={
+                    child.sum_totals
+                      ? formatTotals(groupTotalsByCurrency(childRows, 'saldo'), showValues)
+                      : null
+                  }
+                  trailing={<ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+                  onOpen={() => onNavigate([...path, child.id])}
+                  testId={`mf-group-drill-card-${child.id}`}
+                />
               );
             })}
           </div>
