@@ -26,6 +26,103 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     sort_order: 1,
   };
 
+  /**
+   * Emula a RPC mf_month_summary sobre o store em memória — mesma
+   * semântica do computeAccountRows (somas do mês/anterior, saldos
+   * correntes, chart de 6 meses). Exercita o caminho real do hook
+   * (RPC → forma { rows, chartTxs } → UI) sem o banco.
+   */
+  function computeMonthSummaryRPC(store, monthKey) {
+    const [y, m] = String(monthKey || '').split('-').map(Number);
+    const pad = (n) => String(n).padStart(2, '0');
+    const lastDay = new Date(y, m, 0).getDate();
+    const start = `${monthKey}-01`;
+    const end = `${monthKey}-${pad(lastDay)}`;
+    const prevDate = new Date(y, m - 2, 1);
+    const prevKey = `${prevDate.getFullYear()}-${pad(prevDate.getMonth() + 1)}`;
+    const prevLast = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0).getDate();
+    const prevStart = `${prevKey}-01`;
+    const prevEnd = `${prevKey}-${pad(prevLast)}`;
+    const flowDate = new Date(y, m - 6, 1);
+    const flowStart = `${flowDate.getFullYear()}-${pad(flowDate.getMonth() + 1)}-01`;
+
+    const accounts = [...(store.mf_accounts || [])].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    );
+    const txs = store.mf_transactions || [];
+    const rows = accounts.map((acc) => {
+      let receitas = 0;
+      let despesas = 0;
+      let receitasPrev = 0;
+      let despesasPrev = 0;
+      let transfCredito = 0;
+      let transfDebito = 0;
+      let saldoMov = 0;
+      let pendenteMov = 0;
+      txs.forEach((tx) => {
+        if (tx.status === 'CANCELADO') return;
+        const amount = Number(tx.amount) || 0;
+        const inMonth = tx.payment_date >= start && tx.payment_date <= end;
+        const inPrev = tx.payment_date >= prevStart && tx.payment_date <= prevEnd;
+        const untilEnd = tx.payment_date <= end;
+        if (tx.type === 'TRANSFERENCIA') {
+          if (tx.account_id === acc.id) {
+            if (inMonth) transfDebito += amount;
+            if (untilEnd) (tx.status === 'PAGO' ? (saldoMov -= amount) : (pendenteMov -= amount));
+          }
+          if (tx.transfer_account_id === acc.id) {
+            if (inMonth) transfCredito += amount;
+            if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += amount) : (pendenteMov += amount));
+          }
+          return;
+        }
+        if (tx.account_id !== acc.id) return;
+        const delta = tx.type === 'RECEITA' ? amount : -amount;
+        if (inMonth) {
+          if (tx.type === 'RECEITA') receitas += amount;
+          else despesas += amount;
+        }
+        if (inPrev) {
+          if (tx.type === 'RECEITA') receitasPrev += amount;
+          else despesasPrev += amount;
+        }
+        if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += delta) : (pendenteMov += delta));
+      });
+      const saldo = (Number(acc.initial_balance) || 0) + saldoMov;
+      return {
+        ...acc,
+        currency: acc.currency || 'BRL',
+        receitas,
+        despesas,
+        receitasPrev,
+        despesasPrev,
+        transfCredito,
+        transfDebito,
+        saldo,
+        previsto: saldo + pendenteMov,
+      };
+    });
+    const currencyByAccount = Object.fromEntries(
+      accounts.map((acc) => [acc.id, acc.currency || 'BRL'])
+    );
+    const chartTxs = [];
+    txs.forEach((tx) => {
+      if (tx.status === 'CANCELADO' || tx.status !== 'PAGO') return;
+      if (tx.type !== 'RECEITA' && tx.type !== 'DESPESA') return;
+      const paymentDate = String(tx.payment_date || '');
+      if (paymentDate < flowStart || paymentDate > end) return;
+      chartTxs.push({
+        m: paymentDate.slice(0, 7),
+        a: tx.account_id,
+        c: currencyByAccount[tx.account_id] || 'BRL',
+        t: tx.type,
+        v: Number(tx.amount) || 0,
+        cat: tx.category_id ?? null,
+      });
+    });
+    return { rows, chartTxs };
+  }
+
   /** Desbloqueia o app com a senha mestre padrão para testes. */
   async function unlockApp(page) {
     const unlockModal = page.getByText('Acesso Seguro');
@@ -88,6 +185,36 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     page.mfStore = store;
     const wantsObject = (request) =>
       String(request.headers()['accept'] || '').includes('vnd.pgrst.object');
+
+    // RPC mf_month_summary (resumo agregado no servidor) — emulada
+    // sobre o store para exercitar o caminho real do hook.
+    await page.route('**/rest/v1/rpc/*', async (route, request) => {
+      if (request.method() === 'OPTIONS') {
+        return route.fulfill({ status: 204, headers: CORS });
+      }
+      const fn = new URL(request.url()).pathname.split('/').pop();
+      if (request.method() === 'POST' && fn === 'mf_month_summary') {
+        page.mfRpcHits = (page.mfRpcHits || 0) + 1;
+        let body = {};
+        try {
+          body = JSON.parse(request.postData() || '{}');
+        } catch {
+          body = {};
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS,
+          body: JSON.stringify(computeMonthSummaryRPC(store, body.p_month)),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: CORS,
+        body: '{}',
+      });
+    });
 
     await page.route('**/rest/v1/mf_*', async (route, request) => {
       const method = request.method();
@@ -211,6 +338,8 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     // Resumo mostra a conta semead
     await expect(page.getByTestId('mf-resumo-account-row')).toHaveCount(1);
     await expect(page.getByText('Nubank')).toBeVisible();
+    // Resumo veio da RPC agregada (não do full scan client-side)
+    expect(page.mfRpcHits || 0).toBeGreaterThan(0);
 
     const screens = [
       ['transactions', 'mf-transacoes'],
@@ -325,6 +454,77 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await page.getByTestId('sidebar-sub-item-minhasfinancas-statement').click();
     await expect(page.getByTestId('mf-extrato')).toBeVisible();
     await expect(page.getByTestId('mf-fab-add')).toBeVisible();
+  });
+
+  test('autocomplete da descrição: sugere histórico e preenche categoria e tags (sem valor)', async ({ page }) => {
+    await login(page);
+    // Histórico: despesa "Chocolate" na cat. Supermercado com a tag Casa
+    page.mfStore.mf_categories = [
+      { id: 'cat-food', name: 'Alimentação', type: 'DESPESA', parent_id: null, color: '#f59e0b', icon: '🍔' },
+      { id: 'cat-market', name: 'Supermercado', type: 'DESPESA', parent_id: 'cat-food', color: '#10b981', icon: '🛒' },
+    ];
+    page.mfStore.mf_tags = [{ id: 'tag-home', name: 'Casa', color: '#a855f7', user_id: 'user-e2e' }];
+    page.mfStore.mf_transactions = [
+      {
+        id: 'tx-h1',
+        account_id: 'acc-e2e',
+        type: 'DESPESA',
+        description: 'Chocolate',
+        amount: 10,
+        payment_date: '2026-10-01',
+        status: 'PAGO',
+        category_id: 'cat-market',
+      },
+    ];
+    page.mfStore.mf_transaction_tags = [{ transaction_id: 'tx-h1', tag_id: 'tag-home' }];
+    await openMinhasFinancas(page);
+
+    await page.getByTestId('sidebar-sub-item-minhasfinancas-transactions').click();
+    await expect(page.getByTestId('mf-transacoes')).toBeVisible();
+    await page.getByTestId('mf-new-tx').click();
+    await page.getByTestId('mf-add-opt-expense').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeVisible();
+
+    // Digita 2 letras → sugestão do histórico (descrição + categoria)
+    await page.getByTestId('mf-tx-description').pressSequentially('Cho');
+    const item = page.getByTestId('mf-tx-suggest-item-0');
+    await expect(page.getByTestId('mf-tx-suggest')).toBeVisible();
+    await expect(item).toBeVisible();
+    await expect(item).toContainText('Chocolate');
+    await expect(item).toContainText('Supermercado');
+    await expect(item).not.toContainText('10');
+
+    // Escolher preenche descrição, categoria e tags — o valor fica vazio
+    await item.click();
+    await expect(page.getByTestId('mf-tx-description')).toHaveValue('Chocolate');
+    await expect(page.getByTestId('mf-tx-category')).toContainText('Supermercado');
+    await expect(page.getByTestId('mf-tx-amount')).toHaveValue('');
+    await expect(page.getByTestId('mf-tx-tag-sel-tag-home')).toBeVisible();
+
+    await page.getByTestId('mf-tx-cancel').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeHidden();
+  });
+
+  test('extrato mostra spinner no ícone do cabeçalho enquanto recarrega', async ({ page }) => {
+    await login(page);
+    await openMinhasFinancas(page);
+
+    await page.getByTestId('sidebar-sub-item-minhasfinancas-statement').click();
+    await expect(page.getByTestId('mf-extrato')).toBeVisible();
+
+    // Salva um lançamento pelo FAB: o Extrato atualiza a lista sozinho.
+    // (O spinner do ícone é transitório demais para o polling do E2E;
+    // o comportamento dele fica coberto pelos testes unitários.)
+    await page.getByTestId('mf-fab-add').click();
+    await page.getByTestId('mf-add-opt-expense').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeVisible();
+    await page.getByTestId('mf-tx-description').fill('Almoço E2E spinner');
+    await page.getByTestId('mf-tx-amount').fill('1000');
+    await page.getByTestId('mf-tx-save').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeHidden({ timeout: 10000 });
+    await expect(page.getByTestId('mf-statement-item').first()).toContainText(
+      'Almoço E2E spinner'
+    );
   });
 
   test('cria uma conta na tela de Contas', async ({ page }) => {

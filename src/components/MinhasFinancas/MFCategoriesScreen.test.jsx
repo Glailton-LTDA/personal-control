@@ -325,6 +325,59 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
     expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🚰');
   });
 
+  it('busca encontra ícones de serviços (mecanico, barbearia, eletricista)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-cat-new')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-cat-new'));
+    const search = screen.getByTestId('mf-cat-modal-icon-search');
+
+    fireEvent.change(search, { target: { value: 'mecanico' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🔧');
+
+    fireEvent.change(search, { target: { value: 'barbearia' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('💈');
+
+    fireEvent.change(search, { target: { value: 'eletricista' } });
+    expect(screen.getByTestId('mf-cat-modal-icon-0')).toHaveTextContent('🔌');
+  });
+
+  it('marcas de marketplace aparecem na busca de ícone (amazon, shopee...)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-cat-new')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-cat-new'));
+
+    expect(screen.getByTestId('mf-cat-modal-brand-amazon')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-shopee')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-mercadolivre')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-aliexpress')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-shein')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-magalu')).toBeInTheDocument();
+
+    // busca pelo nome da marca filtra até achar só ela + salva como brand:
+    fireEvent.change(screen.getByTestId('mf-cat-modal-icon-search'), {
+      target: { value: 'shopee' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-brand-shopee'));
+    fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
+      target: { value: 'Shopee' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      const inserted = supabase.from('mf_categories').insert.mock.calls.flat(2);
+      expect(inserted).toEqual(
+        expect.arrayContaining([expect.objectContaining({ icon: 'brand:shopee' })])
+      );
+    });
+  });
+
   it('permite escolher marca de banco como ícone da categoria', async () => {
     renderScreen();
     await waitFor(() => {

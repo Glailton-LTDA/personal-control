@@ -4,26 +4,36 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Alterado
+- **Performance do Minhas Finanças (MF)**: com 13,7 mil lançamentos, cada ação recarregava a tabela inteira 3× (~15 MB). Agora o extrato de uma conta e o drill-down baixam só os lançamentos dela no servidor (`or` por origem/destino, incluindo cartões vinculados — de ~13 mil linhas para centenas, mês ~275 linhas), e a invalidação pós-mutação ficou restrita às queries `mf-*` (não recarrega mais música/viagens/Finance à toa). Cálculos client-side intactos.
+- **Resumo do mês agregado no servidor (MF, function `mf_month_summary`)**: a query mais pesada do módulo (month-summary, refeita a cada ação) agora soma no Postgres e devolve ~100 linhas em vez de 13,7 mil — mesmo formato `{ rows, chartTxs }`, telas e testes intactos. Verificada contra os dados reais: 0 divergências em 72 contas × 8 campos + chart idêntico. Offline ou qualquer falha cai no cálculo local via Dexie (comportamento anterior).
+
+### Adicionado
+- **Autocomplete do histórico na descrição (MF)**: ao digitar 2+ letras na criação de um lançamento aparece uma lista (setas ↑/↓, Enter ou clique) com descrições já usadas do mesmo tipo — escolher preenche **descrição, categoria e as tags** do lançamento original, **sem copiar o valor** (como no Minhas Finanças original). A busca ignora acentos e caixa (ex.: "mi" encontra "Mídia"). Fonte: cache de `useMFAllTransactions` (sem request extra); ícone/avatar da categoria em cada sugestão.
+- **Aviso de atualização no Extrato (MF)**: ao criar/editar um lançamento o Extrato recarregava em silêncio (só `isLoading` inicial mostrava algo); agora o `isFetching` em segundo plano transforma o ícone do cabeçalho num spinner (com tooltip, i18n pt/en/es) sem esconder a lista.
+- **Botão Editar nos grupos da tela de Contas (MF)**: o cabeçalho de cada grupo ganhou lápis (`mf-group-edit-*`) abrindo o `MFGroupModal` em modo edição (nome, ícone, contas, flags) — antes só dava para criar grupo, nunca editar.
+- **Reordenar contas (MF)**: toggle "Reordenar" na toolbar da Contas troca as ações por ↑/↓ (`mf-move-up/down-*`), que trocam o `sort_order` com o vizinho — a mesma ordem vale no Resumo e em todo lugar (todas as listas ordenam por `sort_order`).
+- **Mais ícones em categorias (MF)**: +16 emojis de oficina/serviços (🧑‍🔧 mecânico, 💈 barbearia, 💇 cabeleireiro, 🧯 extintor, 🧤 luvas, 🪣 balde, ⛏️ picareta, 🪓 machado, 🧲 ímã, 🚧 obra, 🌬️ ventilador/AR, ❄️ refrigeração, 🖥️ informática, 🔦 lanterna, 📡 antena, 🛜 wifi) com busca em pt; 🔌 ganhou "eletricista".
+- **Marcas de marketplace como ícone (MF)**: Amazon, Shopee, Mercado Livre, AliExpress, Shein e Magalu (`brand:<chave>`, SVG monograma em `public/mf-brands`), escolhíveis em categorias, contas e grupos.
+
+### Corrigido
+- **Espelho de fatura só no mês vigente (MF)**: despesas com data futura (parcelas de nov/dez/jan) ficavam fora da janela do agendador e as faturas futuras nunca ganhavam a cobrança agendada; `buildCardInvoices` ganhou `includeFutureBound` (efeito só no agendador — telas inalteradas) e os meses futuros passam a ter o pagamento espelhado no vencimento.
+- **"Ignorar nos totais" valendo nos lugares errados (MF)**: a regra agora é — a conta ignorada **continua somando nos totais de grupo** (cabeçalhos da Contas, cards e drill de grupo no Resumo, rodapé da tabela) e **sai somente dos cards de KPI** (somas e contagens de Saldo/Recebido/Gasto/Previsto, mais a variação e os gráficos que seguem o mesmo universo). Antes os grupos a excluíam (ex.: grupo C6 Bank somando R$ 0,21 sem o CDB de R$ 16.602,50).
+
+## [1.7.3] - 2026-10-13
+
 ### Adicionado
 - **Módulo Minhas Finanças** (branch `feat/minhas-financas`, sem push):
   - Resumo, Contas, Cartões, Transações, Extrato, Orçamentos, Relatórios, Importação OFX/CSV, Felix e modo offline-first; i18n pt/en/es.
 - **Pagamento de fatura automático (MF)**: cartão com conta vinculada ganha uma despesa-espelho pelo valor da fatura (`notes` "Agendado automaticamente (fatura)"), criada no vencimento (PENDENTE) ou, se já vencida, PAGO **na data do vencimento**; sincronizada a cada mudança da fatura (o valor muda até o fechamento e o fechamento também pode mudar) e promovida a PAGO quando o vencimento passa — fatura vencida nunca fica sem pagar. Agendador `useMFScheduleCardPayments` só grava no escopo de perfis visível; Reabrir limpa o marcador e a linha vira sua.
 - **Calculadora no valor** (MF): clicar no valor do modal Detalhes abre uma calculadora (C, %, ⌫, ÷ × − +, 00 0 , ✓) e o ✓ altera o valor — em série o escopo (só esta / esta e próximas / todas) é perguntado depois; botão de calculadora ao lado do campo Valor na criação de lançamento e no modal de transferência.
-
-## [1.7.3] - 2026-10-13
-
-### Adicionado
 - **Tela de Contas redesenhada (MF)**: 3 cards de KPI (Saldo, Movimento do mês com o mês corrente, Previsão) com chips de contagem; toolbar única (busca, Arquivadas, Agrupadas, moeda, mês, Transferir, Novo grupo, Nova conta); tabela de 8 colunas com **Transf. líquida** (crédito − débito); cabeçalhos de grupo com trilho colorido (`group.color` ou hash do id) e subtotais por coluna; nome da conta em 2 linhas (avatar + chips tipo/moeda); botão "Ver extrato" por conta e rodapé com Total (contas/grupos).
 - **Filtro de contas no modal de grupo (MF)**: busca no modal Criar/editar grupo (`mf-group-accounts-search`), ações em massa "Selecionar visíveis"/"Limpar" sobre o resultado filtrado, contador de selecionadas e estado de "sem resultados"; lista com scroll.
 - **FAB global "+" com "Nova conta" (MF)**: o menu flutuante ganhou a 5ª opção (conta primeiro); o FAB duplicado da tela de Contas saiu; o pedido de nova conta vira uma flag em memória (`requestNewAccount`) que a tela de Contas atende no mount ou pelo evento `mf-new-account` — fica **pendente até o modal fechar** (sobrevive aos remounts do Dashboard) e é descartado ao trocar de aba.
 - **Tabela de Contas sem scroll lateral + tooltips (MF)**: colunas com largura fixa (`tableLayout: fixed`, sem `min-width`, tabela com `max-width: 1320` centrada), células compactas e nome da conta com quebra de linha — os 4 botões de ação (Ver extrato, Arquivar, Editar, Excluir) cabem na tela numa linha só; todos ganharam `title` (tooltip nativo) além do `aria-label`, incluindo a sanfona dos grupos.
 - **Ícones de oficina e conserto (MF)**: 16 emojis novos nas categorias (⚙️ 🔩 🪛 🛠️ 🔨 🪚 🛞 🛢️ 🔑 🔒 🪡 🔌 🚘 🧱 🪜 🚰) com palavras-chave pt (+cognatos es/en) — "oficina", "fenda", "pneu", "chaveiro", "parafuso", "torneira" etc.; 🔧/🧰/🚗 ganharam "oficina/mecanico" nas keywords.
 
-### Removido
-- **Pasta `docs/Extratos/` do repositório**: extratos e exportações (xlsx/csv/html) + scripts locais de migração saíram do git (`git rm --cached`, arquivos locais preservados) e a pasta entrou no `.gitignore`.
-
-### Corrigido
-- **Flake do E2E "pagamento de fatura" (MF)**: ao trocar de aba o Dashboard remonta o módulo (`key={activeTab + refreshKey}`) e o agendador reavaliava o plano com o cache ainda sem o espelho (invalidação adiada 750 ms), duplicando o agendamento — o pagamento parcial atualizava só um dos espelhos e o EM ABERTO zerava (~50% das execuções). Correções: guard por `invoice_close` (60 s) no agendador, `usePayCardInvoice` apaga espelhos automáticos duplicados da mesma fatura ao pagar e `planInvoicePaymentSync` apaga o espelho quando existe pagamento manual junto (corrida agendador × usuário).
+### Alterado
 - **Modelo de fatura de cartão**: despesa pertence à fatura escolhida (data é só rótulo, default = fatura do mês); "Fatura corrente" = fatura do mês calendário (rotulada pelo vencimento, pode estar PAGA); detalhe mostra Fechamento + Vencimento; pagamento vira DESPESA na conta vinculada, sem transação no cartão; cartão sem bloco de saldo/transferências na movimentação, extrato e timeline.
 - **Detalhes do lançamento + antecipação de cartão**: clique na despesa abre o modal Detalhes (resumo, edição rápida com criar tag, toggle Pendente, menu ⋮ com 9 ações e escopo de série) em qualquer transação (Transações, timeline, fatura, Extrato); Duplicar vira submenu só em despesa (como cartão/transferência/compensação); transferência mostra de→para; antecipar move N parcelas à fatura destino com shift reverso e estorno separado do desconto (só se parcelada).
 - **Busca com X para limpar**: cronologia, tela de categorias, seletor de categoria, busca de ícone do modal, Transações e Contas ganham o botão × ao lado do campo de busca.
@@ -32,81 +42,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Anti-duplicada**: criar série fixa/parcelada/repetida com mesmo nome no mês pede confirmação.
 - **Fatura "Agendada" e Reabrir sem exclusão (MF)**: fatura coberta só por pagamento pendente mostra o status **Agendada** (não "Paga") no widget e no detalhe, com "Pagar fatura" sempre à mão (valor = em aberto + agendado) e a confirmação reusando a despesa pendente existente — um único débito por fatura; **Reabrir fatura** não exclui mais nada: vira o vínculo PAGO→PENDENTE com o valor atual da fatura e limpa o marcador automático.
 
-## [1.7.1] - 2026-07-17
-
-### Adicionado
-- **Swipe Refresh para PWA Standalone**:
-  - Implementação de pull-to-refresh customizado em `PullToRefresh.jsx` para modos standalone.
-  - Captura de gestos tácteis e rotação acelerada por GPU integrada às variáveis de cores do tema do aplicativo.
-
-### Alterado
-- **Ícone do Aplicativo e Favicon Multiplataforma**:
-  - Atualização do favicon principal para usar o novo PNG do Luminous Ledger (`favicon.png`) para compatibilidade e nitidez multiplataforma (Chrome, Firefox, Safari, Edge).
-  - Adição da tag `apple-touch-icon` e de tags meta iOS standalone no `index.html`.
-  - Criação do manifesto PWA (`manifest.json`) com os metadados do aplicativo e ícones de 1024x1024.
-
-## [1.7.0] - 2026-06-17
+### Removido
+- **Pasta `docs/Extratos/` do repositório**: extratos e exportações (xlsx/csv/html) + scripts locais de migração saíram do git (`git rm --cached`, arquivos locais preservados) e a pasta entrou no `.gitignore`.
 
 ### Corrigido
-- **Navegação de Setlists**:
-  - Botão de voltar (ChevronLeft) redireciona condicionalmente à rota correta (`music-setlists` ou `music-repertoire`).
-  - Subtabs persistem no `sessionStorage` via `useSessionState` e não são apagadas ao abrir uma música.
-- **Rolagem Dupla (Scroll-within-Scroll)**:
-  - `Dashboard.jsx`: travado o scroll do `<main>` com `overflowY: hidden` e `display: flex` para as abas de trips, investments e music.
-  - `TripsList.jsx`: estrutura flexível incondicional nos contêineres, remoção de `maxHeight` na lista virtualizada e `paddingBottom: 80px` no mobile para o FAB.
-  - `TripsItinerary.jsx`: layout flexível no grid de colunas, remoção de `maxHeight` da barra lateral e scroll interno independente nos detalhes.
-  - `InvestmentList.jsx`: layout flexível incondicional, remoção de `maxHeight` da tabela virtualizada e `paddingBottom: 80px` no mobile.
-  - `Trips.jsx` e `Investments.jsx`: estilo flex no elemento raiz para esticar verticalmente.
+- **Flake do E2E "pagamento de fatura" (MF)**: ao trocar de aba o Dashboard remonta o módulo (`key={activeTab + refreshKey}`) e o agendador reavaliava o plano com o cache ainda sem o espelho (invalidação adiada 750 ms), duplicando o agendamento — o pagamento parcial atualizava só um dos espelhos e o EM ABERTO zerava (~50% das execuções). Correções: guard por `invoice_close` (60 s) no agendador, `usePayCardInvoice` apaga espelhos automáticos duplicados da mesma fatura ao pagar e `planInvoicePaymentSync` apaga o espelho quando existe pagamento manual junto (corrida agendador × usuário).
 
-## [1.6.0] - 2026-06-11
-
-### Adicionado
-- **Arquitetura Offline-First (Módulo de Viagens)**:
-  - Migração de todo o fluxo de Viagens, Despesas, Itinerários, Checklists e Compartilhamento para o banco Dexie local (IndexedDB v4).
-  - Refatoração modular do `SyncEngine` suportando provedores registráveis (`MusicSyncProvider` e `TripsSyncProvider`).
-  - Sincronização incremental e mesclagem resiliente no Dexie preservando dados locais frente a retornos parciais da API.
-- **Resiliência e Estabilização da Suíte de Testes**:
-  - Resolução de deadlocks de +1min do Vitest sob Happy-DOM inibindo o auto-reload do Dexie em ambiente de testes.
-  - Saneamento de conexões IndexedDB pendentes eliminando erros de `DatabaseClosedError`.
-  - Mocks dinâmicos e stateful com suporte a arrays de payload e roteamento Playwright para testes E2E.
-- **Mapeamento Remoto de Artistas**:
-  - Busca direta no Supabase para filtragem de letras e buscas de artistas únicos quando online com fallback local offline.
-
-## [1.5.0] - 2026-06-11
-
-### Adicionado
-- **Arquitetura Offline-First (Módulo de Música)**:
-  - Integração robusta com Dexie (IndexedDB) para persistência e disponibilidade offline local.
-  - Sincronização automática em background com Supabase via `SyncEngine` com limites seguros de reprocessamento (`attempts`).
-  - Fallback automático e transparente de busca local via `fetchSongsFromDexie` em caso de falha de conexão ou offline.
-  - Geração de UUIDs definitivos no cliente com `generateUUID` eliminando chaves temporárias e duplicados de sincronização.
-  - Mapeamento dinâmico local de gêneros musicais no Dexie (joins em memória).
-
-## [1.4.0] - 2026-06-07
-
-### Adicionado
-- **Módulo de Investimentos**:
-  - Suporte multimoeda nos Ajustes de Conta com o componente `CurrencySelector` e badges de bandeiras.
-  - Filtragem e formatação dinâmica baseada na moeda ativa no dashboard e na planilha.
-  - Auto-preenchimento automático do "Saldo Inicial" recuperando o "Saldo Final" do mês anterior.
-- **Módulo de Música**:
-  - Modo Tela Cheia (Full Screen) em `CifraViewer` e `SheetViewer` com atalho `Escape` para fechar.
-  - Sincronização da rolagem automática em mobile/tablet no modo tela cheia via `mobileScrollRef`.
-- **Testes**:
-  - Testes unitários para modo tela cheia nos visualizadores de música.
-  - Testes E2E (Playwright) para validação do fluxo de tela cheia e fluxo de auto-preenchimento de saldo em investimentos.
-
-## [1.3.0] - 2026-06-06
-
-### Adicionado
-- **Módulo de Música**:
-  - Rolagem automática (Auto-Scroll) no visualizador de partituras e cifras.
-  - Transpositor de tons dinâmico para acordes de texto cifrado.
-  - Movimentação por drag-and-drop de anotações salvas (realces e textos) no visualizador de partituras.
-- **Listas Personalizadas**:
-  - Editor/leitor de anotações Markdown integrado (estilo Simplenote).
-
-### Alterado
-- **Arquitetura**:
-  - Migração de estado assíncrono para React Query (`@tanstack/react-query`).
-  - Virtualização de linhas em `FinanceList`, `InvestmentList` e `TripsList` usando `@tanstack/react-virtual`.
+## [1.7.1] - 2026-07-17

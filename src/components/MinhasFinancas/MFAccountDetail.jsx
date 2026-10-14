@@ -31,7 +31,7 @@ import {
   useMFLancamentos,
   useMFAccounts,
   useMFCategories,
-  useMFAllTransactions,
+  useMFAccountTransactions,
   useUpdateAccount,
   useDeleteAccount,
   buildCardInvoices,
@@ -213,12 +213,27 @@ export default function MFAccountDetail({
 
 
   // Cartões vinculados (faturas visíveis na conta) + pagamento de fatura.
+  // Escopo enxuto: só esta conta + cartões vinculados (origem ou destino)
+  // em vez das ~13 mil linhas de todas — saldos, 12 meses, timeline e
+  // faturas usam só esse recorte.
+  const linkedCardIds = useMemo(
+    () =>
+      accounts
+        .filter(
+          (row) =>
+            row.account_type === 'CARTAO' &&
+            row.linked_account_id === account.id &&
+            !row.archived_at
+        )
+        .map((row) => row.id),
+    [accounts, account.id]
+  );
   const {
     data: allTx = [],
     isLoading: allTxLoading,
     isError: allTxError,
     refetch: refetchAllTx,
-  } = useMFAllTransactions(user);
+  } = useMFAccountTransactions(user, account.id, linkedCardIds);
 
   const refISO = monthRefISO(monthKey);
   const linkedInvoices = useMemo(() => {

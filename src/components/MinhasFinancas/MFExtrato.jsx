@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Receipt, ArrowRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Receipt, ArrowRight, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import {
@@ -38,12 +38,15 @@ export default function MFExtrato({
   const [detailTx, setDetailTx] = useState(null);
   const [editing, setEditing] = useState(null);
   const [screenOpen, setScreenOpen] = useState(false);
-  const { data, isLoading, isError } = useMFStatement(
+  const { data, isLoading, isError, isFetching } = useMFStatement(
     user,
     monthKey,
     accountFilter === 'all' ? null : accountFilter,
     currency
   );
+  // Recarregando em segundo plano (ex.: após criar um lançamento): avisa
+  // com uma pílula discreta em vez de trocar a lista pelo "Carregando".
+  const refreshing = isFetching && !isLoading;
 
   const money = (value, rowCurrency) => (showValues ? formatMoney(value, rowCurrency) : '•••');
   const mixed = !!data?.mixed;
@@ -134,6 +137,8 @@ export default function MFExtrato({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div
+            data-testid={refreshing ? 'mf-extrato-refreshing' : undefined}
+            title={refreshing ? t('minhasfinancas.statement_updating') : undefined}
             style={{
               padding: '0.6rem',
               borderRadius: 14,
@@ -141,7 +146,7 @@ export default function MFExtrato({
               color: 'var(--primary)',
             }}
           >
-            <Receipt size={22} />
+            {refreshing ? <Loader2 size={22} className="animate-spin" /> : <Receipt size={22} />}
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>

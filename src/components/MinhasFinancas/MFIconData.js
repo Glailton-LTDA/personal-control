@@ -106,6 +106,14 @@ export const MF_BRAND_ICONS = {
   nomad: { bg: '#FFD100', fg: '#1A1A13', glyph: 'nomad', name: 'Nomad' },
   ifood: { bg: '#EA1D2C', fg: '#ffffff', glyph: 'ifood', name: 'iFood' },
 
+  // ── Marketplaces e varejo ──
+  amazon: { bg: '#232F3E', fg: '#FF9900', glyph: 'amz', name: 'Amazon' },
+  shopee: { bg: '#EE4D2D', fg: '#ffffff', glyph: 'shp', name: 'Shopee' },
+  mercadolivre: { bg: '#FFE600', fg: '#2D3277', glyph: 'ml', name: 'Mercado Livre' },
+  aliexpress: { bg: '#E62E04', fg: '#ffffff', glyph: 'ali', name: 'AliExpress' },
+  shein: { bg: '#000000', fg: '#ffffff', glyph: 'shn', name: 'Shein' },
+  magalu: { bg: '#0086FF', fg: '#ffffff', glyph: 'mag', name: 'Magalu' },
+
   // ── Redes de cartão ──
   visa: { bg: '#1A1F71', fg: '#ffffff', glyph: 'visa', name: 'Visa' },
   mastercard: { bg: '#EB001B', fg: '#ffffff', glyph: 'mc', name: 'Mastercard' },
@@ -194,6 +202,13 @@ export const MF_BRAND_FILES = {
   hipercard: 'hipercard.svg',
   tesourodireto: 'tesourodireto.svg',
   nomad: 'nomad.svg',
+  // ── Marketplaces/varejo (monogramas simples) ──
+  amazon: 'amazon.svg',
+  shopee: 'shopee.svg',
+  mercadolivre: 'mercadolivre.svg',
+  aliexpress: 'aliexpress.svg',
+  shein: 'shein.svg',
+  magalu: 'magalu.svg',
 };
 
 /** Ícones genéricos (lucide) — gravado como glyph:<chave>. */

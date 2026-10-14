@@ -480,6 +480,61 @@ describe('buildCardInvoices — despesa com fatura escolhida (picker do app orig
     expect(built.openTotal).toBe(100);
   });
 
+  it('parcela com data futura: some da exibição, aparece com includeFutureBound', () => {
+    // Parcela de dezembro (payment_date futuro + vínculo): antes o
+    // agendador não a enxergava e nenhum espelho era criado além do mês
+    // vigente (bug "só outubro tem cobrança agendada").
+    const txs = [
+      expense({ id: 'e1', payment_date: '2026-12-05', amount: 100, invoice_close: '2026-12-14' }),
+    ];
+
+    const display = buildCardInvoices({ card: card14, refISO: '2026-10-13', transactions: txs });
+    expect(display.upcomingInvoices).toHaveLength(0);
+
+    const scheduled = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-13',
+      transactions: txs,
+      includeFutureBound: true,
+    });
+    expect(scheduled.upcomingInvoices).toHaveLength(1);
+    const up = scheduled.upcomingInvoices[0];
+    expect(up.closeISO).toBe('2026-12-14');
+    expect(up.dueISO).toBe('2026-12-20');
+    expect(up.total).toBe(100);
+    expect(up.openAmount).toBe(100);
+  });
+
+  it('agendador: fatura futura com compra gera espelho PENDENTE no vencimento dela', () => {
+    // Fluxo real do useMFScheduleCardPayments: includeFutureBound no
+    // build → planner cria o espelho com a data do vencimento da fatura.
+    const txs = [
+      expense({ id: 'e1', payment_date: '2026-12-05', amount: 100, invoice_close: '2026-12-14' }),
+    ];
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-13',
+      transactions: txs,
+      includeFutureBound: true,
+    });
+    const plan = planInvoicePaymentSync({
+      userId: 'user-1',
+      card: card14,
+      invoices: [built.current, ...built.invoices, ...built.upcomingInvoices],
+      transactions: txs,
+      today: '2026-10-13',
+    });
+    expect(plan.creates).toHaveLength(1);
+    expect(plan.creates[0]).toMatchObject({
+      type: 'DESPESA',
+      amount: 100,
+      payment_date: '2026-12-20',
+      status: 'PENDENTE',
+      invoice_close: '2026-12-14',
+      notes: MF_INVOICE_PAYMENT_NOTE,
+    });
+  });
+
   it('pagamento vinculado quita a futura', () => {
     const built = buildCardInvoices({
       card: card14,

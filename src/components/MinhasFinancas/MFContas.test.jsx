@@ -36,6 +36,8 @@ vi.mock('../../lib/supabase', () => {
       gte: vi.fn().mockReturnThis(),
       lte: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(result).then(onFulfilled, onRejected)
@@ -165,6 +167,132 @@ describe('MFContas', () => {
       'title',
       'minhasfinancas.delete'
     );
+  });
+
+  it('cabeçalho de grupo tem botão de editar que abre o modal em modo edição', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByTestId('mf-group-edit-grp-1'));
+
+    const modal = await screen.findByTestId('mf-group-modal');
+    expect(modal).toBeInTheDocument();
+    expect(screen.getByTestId('mf-group-title')).toHaveTextContent(
+      'minhasfinancas.group_edit_title'
+    );
+    expect(screen.getByTestId('mf-group-name')).toHaveValue('Nubank');
+  });
+
+  it('"Ignorar nos totais": grupo soma a ignorada, KPI e rodapé seguem a regra', async () => {
+    // acc-1 (Nubank, do grupo grp-1) marcada como ignorada só neste teste
+    const { supabase } = await import('../../lib/supabase');
+    const realFrom = supabase.from.getMockImplementation();
+    const chainFor = (result) => {
+      const chain = {
+        select: () => chain,
+        order: () => chain,
+        eq: () => chain,
+        gte: () => chain,
+        lte: () => chain,
+        then: (onFulfilled, onRejected) => Promise.resolve(result).then(onFulfilled, onRejected),
+      };
+      return chain;
+    };
+    const accountsWithIgnored = [
+      { id: 'acc-1', name: 'Nubank', account_type: 'CORRENTE', initial_balance: 100, color: '#6366f1', sort_order: 0, group_id: 'grp-1', ignore_in_totals: true },
+      { id: 'acc-2', name: 'Itaú', account_type: 'CORRENTE', initial_balance: 50, color: '#06b6d4', sort_order: 1 },
+      { id: 'acc-3', name: 'Poupança Antiga', account_type: 'POUPANCA', initial_balance: 0, color: '#a855f7', sort_order: 2, archived_at: '2026-09-01T12:00:00.000Z' },
+      { id: 'acc-card', name: 'Visa', account_type: 'CARTAO', initial_balance: 0, color: '#6366f1', sort_order: 3, credit_limit: 1000, closing_day: 10, due_day: 20 },
+    ];
+    supabase.from.mockImplementation((table) =>
+      table === 'mf_accounts'
+        ? chainFor({ data: accountsWithIgnored, error: null })
+        : realFrom(table)
+    );
+    try {
+      renderWithProviders(
+        <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
+
+      // Grupo SOMA a ignorada (saldo inicial 100 da acc-1, sem lançamentos)
+      expect(screen.getByTestId('mf-group-total-grp-1')).toHaveTextContent('R$ 100,00');
+      // KPI da tela EXCLUI a ignorada (só a acc-2: 50)
+      expect(screen.getByTestId('mf-contas-kpi-balance')).toHaveTextContent('R$ 50,00');
+      // Rodapé segue a tabela (soma tudo que está listado: 100 + 50 = 150,
+      // valor que só existe no rodapé — nem no KPI nem no grupo)
+      expect(screen.getByTestId('mf-contas')).toHaveTextContent('R$ 150,00');
+    } finally {
+      supabase.from.mockImplementation(realFrom);
+    }
+  });
+
+  it('modo reordenar mostra ↑/↓ e troca o sort_order com o vizinho', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    // modo off: sem botões de mover
+    expect(screen.queryByTestId('mf-move-down-acc-1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-reorder-toggle'));
+    // acc-1 (Nubank) é o primeiro: ↑ desabilitado, ↓ habilitado
+    expect(screen.getByTestId('mf-move-up-acc-1')).toBeDisabled();
+    expect(screen.getByTestId('mf-move-down-acc-1')).toBeEnabled();
+    // acc-2 (Itaú) é o último: ↓ desabilitado
+    expect(screen.getByTestId('mf-move-down-acc-2')).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('mf-move-down-acc-1'));
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_accounts');
+    await waitFor(() => {
+      expect(chain.update).toHaveBeenCalledTimes(2);
+    });
+    // troca de posições: acc-1 vai p/ 1, acc-2 sobe p/ 0 (id vai no eq)
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'acc-1');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'acc-2');
+  });
+
+  it('modo reordenar move o grupo entre irmãos reescrevendo o sort_order', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    // fora do modo: sem botões de mover grupo
+    expect(screen.queryByTestId('mf-group-move-down-grp-1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-reorder-toggle'));
+    // grp-1 é o primeiro entre as raízes (grp-1, grp-3): ↑ off, ↓ on
+    expect(screen.getByTestId('mf-group-move-up-grp-1')).toBeDisabled();
+    expect(screen.getByTestId('mf-group-move-down-grp-1')).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId('mf-group-move-down-grp-1'));
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_account_groups');
+    await waitFor(() => {
+      expect(chain.update).toHaveBeenCalledTimes(2);
+    });
+    // posições reescritas nos irmãos: grp-3 → 0, grp-1 → 1
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'grp-3');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'grp-1');
   });
 
   it('abre o modal e cria uma nova conta', async () => {

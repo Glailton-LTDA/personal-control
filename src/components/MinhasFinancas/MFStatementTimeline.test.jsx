@@ -39,6 +39,7 @@ vi.mock('../../lib/supabase', () => {
       in: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
           onFulfilled,
@@ -164,6 +165,13 @@ describe('MFStatementTimeline', () => {
       expect(screen.getByTestId('mf-timeline-day-2026-10-07')).toBeInTheDocument();
     });
 
+    // extrato de UMA conta: o servidor já filtra (origem ou destino)
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    expect(chain.or).toHaveBeenCalledWith(
+      'account_id.eq.acc-1,transfer_account_id.eq.acc-1'
+    );
+
     // ordem desc: 07, 05, 03
     const days = screen.getAllByTestId(/mf-timeline-day-/);
     expect(days.map((el) => el.dataset.testid)).toEqual([
@@ -245,7 +253,7 @@ describe('MFStatementTimeline', () => {
   it('erro mostra mensagem e o retry recarrega', async () => {    const { supabase } = await import('../../lib/supabase');
     const origImpl = supabase.from.getMockImplementation();
     const rejectChain = {};
-    ['select', 'order', 'gte', 'lte', 'eq', 'limit', 'single'].forEach((method) => {
+    ['select', 'order', 'gte', 'lte', 'eq', 'limit', 'single', 'or'].forEach((method) => {
       rejectChain[method] = () => rejectChain;
     });
     rejectChain.then = (onFulfilled, onRejected) =>

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { ChevronRight, FolderTree, Plus } from 'lucide-react';
 import {
   groupTotalsByCurrency,
-  countableRows,
   formatTotals,
 } from '../../hooks/useMinhasFinancas';
 import MFAccountIcon from './MFAccountIcon';
@@ -211,7 +210,7 @@ export default function MFGroupDrill({
                   data-testid="mf-group-drill-total"
                   style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800 }}
                 >
-                  {formatTotals(groupTotalsByCurrency(countableRows(subRows), 'saldo'), showValues)}
+                  {formatTotals(groupTotalsByCurrency(subRows, 'saldo'), showValues)}
                 </p>
                 <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   {t('minhasfinancas.group_total_label')}
@@ -291,7 +290,7 @@ export default function MFGroupDrill({
                   </span>
                   {child.sum_totals && (
                     <span style={{ fontWeight: 800, fontSize: '0.88rem' }}>
-                      {formatTotals(groupTotalsByCurrency(countableRows(childRows), 'saldo'), showValues)}
+                      {formatTotals(groupTotalsByCurrency(childRows, 'saldo'), showValues)}
                     </span>
                   )}
                   <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />

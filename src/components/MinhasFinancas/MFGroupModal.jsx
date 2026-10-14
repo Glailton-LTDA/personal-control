@@ -11,7 +11,7 @@ import {
   useUpdateAccount,
   MF_ACCOUNT_TYPE_ICONS,
 } from '../../hooks/useMinhasFinancas';
-import { MF_CATEGORY_ICONS } from './MFCategoryIcons';
+import { MF_CATEGORY_ICONS, MF_CATEGORY_COLORS } from './MFCategoryIcons';
 import { MF_BRAND_ICONS } from './MFIconData';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupIcon from './MFGroupIcon';
@@ -81,6 +81,8 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
 
   const [name, setName] = useState(group?.name ?? '');
   const [icon, setIcon] = useState(group?.icon || '📁');
+  // Cor do trilho/destaque do grupo ('' = automática pelo id)
+  const [color, setColor] = useState(group?.color ?? '');
   const [showSummary, setShowSummary] = useState(group?.show_in_summary ?? true);
   const [sumTotals, setSumTotals] = useState(group?.sum_totals ?? true);
   const [parentId, setParentId] = useState(group?.parent_id ?? defaultParentId ?? '');
@@ -181,6 +183,7 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
         user_id: user.id,
         name: trimmed,
         icon: icon.trim() || '📁',
+        color: color || null,
         show_in_summary: showSummary,
         sum_totals: sumTotals,
         parent_id: parentId || null,
@@ -485,6 +488,34 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
             onChange={setParentId}
             options={parentOptions}
           />
+        </div>
+
+        {/* Cor do grupo (trilho/destaque) — como o ícone, à escolha */}
+        <div className="input-group" style={{ marginTop: '0.75rem' }}>
+          <label>{t('minhasfinancas.group_color')}</label>
+          <div
+            role="radiogroup"
+            aria-label={t('minhasfinancas.group_color')}
+            data-testid="mf-group-color-picker"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}
+          >
+            {MF_CATEGORY_COLORS.map((swatch, index) => (
+              <button
+                key={swatch}
+                type="button"
+                role="radio"
+                aria-checked={color === swatch}
+                aria-label={swatch}
+                title={swatch}
+                data-testid={`mf-group-color-${index}`}
+                onClick={() => setColor((prev) => (prev === swatch ? '' : swatch))}
+                style={{
+                  ...swatchStyle(color === swatch),
+                  background: swatch,
+                }}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Flags */}

@@ -22,11 +22,12 @@ const mockData = vi.hoisted(() => {
     { id: 'acc-brl', name: 'Conta BRL', account_type: 'CORRENTE', currency: 'BRL', initial_balance: 1000, color: '#6366f1', sort_order: 0 },
     { id: 'acc-usd', name: 'Conta USD', account_type: 'CORRENTE', currency: 'USD', initial_balance: 200, color: '#10b981', sort_order: 1 },
   ];
-  const data = { accounts: baseAccounts(), transactions: [], categories: [], baseAccounts };
+  const data = { accounts: baseAccounts(), transactions: [], categories: [], groups: [], baseAccounts };
   data.reset = () => {
     data.accounts.splice(0, data.accounts.length, ...baseAccounts());
     data.transactions.length = 0;
     data.categories.length = 0;
+    data.groups.length = 0;
   };
   return data;
 });
@@ -56,6 +57,7 @@ vi.mock('../../lib/supabase', () => {
     mf_accounts: makeChain({ data: mockData.accounts, error: null }),
     mf_transactions: makeChain({ data: mockData.transactions, error: null }),
     mf_categories: makeChain({ data: mockData.categories, error: null }),
+    mf_account_groups: makeChain({ data: mockData.groups, error: null }),
   };
   const empty = makeChain({ data: [], error: null });
 
@@ -171,6 +173,29 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     // ids desconhecidos descartados → widgets padrão todos visíveis
     expect(domOrder()).toEqual(DEFAULT_ORDER);
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
+  });
+
+  it('"Ignorar nos totais": KPI exclui a conta ignorada', async () => {
+    mockData.accounts.push({
+      id: 'acc-ign',
+      name: 'Caixinha ignorada',
+      account_type: 'POUPANCA',
+      currency: 'BRL',
+      initial_balance: 500,
+      color: '#a855f7',
+      sort_order: 2,
+      ignore_in_totals: true,
+    });
+    renderScreen();
+    await waitForData();
+
+    // Saldo soma só as contáveis (1000 BRL + 200 USD); a ignorada (500) fica fora
+    const balance = screen.getByTestId('mf-kpi-value-kpi_balance');
+    expect(balance).toHaveTextContent('R$ 1.000,00');
+    expect(balance).toHaveTextContent('US$ 200,00');
+    expect(balance).not.toHaveTextContent('500,00');
+    // ...mas a conta continua listada na tela
+    expect(screen.getByText('Caixinha ignorada')).toBeInTheDocument();
   });
 });
 
@@ -305,8 +330,7 @@ describe('MFResumo — contas visíveis no painel', () => {
     expect(screen.queryByTestId('mf-resumo-no-visible')).not.toBeInTheDocument();
   });
 
-  it('busca filtra o seletor quando há muitas contas', async () => {
-    for (let i = 0; i < 8; i += 1) {
+  it('busca filtra o seletor quando há muitas contas', async () => {    for (let i = 0; i < 8; i += 1) {
       mockData.accounts.push({
         id: `acc-x${i}`,
         name: `Extra ${i}`,
@@ -412,5 +436,43 @@ describe('MFResumo — cartões em seção separada', () => {
     expect(screen.queryByTestId('mf-resumo-cards-section')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-resumo-card-row')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
+  });
+});
+
+describe('MFResumo — reordenar grupos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+    mockData.groups.push(
+      { id: 'grp-a', name: 'Alimentação', icon: '🍔', parent_id: null, color: null, show_in_summary: true, sum_totals: true, sort_order: 0 },
+      { id: 'grp-b', name: 'Banco', icon: '🏦', parent_id: null, color: null, show_in_summary: true, sum_totals: true, sort_order: 0 }
+    );
+  });
+
+  it('cards ganham ↑/↓ no modo reordenar e a troca persiste o sort_order', async () => {
+    renderScreen();
+    await waitForData();
+
+    expect(screen.getByTestId('mf-group-card-grp-a')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-group-card-grp-b')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-group-move-down-grp-a')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-groups-reorder-toggle'));
+    expect(screen.getByTestId('mf-group-move-up-grp-a')).toBeDisabled();
+    expect(screen.getByTestId('mf-group-move-down-grp-a')).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId('mf-group-move-down-grp-a'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_account_groups');
+    await waitFor(() => {
+      expect(chain.update).toHaveBeenCalledTimes(2);
+    });
+    // posições reescritas nas raízes: grp-b → 0, grp-a → 1
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'grp-b');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'grp-a');
   });
 });
