@@ -4,6 +4,8 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-15
+
 ### Adicionado
 - **Criar categoria dentro do lançamento (MF)**: a busca do seletor de categoria ganhou o botão Criar "nome" quando não há correspondência exata — cria na hora (tipo atual, raiz) e já seleciona, sem sair do modal. Vale na criação e na edição.
 - **Fatura padrão segue o mês visualizado (MF)**: ao criar despesa de cartão a partir do Extrato/detalhe/Lançamentos/FAB, o picker de fatura já abre na fatura do mês em tela (`invoiceMonthKey`) em vez de sempre cair no mês corrente — com fallback para o comportamento anterior fora das opções.
