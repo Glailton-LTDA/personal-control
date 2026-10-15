@@ -130,6 +130,20 @@ export default function MFContas({
   // vizinho (a mesma ordem vale no Resumo — tudo ordena por sort_order).
   const [reordering, setReordering] = useState(false);
   const [selectedId, setSelectedId] = useState(null); // drill-down da conta
+  // Telas estreitas (tablet retrato/mobile): a tabela de 8 colunas quebra
+  // letra por letra — troca por cards compactos (mesmos dados e ações
+  // essenciais; o detalhe completo abre no toque).
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const query = window.matchMedia('(max-width: 768px)');
+    const onChange = (event) => setIsNarrow(event.matches);
+    query.addEventListener?.('change', onChange);
+    setIsNarrow(query.matches);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
 
   // A tela Contas lista apenas contas: cartões moram na aba Cartões.
   const rows = useMemo(
@@ -831,7 +845,254 @@ export default function MFContas({
       )}
 
       {/* Tabela (cabe na largura: colunas fixas, sem scroll lateral) */}
-      {(isLoading || accounts.length > 0) && (
+      {(isLoading || accounts.length > 0) && (isNarrow ? (
+        <div data-testid="mf-contas-cards" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', paddingBottom: '5.5rem' }}>
+          {renderItems.map((item) => {
+            if (item.kind === 'account') {
+              const row = item.row;
+              const info = accountTypeInfo(row.account_type, customTypes);
+              const typeLabel = info.builtin ? t(info.key) : info.label;
+              return (
+                <div
+                  key={row.id}
+                  data-testid="mf-account-row"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedId(row.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(row.id);
+                    }
+                  }}
+                  className="glass-card table-row-hover"
+                  style={{
+                    padding: '0.8rem 0.9rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.7rem',
+                    cursor: 'pointer',
+                    marginLeft: item.depth > 0 ? `${(item.depth - 1) * 0.9}rem` : 0,
+                    opacity: row.archived_at ? 0.6 : 1,
+                  }}
+                >
+                  <MFAccountIcon
+                    account={row}
+                    size={30}
+                    data-testid={`mf-account-icon-${row.id}`}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <button
+                      type="button"
+                      data-testid={`mf-open-account-${row.id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedId(row.id);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        font: 'inherit',
+                        fontWeight: 700,
+                        fontSize: '0.92rem',
+                        lineHeight: 1.25,
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
+                      {row.name}
+                    </button>
+                    <span style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                      <span style={badgeStyle} data-testid="mf-account-type-badge">
+                        <span aria-hidden>{info.icon}</span>
+                        {typeLabel}
+                      </span>
+                      <span style={badgeStyle} data-testid="mf-account-currency-badge">
+                        <span aria-hidden>{currencyFlag(row.currency)}</span>
+                        {row.currency}
+                      </span>
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', fontVariantNumeric: 'tabular-nums' }}>
+                      {nativeMoney(row.saldo, row.currency)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {t('minhasfinancas.accounts_table_forecast')}: {nativeMoney(row.previsto, row.currency)}
+                    </div>
+                  </div>
+                  {reordering ? (
+                    <span style={{ display: 'inline-flex', gap: '0.25rem', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={t('minhasfinancas.move_up')}
+                        data-testid={`mf-move-up-${row.id}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          moveAccount(row.id, -1);
+                        }}
+                        style={{ padding: '0.35rem' }}
+                      >
+                        <ChevronUp size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={t('minhasfinancas.move_down')}
+                        data-testid={`mf-move-down-${row.id}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          moveAccount(row.id, 1);
+                        }}
+                        style={{ padding: '0.35rem' }}
+                      >
+                        <ChevronDown size={15} />
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={t('minhasfinancas.edit')}
+                      data-testid={`mf-edit-account-${row.id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setAccountModal(row);
+                      }}
+                      style={{ padding: '0.4rem', flexShrink: 0 }}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                  )}
+                </div>
+              );
+            }
+            // Cabeçalho de grupo / "Sem grupo": sanfona + total (compacto).
+            const isGroup = item.kind === 'group';
+            const group = item.group;
+            const foldId = isGroup ? group.id : UNGROUPED_ID;
+            const rail = isGroup && group.color ? group.color : 'var(--glass-border)';
+            return (
+              <div
+                key={isGroup ? group.id : UNGROUPED_ID}
+                data-testid={isGroup ? `mf-group-header-${group.id}` : 'mf-ungrouped-header'}
+                className="glass-card"
+                style={{
+                  padding: '0.7rem 0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  borderLeft: `3px solid ${rail}`,
+                }}
+              >
+                <button
+                  type="button"
+                  aria-label={folded.has(foldId) ? t('minhasfinancas.group_show_accounts') : t('minhasfinancas.group_hide_accounts')}
+                  data-testid={isGroup ? `mf-group-fold-${group.id}` : 'mf-ungrouped-fold'}
+                  onClick={() => toggleFold(foldId)}
+                  style={{ background: 'none', border: 'none', padding: 0, display: 'inline-flex', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  <ChevronDown
+                    size={16}
+                    style={{
+                      transform: folded.has(foldId) ? 'rotate(-90deg)' : 'none',
+                      transition: 'transform 0.15s',
+                    }}
+                  />
+                </button>
+                {isGroup ? (
+                  <MFGroupIcon icon={group.icon} name={group.name} color={group.color} size={17} />
+                ) : (
+                  <FolderTree size={16} style={{ color: 'var(--text-muted)' }} />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
+                    {isGroup ? group.name : t('minhasfinancas.group_ungrouped')}
+                    {' '}
+                    <span style={badgeStyle} data-testid={isGroup ? `mf-group-count-${group.id}` : 'mf-ungrouped-count'}>
+                      {t('minhasfinancas.group_count', { count: item.count })}
+                    </span>
+                  </div>
+                </div>
+                {isGroup && !reordering && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label={t('minhasfinancas.group_edit_action')}
+                    data-testid={`mf-group-edit-${group.id}`}
+                    onClick={() => setGroupEdit(group)}
+                    style={{ padding: '0.3rem', flexShrink: 0 }}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                )}
+                {reordering && isGroup && (
+                  <span style={{ display: 'inline-flex', gap: '0.25rem', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={t('minhasfinancas.move_up')}
+                      data-testid={`mf-group-move-up-${group.id}`}
+                      onClick={() => moveGroup(group.id, -1)}
+                      style={{ padding: '0.35rem' }}
+                    >
+                      <ChevronUp size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={t('minhasfinancas.move_down')}
+                      data-testid={`mf-group-move-down-${group.id}`}
+                      onClick={() => moveGroup(group.id, 1)}
+                      style={{ padding: '0.35rem' }}
+                    >
+                      <ChevronDown size={15} />
+                    </button>
+                  </span>
+                )}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div
+                    data-testid={isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'}
+                    style={{ fontWeight: 800, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {subtotalOf(item.rows, 'saldo')}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    {subtotalOf(item.rows, 'previsto')}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {!isLoading && accounts.length > 0 && (
+            <div
+              data-testid="mf-contas-narrow-total"
+              className="glass-card"
+              style={{ padding: '0.8rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}
+            >
+              <span style={{ fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                {t('minhasfinancas.total')}
+              </span>
+              <span style={{ textAlign: 'right' }}>
+                <span style={{ display: 'block', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                  {totalOf('saldo')}
+                </span>
+                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {totalOf('previsto')}
+                </span>
+              </span>
+            </div>
+          )}
+        </div>
+      ) : (
         <div className="glass-card" style={{ padding: '0.5rem 0.75rem', overflowX: 'auto', width: '100%', maxWidth: '100%' }}>
           <table
             style={{
@@ -1441,7 +1702,7 @@ export default function MFContas({
             )}
           </table>
         </div>
-      )}
+      ))}
         </>
       )}
 

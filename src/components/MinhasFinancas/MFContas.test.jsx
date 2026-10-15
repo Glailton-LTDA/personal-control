@@ -113,6 +113,19 @@ const renderWithProviders = (ui) => {
 
 const mockUser = { id: 'test-user', email: 'test@example.com' };
 
+/** Finge tela estreita (tablet retrato/mobile): matchMedia com matches. */
+const mockNarrowViewport = (matches = true) => {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  });
+};
+
+const restoreViewport = () => {
+  delete window.matchMedia;
+};
+
 describe('MFContas', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -364,6 +377,40 @@ describe('MFContas', () => {
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+  });
+
+  it('tela estreita: cards em vez de tabela (sem quebrar o texto)', async () => {
+    mockNarrowViewport();
+    try {
+      renderWithProviders(
+        <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-contas-cards')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
+      // sem <table>: nada de coluna espremida letra por letra
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      // mesmas linhas e ações essenciais do modo tabela
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-edit-account-acc-1')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-total')).toBeInTheDocument();
+
+      // sanfona do grupo funciona nos cards
+      fireEvent.click(screen.getByTestId('mf-group-fold-grp-1'));
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
+      });
+
+      // toque abre o detalhe como na tabela
+      fireEvent.click(screen.getAllByTestId('mf-account-row')[0]);
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
   });
 
   it('drill sobrevive ao F5: restaura, ignora id inválido e limpa ao fechar', async () => {
