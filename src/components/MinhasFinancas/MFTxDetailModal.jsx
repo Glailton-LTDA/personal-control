@@ -11,6 +11,7 @@ import {
   useMFCategories,
   useMFTags,
   useCreateMFTag,
+  useCreateMFCategory,
   useMFAccountTransactions,
   useCreateMFTransaction,
   useUpdateMFTransaction,
@@ -39,6 +40,7 @@ import {
 import MFChoiceDialog from './MFChoiceDialog';
 import MFCalculator from './MFCalculator';
 import MFCategorySelect from './MFCategorySelect';
+import { mfNormalize, MF_CATEGORY_COLORS } from './MFCategoryIcons';
 import MFAccountIcon from './MFAccountIcon';
 import MFAccountSelect from './MFAccountSelect';
 import MFSelect from './MFSelect';
@@ -115,6 +117,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const deleteFixedMutation = useDeleteMFFixedSeries();
   const setStatusMutation = useMFSetTransactionStatus();
   const createTagMutation = useCreateMFTag();
+  const createCategoryMutation = useCreateMFCategory();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -756,6 +759,39 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
       const created = await createTagMutation.mutateAsync({ user_id: user.id, name });
       if (created?.id) setQuickTags((prev) => [...prev, created.id]);
       setNewTag('');
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+    }
+  };
+
+  /** Cria a categoria digitada na busca da edição rápida e já seleciona. */
+  const handleQuickCreateCategory = async (name) => {
+    const trimmed = String(name ?? '').trim();
+    if (!trimmed) return;
+    const txType = tx?.type ?? 'DESPESA';
+    const needle = mfNormalize(trimmed);
+    const dupe = categories.some(
+      (cat) =>
+        !cat.is_archived &&
+        (cat.type === txType || cat.type === 'AMBAS') &&
+        (cat.parent_id ?? null) === null &&
+        mfNormalize(cat.name) === needle
+    );
+    if (dupe) {
+      toast.error(t('minhasfinancas.cfg_duplicate_category'));
+      return;
+    }
+    try {
+      const created = await createCategoryMutation.mutateAsync({
+        user_id: user.id,
+        name: trimmed,
+        type: txType,
+        parent_id: null,
+        color: MF_CATEGORY_COLORS[0],
+        icon: '🏷️',
+      });
+      const createdRow = Array.isArray(created) ? created[0] : created;
+      if (createdRow?.id) setQuickCategory(createdRow.id);
     } catch {
       toast.error(t('minhasfinancas.save_error'));
     }
@@ -1419,6 +1455,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
                   onChange={setQuickCategory}
                   categories={visibleCategories}
                   placeholder={t('minhasfinancas.tx_category_none')}
+                  onCreate={handleQuickCreateCategory}
                 />
               </div>
               <div className="input-group">

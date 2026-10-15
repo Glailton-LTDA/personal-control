@@ -19,7 +19,7 @@ import {
   currencyFlag,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
-import MFCurrencyFilter from './MFCurrencyFilter';
+import MFCurrencyTabs from './MFCurrencyTabs';
 import MFAccountModal from './MFAccountModal';
 import MFAccountIcon from './MFAccountIcon';
 import MFTransferModal from './MFTransferModal';
@@ -136,6 +136,17 @@ export default function MFContas({
     [data]
   );
   const currencyOptions = useMemo(() => [...new Set(rows.map((row) => row.currency))], [rows]);
+  // Abas por moeda: contagem de contas ativas por moeda (KPIs e tabela
+  // já filtram pela aba — com uma moeda, some a mistura "R$ · US$ · €").
+  const currencyCounts = useMemo(() => {
+    const counts = {};
+    rows.forEach((row) => {
+      if (row.archived_at) return;
+      const code = row.currency || 'BRL';
+      counts[code] = (counts[code] || 0) + 1;
+    });
+    return counts;
+  }, [rows]);
   const accounts = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows.filter(
@@ -724,7 +735,6 @@ export default function MFContas({
         </button>
 
         <span style={{ flex: '1 1 auto' }} />
-        <MFCurrencyFilter currencies={currencyOptions} value={currency} onChange={setCurrency} />
         <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
         <span aria-hidden style={{ width: 1, alignSelf: 'stretch', background: 'var(--glass-border)' }} />
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -760,6 +770,16 @@ export default function MFContas({
           </button>
         </div>
       </div>
+
+      {/* Abas por moeda: com uma moeda selecionada, KPIs e tabela mostram
+          só ela — o header deixa de concatenar "R$ · US$ · € · £". */}
+      <MFCurrencyTabs
+        currencies={currencyOptions}
+        counts={currencyCounts}
+        value={currency}
+        onChange={setCurrency}
+        testId="mf-contas-currency-tabs"
+      />
 
       {/* Estados */}
       {isError && (

@@ -51,7 +51,7 @@ import {
   currentMonthKey,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
-import MFCurrencyFilter from './MFCurrencyFilter';
+import MFCurrencyTabs from './MFCurrencyTabs';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
@@ -1170,10 +1170,11 @@ export default function MFResumo({
               <SlidersHorizontal size={15} />
               {t(customizing ? 'minhasfinancas.dash_done' : 'minhasfinancas.dash_customize')}
             </button>
-            <MFCurrencyFilter
+            <MFCurrencyTabs
               currencies={currencyOptions}
               value={currency}
               onChange={setCurrency}
+              testId="mf-resumo-currency-tabs"
             />
             <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
           </div>

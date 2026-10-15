@@ -100,7 +100,7 @@ describe('Multi-moeda (sem cotação)', () => {
     expect(rawText(kpi)).toContain(' · '); // agrupado, não somado
   });
 
-  it('Resumo: seletor de moeda por tela filtra as contas', async () => {
+  it('Resumo: abas de moeda filtram as contas por tela', async () => {
     renderWithProviders(
       <MFResumo user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
@@ -109,8 +109,7 @@ describe('Multi-moeda (sem cotação)', () => {
       expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
     });
 
-    fireEvent.click(screen.getByTestId('mf-currency-filter'));
-    fireEvent.click(screen.getByTestId('mf-currency-option-USD'));
+    fireEvent.click(screen.getByTestId('mf-resumo-currency-tabs-USD'));
 
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(1);
     expect(screen.getByText('Conta USD')).toBeInTheDocument();
@@ -121,6 +120,25 @@ describe('Multi-moeda (sem cotação)', () => {
     expect(rawText(kpi)).not.toContain('R$');
   });
 
+  it('Contas: abas de moeda filtram tabela e KPI para uma moeda', async () => {
+    renderWithProviders(<MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByTestId('mf-contas-currency-tabs-USD'));
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
+    });
+    // KPI passa a mostrar só a moeda da aba (sem concatenar)
+    expect(screen.getByTestId('mf-contas-currency-tabs-USD')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+  });
+
   it('Contas: valores na moeda nativa + totais agrupados por moeda', async () => {
     renderWithProviders(<MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />);
 
@@ -128,8 +146,8 @@ describe('Multi-moeda (sem cotação)', () => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
 
-    // Badge da moeda na linha
-    expect(screen.getByText('USD')).toBeInTheDocument();
+    // Badge da moeda na linha (a aba USD também mostra o código)
+    expect(screen.getAllByText('USD').length).toBeGreaterThanOrEqual(2);
 
     // Linha USD exibida em dólar nativo (saldo inicial e saldo)
     expect(screen.getAllByText('US$ 200,00').length).toBeGreaterThanOrEqual(2);

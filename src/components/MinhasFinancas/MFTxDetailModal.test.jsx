@@ -313,6 +313,38 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     });
   });
 
+  it('edição rápida cria categoria nova como na tela de criação', async () => {
+    renderModal();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-quick')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-paid-pending')).toHaveTextContent('R$ 1.000,00');
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick'));
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick-category'));
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-category-search'), {
+      target: { value: 'Lazer' },
+    });
+
+    // sem correspondência: o Criar aparece no topo da lista
+    const createBtn = await screen.findByTestId('mf-tx-detail-quick-category-create');
+    expect(createBtn).toHaveTextContent('minhasfinancas.category_create_named');
+    fireEvent.click(createBtn);
+
+    const { supabase } = await import('../../lib/supabase');
+    const catChain = supabase.from('mf_categories');
+    await waitFor(() => {
+      expect(catChain.insert).toHaveBeenCalled();
+    });
+    expect(catChain.insert.mock.calls[0][0]).toMatchObject({
+      user_id: 'test-user',
+      name: 'Lazer',
+      type: 'DESPESA',
+      parent_id: null,
+    });
+  });
+
   it('toggle alterna PAGO → PENDENTE', async () => {
     renderModal();
     await waitFor(() => {
