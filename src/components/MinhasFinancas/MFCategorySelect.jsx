@@ -220,6 +220,27 @@ export default function MFCategorySelect({
           </div>
 
           <div style={{ overflowY: 'auto', maxHeight: 260 }}>
+            {/* Criar no topo: aparece digitando um nome novo (sem
+                correspondência exata) — antes ficava no fim da lista e
+                passava batido */}
+            {onCreate && term !== '' && !hasExactMatch && (
+              <button
+                type="button"
+                data-testid={`${testId}-create`}
+                onClick={() => onCreate(term)}
+                style={{
+                  ...optionStyle,
+                  color: 'var(--primary)',
+                  fontWeight: 700,
+                  background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+                }}
+              >
+                <Plus size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>
+                  {t('minhasfinancas.category_create_named', { name: term })}
+                </span>
+              </button>
+            )}
             {/* Limpar seleção */}
             <button
               type="button"
@@ -323,30 +344,13 @@ export default function MFCategorySelect({
               </React.Fragment>
             ))}
 
-            {nodes.length === 0 && (
+            {nodes.length === 0 && !(onCreate && term !== '') && (
               <p
                 data-testid={`${testId}-none`}
                 style={{ margin: '0.5rem 0.35rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}
               >
                 {t('minhasfinancas.select_none')}
               </p>
-            )}
-            {onCreate && term !== '' && !hasExactMatch && (
-              <button
-                type="button"
-                data-testid={`${testId}-create`}
-                onClick={() => onCreate(term)}
-                style={{
-                  ...optionStyle,
-                  color: 'var(--primary)',
-                  fontWeight: 700,
-                }}
-              >
-                <Plus size={15} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1 }}>
-                  {t('minhasfinancas.category_create_named', { name: term })}
-                </span>
-              </button>
             )}
           </div>
         </div>

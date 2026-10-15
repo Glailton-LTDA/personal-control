@@ -113,6 +113,19 @@ const renderWithProviders = (ui) => {
 
 const mockUser = { id: 'test-user', email: 'test@example.com' };
 
+/** Finge tela estreita (tablet retrato/mobile): matchMedia com matches. */
+const mockNarrowViewport = (matches = true) => {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  });
+};
+
+const restoreViewport = () => {
+  delete window.matchMedia;
+};
+
 describe('MFContas', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -364,6 +377,63 @@ describe('MFContas', () => {
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+  });
+
+  it('tela estreita: cards em vez de tabela (sem quebrar o texto)', async () => {
+    mockNarrowViewport();
+    try {
+      renderWithProviders(
+        <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-contas-cards')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
+      // sem <table>: nada de coluna espremida letra por letra
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      // mesmas linhas e ações essenciais do modo tabela
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-edit-account-acc-1')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-total')).toBeInTheDocument();
+
+      // sanfona do grupo funciona nos cards
+      fireEvent.click(screen.getByTestId('mf-group-fold-grp-1'));
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
+      });
+      // reabre para os próximos passos
+      fireEvent.click(screen.getByTestId('mf-group-fold-grp-1'));
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
+
+      // consolidado + chips por tipo no topo (valores empilhados por moeda)
+      expect(screen.getByTestId('mf-contas-narrow-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-summary-saldo')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-summary-previsto')).toBeInTheDocument();
+      // total do grupo também empilhado (não quebra no mobile multimoeda)
+      expect(screen.getByTestId('mf-group-total-grp-1')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-narrow-type-all')).toHaveAttribute('aria-selected', 'true');
+      // POUPANCA só tem a arquivada (fora da lista): filtrar esvazia
+      expect(screen.getByTestId('mf-narrow-type-POUPANCA')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('mf-narrow-type-POUPANCA'));
+      await waitFor(() => {
+        expect(screen.queryByTestId('mf-account-row')).not.toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-narrow-type-all'));
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
+
+      // toque abre o detalhe como na tabela
+      fireEvent.click(screen.getAllByTestId('mf-account-row')[0]);
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
   });
 
   it('drill sobrevive ao F5: restaura, ignora id inválido e limpa ao fechar', async () => {

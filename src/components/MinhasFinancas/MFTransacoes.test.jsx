@@ -890,6 +890,17 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('mf-tx-tag-sel-tag-home')).toBeInTheDocument();
     });
+
+    // regressão produção: o select precisa trazer transaction_id, senão
+    // o filtro client-side zera as tags (mock ignora colunas, então só
+    // a asserção da query pega)
+    const { supabase } = await import('../../lib/supabase');
+    const linksChain = supabase.from('mf_transaction_tags');
+    expect(
+      linksChain.select.mock.calls.some(([cols]) =>
+        String(cols).includes('transaction_id')
+      )
+    ).toBe(true);
   });
 
   it('envia anexo para o bucket mf-attachments', async () => {

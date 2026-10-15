@@ -51,7 +51,8 @@ import {
   currentMonthKey,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
-import MFCurrencyFilter from './MFCurrencyFilter';
+import MFCurrencyTabs from './MFCurrencyTabs';
+import MFTotalsStack from './MFTotalsStack';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
@@ -400,14 +401,15 @@ export default function MFResumo({
     {
       key: 'kpi_balance',
       icon: Wallet,
-      valueText: formatTotals(kpis.saldo, showValues),
-      sub: `${t('minhasfinancas.initial')}: ${formatTotals(kpis.initial, showValues)}`,
+      valueTotals: kpis.saldo,
+      subLabel: t('minhasfinancas.initial'),
+      subTotals: kpis.initial,
       color: 'var(--primary)',
     },
     {
       key: 'kpi_received',
       icon: TrendingUp,
-      valueText: formatTotals(kpis.recebido, showValues),
+      valueTotals: kpis.recebido,
       color: '#10b981',
       // Variação só quando o escopo tem uma única moeda (não cruzamos moedas).
       variation: singleCurrency
@@ -418,7 +420,7 @@ export default function MFResumo({
     {
       key: 'kpi_spent',
       icon: TrendingDown,
-      valueText: formatTotals(kpis.gasto, showValues),
+      valueTotals: kpis.gasto,
       color: '#ef4444',
       variation: singleCurrency
         ? variation(sumField(countedRows, 'despesas'), sumField(countedRows, 'despesasPrev'))
@@ -428,8 +430,8 @@ export default function MFResumo({
     {
       key: 'kpi_forecast',
       icon: CalendarClock,
-      valueText: formatTotals(kpis.previsto, showValues),
-      sub: t('minhasfinancas.accounts_count', { count: countedRows.length }),
+      valueTotals: kpis.previsto,
+      subLabel: t('minhasfinancas.accounts_count', { count: countedRows.length }),
       color: '#06b6d4',
     },
   ];
@@ -468,13 +470,35 @@ export default function MFResumo({
                     {t(`minhasfinancas.${card.key}`)}
                   </span>
                 </div>
-                <p data-testid={`mf-kpi-value-${card.key}`} style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>
-                  {isLoading ? '…' : isError ? '—' : card.valueText}
-                </p>
+                <div data-testid={`mf-kpi-value-${card.key}`} style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>
+                  {isLoading ? '…' : isError ? '—' : (
+                    <MFTotalsStack
+                      totals={card.valueTotals}
+                      showValues={showValues}
+                      fontSize="inherit"
+                    />
+                  )}
+                </div>
                 <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {card.sub && (
+                  {(card.subLabel || card.subTotals) && (
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      {showValues ? card.sub : '•••'}
+                      {showValues ? (
+                        card.subTotals ? (
+                          <>
+                            {card.subLabel}
+                            {': '}
+                            <MFTotalsStack
+                              totals={card.subTotals}
+                              showValues={showValues}
+                              fontSize="inherit"
+                            />
+                          </>
+                        ) : (
+                          card.subLabel
+                        )
+                      ) : (
+                        '•••'
+                      )}
                     </span>
                   )}
                   {!isLoading && !isError && card.variation !== undefined && (
@@ -599,9 +623,15 @@ export default function MFResumo({
                     name={group.name}
                     subtitle={subtitle}
                     total={
-                      group.sum_totals
-                        ? formatTotals(groupTotalsByCurrency(subRows, 'saldo'), showValues)
-                        : null
+                      group.sum_totals ? (
+                        <MFTotalsStack
+                          totals={groupTotalsByCurrency(subRows, 'saldo')}
+                          showValues={showValues}
+                          align="right"
+                          fontSize="0.88rem"
+                          lineHeight={1.4}
+                        />
+                      ) : null
                     }
                     trailing={
                       group.sum_totals ? null : (
@@ -1170,10 +1200,11 @@ export default function MFResumo({
               <SlidersHorizontal size={15} />
               {t(customizing ? 'minhasfinancas.dash_done' : 'minhasfinancas.dash_customize')}
             </button>
-            <MFCurrencyFilter
+            <MFCurrencyTabs
               currencies={currencyOptions}
               value={currency}
               onChange={setCurrency}
+              testId="mf-resumo-currency-tabs"
             />
             <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
           </div>

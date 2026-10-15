@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Adicionado
+- **Abas por moeda em Contas e Resumo (MF)**: o filtro de moeda virou abas visíveis (Todas + BRL/USD/EUR… com contagem de contas, `MFCurrencyTabs` compartilhado). Com uma moeda selecionada, KPIs e listas mostram só ela — fim do header concatenado "R$ · US$ · € · £" quando há muitas moedas estrangeiras. Vale também para o Resumo.
+- **Contas em cards no tablet/mobile (MF)**: abaixo de 769px a tabela de 8 colunas (que quebrava o texto letra por letra) vira cards em coluna única no layout do mockup — consolidado (saldo total + projetado) + chips por tipo, conta com nome por extenso, SALDO em destaque e Previsão abaixo, badges de tipo/moeda, filhas aninhadas no cartão do grupo com trilho; respiro no fim da lista; toque abre o detalhe completo.
+- **Tabela web sem sobreposição multimoeda (MF)**: subtotais de grupo e rodapé empilham uma moeda por linha (antes o "R$ · US$" estourava a coluna e invadia a vizinha).
+- **Totais por moeda empilhados nos KPIs (MF)**: na aba Todas, cada moeda aparece numa linha (`MFTotalsStack`, BRL primeiro) em vez de lado a lado — vale para os KPIs do Resumo e de Contas, os cards de grupo e, no mobile, o consolidado e os totais de grupo. Tabelas e rodapés seguem inline compactos.
+
+### Alterado
+- **Saldo inicial do detalhe da conta é o fechamento do mês anterior (MF)**: o card mostrava a âncora de criação/reajuste (`initial_balance`, ex.: £240) enquanto o mês anterior tinha fechado em outro valor (£64,05) — com aviso de "customizado" para explicar a divergência. Agora a abertura é sempre o fechamento anterior (`prevClose`); a âncora continua valendo na matemática, mas não aparece mais como "inicial". Saíram a linha "Saldo sem o inicial" e o aviso (perderam o sentido), e os valores ganharam destaque (Saldo 1,4rem, abertura 1,15rem, movimentação e Previsão maiores).
+
 ## [1.8.0] - 2026-10-15
 
 ### Adicionado

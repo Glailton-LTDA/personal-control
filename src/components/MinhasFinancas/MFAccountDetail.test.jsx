@@ -693,32 +693,35 @@ describe('MFAccountDetail', () => {
     expect(screen.getByTestId('mf-det-movement-despesas')).toBeInTheDocument();
   });
 
-  it('mostra saldo sem o inicial e o aviso de inicial customizado', async () => {
+  it('mostra o saldo inicial como o fechamento do mês anterior', async () => {
     renderDetail();
 
     // espera o all-transactions (base do fechamento anterior)
     await waitFor(() => {
       expect(screen.getByTestId('mf-timeline-item-tx-pending')).toBeInTheDocument();
     });
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-det-initial-warning')).toBeInTheDocument();
-    });
 
-    // saldo 500 − inicial 0
-    expect(txt('mf-acct-det-chip-no-initial')).toBe('R$ 500,00');
-    // fechamento de setembro (1000) ≠ inicial (0) → aviso existe
-    // (o mock de t não interpola; o valor vai no parâmetro {{value}})
-    expect(screen.getByTestId('mf-det-initial-warning')).toBeInTheDocument();
+    // abertura de outubro = fechamento de setembro (receita de 1000),
+    // não a âncora de criação (inicial 0)
+    await waitFor(() => {
+      expect(txt('mf-acct-det-initial')).toBe('R$ 1.000,00');
+    });
+    // sem a linha "saldo sem o inicial" nem o aviso de customizado
+    expect(screen.queryByTestId('mf-acct-det-chip-no-initial')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-det-initial-warning')).not.toBeInTheDocument();
+    // Saldo/Previsão seguem intactos
+    expect(screen.getByTestId('mf-acct-det-chip-balance')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-acct-det-chip-forecast')).toBeInTheDocument();
   });
 
-  it('cartão com inicial zerado não mostra aviso de inicial customizado', async () => {
+  it('cartão com inicial zerado não mostra bloco de saldo de conta', async () => {
     renderDetail({ account: cardAccount });
 
     await waitFor(() => {
       expect(screen.getByTestId('mf-acct-det-invoices')).toBeInTheDocument();
     });
-    // dívida acumulada ≠ 0, mas o inicial nunca foi customizado (é 0)
-    expect(screen.queryByTestId('mf-det-initial-warning')).not.toBeInTheDocument();
+    // sem bloco de saldo (abertura, Saldo/Previsão, Reajustar)
+    expect(screen.queryByTestId('mf-acct-det-initial')).not.toBeInTheDocument();
   });
 
   it('cartão não exibe bloco de saldo de conta (só fatura/limite)', async () => {

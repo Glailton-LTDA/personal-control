@@ -97,10 +97,11 @@ describe('Multi-moeda (sem cotação)', () => {
     const kpi = screen.getByTestId('mf-kpi-value-kpi_balance');
     expect(rawText(kpi)).toContain('R$ 1.000,00');
     expect(rawText(kpi)).toContain('US$ 200,00');
-    expect(rawText(kpi)).toContain(' · '); // agrupado, não somado
+    // empilhado (uma moeda por linha), não somado nem lado a lado
+    expect(kpi.querySelectorAll('span span').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Resumo: seletor de moeda por tela filtra as contas', async () => {
+  it('Resumo: abas de moeda filtram as contas por tela', async () => {
     renderWithProviders(
       <MFResumo user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
@@ -109,8 +110,7 @@ describe('Multi-moeda (sem cotação)', () => {
       expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
     });
 
-    fireEvent.click(screen.getByTestId('mf-currency-filter'));
-    fireEvent.click(screen.getByTestId('mf-currency-option-USD'));
+    fireEvent.click(screen.getByTestId('mf-resumo-currency-tabs-USD'));
 
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(1);
     expect(screen.getByText('Conta USD')).toBeInTheDocument();
@@ -121,6 +121,25 @@ describe('Multi-moeda (sem cotação)', () => {
     expect(rawText(kpi)).not.toContain('R$');
   });
 
+  it('Contas: abas de moeda filtram tabela e KPI para uma moeda', async () => {
+    renderWithProviders(<MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+
+    fireEvent.click(screen.getByTestId('mf-contas-currency-tabs-USD'));
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
+    });
+    // KPI passa a mostrar só a moeda da aba (sem concatenar)
+    expect(screen.getByTestId('mf-contas-currency-tabs-USD')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+  });
+
   it('Contas: valores na moeda nativa + totais agrupados por moeda', async () => {
     renderWithProviders(<MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />);
 
@@ -128,14 +147,24 @@ describe('Multi-moeda (sem cotação)', () => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
 
-    // Badge da moeda na linha
-    expect(screen.getByText('USD')).toBeInTheDocument();
+    // Badge da moeda na linha (a aba USD também mostra o código)
+    expect(screen.getAllByText('USD').length).toBeGreaterThanOrEqual(2);
 
     // Linha USD exibida em dólar nativo (saldo inicial e saldo)
     expect(screen.getAllByText('US$ 200,00').length).toBeGreaterThanOrEqual(2);
 
-    // Totais agrupados: R$ + US$ lado a lado
-    expect(screen.getAllByText('R$ 1.000,00 · US$ 200,00').length).toBeGreaterThanOrEqual(2);
+    // KPI de saldo empilhado (uma moeda por linha, sem "·" lateral)
+    const kpiValue = screen.getByTestId('mf-contas-kpi-balance-value');
+    expect(kpiValue).toHaveTextContent('R$ 1.000,00');
+    expect(kpiValue).toHaveTextContent('US$ 200,00');
+    expect(kpiValue.textContent).not.toContain('·');
+    expect(kpiValue.querySelectorAll('[data-testid$="-line-BRL"]').length).toBe(1);
+
+    // Totais do rodapé empilhados por moeda (sem "·" lateral que estourava)
+    const foot = screen.getByTestId('mf-contas-foot-saldo');
+    expect(foot).toHaveTextContent('R$ 1.000,00');
+    expect(foot).toHaveTextContent('US$ 200,00');
+    expect(foot.textContent).not.toContain('·');
   });
 
   it('Transferência: destino só aceita contas da mesma moeda', async () => {
