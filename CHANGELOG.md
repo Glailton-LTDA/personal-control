@@ -7,6 +7,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Adicionado
 - **Abas por moeda em Contas e Resumo (MF)**: o filtro de moeda virou abas visíveis (Todas + BRL/USD/EUR… com contagem de contas, `MFCurrencyTabs` compartilhado). Com uma moeda selecionada, KPIs e listas mostram só ela — fim do header concatenado "R$ · US$ · € · £" quando há muitas moedas estrangeiras. Vale também para o Resumo.
 - **Contas em cards no tablet/mobile (MF)**: abaixo de 769px a tabela de 8 colunas (que quebrava o texto letra por letra) vira cards no layout do mockup — consolidado (saldo total + projetado) + chips por tipo, conta com ícone, SALDO e Previsão, filhas aninhadas no cartão do grupo com trilho; nomes em até 2 linhas e respiro no fim da lista; toque abre o detalhe completo.
+- **Tabela web sem sobreposição multimoeda (MF)**: subtotais de grupo e rodapé empilham uma moeda por linha (antes o "R$ · US$" estourava a coluna e invadia a vizinha).
 - **Totais por moeda empilhados nos KPIs (MF)**: na aba Todas, cada moeda aparece numa linha (`MFTotalsStack`, BRL primeiro) em vez de lado a lado — vale para os KPIs do Resumo e de Contas, os cards de grupo e, no mobile, o consolidado e os totais de grupo. Tabelas e rodapés seguem inline compactos.
 
 ### Alterado

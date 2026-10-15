@@ -160,8 +160,11 @@ describe('Multi-moeda (sem cotação)', () => {
     expect(kpiValue.textContent).not.toContain('·');
     expect(kpiValue.querySelectorAll('[data-testid$="-line-BRL"]').length).toBe(1);
 
-    // Totais agrupados: R$ + US$ lado a lado
-    expect(screen.getAllByText('R$ 1.000,00 · US$ 200,00').length).toBeGreaterThanOrEqual(2);
+    // Totais do rodapé empilhados por moeda (sem "·" lateral que estourava)
+    const foot = screen.getByTestId('mf-contas-foot-saldo');
+    expect(foot).toHaveTextContent('R$ 1.000,00');
+    expect(foot).toHaveTextContent('US$ 200,00');
+    expect(foot.textContent).not.toContain('·');
   });
 
   it('Transferência: destino só aceita contas da mesma moeda', async () => {
