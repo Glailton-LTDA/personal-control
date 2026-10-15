@@ -304,8 +304,6 @@ export default function MFContas({
     });
     return [...seen.entries()];
   }, [rows, customTypes, t]);
-  const narrowTotals = (field) =>
-    formatTotals(groupTotalsByCurrency(narrowAccounts, field), showValues);
   /** Nome do grupo pai (legenda do card no modo estreito). */
   const groupNameOf = (row) =>
     groups.find((group) => group.id === row.group_id)?.name ?? null;
@@ -1070,16 +1068,27 @@ export default function MFContas({
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                 {t('minhasfinancas.kpi_balance')}
               </div>
-              <div style={{ fontWeight: 800, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>
-                {narrowTotals('saldo')}
+              <div style={{ fontWeight: 800, fontSize: '1.3rem' }}>
+                <MFTotalsStack
+                  totals={groupTotalsByCurrency(narrowAccounts, 'saldo')}
+                  showValues={showValues}
+                  testId="mf-contas-narrow-summary-saldo"
+                  fontSize="inherit"
+                />
               </div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                 {t('minhasfinancas.accounts_table_forecast')}
               </div>
-              <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                {narrowTotals('previsto')}
+              <div style={{ fontWeight: 800 }}>
+                <MFTotalsStack
+                  totals={groupTotalsByCurrency(narrowAccounts, 'previsto')}
+                  showValues={showValues}
+                  testId="mf-contas-narrow-summary-previsto"
+                  align="right"
+                  fontSize="inherit"
+                />
               </div>
             </div>
           </div>
@@ -1185,14 +1194,23 @@ export default function MFContas({
                     {t('minhasfinancas.group_count', { count: item.count })}
                   </span>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div
-                      data-testid={isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'}
-                      style={{ fontWeight: 800, fontSize: '1rem', fontVariantNumeric: 'tabular-nums' }}
-                    >
-                      {subtotalOf(item.rows, 'saldo')}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {t('minhasfinancas.accounts_table_forecast')}: {subtotalOf(item.rows, 'previsto')}
+                    <MFTotalsStack
+                      totals={groupTotalsByCurrency(item.rows, 'saldo')}
+                      showValues={showValues}
+                      testId={isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'}
+                      align="right"
+                      fontSize="1rem"
+                      lineHeight={1.35}
+                    />
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                      {t('minhasfinancas.accounts_table_forecast')}:{' '}
+                      <MFTotalsStack
+                        totals={groupTotalsByCurrency(item.rows, 'previsto')}
+                        showValues={showValues}
+                        align="right"
+                        fontSize="inherit"
+                        lineHeight={1.35}
+                      />
                     </div>
                   </div>
                   {isGroup && !reordering && (

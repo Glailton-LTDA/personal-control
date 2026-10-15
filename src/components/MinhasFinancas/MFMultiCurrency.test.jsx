@@ -153,6 +153,13 @@ describe('Multi-moeda (sem cotação)', () => {
     // Linha USD exibida em dólar nativo (saldo inicial e saldo)
     expect(screen.getAllByText('US$ 200,00').length).toBeGreaterThanOrEqual(2);
 
+    // KPI de saldo empilhado (uma moeda por linha, sem "·" lateral)
+    const kpiValue = screen.getByTestId('mf-contas-kpi-balance-value');
+    expect(kpiValue).toHaveTextContent('R$ 1.000,00');
+    expect(kpiValue).toHaveTextContent('US$ 200,00');
+    expect(kpiValue.textContent).not.toContain('·');
+    expect(kpiValue.querySelectorAll('[data-testid$="-line-BRL"]').length).toBe(1);
+
     // Totais agrupados: R$ + US$ lado a lado
     expect(screen.getAllByText('R$ 1.000,00 · US$ 200,00').length).toBeGreaterThanOrEqual(2);
   });

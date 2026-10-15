@@ -410,8 +410,12 @@ describe('MFContas', () => {
         expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
       });
 
-      // consolidado + chips por tipo no topo
+      // consolidado + chips por tipo no topo (valores empilhados por moeda)
       expect(screen.getByTestId('mf-contas-narrow-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-summary-saldo')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-summary-previsto')).toBeInTheDocument();
+      // total do grupo também empilhado (não quebra no mobile multimoeda)
+      expect(screen.getByTestId('mf-group-total-grp-1')).toBeInTheDocument();
       expect(screen.getByTestId('mf-narrow-type-all')).toHaveAttribute('aria-selected', 'true');
       // POUPANCA só tem a arquivada (fora da lista): filtrar esvazia
       expect(screen.getByTestId('mf-narrow-type-POUPANCA')).toBeInTheDocument();
