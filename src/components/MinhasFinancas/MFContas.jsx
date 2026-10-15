@@ -550,14 +550,11 @@ export default function MFContas({
                 font: 'inherit',
                 fontWeight: 700,
                 fontSize: '0.95rem',
-                lineHeight: 1.25,
+                lineHeight: 1.3,
                 color: 'inherit',
                 cursor: 'pointer',
                 textAlign: 'left',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
+                display: 'block',
                 overflowWrap: 'break-word',
               }}
             >
@@ -568,17 +565,6 @@ export default function MFContas({
                 {subtitle}
               </div>
             )}
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t('minhasfinancas.accounts_table_balance')}
-            </div>
-            <div style={{ fontWeight: 800, fontSize: '1.05rem', fontVariantNumeric: 'tabular-nums' }}>
-              {nativeMoney(row.saldo, row.currency)}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-              {t('minhasfinancas.accounts_table_forecast')}: {nativeMoney(row.previsto, row.currency)}
-            </div>
           </div>
           {reordering ? (
             <span style={{ display: 'inline-flex', gap: '0.25rem', flexShrink: 0 }}>
@@ -624,6 +610,19 @@ export default function MFContas({
               <Pencil size={15} />
             </button>
           )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {t('minhasfinancas.accounts_table_balance')}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
+              {nativeMoney(row.saldo, row.currency)}
+            </div>
+          </div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+            {t('minhasfinancas.accounts_table_forecast')}: {nativeMoney(row.previsto, row.currency)}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={badgeStyle} data-testid="mf-account-type-badge">
