@@ -404,6 +404,25 @@ describe('MFContas', () => {
       await waitFor(() => {
         expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
       });
+      // reabre para os próximos passos
+      fireEvent.click(screen.getByTestId('mf-group-fold-grp-1'));
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
+
+      // consolidado + chips por tipo no topo
+      expect(screen.getByTestId('mf-contas-narrow-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-narrow-type-all')).toHaveAttribute('aria-selected', 'true');
+      // POUPANCA só tem a arquivada (fora da lista): filtrar esvazia
+      expect(screen.getByTestId('mf-narrow-type-POUPANCA')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('mf-narrow-type-POUPANCA'));
+      await waitFor(() => {
+        expect(screen.queryByTestId('mf-account-row')).not.toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-narrow-type-all'));
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      });
 
       // toque abre o detalhe como na tabela
       fireEvent.click(screen.getAllByTestId('mf-account-row')[0]);
