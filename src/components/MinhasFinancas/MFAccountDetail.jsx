@@ -476,13 +476,11 @@ export default function MFAccountDetail({
     account.account_type === 'CARTAO' && cardBalance
       ? cardBalance.previsto
       : Number(account.previsto) || 0;
-  const noInitial = round2(shownSaldo - (Number(account.initial_balance) || 0));
-  const initialValue = round2(Number(account.initial_balance) || 0);
-  // Cartão com inicial zerado (padrão): a dívida acumulada sempre difere
-  // de zero — avisar "customizado" seria falso. Só avisa no cartão com
-  // inicial diferente de zero.
-  const showInitialWarning =
-    initialValue !== prevClose && (account.account_type !== 'CARTAO' || initialValue !== 0);
+  // Abertura do mês = fechamento do mês anterior (prevClose): o
+  // `initial_balance` é só a âncora da criação/reajuste — exibir a âncora
+  // como "inicial" confundia (ex.: £240 da criação com o mês anterior
+  // fechado em £64,05). O aviso de "customizado" e o "saldo sem o
+  // inicial" existiam só para explicar essa divergência — sem ela, saem.
 
   /** Vai ao extrato: no mobile troca para a aba Transações. */
   const gotoTimeline = () => {
@@ -688,12 +686,12 @@ export default function MFAccountDetail({
         }}
       >
         {/* Cartão não tem saldo (só fatura/limite): esconde o bloco de
-            conta — Saldo inicial, Saldo/Previsão, aviso e Reajustar. */}
+            conta — abertura, Saldo/Previsão e Reajustar. */}
         {account.account_type !== 'CARTAO' && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-            <span style={{ fontWeight: 800 }}>{t('minhasfinancas.accounts_table_initial')}</span>
-            <strong data-testid="mf-acct-det-initial" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {money(account.initial_balance)}
+            <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{t('minhasfinancas.accounts_table_initial')}</span>
+            <strong data-testid="mf-acct-det-initial" style={{ fontVariantNumeric: 'tabular-nums', fontSize: '1.15rem' }}>
+              {money(prevClose)}
             </strong>
           </div>
         )}
@@ -790,8 +788,8 @@ export default function MFAccountDetail({
                   >
                     <row.Icon size={15} />
                   </span>
-                  <span style={{ fontWeight: 700, flex: 1 }}>{row.label}</span>
-                  <span style={{ textAlign: 'right', fontSize: '0.82rem' }}>
+                  <span style={{ fontWeight: 700, flex: 1, fontSize: '0.9rem' }}>{row.label}</span>
+                  <span style={{ textAlign: 'right', fontSize: '0.9rem' }}>
                     <span style={{ display: 'block', color: 'var(--text-muted)' }}>
                       {t('minhasfinancas.movement_paid')}:{' '}
                       <strong style={{ color: row.color, fontVariantNumeric: 'tabular-nums' }}>
@@ -814,41 +812,18 @@ export default function MFAccountDetail({
         {account.account_type !== 'CARTAO' && (
           <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-              <span style={{ fontSize: '1rem', fontWeight: 800 }}>{t('minhasfinancas.accounts_table_balance')}</span>
-              <strong data-testid="mf-acct-det-chip-balance" style={{ fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: '1.05rem', fontWeight: 800 }}>{t('minhasfinancas.accounts_table_balance')}</span>
+              <strong data-testid="mf-acct-det-chip-balance" style={{ fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums' }}>
                 {money(shownSaldo)}
               </strong>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
               <span>{t('minhasfinancas.accounts_table_forecast')}</span>
-              <span data-testid="mf-acct-det-chip-forecast" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <span data-testid="mf-acct-det-chip-forecast" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
                 {money(shownPrevisto)}
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <span>{t('minhasfinancas.balance_no_initial')}</span>
-              <span data-testid="mf-acct-det-chip-no-initial" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {money(noInitial)}
-              </span>
-            </div>
           </div>
-        )}
-
-        {account.account_type !== 'CARTAO' && showInitialWarning && (
-          <p
-            data-testid="mf-det-initial-warning"
-            style={{
-              margin: 0,
-              padding: '0.7rem 0.85rem',
-              fontSize: '0.8rem',
-              borderRadius: 10,
-              background: 'color-mix(in srgb, #f59e0b 12%, transparent)',
-              border: '1px solid color-mix(in srgb, #f59e0b 40%, transparent)',
-              color: 'var(--text-main)',
-            }}
-          >
-            {t('minhasfinancas.initial_mismatch', { value: money(prevClose) })}
-          </p>
         )}
 
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
