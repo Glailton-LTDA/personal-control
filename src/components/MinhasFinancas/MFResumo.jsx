@@ -59,6 +59,7 @@ import MFAccountDetail from './MFAccountDetail';
 import MFGroupDrill from './MFGroupDrill';
 import MFGroupModal from './MFGroupModal';
 import MFAccountModal from './MFAccountModal';
+import MFRemindersBell from './MFRemindersBell';
 import {
   visibleWidgets,
   toggleWidget,
@@ -1189,6 +1190,7 @@ export default function MFResumo({
         </div>
         {!selectedRow && (
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
             <button
               type="button"
               className={customizing ? 'btn-primary' : 'btn-secondary'}

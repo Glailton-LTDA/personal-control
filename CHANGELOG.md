@@ -5,6 +5,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ## [Unreleased]
 
 ### Adicionado
+- **Lembretes do Minhas Finanças com sino + push (MF)**: sino no header do Resumo com os lembretes do dia (D-3, D-0 e D+3 exatos, sem spam; fatura de cartão usa o vencimento da fatura; contas "Ignorar nos totais" também geram; transferências ficam de fora) — o clique leva aos Lançamentos no mês do vencimento. Opt-in de push no painel (Web Push/VAPID, mesma base da `send-push` do Babylog). Servidor: Edge Function `mf-reminders` (cron diário, resumo de até 5 por usuário, limpa inscrições mortas) + tabela `mf_push_subscriptions` + handlers de push/clique no service worker. Para ativar o push faltam: chaves VAPID, secrets (`CRON_SECRET`, `VAPID_*`, `MF_VAPID_MAILTO`) e o cron diário.
+
+### Adicionado
 - **Abas por moeda em Contas e Resumo (MF)**: o filtro de moeda virou abas visíveis (Todas + BRL/USD/EUR… com contagem de contas, `MFCurrencyTabs` compartilhado). Com uma moeda selecionada, KPIs e listas mostram só ela — fim do header concatenado "R$ · US$ · € · £" quando há muitas moedas estrangeiras. Vale também para o Resumo.
 - **Contas em cards no tablet/mobile (MF)**: abaixo de 769px a tabela de 8 colunas (que quebrava o texto letra por letra) vira cards em coluna única no layout do mockup — consolidado (saldo total + projetado) + chips por tipo, conta com nome por extenso, SALDO em destaque e Previsão abaixo, badges de tipo/moeda, filhas aninhadas no cartão do grupo com trilho; respiro no fim da lista; toque abre o detalhe completo.
 - **Tabela web sem sobreposição multimoeda (MF)**: subtotais de grupo e rodapé empilham uma moeda por linha (antes o "R$ · US$" estourava a coluna e invadia a vizinha).
