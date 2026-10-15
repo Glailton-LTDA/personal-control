@@ -6,6 +6,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ### Adicionado
 - **Abas por moeda em Contas e Resumo (MF)**: o filtro de moeda virou abas visíveis (Todas + BRL/USD/EUR… com contagem de contas, `MFCurrencyTabs` compartilhado). Com uma moeda selecionada, KPIs e listas mostram só ela — fim do header concatenado "R$ · US$ · € · £" quando há muitas moedas estrangeiras. Vale também para o Resumo.
+- **Totais por moeda empilhados nos KPIs (MF)**: na aba Todas, cada moeda aparece numa linha (`MFTotalsStack`, BRL primeiro) em vez de lado a lado — vale para os KPIs do Resumo e de Contas e para os cards de grupo. Tabelas e rodapés seguem inline compactos.
 
 ### Alterado
 - **Saldo inicial do detalhe da conta é o fechamento do mês anterior (MF)**: o card mostrava a âncora de criação/reajuste (`initial_balance`, ex.: £240) enquanto o mês anterior tinha fechado em outro valor (£64,05) — com aviso de "customizado" para explicar a divergência. Agora a abertura é sempre o fechamento anterior (`prevClose`); a âncora continua valendo na matemática, mas não aparece mais como "inicial". Saíram a linha "Saldo sem o inicial" e o aviso (perderam o sentido), e os valores ganharam destaque (Saldo 1,4rem, abertura 1,15rem, movimentação e Previsão maiores).

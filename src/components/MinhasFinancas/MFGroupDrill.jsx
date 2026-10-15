@@ -8,6 +8,7 @@ import {
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupIcon from './MFGroupIcon';
 import MFGroupCard from './MFGroupCard';
+import MFTotalsStack from './MFTotalsStack';
 
 /** Ids do subgrupo (raiz + descendentes) — evita ciclo mesmo com dados ruins. */
 const subtreeIds = (rootId, groups) => {
@@ -242,9 +243,15 @@ export default function MFGroupDrill({
                   name={child.name}
                   subtitle={t('minhasfinancas.accounts_count', { count: childCount })}
                   total={
-                    child.sum_totals
-                      ? formatTotals(groupTotalsByCurrency(childRows, 'saldo'), showValues)
-                      : null
+                    child.sum_totals ? (
+                      <MFTotalsStack
+                        totals={groupTotalsByCurrency(childRows, 'saldo')}
+                        showValues={showValues}
+                        align="right"
+                        fontSize="0.88rem"
+                        lineHeight={1.4}
+                      />
+                    ) : null
                   }
                   trailing={<ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
                   onOpen={() => onNavigate([...path, child.id])}

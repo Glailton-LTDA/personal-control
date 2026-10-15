@@ -20,6 +20,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
+import MFTotalsStack from './MFTotalsStack';
 import MFAccountModal from './MFAccountModal';
 import MFAccountIcon from './MFAccountIcon';
 import MFTransferModal from './MFTransferModal';
@@ -497,7 +498,14 @@ export default function MFContas({
             </span>
           </div>
           <p style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>
-            {isLoading ? '…' : isError ? '—' : formatTotals(kpis.saldo, showValues)}
+            {isLoading ? '…' : isError ? '—' : (
+              <MFTotalsStack
+                totals={kpis.saldo}
+                showValues={showValues}
+                testId="mf-contas-kpi-balance-value"
+                fontSize="inherit"
+              />
+            )}
           </p>
           <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={kpiChipStyle}>
@@ -542,8 +550,13 @@ export default function MFContas({
                   color: sumMap(kpis.receitas) > 0 ? 'var(--success, #10b981)' : 'var(--text-muted)',
                 }}
               >
-                {sumMap(kpis.receitas) > 0 && showValues ? '+' : ''}
-                {formatTotals(kpis.receitas, showValues)}
+                <MFTotalsStack
+                  totals={kpis.receitas}
+                  showValues={showValues}
+                  prefix={sumMap(kpis.receitas) > 0 && showValues ? '+' : ''}
+                  testId="mf-contas-kpi-receitas-value"
+                  fontSize="inherit"
+                />
               </span>
             </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -563,8 +576,13 @@ export default function MFContas({
                   color: sumMap(kpis.despesas) > 0 ? 'var(--danger, #ef4444)' : 'var(--text-muted)',
                 }}
               >
-                {sumMap(kpis.despesas) > 0 && showValues ? '−' : ''}
-                {formatTotals(kpis.despesas, showValues)}
+                <MFTotalsStack
+                  totals={kpis.despesas}
+                  showValues={showValues}
+                  prefix={sumMap(kpis.despesas) > 0 && showValues ? '−' : ''}
+                  testId="mf-contas-kpi-despesas-value"
+                  fontSize="inherit"
+                />
               </span>
             </span>
           </div>
@@ -594,7 +612,14 @@ export default function MFContas({
               color: '#06b6d4',
             }}
           >
-            {isLoading ? '…' : isError ? '—' : formatTotals(kpis.previsto, showValues)}
+            {isLoading ? '…' : isError ? '—' : (
+              <MFTotalsStack
+                totals={kpis.previsto}
+                showValues={showValues}
+                testId="mf-contas-kpi-forecast-value"
+                fontSize="inherit"
+              />
+            )}
           </p>
           <div style={{ marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span

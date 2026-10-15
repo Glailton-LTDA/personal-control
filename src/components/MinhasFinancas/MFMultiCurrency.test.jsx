@@ -97,7 +97,8 @@ describe('Multi-moeda (sem cotação)', () => {
     const kpi = screen.getByTestId('mf-kpi-value-kpi_balance');
     expect(rawText(kpi)).toContain('R$ 1.000,00');
     expect(rawText(kpi)).toContain('US$ 200,00');
-    expect(rawText(kpi)).toContain(' · '); // agrupado, não somado
+    // empilhado (uma moeda por linha), não somado nem lado a lado
+    expect(kpi.querySelectorAll('span span').length).toBeGreaterThanOrEqual(2);
   });
 
   it('Resumo: abas de moeda filtram as contas por tela', async () => {
