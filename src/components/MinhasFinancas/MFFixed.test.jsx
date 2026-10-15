@@ -174,6 +174,8 @@ vi.mock('../../lib/supabase', () => {
       return chain;
     });
     chain.order = vi.fn(() => chain);
+    // useMFAccountTransactions (modal Detalhes) usa .or — aqui vira no-op
+    chain.or = vi.fn(() => chain);
     chain.gte = vi.fn((field, value) => {
       state.filters.push((row) => String(row[field]) >= String(value));
       return chain;
@@ -226,6 +228,18 @@ const renderScreen = (monthKey = '2026-10') => {
 const openAdd = (kind = 'expense') => {
   fireEvent.click(screen.getByTestId('mf-new-tx'));
   fireEvent.click(screen.getByTestId(`mf-add-opt-${kind}`));
+};
+
+/** Lápis da linha → modal Detalhes → Editar → tela completa. */
+const openDetailEdit = async (rowTestId) => {
+  fireEvent.click(screen.getByTestId(rowTestId));
+  await waitFor(() => {
+    expect(screen.getByTestId('mf-tx-detail')).toBeInTheDocument();
+  });
+  fireEvent.click(screen.getByTestId('mf-tx-detail-edit'));
+  await waitFor(() => {
+    expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
+  });
 };
 
 const getCalls = async () => (await import('../../lib/supabase')).__calls;
@@ -457,6 +471,99 @@ describe('Série fixa — badge e exclusão', () => {
           update.ids.includes('tx-fix-c1')
       )
     ).toBe(true);
+  });
+});
+
+describe('Série fixa — edição com escopo', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await resetCalls();
+    localStorage.setItem('pc_skip_confirmations', 'true');
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('pc_skip_confirmations');
+  });
+
+  it('pergunta o escopo; "a partir deste mês" atualiza daqui em diante sem mexer nas datas', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(2);
+    });
+
+    await openDetailEdit('mf-tx-edit-tx-fix-c2');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Aluguel reajustado' },
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    // igual à exclusão: pergunta antes de gravar
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-edit-fixed-dialog')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-tx-edit-fixed-dialog-title')).toHaveTextContent(
+      'minhasfinancas.tx_edit_fixed_title'
+    );
+    expect(screen.getByTestId('mf-tx-edit-fixed-one')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-edit-fixed-from')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-edit-fixed-all')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-tx-edit-fixed-from'));
+
+    const calls = await getCalls();
+    // este (ocorrência em edição): update completo com o form
+    await waitFor(() => {
+      expect(
+        calls.updates.some(
+          (u) =>
+            Array.isArray(u.ids) &&
+            u.ids.includes('tx-fix-c2') &&
+            u.patch.description === 'Aluguel reajustado'
+        )
+      ).toBe(true);
+    });
+    const single = calls.updates.find(
+      (u) => Array.isArray(u.ids) && u.ids.length === 1 && u.ids[0] === 'tx-fix-c2'
+    );
+    expect(single.patch).toMatchObject({ payment_date: '2026-10-15' });
+
+    // bulk: só as próximas (novembro) — conteúdo, sem data/fatura
+    const bulk = calls.updates.find(
+      (u) => Array.isArray(u.ids) && u.ids.includes('tx-fix-c3')
+    );
+    expect(bulk).toBeTruthy();
+    expect(bulk.patch).toMatchObject({ description: 'Aluguel reajustado' });
+    expect(bulk.patch).not.toHaveProperty('payment_date');
+    expect(bulk.patch).not.toHaveProperty('due_date');
+
+    // meses anteriores (cabeça e setembro) ficam intocados
+    expect(calls.updates.some((u) => u.ids?.includes('tx-fix-head'))).toBe(false);
+    expect(calls.updates.some((u) => u.ids?.includes('tx-fix-c1'))).toBe(false);
+    expect(screen.queryByTestId('mf-tx-edit-fixed-dialog')).not.toBeInTheDocument();
+  });
+
+  it('"editar apenas este mês" grava só a ocorrência escolhida', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(2);
+    });
+
+    await openDetailEdit('mf-tx-edit-tx-fix-c2');
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '2.750,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-edit-fixed-dialog')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-edit-fixed-one'));
+
+    const calls = await getCalls();
+    await waitFor(() => {
+      expect(
+        calls.updates.some((u) => Array.isArray(u.ids) && u.ids.includes('tx-fix-c2'))
+      ).toBe(true);
+    });
+    expect(calls.updates.some((u) => u.ids?.includes('tx-fix-c3'))).toBe(false);
+    expect(calls.updates.some((u) => u.ids?.includes('tx-fix-head'))).toBe(false);
   });
 });
 

@@ -152,6 +152,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     setScopeAction(null);
     setCalcOpen(false);
     setPendingValue('');
+    setLocalTx(null);
     setDupeScopeKind(null);
     setDupeForm(null);
     setDupeTarget('');
@@ -204,26 +205,34 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const seriesComplete =
     series.length >= (Number(tx?.installments_total) || series.length);
 
-  /** Série fixa (cabeça + filhas) para escopo de valor/duplicar. */
+  /** Série fixa (cabeça + filhas) para escopo de valor/duplicar.
+   * Cobre também repetição com vínculo (semanais/anuais têm
+   * parent_transaction_id sem is_fixed nem parcelas). */
   const fixedSeries = useMemo(() => {
     if (!tx) return [];
-    if (!tx.is_fixed) return [tx];
+    const linked =
+      tx.is_fixed || tx.parent_transaction_id || (tx.recurrence && tx.recurrence !== 'NONE');
+    if (!linked) return [tx];
+    const headIdFixed = tx.parent_transaction_id ?? tx.id;
     const head = tx.parent_transaction_id
       ? allTx.find((row) => row.id === tx.parent_transaction_id)
       : tx;
     const children = allTx.filter(
-      (row) => row.parent_transaction_id === (head?.id ?? tx.id)
+      (row) => row.parent_transaction_id === (head?.id ?? headIdFixed)
     );
-    return [...(head ? [head] : []), ...children].sort((a, b) =>
+    const list = [...(head ? [head] : []), ...children].sort((a, b) =>
       String(a.payment_date).localeCompare(String(b.payment_date))
     );
+    return list.length > 0 ? list : [tx];
   }, [allTx, tx]);
 
   /** Fatura da despesa de cartão (situação + vencimento). */
   const invoice = useMemo(() => {
     if (!tx || !isCard || isTransfer) return null;
     const refISO = monthRefISO(currentMonthKey());
-    const built = buildCardInvoices({ card: account, transactions: allTx, refISO });
+    // Com vínculo futuro (fixas criadas à frente), a fatura só existe
+    // com a flag — sem ela caía no fallback da corrente.
+    const built = buildCardInvoices({ card: account, transactions: allTx, refISO, includeFutureBound: true });
     const all = [built.current, ...built.invoices, ...(built.upcomingInvoices ?? [])];
     return (
       all.find((inv) => inv.closeISO === tx.invoice_close) ??
@@ -262,14 +271,19 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
 
   /** Membros do escopo escolhido (só esta / esta e próximas / todas). */
   const scopeMembers = (scope) => {
-    const list = headId ? series : tx.is_fixed ? fixedSeries : [tx];
+    const list = headId ? series : fixedSeries.length > 1 ? fixedSeries : [tx];
     if (scope === 'all' || list.length <= 1) return list;
     if (scope === 'from') {
       return list.filter((row) => String(row.payment_date) >= String(tx.payment_date));
     }
     return list.filter((row) => row.id === tx.id);
   };
-  const needsScope = headId || tx.is_fixed;
+  const needsScope = headId || fixedSeries.length > 1;
+  // Espelho local do lançamento (edição rápida / valor): o `tx` vindo do
+  // pai é um snapshot da abertura — sem isso o modal seguia mostrando o
+  // valor/nome antigo após salvar, até fechar e reabrir.
+  const [localTx, setLocalTx] = useState(null);
+  const viewTx = localTx && localTx.id === tx?.id ? { ...tx, ...localTx } : tx;
 
   const askScopeOrRun = (action) => {
     setMenuOpen(false);
@@ -291,6 +305,10 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     if (!action) return;
     if (action === 'value') {
       runAction('value', key, pendingValue);
+      return;
+    }
+    if (action === 'quick') {
+      runQuickSave(key);
       return;
     }
     runAction(action, key);
@@ -568,12 +586,14 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
           toast.error(t('minhasfinancas.tx_amount_required'));
           return;
         }
+        const signed = Number(tx.amount) < 0 ? -amount : amount;
         const members = scopeMembers(scope);
         await bulkMutation.mutateAsync({
           ids: members.map((row) => row.id),
-          patch: { amount: Number(tx.amount) < 0 ? -amount : amount },
+          patch: { amount: signed },
         });
         toast.success(t('minhasfinancas.tx_detail_value_updated'));
+        setLocalTx({ id: tx.id, amount: signed });
         setPendingValue('');
       } else if (action === 'duplicate') {
         // Legado: substituído pelo submenu (como cartão/transferência/
@@ -648,33 +668,61 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
       toast.error(t('minhasfinancas.tx_desc_required'));
       return;
     }
+    // Série com 2+ ocorrências: pergunta o escopo antes de gravar
+    // (igual à exclusão/valor — antes salvava só esta em silêncio).
+    // Parcelada (headId) pergunta de imediato; fixa/vinculada aguarda a
+    // série carregada (length>1) — o usuário leva segundos digitando.
+    if (needsScope && (headId || scopeMembers('all').length > 1)) {
+      setQuickOpen(false);
+      setScopeAction({ action: 'quick' });
+      return;
+    }
+    await runQuickSave('one');
+  };
+
+  const runQuickSave = async (scope) => {
+    const description = quickDesc.trim();
+    const notes = quickNotes.trim() || null;
+    const categoryId = quickCategory || null;
     setSaving(true);
     try {
+      const members = scopeMembers(scope);
+      const others = members.filter((row) => row.id !== tx.id);
       await updateMutation.mutateAsync({
         id: tx.id,
-        description: quickDesc.trim(),
-        notes: quickNotes.trim() || null,
-        category_id: quickCategory || null,
+        description,
+        notes,
+        category_id: categoryId,
       });
+      if (others.length > 0) {
+        // Demais ocorrências: só conteúdo (datas/faturas de cada mês ficam).
+        await bulkMutation.mutateAsync({
+          ids: others.map((row) => row.id),
+          patch: { description, notes, category_id: categoryId },
+        });
+      }
+      const memberIds = members.map((row) => row.id);
       await mfMutate({
         table: 'mf_transaction_tags',
         action: 'deleteLinks',
-        ids: [tx.id],
+        ids: memberIds,
         run: async () => {
           const { error } = await supabase
             .from('mf_transaction_tags')
             .delete()
-            .eq('transaction_id', tx.id);
+            .in('transaction_id', memberIds);
           if (error) throw error;
-          return [tx.id];
+          return memberIds;
         },
       });
       if (quickTags.length > 0) {
-        const rows = quickTags.map((tagId) => ({
-          transaction_id: tx.id,
-          tag_id: tagId,
-          user_id: user.id,
-        }));
+        const rows = memberIds.flatMap((transactionId) =>
+          quickTags.map((tagId) => ({
+            transaction_id: transactionId,
+            tag_id: tagId,
+            user_id: user.id,
+          }))
+        );
         await mfMutate({
           table: 'mf_transaction_tags',
           action: 'insert',
@@ -687,6 +735,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
         });
       }
       toast.success(t('minhasfinancas.tx_detail_saved'));
+      setLocalTx({ id: tx.id, description, notes, category_id: categoryId });
       setQuickOpen(false);
     } catch {
       toast.error(t('minhasfinancas.save_error'));
@@ -946,7 +995,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
               data-testid="mf-tx-detail-desc"
               style={{ fontWeight: 800, fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis' }}
             >
-              {tx.description}
+              {viewTx.description}
             </div>
             <button
               type="button"
@@ -967,12 +1016,12 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
                 font: 'inherit',
                 fontWeight: 800,
                 fontSize: '1.25rem',
-                color: tx.type === 'RECEITA' ? '#10b981' : '#ef4444',
+                color: viewTx.type === 'RECEITA' ? '#10b981' : '#ef4444',
                 textAlign: 'right',
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {money(Math.abs(Number(tx.amount) || 0))}
+              {money(Math.abs(Number(viewTx.amount) || 0))}
             </button>
           </div>
           <button
@@ -1613,9 +1662,9 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
           <MFCalculator
             testId="mf-tx-detail-calc"
             title={t('minhasfinancas.calc_current_value', {
-              value: money(Math.abs(Number(tx.amount) || 0)),
+              value: money(Math.abs(Number(viewTx.amount) || 0)),
             })}
-            initial={Math.abs(Number(tx.amount) || 0).toFixed(2).replace('.', ',')}
+            initial={Math.abs(Number(viewTx.amount) || 0).toFixed(2).replace('.', ',')}
             onConfirm={onValueConfirm}
             onClose={() => setCalcOpen(false)}
           />

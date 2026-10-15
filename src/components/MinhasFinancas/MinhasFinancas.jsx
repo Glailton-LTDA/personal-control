@@ -205,6 +205,7 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
               user={user}
               defaultType={addKind === 'income' ? 'RECEITA' : 'DESPESA'}
               accountScope={addKind === 'cardExpense' ? 'cartao' : 'contas'}
+              invoiceMonthKey={monthKey}
               onClose={() => setAddKind(null)}
             />
           </div>

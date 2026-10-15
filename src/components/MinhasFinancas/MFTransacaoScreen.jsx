@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Receipt, Eye, Trash2, Plus, Tag, X, Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { supabase, getSignedUrl } from '../../lib/supabase';
@@ -16,7 +17,9 @@ import {
   useDeleteMFTransaction,
   useInstallmentDelete,
   useDeleteMFFixedSeries,
+  useBulkMFTransactions,
   useCreateMFTag,
+  useCreateMFCategory,
   formatMoney,
   parseMoney,
   maskAmount,
@@ -26,6 +29,7 @@ import {
   cardCycles,
   FIXED_SERIES_COUNT,
   fetchInstallmentSeries,
+  fetchFixedSeries,
   installmentHeadId,
   isRecurrentTx,
   formatMonthLabel,
@@ -33,7 +37,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import MFAccountSelect from './MFAccountSelect';
 import MFCategoryAvatar from './MFCategoryAvatar';
-import { mfNormalize } from './MFCategoryIcons';
+import { mfNormalize, MF_CATEGORY_COLORS } from './MFCategoryIcons';
 import MFSelect from './MFSelect';
 import MFCategorySelect from './MFCategorySelect';
 import MFRepeatModal from './MFRepeatModal';
@@ -130,8 +134,15 @@ export default function MFTransacaoScreen({
    * parcelas/recorrência (mesma tela "Novo estorno" do app original).
    */
   mode = 'normal',
+  /**
+   * Mês (YYYY-MM) da tela de onde a criação foi aberta: a fatura padrão
+   * da despesa de cartão segue o mês visualizado (ex.: Extrato de
+   * novembro → fatura de novembro), não o mês corrente.
+   */
+  invoiceMonthKey = null,
 }) {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: categories = [] } = useMFCategories(user);
   const { data: tags = [] } = useMFTags(user);
@@ -143,8 +154,12 @@ export default function MFTransacaoScreen({
   const deleteMutation = useDeleteMFTransaction();
   const deleteFixedMutation = useDeleteMFFixedSeries();
   const instDelete = useInstallmentDelete();
+  const bulkMutation = useBulkMFTransactions();
   const createTagMutation = useCreateMFTag();
+  const createCategoryMutation = useCreateMFCategory();
   const [deleteChoice, setDeleteChoice] = useState(null);
+  // Edição com escopo (série fixa/parcelada): diálogo pendente.
+  const [editChoice, setEditChoice] = useState(null);
 
   const [form, setForm] = useState(emptyForm);
   const [tagIds, setTagIds] = useState([]);
@@ -175,6 +190,11 @@ export default function MFTransacaoScreen({
   // Série que repete mês com mesmo nome: confirma antes de duplicar.
   const [dupeWarn, setDupeWarn] = useState(null);
   const dupeAccepted = useRef(false);
+  // Escopo escolhido no diálogo de edição ('one' | 'from' | 'all').
+  const editAccepted = useRef(false);
+  const editScopeMode = useRef(null);
+  // Ids criados aqui nesta abertura (ponte até o refetch trazê-los)
+  const createdCategoryIds = useRef(new Set());
 
   const isEdit = !!tx;
   const isEstorno = mode === 'estorno' && !isEdit;
@@ -193,6 +213,9 @@ export default function MFTransacaoScreen({
     warnAccepted.current = false;
     setDupeWarn(null);
     dupeAccepted.current = false;
+    setEditChoice(null);
+    editAccepted.current = false;
+    editScopeMode.current = null;
     if (tx) {
       setForm({
         type: tx.type ?? 'DESPESA',
@@ -301,9 +324,14 @@ export default function MFTransacaoScreen({
     return ordered;
   }, [categories, form.type]);
 
-  // Troca de tipo limpa categoria incompatível
+  // Troca de tipo limpa categoria incompatível (exceto as recém-criadas
+  // aqui, que podem ainda não ter voltado no refetch)
   useEffect(() => {
-    if (form.category_id && !visibleCategories.some((cat) => cat.id === form.category_id)) {
+    if (
+      form.category_id &&
+      !createdCategoryIds.current.has(form.category_id) &&
+      !visibleCategories.some((cat) => cat.id === form.category_id)
+    ) {
       setForm((prev) => ({ ...prev, category_id: '' }));
     }
   }, [visibleCategories, form.category_id]);
@@ -366,8 +394,9 @@ export default function MFTransacaoScreen({
   // Fatura da despesa de cartão (~2 anos: treze meses para trás + doze
   // para frente, "Mês · Vence dd/mm/aa"). O membro da fatura é a ESCOLHA
   // no picker (`invoice_close`); a data é só rótulo exibido. Default =
-  // fatura do mês (do lançamento): em outubro, 05/10 e 12/10 caem em
-  // "Outubro" salvo escolha explícita.
+  // fatura do mês visualizado (`invoiceMonthKey`), senão a do mês do
+  // lançamento: em outubro, 05/10 e 12/10 caem em "Outubro" salvo
+  // escolha explícita.
   const expenseCycles = useMemo(() => {
     if (!isCardExpense || !selectedAccount) return [];
     return cardCycles(selectedAccount, toISODate(new Date()), 13, 12)
@@ -380,7 +409,16 @@ export default function MFTransacaoScreen({
     const day = form.payment_date || toISODate(new Date());
     return invoiceCloseForDueMonth(selectedAccount, day.slice(0, 7));
   }, [isCardExpense, selectedAccount, form.payment_date]);
-  const expenseInvoiceClose = invoiceChoice || naturalExpenseClose;
+  /**
+   * Default contextual: fatura que vence no mês visualizado de onde a
+   * criação foi aberta (só vale se existir nas opções do picker).
+   */
+  const viewExpenseClose = useMemo(() => {
+    if (!isCardExpense || !selectedAccount || !invoiceMonthKey) return '';
+    const closeISO = invoiceCloseForDueMonth(selectedAccount, invoiceMonthKey);
+    return expenseCycles.some((cycle) => cycle.closeISO === closeISO) ? closeISO : '';
+  }, [isCardExpense, selectedAccount, invoiceMonthKey, expenseCycles]);
+  const expenseInvoiceClose = invoiceChoice || viewExpenseClose || naturalExpenseClose;
   /** "setembro/2026" para o aviso de fatura fechada (texto do original).
       Mês do vencimento, como no picker. */
   const closedWarnMonth = useMemo(() => {
@@ -505,6 +543,50 @@ export default function MFTransacaoScreen({
       const created = await createTagMutation.mutateAsync({ user_id: user.id, name });
       if (created?.id) setTagIds((prev) => [...prev, created.id]);
       setNewTag('');
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+    }
+  };
+
+  /** Cria a categoria digitada na busca do seletor e já a seleciona. */
+  const handleCreateCategory = async (name) => {
+    const trimmed = String(name ?? '').trim();
+    if (!trimmed) return;
+    const needle = mfNormalize(trimmed);
+    const dupe = categories.some(
+      (cat) =>
+        !cat.is_archived &&
+        (cat.type === form.type || cat.type === 'AMBAS') &&
+        (cat.parent_id ?? null) === null &&
+        mfNormalize(cat.name) === needle
+    );
+    if (dupe) {
+      toast.error(t('minhasfinancas.cfg_duplicate_category'));
+      return;
+    }
+    try {
+      const created = await createCategoryMutation.mutateAsync({
+        user_id: user.id,
+        name: trimmed,
+        type: form.type,
+        parent_id: null,
+        color: MF_CATEGORY_COLORS[0],
+        icon: '🏷️',
+      });
+      setCategoryTouched(true);
+      // .single() devolve objeto; mocks de teste podem devolver array
+      const createdRow = Array.isArray(created) ? created[0] : created;
+      if (createdRow?.id) {
+        createdCategoryIds.current.add(createdRow.id);
+        setForm((prev) => ({ ...prev, category_id: createdRow.id }));
+        // Otimista: entra na lista na hora (senão o efeito de validação
+        // limpa a seleção antes do refetch trazer a nova categoria)
+        queryClient.setQueryData(['mf-categories', user?.id], (old) =>
+          Array.isArray(old) && !old.some((cat) => cat.id === createdRow.id)
+            ? [...old, createdRow]
+            : old
+        );
+      }
     } catch {
       toast.error(t('minhasfinancas.save_error'));
     }
@@ -720,19 +802,34 @@ export default function MFTransacaoScreen({
               : [];
       if (plannedDates.length > 0) {
         try {
-          const from = `${plannedDates[0].slice(0, 7)}-01`;
-          const lastPlanned = plannedDates[plannedDates.length - 1];
-          const to = `${lastPlanned.slice(0, 7)}-31`;
+          // Despesa de cartão: o mês que interessa é o da FATURA
+          // (invoice_close), não o da data — a mesma compra em 10/10 pode
+          // estar na fatura de novembro, e o aviso tem que citar novembro.
+          const useInvoice = Boolean(isCardExpense && base.invoice_close && selectedAccount);
+          const monthlySteps =
+            repeatMode === 'fixed' ||
+            (repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY');
+          const monthOf = (iso, index) => {
+            if (!useInvoice) return iso.slice(0, 7);
+            const close = monthlySteps
+              ? addMonthsISO(base.invoice_close, index)
+              : invoiceCloseForDueMonth(selectedAccount, iso.slice(0, 7));
+            return close.slice(0, 7);
+          };
+          const plannedMonths = new Set(plannedDates.map(monthOf));
+          const sortedMonths = [...plannedMonths].sort();
+          const from = `${sortedMonths[0]}-01`;
+          const to = `${sortedMonths[sortedMonths.length - 1]}-31`;
+          const monthCol = useInvoice ? 'invoice_close' : 'payment_date';
           const { data, error } = await supabase
             .from('mf_transactions')
-            .select('id,description,payment_date,status')
+            .select(`id,description,status,${monthCol}`)
             .eq('account_id', form.account_id)
             .eq('type', isEstorno ? 'DESPESA' : form.type)
-            .gte('payment_date', from)
-            .lte('payment_date', to);
+            .gte(monthCol, from)
+            .lte(monthCol, to);
           if (!error) {
             const want = base.description.trim().toLowerCase();
-            const plannedMonths = new Set(plannedDates.map((iso) => iso.slice(0, 7)));
             const hitMonths = [...new Set(
               (data ?? [])
                 .filter(
@@ -740,9 +837,9 @@ export default function MFTransacaoScreen({
                     row.id !== tx?.id &&
                     row.status !== 'CANCELADO' &&
                     String(row.description ?? '').trim().toLowerCase() === want &&
-                    plannedMonths.has(String(row.payment_date ?? '').slice(0, 7))
+                    plannedMonths.has(String(row[monthCol] ?? '').slice(0, 7))
                 )
-                .map((row) => String(row.payment_date).slice(0, 7))
+                .map((row) => String(row[monthCol]).slice(0, 7))
             )].sort();
             if (hitMonths.length > 0) {
               setDupeWarn({ months: hitMonths });
@@ -755,11 +852,80 @@ export default function MFTransacaoScreen({
       }
     }
 
+    // Série fixa/parcelada em edição: pergunta o escopo (igual à exclusão)
+    // antes de aplicar — só este, daqui em diante ou a série inteira.
+    // Cobre também repetição com vínculo (semanais/anuais têm
+    // parent_transaction_id sem is_fixed nem parcelas).
+    if (isEdit && !converting && !editAccepted.current && tx?.id) {
+      let scopeKind = null;
+      if (tx.is_fixed) {
+        scopeKind = 'fixed';
+      } else if (installmentHeadId(tx)) {
+        try {
+          const series = await fetchInstallmentSeries(tx);
+          if (series.length > 1) scopeKind = 'installment';
+        } catch {
+          /* offline/série única: edita só este */
+        }
+      } else if (tx.parent_transaction_id || (tx.recurrence && tx.recurrence !== 'NONE')) {
+        try {
+          const series = await fetchFixedSeries(tx);
+          if (series.length > 1) scopeKind = 'fixed';
+        } catch {
+          /* offline/série única: edita só este */
+        }
+      }
+      if (scopeKind) {
+        setEditChoice({ kind: scopeKind });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       if (isEdit && !converting) {
-        await updateMutation.mutateAsync({ id: tx.id, ...base });
-        await linkTags([tx.id]);
+        const scope = editAccepted.current ? editScopeMode.current : 'one';
+        if (scope && scope !== 'one') {
+          // Escopo amplo: este recebe o form completo; os demais membros
+          // ganham só o conteúdo (descrição, valor, conta, categoria,
+          // observações) — datas, faturas e parcelas de cada mês ficam.
+          // Parcelada = série com numeração (installments_total>1);
+          // fixa/repetição com pai usa a série fixa (installmentHeadId
+          // devolve o pai de QUALQUER filha com vínculo, inclusive fixa).
+          const isInstallment =
+            (Number(tx.installments_total) || 0) > 1 || Number(tx.installments_current) > 0;
+          const series = isInstallment
+            ? await fetchInstallmentSeries(tx)
+            : await fetchFixedSeries(tx);
+          const target = series.find((row) => row.id === tx.id) ?? tx;
+          const members = series.filter((row) => {
+            if (scope === 'all') return true;
+            if (!isInstallment) {
+              return String(row.payment_date) >= String(target.payment_date);
+            }
+            const cur = Number(target.installments_current) || 0;
+            return (Number(row.installments_current) || 0) >= cur;
+          });
+          const others = members.filter((row) => row.id !== tx.id);
+          await updateMutation.mutateAsync({ id: tx.id, ...base });
+          if (others.length > 0) {
+            await bulkMutation.mutateAsync({
+              ids: others.map((row) => row.id),
+              patch: {
+                account_id: base.account_id,
+                description: base.description,
+                amount: base.amount,
+                category_id: base.category_id,
+                notes: base.notes,
+                attachment_path: base.attachment_path,
+              },
+            });
+          }
+          await linkTags([tx.id]);
+        } else {
+          await updateMutation.mutateAsync({ id: tx.id, ...base });
+          await linkTags([tx.id]);
+        }
         toast.success(t('minhasfinancas.tx_updated'));
         onClose();
         return;
@@ -1189,6 +1355,7 @@ export default function MFTransacaoScreen({
               }}
               categories={visibleCategories}
               placeholder={t('minhasfinancas.tx_category_none')}
+              onCreate={handleCreateCategory}
             />
             {categories.length === 0 && (
               <p
@@ -1459,6 +1626,74 @@ export default function MFTransacaoScreen({
               handleSubmit({ preventDefault() {} });
             }}
             onClose={() => setDupeWarn(null)}
+          />
+        )}
+
+        {/* Edição com escopo: série fixa */}
+        {editChoice?.kind === 'fixed' && (
+          <MFChoiceDialog
+            testId="mf-tx-edit-fixed-dialog"
+            title={t('minhasfinancas.tx_edit_fixed_title')}
+            body={t('minhasfinancas.tx_edit_fixed_body')}
+            options={[
+              {
+                key: 'one',
+                label: t('minhasfinancas.tx_edit_fixed_one'),
+                testId: 'mf-tx-edit-fixed-one',
+              },
+              {
+                key: 'from',
+                label: t('minhasfinancas.tx_edit_fixed_from'),
+                testId: 'mf-tx-edit-fixed-from',
+              },
+              {
+                key: 'all',
+                label: t('minhasfinancas.tx_edit_fixed_all'),
+                testId: 'mf-tx-edit-fixed-all',
+                variant: 'primary',
+              },
+            ]}
+            onOption={(key) => {
+              editScopeMode.current = key;
+              editAccepted.current = true;
+              setEditChoice(null);
+              handleSubmit({ preventDefault() {} });
+            }}
+            onClose={() => setEditChoice(null)}
+          />
+        )}
+
+        {/* Edição com escopo: série parcelada */}
+        {editChoice?.kind === 'installment' && (
+          <MFChoiceDialog
+            testId="mf-tx-edit-scope-dialog"
+            title={t('minhasfinancas.tx_edit_fixed_title')}
+            body={t('minhasfinancas.tx_edit_scope_body')}
+            options={[
+              {
+                key: 'one',
+                label: t('minhasfinancas.tx_edit_scope_one'),
+                testId: 'mf-tx-edit-scope-one',
+              },
+              {
+                key: 'from',
+                label: t('minhasfinancas.tx_edit_scope_from'),
+                testId: 'mf-tx-edit-scope-from',
+              },
+              {
+                key: 'all',
+                label: t('minhasfinancas.tx_edit_scope_all'),
+                testId: 'mf-tx-edit-scope-all',
+                variant: 'primary',
+              },
+            ]}
+            onOption={(key) => {
+              editScopeMode.current = key;
+              editAccepted.current = true;
+              setEditChoice(null);
+              handleSubmit({ preventDefault() {} });
+            }}
+            onClose={() => setEditChoice(null)}
           />
         )}
 

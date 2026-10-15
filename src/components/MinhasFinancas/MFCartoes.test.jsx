@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFCartoes from './MFCartoes';
+import { mfCardUsagePct, mfCardBarColor } from './mfCardUsage';
 import { clearInvoiceSel } from './mfViewState';
 
 // Mock react-i18next
@@ -376,6 +377,30 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     }
   });
 
+  it('agendado compromete o limite: em aberto zerado, disponível reduzido (mês corrente)', async () => {
+    // Mês corrente com a fatura coberta por espelho PENDENTE: EM ABERTO
+    // fica R$ 0 (invariant), mas o DISPONÍVEL tem que descontar — o
+    // dinheiro ainda não saiu.
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      { id: 'tx-buy', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-10-02', status: 'PAGO', description: 'Compra' },
+      { id: 'tx-sched', account_id: 'acc-check', type: 'DESPESA', amount: 500, payment_date: '2026-10-20', status: 'PENDENTE', invoice_close: '2026-10-10', description: 'Pagamento de fatura' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-fatura-scheduled-acc-card')).toBeInTheDocument();
+      });
+      // em aberto zerado (agendado), disponível = 3000 − 500
+      expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 0,00');
+      expect(screen.getByTestId('mf-card-available-acc-card')).toHaveTextContent('R$ 2.500,00');
+      expect(screen.getByTestId('mf-card-usage-acc-card')).toHaveStyle({ width: '16.666666666666664%' });
+    } finally {
+      __mfState.transactions = original;
+    }
+  });
+
   it('widget oferece pagar a fatura vencida quando a corrente zerou (feedback 07/10)', async () => {
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
@@ -598,6 +623,34 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       });
       // fatura corrente à época = setembro (1300 de compras, 800 pagos)
       expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 1.300,00');
+    } finally {
+      __mfState.transactions = original;
+    }
+  });
+
+  it('limite comprometido: futura vinculada com data futura entra no em aberto (widget)', async () => {
+    // Regressão Nubank: fixas criadas 12 meses à frente (payment_date no
+    // futuro + invoice_close futuro) mostravam R$ 0 em aberto — o limite
+    // não mexia. Com a flag, a fatura futura vinculada compromete o
+    // limite na hora (igual ao agendador já fazia).
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      { id: 'tx-a', account_id: 'acc-card', type: 'DESPESA', amount: 1200, payment_date: '2026-10-02', status: 'PAGO', description: 'Notebook' },
+      { id: 'tx-b', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-10-01', status: 'PENDENTE', description: 'Combustível' },
+      // fixa de dezembro criada em outubro: pagamento futuro + vínculo futuro
+      { id: 'tx-f', account_id: 'acc-card', type: 'DESPESA', amount: 300, payment_date: '2026-12-05', status: 'PAGO', description: 'Netflix', invoice_close: '2026-12-10' },
+    ];
+    try {
+      renderScreen();
+
+      // corrente (1700) + futura vinculada (300) = 2000 em aberto
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 2.000,00');
+      });
+      expect(screen.getByTestId('mf-card-available-acc-card')).toHaveTextContent('R$ 1.000,00');
+      // barra reflete o comprometido: 2000/3000
+      expect(screen.getByTestId('mf-card-usage-acc-card')).toHaveStyle({ width: '66.66666666666666%' });
     } finally {
       __mfState.transactions = original;
     }
@@ -836,4 +889,25 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     }
     // 44 navegações de mês + refetches ficam colados no limite de 5s
   }, 60000);
+});
+
+describe('MFCartoes — barra de uso do limite', () => {
+  it('uso pequeno tem piso visível (1% vira 2,5%)', () => {
+    // C6 real: R$ 311 de R$ 30 mil = 1,04% — sumia no trilho
+    expect(mfCardUsagePct(311.2, 30000)).toBeCloseTo(2.5);
+    expect(mfCardUsagePct(582.71, 15000)).toBeCloseTo(3.88, 1);
+    expect(mfCardUsagePct(0, 31000)).toBe(0);
+    expect(mfCardUsagePct(100, null)).toBe(0);
+    expect(mfCardUsagePct(31000, 31000)).toBe(100);
+  });
+
+  it('preto sem contraste cai para a cor primária', () => {
+    // C6 #000000 no trilho escuro = invisível
+    expect(mfCardBarColor('#000000')).toBe('var(--primary)');
+    expect(mfCardBarColor('#0f0f0f')).toBe('var(--primary)');
+    expect(mfCardBarColor(null)).toBe('var(--primary)');
+    // Nomand laranja e Nubank índigo mantêm a cor do cartão
+    expect(mfCardBarColor('#f59e0b')).toBe('#f59e0b');
+    expect(mfCardBarColor('#6366f1')).toBe('#6366f1');
+  });
 });

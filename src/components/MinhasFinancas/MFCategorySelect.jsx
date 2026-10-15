@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronRight, Search, X } from 'lucide-react';
+import { Check, ChevronRight, Plus, Search, X } from 'lucide-react';
 import MFCategoryAvatar from './MFCategoryAvatar';
-import { mfCategoryTree, mfFilterTree } from './MFCategoryIcons';
+import { mfCategoryTree, mfFilterTree, mfNormalize } from './MFCategoryIcons';
 
 const triggerStyle = {
   display: 'inline-flex',
@@ -51,6 +51,12 @@ export default function MFCategorySelect({
   categories = [],
   placeholder,
   testId = 'mf-category',
+  /**
+   * Criação inline: quando informado, o estado vazio da busca ganha o
+   * botão Criar "termo" — chamado com o texto digitado (sem acento
+   * exato já existente na lista, para não duplicar sem querer).
+   */
+  onCreate = null,
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -89,6 +95,10 @@ export default function MFCategorySelect({
   const term = search.trim();
   // Na busca tudo aparece expandido; sem busca, respeita os chevrons.
   const nodes = useMemo(() => mfFilterTree(tree, term), [tree, term]);
+  // Nome já existe (ignora acento/caixa)? Então é só selecionar, sem criar.
+  const hasExactMatch =
+    term !== '' &&
+    categories.some((cat) => mfNormalize(cat.name) === mfNormalize(term));
   const isOpen = (node) => (!!term && term.length > 0) || expanded.has(node.id);
 
   const toggle = (id) =>
@@ -320,6 +330,23 @@ export default function MFCategorySelect({
               >
                 {t('minhasfinancas.select_none')}
               </p>
+            )}
+            {onCreate && term !== '' && !hasExactMatch && (
+              <button
+                type="button"
+                data-testid={`${testId}-create`}
+                onClick={() => onCreate(term)}
+                style={{
+                  ...optionStyle,
+                  color: 'var(--primary)',
+                  fontWeight: 700,
+                }}
+              >
+                <Plus size={15} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>
+                  {t('minhasfinancas.category_create_named', { name: term })}
+                </span>
+              </button>
             )}
           </div>
         </div>

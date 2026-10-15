@@ -7,6 +7,7 @@ import {
   useMFStatement,
   useMFCategories,
   useUpdateMFTransaction,
+  useMFRefreshPending,
   formatMoney,
   parseISODate,
   toISODate,
@@ -44,9 +45,10 @@ export default function MFExtrato({
     accountFilter === 'all' ? null : accountFilter,
     currency
   );
-  // Recarregando em segundo plano (ex.: após criar um lançamento): avisa
-  // com uma pílula discreta em vez de trocar a lista pelo "Carregando".
-  const refreshing = isFetching && !isLoading;
+  // Atualizando (pós-save): o refetch em si (isFetching) mais a janela
+  // entre o salvamento e o refetch (sinal de pendência cobre o debounce).
+  const pendingRefresh = useMFRefreshPending();
+  const refreshing = (isFetching && !isLoading) || pendingRefresh;
 
   const money = (value, rowCurrency) => (showValues ? formatMoney(value, rowCurrency) : '•••');
   const mixed = !!data?.mixed;
@@ -153,7 +155,7 @@ export default function MFExtrato({
               {t('nav.sub.minhasfinancas.statement')}
             </h2>
             <p style={{ margin: '0.15rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {t('minhasfinancas.statement_desc')}
+              {refreshing ? t('minhasfinancas.statement_updating') : t('minhasfinancas.statement_desc')}
             </p>
           </div>
         </div>
@@ -396,6 +398,7 @@ export default function MFExtrato({
           tx={editing}
           user={user}
           accountScope="all"
+          invoiceMonthKey={monthKey}
           onClose={() => {
             setScreenOpen(false);
             setEditing(null);
