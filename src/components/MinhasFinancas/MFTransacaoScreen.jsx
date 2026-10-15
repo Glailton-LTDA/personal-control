@@ -509,12 +509,14 @@ export default function MFTransacaoScreen({
     setCategoryTouched(true);
     setSuggestOpen(false);
     // Tags do lançamento original (como no app original) — o valor
-    // continua intacto. Filtro client-side cobre mocks/offline.
+    // continua intacto. O select traz as duas colunas: o filtro
+    // client-side cobre mocks/offline, mas em produção só vem o que
+    // foi selecionado (sem transaction_id o filtro zerava as tags).
     if (!row.id) return;
     try {
       const { data } = await supabase
         .from('mf_transaction_tags')
-        .select('tag_id')
+        .select('tag_id,transaction_id')
         .eq('transaction_id', row.id);
       const ids = (data ?? [])
         .filter((link) => link.transaction_id === row.id)
