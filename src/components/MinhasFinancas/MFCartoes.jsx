@@ -22,6 +22,7 @@ import MFAccountDetail from './MFAccountDetail';
 import MFMonthNav from './MFMonthNav';
 import MFCardBrandIcon from './MFCardBrandIcon';
 import { readMonthKey, writeMonthKey, readDrill, writeDrill } from './mfViewState';
+import { mfCardUsagePct, mfCardBarColor } from './mfCardUsage';
 
 const metricLabel = {
   display: 'block',
@@ -284,17 +285,28 @@ export default function MFCartoes({ user, showValues = true }) {
             }}
           >
             {visibleCards.map((item) => {
-              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey });
+              // Limite comprometido: faturas futuras com despesa vinculada
+              // contam no EM ABERTO/DISPONÍVEL mesmo com data futura
+              // (ex.: fixas criadas 12 meses à frente) — sem a flag, só
+              // entrava o que já tinha payment_date até o mês (Nubank com
+              // despesas até 2027 mostrava R$ 0 em aberto).
+              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true });
               // EM ABERTO e DISPONÍVEL seguem a mesma régua das faturas
               // (fechadas + corrente, incluindo parcelas/estornos), em vez
               // de recalcular um saldo paralelo que divergia do detalhe.
+              // EM ABERTO = a pagar líquido (agendado zera — invariant do
+              // E2E "modal parcial"); DISPONÍVEL/barra = comprometido
+              // (aberto + agendado PENDENTE, que só libera no pagamento).
               const open = Math.max(0, Number(built.openTotal) || 0);
+              const committed = Math.max(0, Number(built.pendingTotal) || 0);
               const currentOpen = Number(built.current.openAmount) || 0;
               const currentPending = Number(built.current.pendingBound) || 0;
-              const used = open;
+              const used = open + committed;
               const limit = item.credit_limit != null ? Number(item.credit_limit) : null;
               const available = limit != null ? limit - used : null;
-              const pct = limit && limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+              const rawPct = limit && limit > 0 ? (used / limit) * 100 : 0;
+              const pct = mfCardUsagePct(used, limit);
+              const barColor = mfCardBarColor(item.color);
               const overLimit = limit != null && used > limit;
               const linked = accountById[item.linked_account_id];
               const inv = built.current;
@@ -458,10 +470,10 @@ export default function MFCartoes({ user, showValues = true }) {
                         style={{
                           fontSize: '0.85rem',
                           fontWeight: 800,
-                          color: used > 0 ? '#ef4444' : undefined,
+                          color: open > 0 ? '#ef4444' : undefined,
                         }}
                       >
-                        {cardMoney(used)}
+                        {cardMoney(open)}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -487,6 +499,11 @@ export default function MFCartoes({ user, showValues = true }) {
                   {/* Barra de uso do limite */}
                   <div
                     aria-hidden
+                    title={
+                      limit && limit > 0
+                        ? `${Math.round(rawPct * 10) / 10}%`
+                        : t('minhasfinancas.card_no_limit_hint')
+                    }
                     style={{
                       height: 8,
                       borderRadius: 999,
@@ -500,7 +517,7 @@ export default function MFCartoes({ user, showValues = true }) {
                         width: `${pct}%`,
                         height: '100%',
                         borderRadius: 999,
-                        background: overLimit ? '#ef4444' : item.color || 'var(--primary)',
+                        background: overLimit ? '#ef4444' : barColor,
                         transition: 'width 0.3s',
                       }}
                     />

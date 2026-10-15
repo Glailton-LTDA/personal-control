@@ -72,7 +72,9 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
 
   const refISO = monthRefISO(monthKey);
   const { current, invoices, upcomingInvoices = [] } = useMemo(
-    () => buildCardInvoices({ card, transactions, refISO, monthKey }),
+    // Limite comprometido (igual ao widget): futuras vinculadas contam
+    // mesmo com data futura, para o detalhe reconciliar com o EM ABERTO.
+    () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true }),
     [card, transactions, refISO, monthKey]
   );
   /** Faturas com movimento (igual à tela original de cartões). */

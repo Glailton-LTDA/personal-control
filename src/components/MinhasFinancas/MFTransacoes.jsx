@@ -473,6 +473,7 @@ export default function MFTransacoes({
           accountScope={
             editing ? 'all' : newKind === 'cardExpense' ? 'cartao' : 'contas'
           }
+          invoiceMonthKey={monthKey}
           onClose={() => setScreenOpen(false)}
         />
       )}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
@@ -955,30 +955,63 @@ let invalidateTimer = null;
 // do waitFor — padrão já usado no projeto (sync só fora de MODE=test).
 const INVALIDATE_DELAY_MS = import.meta.env.MODE === 'test' ? 0 : 750;
 
+/**
+ * Sinal "atualização pendente": cobre a janela entre o salvamento e o
+ * refetch (o debounce acima) em que nenhum isFetching está ativo ainda.
+ * Componentes combinam com o próprio isFetching para o spinner.
+ */
+let mfRefreshPending = false;
+const mfRefreshListeners = new Set();
+function setMFRefreshPending(value) {
+  if (mfRefreshPending === value) return;
+  mfRefreshPending = value;
+  mfRefreshListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* listener não pode quebrar o fluxo */
+    }
+  });
+}
+export function useMFRefreshPending() {
+  return useSyncExternalStore(
+    (notify) => {
+      mfRefreshListeners.add(notify);
+      return () => {
+        mfRefreshListeners.delete(notify);
+      };
+    },
+    () => mfRefreshPending
+  );
+}
+
 /** Só queries do Minhas Finanças (todas começam com 'mf-'). */
 const isMFQuery = (query) => {
   const key = query?.queryKey;
   return Array.isArray(key) && typeof key[0] === 'string' && key[0].startsWith('mf-');
 };
 
-const useInvalidateAll = () => {
+/** Exportado para o harness de teste do sinal de pendência. */
+export const useInvalidateAll = () => {
   const queryClient = useQueryClient();
   // Fire-and-forget (bloco sem return!): no React Query v5 o mutateAsync
   // AGUARDA promises retornadas em onSuccess, e invalidateQueries() só
   // resolve quando todos os refetchs ativos terminam — mf-all-transactions
   // paginado tem 14 páginas de 13.318 linhas. Retornar a promise deixava o
   // modal de pagamento "salvando" vários segundos depois do insert já feito.
-  // Escopo mf-*: mutations do módulo recarregavam queries de OUTROS módulos
-  // (música, viagens, Finance) à toa — o predicado limita ao Minhas Finanças.
+  // O sinal de pendente acende na hora (cobre o debounce) e apaga quando
+  // os refetchs assentam — sem retornar a promise, o modal não espera.
   return () => {
+    setMFRefreshPending(true);
+    const settle = () => setMFRefreshPending(false);
     if (INVALIDATE_DELAY_MS === 0) {
-      queryClient.invalidateQueries({ predicate: isMFQuery });
+      queryClient.invalidateQueries({ predicate: isMFQuery }).then(settle, settle);
       return;
     }
     if (invalidateTimer) clearTimeout(invalidateTimer);
     invalidateTimer = setTimeout(() => {
       invalidateTimer = null;
-      queryClient.invalidateQueries({ predicate: isMFQuery });
+      queryClient.invalidateQueries({ predicate: isMFQuery }).then(settle, settle);
     }, INVALIDATE_DELAY_MS);
   };
 };
@@ -1168,6 +1201,35 @@ export function useUpdateMFGroup() {
       }),
     onSuccess: invalidate,
   });
+}
+
+/**
+ * Busca a série fixa inteira (cabeça + filhas) para exclusão/edição com
+ * escopo. Fora de série fixa, devolve só o próprio lançamento.
+ */
+export async function fetchFixedSeries(tx) {
+  const headId = tx?.parent_transaction_id ?? tx?.id;
+  if (!headId) return tx ? [tx] : [];
+  const [headRes, childrenRes] = await Promise.all([
+    supabase.from('mf_transactions').select('*').eq('id', headId).maybeSingle(),
+    supabase
+      .from('mf_transactions')
+      .select('*')
+      .eq('parent_transaction_id', headId)
+      .order('payment_date'),
+  ]);
+  if (headRes.error) throw headRes.error;
+  if (childrenRes.error) throw childrenRes.error;
+  // Defesa client-side (mocks de teste sem filtro por eq devolvem tudo):
+  // só entra cabeça com o id pedido e filhas com o pai pedido.
+  const rawHead = Array.isArray(headRes.data)
+    ? headRes.data.find((row) => row?.id === headId) ?? null
+    : headRes.data ?? null;
+  const head = rawHead && rawHead.id === headId ? rawHead : null;
+  const rawChildren = Array.isArray(childrenRes.data) ? childrenRes.data : [];
+  const children = rawChildren.filter((row) => row?.parent_transaction_id === headId);
+  const series = [...(head ? [head] : []), ...children];
+  return series.length > 0 ? series : [tx];
 }
 
 /** Apaga um grupo (contas ficam órfãs via ON DELETE SET NULL; filhos bloqueiam). */
@@ -2090,6 +2152,14 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       (Number(current?.openAmount) || 0) +
       upcomingInvoices.reduce((sum, invoice) => sum + (Number(invoice.openAmount) || 0), 0)
   );
+  // Agendado (coberto por pagamento PENDENTE): não entra no em aberto
+  // (invariant do E2E "modal parcial"), mas compromete o LIMITE até ser
+  // pago — o widget usa para DISPONÍVEL/barra.
+  const pendingTotal = round(
+    displayInvoices.reduce((sum, invoice) => sum + (Number(invoice.pendingBound) || 0), 0) +
+      (Number(current?.pendingBound) || 0) +
+      upcomingInvoices.reduce((sum, invoice) => sum + (Number(invoice.pendingBound) || 0), 0)
+  );
 
   return {
     current,
@@ -2107,6 +2177,7 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     ],
     upcomingInvoices,
     openTotal,
+    pendingTotal,
     oldestOpenInvoice,
   };
 };

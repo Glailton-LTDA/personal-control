@@ -4,6 +4,20 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Adicionado
+- **Criar categoria dentro do lançamento (MF)**: a busca do seletor de categoria ganhou o botão Criar "nome" quando não há correspondência exata — cria na hora (tipo atual, raiz) e já seleciona, sem sair do modal. Vale na criação e na edição.
+- **Fatura padrão segue o mês visualizado (MF)**: ao criar despesa de cartão a partir do Extrato/detalhe/Lançamentos/FAB, o picker de fatura já abre na fatura do mês em tela (`invoiceMonthKey`) em vez de sempre cair no mês corrente — com fallback para o comportamento anterior fora das opções.
+- **Editar série com escopo (MF)**: editar um lançamento fixo ou parcelado agora pergunta o escopo antes de gravar (apenas este / a partir deste / todos — mesmo diálogo da exclusão, i18n pt/en/es). O escopo amplo aplica só o conteúdo (descrição, valor, conta, categoria, observações) nas demais ocorrências, mantendo datas, faturas, status e parcelas de cada mês. Vale na edição completa e na edição rápida do modal de detalhes (nome, observações, categoria e tags), e em repetições com vínculo (semanais/anuais com `parent_transaction_id`, que antes caíam no update único sem perguntar).
+- **Spinner do Extrato cobre o intervalo do save (MF)**: o sinal `useMFRefreshPending` acende na hora do salvamento e apaga quando os refetchs assentam — fecha a janela de 750 ms do debounce da invalidação em que não havia `isFetching` nem aviso nenhum. O subtítulo do cabeçalho também troca para "Atualizando…" durante o refresh, para o aviso não passar despercebido.
+- **Barra de uso do limite sempre visível (MF)**: piso de 2,5% quando há uso (1% real, ex.: C6 R$ 311 de R$ 30 mil, sumia no trilho) e cor do cartão com fallback para a primária quando não tem contraste no tema escuro (preto #000000 da C6 era invisível — só o laranja do Nomand aparecia). Sem limite cadastrado (Itaú), a barra mostra dica para cadastrar o limite.
+- **EM ABERTO conta faturas futuras vinculadas (MF)**: fixas criadas 12 meses à frente (ex.: Nubank com despesas até 2027, pagamento e `invoice_close` no futuro) ficavam fora da janela de exibição e o cartão mostrava R$ 0 em aberto / limite intacto — enquanto o Nomand (parcelas sem vínculo, que entram quando o mês chega) parecia "funcionar". Agora widget, detalhe da fatura e modal usam `includeFutureBound` (igual ao agendador): a fatura futura vinculada entra no EM ABERTO/DISPONÍVEL e na barra como limite comprometido.
+- **Agendado compromete o limite até pagar (MF)**: fatura coberta por espelho PENDENTE (chip AGENDADA) zerava o EM ABERTO "na hora" e o DISPONÍVEL voltava ao limite cheio — no mês corrente tudo ficava R$ 0 em aberto com o dinheiro ainda por sair. Regra agora: EM ABERTO segue líquido (a pagar já descontado o agendado — invariant do E2E "modal parcial"), mas DISPONÍVEL/barra usam o comprometido (`openTotal + pendingTotal`, novo campo do `buildCardInvoices`): agendado só libera limite quando vira PAGO.
+
+### Corrigido
+- **Aviso de duplicada mira a fatura nas despesas de cartão (MF)**: o cheque de série repetida comparava o mês da `payment_date` — uma "Compra ração" lançada em 10/10 na fatura de novembro fazia o modal citar "outubro". Agora, para cartão, a comparação e o intervalo da busca usam `invoice_close` (fatura da cabeça + N), e o aviso cita o mês da fatura.
+- **Valor da calculadora atualiza o modal na hora (MF)**: o ✓ da calculadora salvava, mas o modal de detalhes seguia mostrando o valor antigo até fechar e reabrir (o `tx` do pai é um snapshot). Agora o modal espelha o valor/nome salvo na hora (otimista local) e o Extrato confirma no refetch.
+- **Escopo amplo da fixa não arrastava meses anteriores (MF)**: filhas de série fixa (com `parent_transaction_id`) caíam no ramo de parcelada (`installmentHeadId` devolve o pai de qualquer filha vinculada) e o filtro por nº de parcela (zerado nas fixas) incluía a série inteira — "a partir deste mês" atualizava cabeça e meses passados. Agora parcelada = só com numeração (`installments_total>1`); fixa/repetição usam a série por data.
+
 ## [1.7.4] - 2026-10-14
 
 ### Alterado

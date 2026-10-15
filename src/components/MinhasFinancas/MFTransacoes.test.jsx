@@ -748,6 +748,72 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
   });
 
+  it('cria a categoria digitada na busca do seletor e já seleciona', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+    fireEvent.change(screen.getByTestId('mf-tx-category-search'), {
+      target: { value: 'Lazer' },
+    });
+
+    // sem resultado exato: oferece criar com o texto digitado
+    // (no teste o t() retorna a chave — o nome vai no parâmetro)
+    const createBtn = await screen.findByTestId('mf-tx-category-create');
+    expect(createBtn).toHaveTextContent('minhasfinancas.category_create_named');
+    fireEvent.click(createBtn);
+
+    const { supabase } = await import('../../lib/supabase');
+    const catChain = supabase.from('mf_categories');
+    await waitFor(() => {
+      expect(catChain.insert).toHaveBeenCalled();
+    });
+    expect(catChain.insert.mock.calls[0][0]).toMatchObject({
+      user_id: 'test-user',
+      name: 'Lazer',
+      type: 'DESPESA',
+      parent_id: null,
+    });
+
+    // a nova categoria (id created-0 do mock) já vai vinculada ao salvar
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Compra lazer teste' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '10,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const txChain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(txChain.insert).toHaveBeenCalled();
+    });
+    const inserted = txChain.insert.mock.calls.flatMap((call) => call[0]);
+    expect(
+      inserted.find((row) => row?.description === 'Compra lazer teste')
+    ).toMatchObject({ category_id: 'created-0' });
+  });
+
+  it('não oferece criar quando o nome já existe (só selecionar)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+    fireEvent.change(screen.getByTestId('mf-tx-category-search'), {
+      target: { value: 'alimentação' },
+    });
+
+    // achou exato: mostra a opção existente e não oferece criar
+    expect(screen.getByTestId('mf-tx-category-search')).toHaveValue('alimentação');
+    expect(screen.queryByTestId('mf-tx-category-create')).not.toBeInTheDocument();
+  });
+
   it('autocomplete do histórico preenche descrição + categoria sem tocar no valor', async () => {
     allTxMock.mockReturnValue({
       data: [
@@ -878,6 +944,138 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
     expect(chain.eq).toHaveBeenCalledWith('id', 'tx-3');
     expect(chain.update.mock.calls[0][0]).toMatchObject({ amount: 150 });
+  });
+
+  it('edição de parcelada pergunta o escopo; "todos" atualiza a série com conteúdo', async () => {
+    // 2ª ocorrência da série (o mock ignora filtros; o fetch filtra por pai)
+    const mocked = await import('../../lib/supabase');
+    const rows = mocked.__txRows;
+    rows.push({
+      id: 'tx-3c',
+      account_id: 'acc-2',
+      type: 'DESPESA',
+      description: 'Curso online',
+      amount: 100,
+      payment_date: '2026-11-10',
+      status: 'PENDENTE',
+      parent_transaction_id: 'tx-3',
+      installments_current: 3,
+      installments_total: 12,
+      recurrence: 'NONE',
+    });
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-edit-tx-3')).toBeInTheDocument();
+      });
+
+      await openDetailEdit('mf-tx-edit-tx-3');
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Curso online 2026' },
+      });
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-edit-scope-dialog')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('mf-tx-edit-scope-one')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-edit-scope-from')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-edit-scope-all')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('mf-tx-edit-scope-all'));
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(
+          chain.update.mock.calls.some(
+            ([patch]) => patch?.description === 'Curso online 2026'
+          )
+        ).toBe(true);
+      });
+      const patches = chain.update.mock.calls.map(([patch]) => patch);
+      // este: form completo (data preservada do formulário)
+      const full = patches.find(
+        (patch) => patch?.description === 'Curso online 2026' && 'payment_date' in patch
+      );
+      expect(full).toMatchObject({ payment_date: '2026-10-10' });
+      // demais parcelas: só conteúdo (sem data/fatura/status)
+      const bulk = patches.find(
+        (patch) => patch?.description === 'Curso online 2026' && !('payment_date' in patch)
+      );
+      expect(bulk).toBeTruthy();
+      expect(bulk).not.toHaveProperty('invoice_close');
+      expect(bulk).not.toHaveProperty('status');
+      expect(chain.in).toHaveBeenCalledWith('id', expect.arrayContaining(['tx-3c']));
+      expect(screen.queryByTestId('mf-tx-edit-scope-dialog')).not.toBeInTheDocument();
+    } finally {
+      const index = rows.findIndex((row) => row.id === 'tx-3c');
+      if (index >= 0) rows.splice(index, 1);
+    }
+  });
+
+  it('edição de repetição com vínculo pergunta o escopo (semanais/anuais)', async () => {
+    // Repetição semanal vinculada por parent (sem is_fixed nem parcelas):
+    // antes caía direto no update único sem perguntar.
+    const mocked = await import('../../lib/supabase');
+    const rows = mocked.__txRows;
+    rows.push(
+      {
+        id: 'tx-rep-head',
+        account_id: 'acc-1',
+        type: 'DESPESA',
+        description: 'Aula semanal',
+        amount: 80,
+        payment_date: '2026-10-06',
+        status: 'PAGO',
+        recurrence: 'WEEKLY',
+        parent_transaction_id: null,
+      },
+      {
+        id: 'tx-rep-c1',
+        account_id: 'acc-1',
+        type: 'DESPESA',
+        description: 'Aula semanal',
+        amount: 80,
+        payment_date: '2026-10-13',
+        status: 'PENDENTE',
+        recurrence: 'WEEKLY',
+        parent_transaction_id: 'tx-rep-head',
+      }
+    );
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-edit-tx-rep-head')).toBeInTheDocument();
+      });
+
+      await openDetailEdit('mf-tx-edit-tx-rep-head');
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Aula semanal reajustada' },
+      });
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+      // usa o diálogo de série fixa (conteúdo, mantendo as datas)
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-edit-fixed-dialog')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-tx-edit-fixed-all'));
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(
+          chain.update.mock.calls.some(
+            ([patch]) => patch?.description === 'Aula semanal reajustada'
+          )
+        ).toBe(true);
+      });
+      expect(chain.in).toHaveBeenCalledWith('id', expect.arrayContaining(['tx-rep-c1']));
+    } finally {
+      for (const id of ['tx-rep-head', 'tx-rep-c1']) {
+        const index = rows.findIndex((row) => row.id === id);
+        if (index >= 0) rows.splice(index, 1);
+      }
+    }
   });
 
   it('transferência criada pelo menu grava TRANSFERENCIA e fecha o modal', async () => {
@@ -1025,6 +1223,46 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.queryByTestId('mf-tx-effective-date')).not.toBeInTheDocument();
   });
 
+  it('fatura padrão da despesa de cartão segue o mês visualizado', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 11, 12, 0, 0) });
+    try {
+      renderWithProviders(
+        <MFTransacoes user={mockUser} monthKey="2026-11" onChangeMonth={() => {}} />
+      );
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      openAdd('cardExpense');
+      // Único cartão do mock já vem selecionado; o picker abre em novembro
+      // (mês visualizado), não no mês corrente (outubro)
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-account')).toHaveTextContent('Cartão Visa');
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-invoice')).toHaveTextContent('Novembro');
+      });
+
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Compra futura teste' },
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '50,00' } });
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(chain.insert).toHaveBeenCalled();
+      });
+      const inserted = chain.insert.mock.calls.flatMap((call) => call[0]);
+      expect(
+        inserted.find((row) => row?.description === 'Compra futura teste')
+      ).toMatchObject({ invoice_close: '2026-11-01' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('fatura fechada pede confirmação antes de salvar (app original)', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 11, 12, 0, 0) });
     try {
@@ -1102,6 +1340,64 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
     // cabeça fixa + 11 filhas
     expect(chain.insert.mock.calls[0][0][0]).toMatchObject({ is_fixed: true });
+  });
+
+  it('duplicada de despesa de cartão compara pela Fatura, não pela data', async () => {
+    // Existe "Compra racao" lançada em 10/10 mas na fatura de NOVEMBRO:
+    // o aviso tem que mirar a fatura (novembro), não o mês da data (outubro).
+    const mocked = await import('../../lib/supabase');
+    const rows = mocked.__txRows;
+    rows.push({
+      id: 'tx-racao',
+      account_id: 'acc-card',
+      type: 'DESPESA',
+      description: 'Compra racao',
+      amount: 50,
+      payment_date: '2026-10-10',
+      status: 'PAGO',
+      invoice_close: '2026-11-01',
+      recurrence: 'NONE',
+    });
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-edit-tx-racao')).toBeInTheDocument();
+      });
+
+      openAdd('cardExpense');
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-account')).toHaveTextContent('Cartão Visa');
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Compra racao' },
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '50,00' } });
+      fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+        target: { value: '2026-10-10' },
+      });
+      fireEvent.click(screen.getByTestId('mf-tx-invoice'));
+      fireEvent.click(screen.getByTestId('mf-tx-invoice-option-2026-11-01'));
+      // parcelada 2x → faturas de novembro e dezembro
+      fireEvent.click(screen.getByTestId('mf-tx-repeat-open'));
+      fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-dupe')).toBeInTheDocument();
+      });
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      // a checagem consulta invoice_close (fatura da cabeça + filhas), não payment_date
+      expect(
+        chain.select.mock.calls.flat().some((arg) => String(arg).includes('invoice_close'))
+      ).toBe(true);
+      expect(chain.gte.mock.calls).toContainEqual(['invoice_close', '2026-11-01']);
+      expect(chain.lte.mock.calls).toContainEqual(['invoice_close', '2026-12-31']);
+    } finally {
+      const index = rows.findIndex((row) => row.id === 'tx-racao');
+      if (index >= 0) rows.splice(index, 1);
+    }
   });
 
   it('picker de fatura do cartão lista ~2 anos de faturas (Mês, ano)', async () => {

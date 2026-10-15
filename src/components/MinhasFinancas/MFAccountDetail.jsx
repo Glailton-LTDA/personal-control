@@ -1321,6 +1321,7 @@ export default function MFAccountDetail({
           defaultType={creating && addKind === 'income' ? 'RECEITA' : 'DESPESA'}
           accountScope={scope}
           mode={estorno ? 'estorno' : 'normal'}
+          invoiceMonthKey={monthKey}
           onClose={() => {
             setScreenOpen(false);
             setAddKind(null);

@@ -550,6 +550,34 @@ describe('buildCardInvoices — despesa com fatura escolhida (picker do app orig
     expect(built.openTotal).toBe(0);
   });
 
+  it('agendado (PENDENTE) zera o em aberto mas segue comprometendo o limite', () => {
+    // Fatura coberta só por pagamento pendente: EM ABERTO = 0 (invariant
+    // do E2E "modal parcial"), mas o limite segue comprometido até pagar.
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: '2026-10-11',
+      transactions: [
+        expense({ id: 'e1', payment_date: '2026-10-10', amount: 500, invoice_close: '2026-10-14' }),
+        {
+          id: 'p1',
+          account_id: 'acc-1',
+          type: 'DESPESA',
+          status: 'PENDENTE',
+          description: 'Agendado automaticamente (fatura)',
+          amount: 500,
+          payment_date: '2026-10-20',
+          invoice_close: '2026-10-14',
+        },
+      ],
+    });
+
+    expect(built.current.openAmount).toBe(0);
+    expect(built.current.status).toBe('AGENDADA');
+    expect(built.openTotal).toBe(0);
+    // comprometido = agendado (widget: DISPONÍVEL = limite − aberto − agendado)
+    expect(built.pendingTotal).toBe(500);
+  });
+
   it('PENDENTE conta na fatura (limite cai independente de status)', () => {
     const { current } = buildCardInvoices({
       card: card14,

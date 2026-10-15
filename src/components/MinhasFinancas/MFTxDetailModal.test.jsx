@@ -227,11 +227,22 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     await waitFor(() => {
       expect(screen.getByTestId('mf-tx-detail-quick')).toBeInTheDocument();
     });
+    // série carregada (3 ocorrências) antes de salvar — senão o escopo
+    // ainda não sabe que há série
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-paid-pending')).toHaveTextContent('R$ 1.000,00');
+    });
     fireEvent.click(screen.getByTestId('mf-tx-detail-quick'));
     fireEvent.change(screen.getByTestId('mf-tx-detail-quick-desc'), {
       target: { value: 'Teste editado' },
     });
     fireEvent.click(screen.getByTestId('mf-tx-detail-quick-save'));
+
+    // série parcelada (3 ocorrências): pergunta o escopo antes de gravar
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-scope')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-scope-one'));
 
     const { supabase } = await import('../../lib/supabase');
     await waitFor(() => {
@@ -239,6 +250,43 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     });
     const toast = (await import('react-hot-toast')).default;
     expect(toast.success).toHaveBeenCalledWith('minhasfinancas.tx_detail_saved');
+    // o modal já mostra o nome novo sem precisar fechar e reabrir
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-desc')).toHaveTextContent('Teste editado');
+    });
+  });
+
+  it('edição rápida com escopo "todas" aplica o nome na série', async () => {
+    renderModal();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-quick')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-paid-pending')).toHaveTextContent('R$ 1.000,00');
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick'));
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-desc'), {
+      target: { value: 'Nome para todos' },
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick-save'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-scope')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-scope-all'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const txTable = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(txTable.update).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Nome para todos' })
+      );
+    });
+    // demais ocorrências via bulk (.in com as filhas)
+    expect(txTable.in).toHaveBeenCalledWith('id', expect.arrayContaining(['tx-2', 'tx-3']));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-desc')).toHaveTextContent('Nome para todos');
+    });
   });
 
   it('edição rápida cria tag nova como na tela de criação', async () => {
@@ -533,6 +581,24 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     const toast = (await import('react-hot-toast')).default;
     expect(toast.success).toHaveBeenCalledWith('minhasfinancas.tx_detail_value_updated');
     expect(screen.queryByTestId('mf-tx-detail-calc')).not.toBeInTheDocument();
+  });
+
+  it('✓ da calculadora atualiza o valor exibido no modal na hora', async () => {
+    renderModal({ installments_total: null, installments_current: null });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-amount')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-amount'));
+    fireEvent.click(screen.getByTestId('mf-calc-clear'));
+    fireEvent.click(screen.getByTestId('mf-calc-1'));
+    fireEvent.click(screen.getByTestId('mf-calc-2'));
+    fireEvent.click(screen.getByTestId('mf-calc-3'));
+    fireEvent.click(screen.getByTestId('mf-calc-confirm'));
+
+    // sem fechar o modal: o botão já mostra o valor novo
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-amount')).toHaveTextContent('123');
+    });
   });
 
   it('parcelada: ✓ da calculadora pergunta o escopo e "todas" aplica na série', async () => {
