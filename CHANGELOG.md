@@ -20,6 +20,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Alterado
 - **Saldo inicial do detalhe da conta é o fechamento do mês anterior (MF)**: o card mostrava a âncora de criação/reajuste (`initial_balance`, ex.: £240) enquanto o mês anterior tinha fechado em outro valor (£64,05) — com aviso de "customizado" para explicar a divergência. Agora a abertura é sempre o fechamento anterior (`prevClose`); a âncora continua valendo na matemática, mas não aparece mais como "inicial". Saíram a linha "Saldo sem o inicial" e o aviso (perderam o sentido), e os valores ganharam destaque (Saldo 1,4rem, abertura 1,15rem, movimentação e Previsão maiores).
 
+### Corrigido
+- **Spinners nativos quebrados no tema escuro (MF)**: o `type=number` (ex.: qtd de parcelas na antecipação) renderizava as setinhas numa caixa clara sobre o fundo escuro — regra global esconde as setinhas (teclado numérico continua).
+
 ## [1.8.0] - 2026-10-15
 
 ### Adicionado
