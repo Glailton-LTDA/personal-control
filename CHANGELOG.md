@@ -7,8 +7,8 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Adicionado
 - **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.
 - **Busca no seletor de tags do lançamento (MF)**: o picker (criação e edição rápida) ganhou campo de busca para filtrar as tags.
-
-### Adicionado
+- **Seletor de ícone e cor no objetivo (MF)**: o modal de objetivo ganhou o `MFIconPicker` compartilhado (busca + emojis + marcas + glifos, extraído do modal de categoria) e a grade de cores do app original — no lugar do campo de texto e do input de cor nativo. O cartão do objetivo renderiza marca/glifo via `MFAccountIcon`.
+- **Grade de cores do app original + marcas streaming/tech (MF)**: `MFColorGrid` (54 tons em 6 colunas, com ✓) nos modais de categoria, grupo e tag; novas marcas `brand:` Ambev Tech, HBO Max, Netflix, Disney+ e Apple (monogramas; Shopee/AliExpress/Shein/Mercado Livre/Magalu já existiam).
 - **Lembretes do Minhas Finanças com sino + push (MF)**: sino no header do Resumo com os lembretes do dia (D-3, D-0 e D+3 exatos, sem spam; fatura de cartão usa o vencimento da fatura; contas "Ignorar nos totais" também geram; transferências ficam de fora) — o clique leva aos Lançamentos no mês do vencimento. Opt-in de push no painel (Web Push/VAPID, mesma base da `send-push` do Babylog). Servidor: Edge Function `mf-reminders` (cron diário, resumo de até 5 por usuário, limpa inscrições mortas) + tabela `mf_push_subscriptions` + handlers de push/clique no service worker. Para ativar o push faltam: chaves VAPID, secrets (`CRON_SECRET`, `VAPID_*`, `MF_VAPID_MAILTO`) e o cron diário.
 
 ### Adicionado

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { X, Target } from 'lucide-react';
 import MFSelect from './MFSelect';
+import MFIconPicker from './MFIconPicker';
+import MFColorGrid from './MFColorGrid';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
@@ -151,15 +153,13 @@ export default function MFGoalModal({ isOpen, onClose, goal = null, user }) {
                 required
               />
             </div>
-            <div className="input-group" style={{ maxWidth: 110 }}>
+            <div className="input-group">
               <label>{t('minhasfinancas.gl_icon')}</label>
-              <input
-                type="text"
-                value={form.icon}
-                onChange={set('icon')}
-                data-testid="mf-goal-icon"
-                maxLength={4}
-                style={{ textAlign: 'center' }}
+              <MFIconPicker
+                icon={form.icon}
+                onChange={(next) => setForm((prev) => ({ ...prev, icon: next || '🎯' }))}
+                color={form.color}
+                testIdPrefix="mf-goal-icon"
               />
             </div>
           </div>
@@ -223,21 +223,12 @@ export default function MFGoalModal({ isOpen, onClose, goal = null, user }) {
             </div>
           </div>
 
-          <div className="input-group" style={{ maxWidth: 160 }}>
+          <div className="input-group">
             <label>{t('minhasfinancas.cfg_color')}</label>
-            <input
-              type="color"
+            <MFColorGrid
               value={form.color}
-              onChange={set('color')}
-              data-testid="mf-goal-color"
-              style={{
-                width: 44,
-                height: 34,
-                padding: 2,
-                border: '1px solid var(--glass-border)',
-                borderRadius: 10,
-                background: 'transparent',
-              }}
+              onChange={(next) => setForm((prev) => ({ ...prev, color: next }))}
+              testId="mf-goal-color"
             />
           </div>
 
