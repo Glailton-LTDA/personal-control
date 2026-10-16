@@ -22,6 +22,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ### Corrigido
 - **Spinners nativos quebrados no tema escuro (MF)**: o `type=number` (ex.: qtd de parcelas na antecipação) renderizava as setinhas numa caixa clara sobre o fundo escuro — regra global esconde as setinhas (teclado numérico continua).
+- **Tabela web multimoeda sem sobreposição (MF)**: o pill do total do grupo estourava a coluna e invadia a vizinha — total agora direto na célula; rodapé com fonte compacta.
 
 ## [1.8.0] - 2026-10-15
 

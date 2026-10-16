@@ -1538,25 +1538,16 @@ export default function MFContas({
                           {netTotalsText(item.rows)}
                         </td>
                         <td style={{ ...groupCellStyle, fontWeight: 800 }}>
-                          <span
-                            style={{
-                              ...badgeStyle,
-                              fontWeight: 800,
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: 8,
-                              color: 'var(--text-main)',
-                            }}
-                            data-testid={
+                          <MFTotalsStack
+                            totals={groupTotalsByCurrency(item.rows, 'saldo')}
+                            showValues={showValues}
+                            testId={
                               isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'
                             }
-                          >
-                            <MFTotalsStack
-                              totals={groupTotalsByCurrency(item.rows, 'saldo')}
-                              showValues={showValues}
-                              align="right"
-                              fontSize="inherit"
-                            />
-                          </span>
+                            align="right"
+                            fontSize="inherit"
+                            lineHeight={1.3}
+                          />
                         </td>
                         <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
                           <MFTotalsStack
@@ -1898,7 +1889,8 @@ export default function MFContas({
                       showValues={showValues}
                       testId="mf-contas-foot-initial"
                       align="right"
-                      fontSize="inherit"
+                      fontSize="0.75rem"
+                      lineHeight={1.25}
                     />
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', color: 'var(--success, #10b981)', fontWeight: 700 }}>
@@ -1907,7 +1899,8 @@ export default function MFContas({
                       showValues={showValues}
                       testId="mf-contas-foot-receitas"
                       align="right"
-                      fontSize="inherit"
+                      fontSize="0.75rem"
+                      lineHeight={1.25}
                     />
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', color: 'var(--danger, #ef4444)', fontWeight: 700 }}>
@@ -1916,7 +1909,8 @@ export default function MFContas({
                       showValues={showValues}
                       testId="mf-contas-foot-despesas"
                       align="right"
-                      fontSize="inherit"
+                      fontSize="0.75rem"
+                      lineHeight={1.25}
                     />
                   </td>
                   <td
@@ -1940,7 +1934,8 @@ export default function MFContas({
                       showValues={showValues}
                       testId="mf-contas-foot-saldo"
                       align="right"
-                      fontSize="inherit"
+                      fontSize="0.78rem"
+                      lineHeight={1.25}
                     />
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)' }}>
@@ -1949,7 +1944,8 @@ export default function MFContas({
                       showValues={showValues}
                       testId="mf-contas-foot-previsto"
                       align="right"
-                      fontSize="inherit"
+                      fontSize="0.75rem"
+                      lineHeight={1.25}
                     />
                   </td>
                   <td />
