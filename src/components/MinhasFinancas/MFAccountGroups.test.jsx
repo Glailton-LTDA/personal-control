@@ -355,13 +355,14 @@ describe('MFGroupModal', () => {
     );
 
     fireEvent.change(screen.getByTestId('mf-group-name'), { target: { value: 'Viagem' } });
-    // Segunda cor da paleta fica ativa; clicar de novo desmarca (automático)
-    fireEvent.click(screen.getByTestId('mf-group-color-1'));
-    expect(screen.getByTestId('mf-group-color-1')).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByTestId('mf-group-color-1'));
-    expect(screen.getByTestId('mf-group-color-1')).toHaveAttribute('aria-checked', 'false');
+    // Grade nova: busca pelo hex; clicar de novo desmarca (automático)
+    const swatch = screen.getByTitle('#e91e63');
+    fireEvent.click(swatch);
+    expect(swatch).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(swatch);
+    expect(swatch).toHaveAttribute('aria-checked', 'false');
     // Marca de novo e salva junto no payload
-    fireEvent.click(screen.getByTestId('mf-group-color-1'));
+    fireEvent.click(swatch);
     fireEvent.click(screen.getByTestId('mf-group-save'));
 
     const calls = await getCalls();
@@ -370,7 +371,7 @@ describe('MFGroupModal', () => {
     });
     expect(groupInserts(calls)[0].rows[0]).toMatchObject({
       name: 'Viagem',
-      color: '#ef4444',
+      color: '#e91e63',
     });
   });
 

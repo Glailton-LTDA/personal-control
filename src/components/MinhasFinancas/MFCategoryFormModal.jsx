@@ -4,6 +4,7 @@ import { X, Trash2 } from 'lucide-react';
 import MFSelect from './MFSelect';
 import MFAccountIcon from './MFAccountIcon';
 import { MF_CATEGORY_ICONS, MF_CATEGORY_COLORS, mfIconMatches, mfNormalize } from './MFCategoryIcons';
+import MFColorGrid from './MFColorGrid';
 import { MF_BRAND_ICONS, MF_GLYPH_ICONS, MF_GLYPH_KEYWORDS } from './MFIconData';
 
 /**
@@ -127,35 +128,12 @@ export default function MFCategoryFormModal({
         </p>
 
         {/* Cores */}
-        <div
-          role="radiogroup"
-          aria-label={t('minhasfinancas.cfg_color')}
-          style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}
-        >
-          {MF_CATEGORY_COLORS.map((swatch, index) => (
-            <button
-              key={swatch}
-              type="button"
-              role="radio"
-              aria-checked={color === swatch}
-              aria-label={swatch}
-              data-testid={`mf-cat-modal-color-${index}`}
-              onClick={() => setColor(swatch)}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: '50%',
-                border:
-                  color === swatch
-                    ? '2px solid var(--primary)'
-                    : '2px solid transparent',
-                outline: color === swatch ? '1px solid var(--glass-border)' : 'none',
-                background: swatch,
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            />
-          ))}
+        <div style={{ marginBottom: '0.75rem' }}>
+          <MFColorGrid
+            value={color}
+            onChange={setColor}
+            testId="mf-cat-modal-color"
+          />
         </div>
 
         {/* Ícones */}
