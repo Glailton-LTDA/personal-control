@@ -938,6 +938,17 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(chain.insert.mock.calls[0][0][0].attachment_path).toMatch(/^test-user\/\d+\.pdf$/);
   });
 
+  it('novo lançamento já nasce efetivado (PAGO por padrão)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    // status padrão é PAGO (igual ao app original)
+    expect(screen.getByTestId('mf-tx-status')).toHaveTextContent('minhasfinancas.status_pago');
+  });
+
   it('edita um lançamento existente', async () => {
     renderScreen();
     await waitFor(() => {

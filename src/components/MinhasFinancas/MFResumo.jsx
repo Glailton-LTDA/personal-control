@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
@@ -143,6 +143,18 @@ export default function MFResumo({
 
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
+  // Estreito (tablet retrato/mobile): cabeçalho compacto sem gráficos.
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const query = window.matchMedia('(max-width: 768px)');
+    const onChange = (event) => setIsNarrow(event.matches);
+    query.addEventListener?.('change', onChange);
+    setIsNarrow(query.matches);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
 
   // Painel personalizável (Fase 9): widgets + contas visíveis
   const [widgetPref, setWidgetPref] = useState(loadWidgetPref);
@@ -1213,6 +1225,39 @@ export default function MFResumo({
         )}
       </div>
 
+      {/* Compacto do estreito: Inicial / Saldo / Previsto, sem gráficos */}
+      {isNarrow && !selectedRow && groupPath.length === 0 && (
+        <div
+          className="glass-card"
+          data-testid="mf-resumo-compact"
+          style={{
+            padding: '0.9rem 1.1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            gap: '0.5rem',
+            textAlign: 'center',
+          }}
+        >
+          {[
+            { key: 'initial', label: t('minhasfinancas.initial'), totals: kpis.initial },
+            { key: 'balance', label: t('minhasfinancas.kpi_balance'), totals: kpis.saldo, big: true },
+            { key: 'forecast', label: t('minhasfinancas.kpi_forecast'), totals: kpis.previsto },
+          ].map((item) => (
+            <div key={item.key} data-testid={`mf-resumo-compact-${item.key}`} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                {item.label}
+              </div>
+              <div style={item.big ? { fontSize: '1.25rem', fontWeight: 800 } : { fontSize: '0.85rem', fontWeight: 700 }}>
+                {isLoading ? '…' : isError ? '—' : (
+                  <MFTotalsStack totals={item.totals} showValues={showValues} align="right" fontSize="inherit" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Painel de personalização (Fase 9) */}
       {!selectedRow && customizing && (
         <div
@@ -1436,7 +1481,9 @@ export default function MFResumo({
           {/* Widgets do painel, na ordem configurada pelo usuário.
               KPIs, Grupos, Contas e Gráficos ocupam a faixa cheia;
               Orçamento e Objetivo dividem a última linha em duas colunas. */}
-          {orderedWidgets.map((id) => (
+          {orderedWidgets
+            .filter((id) => !isNarrow || id !== 'charts')
+            .map((id) => (
             <div
               key={id}
               data-widget={id}

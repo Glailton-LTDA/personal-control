@@ -126,12 +126,38 @@ const restoreViewport = () => {
   delete window.matchMedia;
 };
 
+/** Grupos começam recolhidos: expande o grupo de teste para ver as linhas. */
+const expandGroups = () => {
+  fireEvent.click(screen.getByTestId('mf-group-fold-grp-1'));
+};
+
 describe('MFContas', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem('pc_skip_confirmations', 'true');
     localStorage.removeItem('mf_month_key');
     localStorage.removeItem('mf_detail_drill');
+  });
+
+  it('grupos começam recolhidos: cabeçalho visível, linhas escondidas', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    // padrão novo: sanfona fechada — cabeçalho aparece, conta some
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-group-fold-grp-1')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
+    expect(screen.queryByTestId('mf-open-account-acc-1')).not.toBeInTheDocument();
+
+    // expandir mostra a conta
+    expandGroups();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+    expect(screen.getByTestId('mf-group-fold-grp-1')).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('renderiza a tabela de contas com totais', async () => {
@@ -141,6 +167,10 @@ describe('MFContas', () => {
 
     expect(screen.getByTestId('mf-contas')).toBeInTheDocument();
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -159,6 +189,10 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -188,7 +222,7 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId('mf-group-edit-grp-1'));
@@ -233,7 +267,7 @@ describe('MFContas', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+        expect(screen.getByTestId('mf-group-total-grp-1')).toBeInTheDocument();
       });
 
       // Grupo SOMA a ignorada (saldo inicial 100 da acc-1, sem lançamentos)
@@ -252,6 +286,10 @@ describe('MFContas', () => {
     renderWithProviders(
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -284,7 +322,7 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
 
     // fora do modo: sem botões de mover grupo
@@ -345,6 +383,10 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
+    await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
 
@@ -364,6 +406,10 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
+    await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
 
@@ -376,7 +422,10 @@ describe('MFContas', () => {
 
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
-    expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    // a sanfona continua como estava (expandida): as 2 linhas voltam
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
   });
 
   it('tela estreita: cards em vez de tabela (sem quebrar o texto)', async () => {
@@ -389,6 +438,12 @@ describe('MFContas', () => {
       await waitFor(() => {
         expect(screen.getByTestId('mf-contas-cards')).toBeInTheDocument();
       });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+      });
+      // recolhido por padrão: só a conta fora de grupo
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
+      expandGroups();
       await waitFor(() => {
         expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
       });
@@ -449,6 +504,10 @@ describe('MFContas', () => {
     // fechar limpa o salvo
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
+    await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
     expect(localStorage.getItem('mf_detail_drill')).toBeNull();
@@ -460,7 +519,7 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
   });
@@ -470,6 +529,10 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -485,6 +548,10 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -512,6 +579,10 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -560,21 +631,23 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    // recolhido por padrão: só a conta fora de grupo aparece
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
+    expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
     expect(screen.queryByText('Poupança Antiga')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-show-archived'));
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(3);
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
     expect(screen.getByText('Poupança Antiga')).toBeInTheDocument();
     expect(screen.getByTestId('mf-account-archived-badge')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-show-archived'));
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(1);
     });
   });
 
@@ -583,6 +656,10 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -615,7 +692,7 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId('mf-new-group'));
@@ -631,7 +708,7 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
     expect(screen.queryByText('Visa')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-open-account-acc-card')).not.toBeInTheDocument();
@@ -639,36 +716,47 @@ describe('MFContas', () => {
     // Mesmo exibindo as arquivadas, o cartão continua fora da lista
     fireEvent.click(screen.getByTestId('mf-show-archived'));
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(3);
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
     expect(screen.queryByText('Visa')).not.toBeInTheDocument();
   });
 
-  it('visão agrupada é o padrão: cabeçalhos, ordem, sanfona e volta à lista plana', async () => {
+  it('visão agrupada é o padrão com grupos recolhidos: expande, sanfona e volta à lista plana', async () => {
     renderWithProviders(
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
-    await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
-    });
-    // Padrão: agrupadas LIGADAS, sem nenhum clique (só aparece com grupo)
+    // Padrão: agrupadas LIGADAS e grupos recolhidos, sem nenhum clique
     const toggle = await screen.findByTestId('mf-group-toggle');
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    const foldGroup = screen.getByTestId('mf-group-fold-grp-1');
+    expect(foldGroup).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('mf-open-account-acc-1')).not.toBeInTheDocument();
 
     const body = screen.getByTestId('mf-accounts-body');
     const trs = [...body.querySelectorAll('tr')];
     const indexOfTestid = (testid) =>
       trs.findIndex((tr) => tr.getAttribute('data-testid') === testid);
-    const indexOfAccount = (accId) =>
-      trs.findIndex((tr) => tr.querySelector(`[data-testid="mf-open-account-${accId}"]`));
 
-    // Nubank (membro do grp-1) vem depois do cabeçalho do grupo e antes de "Sem grupo";
+    // Nubank (membro do grp-1) aparece ao expandir, depois do cabeçalho;
     // Itaú (sem grupo) fecha a lista depois do cabeçalho "Sem grupo"
     expect(indexOfTestid('mf-group-header-grp-1')).toBeGreaterThanOrEqual(0);
-    expect(indexOfTestid('mf-group-header-grp-1')).toBeLessThan(indexOfAccount('acc-1'));
-    expect(indexOfAccount('acc-1')).toBeLessThan(indexOfTestid('mf-ungrouped-header'));
-    expect(indexOfTestid('mf-ungrouped-header')).toBeLessThan(indexOfAccount('acc-2'));
+    fireEvent.click(foldGroup);
+    expect(foldGroup).toHaveAttribute('aria-expanded', 'true');
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+    const expanded = [...screen.getByTestId('mf-accounts-body').querySelectorAll('tr')];
+    const expandedIndex = (testid) =>
+      expanded.findIndex((tr) => tr.getAttribute('data-testid') === testid);
+    const expandedAccount = (accId) =>
+      expanded.findIndex((tr) => tr.querySelector(`[data-testid="mf-open-account-${accId}"]`));
+    expect(expandedIndex('mf-group-header-grp-1')).toBeLessThan(expandedAccount('acc-1'));
+    expect(expandedAccount('acc-1')).toBeLessThan(expandedIndex('mf-ungrouped-header'));
+    expect(expandedIndex('mf-ungrouped-header')).toBeLessThan(expandedAccount('acc-2'));
 
     // Grupos sem nenhuma conta visível não poluem a lista
     expect(screen.queryByTestId('mf-group-header-grp-2')).not.toBeInTheDocument();
@@ -681,23 +769,14 @@ describe('MFContas', () => {
     expect(screen.getByTestId('mf-group-total-grp-1')).toBeInTheDocument();
     expect(screen.getByTestId('mf-ungrouped-count')).toBeInTheDocument();
 
-    // Sanfona: recolher o grupo esconde as contas sob ele (cabeçalho fica)
-    const foldGroup = screen.getByTestId('mf-group-fold-grp-1');
-    expect(foldGroup).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(foldGroup);
-    expect(foldGroup).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
-    expect(screen.queryByTestId('mf-open-account-acc-1')).not.toBeInTheDocument();
-
-    // Recolher "Sem grupo" esconde a conta não agrupada
+    // Sanfona: recolher "Sem grupo" esconde a conta não agrupada
     const foldUngrouped = screen.getByTestId('mf-ungrouped-fold');
     fireEvent.click(foldUngrouped);
     expect(screen.getByTestId('mf-ungrouped-header')).toBeInTheDocument();
     expect(screen.queryByTestId('mf-open-account-acc-2')).not.toBeInTheDocument();
 
-    // Expandir tudo de volta
-    fireEvent.click(foldGroup);
-    fireEvent.click(foldUngrouped);
+    // Expandir de volta
+    fireEvent.click(screen.getByTestId('mf-ungrouped-fold'));
     expect(screen.getByTestId('mf-open-account-acc-1')).toBeInTheDocument();
     expect(screen.getByTestId('mf-open-account-acc-2')).toBeInTheDocument();
 
@@ -714,6 +793,10 @@ describe('MFContas', () => {
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
 
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
@@ -741,7 +824,7 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
 
     // Saldo consolidado das duas contas ativas (100 + 50) + contagem
@@ -767,7 +850,7 @@ describe('MFContas', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
     });
 
     // Cabeçalho com a coluna única "Transferências" (sem crédito/débito)

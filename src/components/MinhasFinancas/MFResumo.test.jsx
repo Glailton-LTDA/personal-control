@@ -94,6 +94,35 @@ const domOrder = () =>
 
 const DEFAULT_ORDER = ['kpis', 'groups', 'accounts', 'charts', 'budgets', 'goals'];
 
+describe('MFResumo — compacto no estreito (Fase A)', () => {
+  const mockNarrow = () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  };
+  const restoreViewport = () => {
+    delete window.matchMedia;
+  };
+
+  it('mostra Inicial/Saldo/Previsto e esconde os gráficos', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-resumo-compact')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('mf-resumo-compact-initial')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-resumo-compact-balance')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-resumo-compact-forecast')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-chart-categories-BRL')).not.toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+});
+
 describe('MFResumo — painel personalizável (Fase 9)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

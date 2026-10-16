@@ -5,6 +5,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ## [Unreleased]
 
 ### Adicionado
+- **Resumo compacto no estreito + grupos recolhidos por padrão (MF)**: em telas ≤768px o Resumo mostra Inicial/Saldo/Previsto sem gráficos; grupos começam recolhidos (web e mobile). Lançamento novo já nasce efetivado (PAGO).
+
+### Adicionado
 - **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.
 - **Busca no seletor de tags do lançamento (MF)**: o picker (criação e edição rápida) ganhou campo de busca para filtrar as tags.
 - **Seletor de ícone e cor no objetivo (MF)**: o modal de objetivo ganhou o `MFIconPicker` compartilhado (busca + emojis + marcas + glifos, extraído do modal de categoria) e a grade de cores do app original — no lugar do campo de texto e do input de cor nativo. O cartão do objetivo renderiza marca/glifo via `MFAccountIcon`.

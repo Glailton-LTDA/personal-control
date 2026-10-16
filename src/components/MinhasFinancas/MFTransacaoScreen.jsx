@@ -87,7 +87,9 @@ const emptyForm = {
   payment_date: toISODate(new Date()),
   due_date: '',
   effective_date: '',
-  status: 'PENDENTE',
+  // Efetivada por padrão (igual ao app original): a caixa já sai como
+  // PAGO; só as filhas futuras de série nascem PENDENTE.
+  status: 'PAGO',
   notes: '',
   installments: '1',
   recurrence: 'NONE',

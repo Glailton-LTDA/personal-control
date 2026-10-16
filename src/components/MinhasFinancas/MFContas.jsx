@@ -140,6 +140,15 @@ export default function MFContas({
   // recolhidos ficam só com o cabeçalho (ids sentinel p/ "Sem grupo").
   const [groupedView, setGroupedView] = useState(true);
   const [folded, setFolded] = useState(() => new Set());
+  // Grupos começam recolhidos (web e mobile): o cabeçalho mostra o total
+  // e o clique/toque abre subgrupos e contas. Só na primeira carga — depois
+  // o usuário manda na sanfona.
+  const foldedInit = useRef(false);
+  useEffect(() => {
+    if (foldedInit.current || groups.length === 0) return;
+    foldedInit.current = true;
+    setFolded(new Set(groups.map((group) => group.id)));
+  }, [groups]);
   const [accountModal, setAccountModal] = useState(null); // null | 'new' | conta
   const [transferOpen, setTransferOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
