@@ -165,6 +165,7 @@ export default function MFTransacaoScreen({
   const [tagIds, setTagIds] = useState([]);
   const [newTag, setNewTag] = useState('');
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [amountCalcOpen, setAmountCalcOpen] = useState(false);
   // Autocomplete da descrição (só na criação): lista aberta + destaque.
@@ -202,6 +203,7 @@ export default function MFTransacaoScreen({
   useEffect(() => {
     setNewTag('');
     setTagsOpen(false);
+    setTagSearch('');
     setCategoryTouched(false);
     setSuggestOpen(false);
     setSuggestIndex(0);
@@ -1820,7 +1822,20 @@ export default function MFTransacaoScreen({
                     {t('minhasfinancas.tx_no_tags')}
                   </span>
                 )}
-                {tags.map((tag) => {
+                {tags.length > 0 && (
+                  <input
+                    type="text"
+                    className="glass-input"
+                    data-testid="mf-tx-tags-search"
+                    value={tagSearch}
+                    onChange={(event) => setTagSearch(event.target.value)}
+                    placeholder={t('minhasfinancas.tag_search_placeholder')}
+                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.7rem', marginBottom: '0.3rem' }}
+                  />
+                )}
+                {tags
+                  .filter((tag) => tag.name.toLowerCase().includes(tagSearch.trim().toLowerCase()))
+                  .map((tag) => {
                   const active = tagIds.includes(tag.id);
                   return (
                     <button

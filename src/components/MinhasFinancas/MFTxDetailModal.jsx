@@ -141,6 +141,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const [quickTags, setQuickTags] = useState(Array.isArray(tagIds) ? tagIds : []);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [quickTagSearch, setQuickTagSearch] = useState('');
   useEffect(() => {
     setQuickDesc(tx?.description ?? '');
     setQuickNotes(tx?.notes ?? '');
@@ -148,6 +149,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     setQuickTags(Array.isArray(tagIds) ? tagIds : []);
     setTagsOpen(false);
     setNewTag('');
+    setQuickTagSearch('');
     setMenuOpen(false);
     setDupeSub(false);
     setQuickOpen(false);
@@ -1531,7 +1533,20 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
                           {t('minhasfinancas.tx_no_tags')}
                         </span>
                       )}
-                      {tags.map((tag) => {
+                      {tags.length > 0 && (
+                        <input
+                          type="text"
+                          className="glass-input"
+                          data-testid="mf-tx-detail-quick-tags-search"
+                          value={quickTagSearch}
+                          onChange={(event) => setQuickTagSearch(event.target.value)}
+                          placeholder={t('minhasfinancas.tag_search_placeholder')}
+                          style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.7rem', marginBottom: '0.3rem' }}
+                        />
+                      )}
+                      {tags
+                        .filter((tag) => tag.name.toLowerCase().includes(quickTagSearch.trim().toLowerCase()))
+                        .map((tag) => {
                         const active = quickTags.includes(tag.id);
                         return (
                           <button
