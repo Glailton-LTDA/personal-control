@@ -189,7 +189,7 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
     expect(screen.getByTestId('mf-cat-modal')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-cat-modal-icon-0')); // 🍔
-    fireEvent.click(screen.getByTestId('mf-cat-modal-color-2')); // #f97316
+    fireEvent.click(screen.getByTitle('#f44336')); // grade nova: busca pelo hex
     fireEvent.click(screen.getByTestId('mf-cat-modal-type'));
     fireEvent.click(screen.getByTestId('mf-cat-modal-type-option-RECEITA'));
     fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
@@ -207,7 +207,7 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
       name: 'Transporte',
       type: 'RECEITA',
       parent_id: null,
-      color: '#f97316',
+      color: '#f44336',
       icon: '🍔',
     });
     await waitFor(() =>
@@ -375,6 +375,40 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
       expect(inserted).toEqual(
         expect.arrayContaining([expect.objectContaining({ icon: 'brand:shopee' })])
       );
+    });
+  });
+
+  it('streaming e tech novas viram ícone brand: da categoria', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-cat-new')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-cat-new'));
+
+    expect(screen.getByTestId('mf-cat-modal-brand-ambevtech')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-hbo')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-netflix')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-disney')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-cat-modal-brand-apple')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('mf-cat-modal-icon-search'), {
+      target: { value: 'netflix' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-brand-netflix'));
+    fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
+      target: { value: 'Netflix' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const categories = supabase.from('mf_categories');
+    await waitFor(() => {
+      expect(categories.insert).toHaveBeenCalled();
+    });
+    expect(categories.insert.mock.calls[0][0]).toMatchObject({
+      name: 'Netflix',
+      icon: 'brand:netflix',
     });
   });
 

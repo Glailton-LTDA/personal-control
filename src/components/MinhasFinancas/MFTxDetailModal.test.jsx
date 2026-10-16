@@ -345,6 +345,25 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     });
   });
 
+  it('busca do picker filtra as tags na edição rápida', async () => {
+    renderModal();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-detail-quick')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick'));
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick-tags-toggle'));
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-search'), {
+      target: { value: 'viag' },
+    });
+    // "Viagem" passa no filtro; outras tags (se houvesse) sumiriam
+    expect(screen.getByTestId('mf-tx-detail-quick-tags-picker')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-detail-quick-tag-tag-1')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-search'), {
+      target: { value: 'xyz' },
+    });
+    expect(screen.queryByTestId('mf-tx-detail-quick-tag-tag-1')).not.toBeInTheDocument();
+  });
+
   it('toggle alterna PAGO → PENDENTE', async () => {
     renderModal();
     await waitFor(() => {

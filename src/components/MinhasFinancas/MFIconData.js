@@ -121,6 +121,14 @@ export const MF_BRAND_ICONS = {
   amex: { bg: '#006FCF', fg: '#ffffff', glyph: 'amex', name: 'American Express' },
   hipercard: { bg: '#A4343A', fg: '#ffffff', glyph: 'hc', name: 'Hipercard' },
   jcb: { bg: '#0B2D6F', fg: '#ffffff', glyph: 'jcb', name: 'JCB' },
+
+  // ── Streaming e tech (sem SVG oficial: quadradinho da marca; se o
+  // usuário tiver o logo em public/mf-brands/, basta registrar abaixo) ──
+  ambevtech: { bg: '#FFC400', fg: '#1A1A1A', glyph: 'amb', name: 'Ambev Tech' },
+  hbo: { bg: '#5822B4', fg: '#ffffff', glyph: 'hbo', name: 'HBO Max' },
+  netflix: { bg: '#000000', fg: '#E50914', glyph: 'N', name: 'Netflix' },
+  disney: { bg: '#113CCF', fg: '#ffffff', glyph: 'D+', name: 'Disney+' },
+  apple: { bg: '#000000', fg: '#ffffff', glyph: 'app', name: 'Apple' },
 };
 
 /**

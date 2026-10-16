@@ -224,6 +224,36 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
     });
   });
 
+  it('objetivo tem seletor de ícone e grade de cores', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-new-goal')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-new-goal'));
+    expect(screen.getByTestId('mf-goal-modal')).toBeInTheDocument();
+
+    // grade de ícones (emoji + busca) e de cores no lugar dos inputs crus
+    expect(screen.getByTestId('mf-goal-icon-icon-search')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-goal-color')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-goal-icon')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('mf-goal-name'), { target: { value: 'Carro 2027' } });
+    fireEvent.change(screen.getByTestId('mf-goal-target-input'), { target: { value: '40.000,00' } });
+    fireEvent.click(screen.getByTestId('mf-goal-icon-icon-0'));
+    fireEvent.click(screen.getByTestId('mf-goal-color-0'));
+    fireEvent.click(screen.getByTestId('mf-goal-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.from('mf_goals').insert).toHaveBeenCalled();
+    });
+    const payload = supabase.from('mf_goals').insert.mock.calls[0][0];
+    expect(payload).toMatchObject({ name: 'Carro 2027', color: '#f44336' });
+    expect(typeof payload.icon).toBe('string');
+    expect(payload.icon.length).toBeGreaterThan(0);
+  });
+
   it('exclui movimento com confirmação automática', async () => {
     renderScreen();
     await waitFor(() => {

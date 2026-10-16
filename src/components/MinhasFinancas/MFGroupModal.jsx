@@ -11,7 +11,8 @@ import {
   useUpdateAccount,
   MF_ACCOUNT_TYPE_ICONS,
 } from '../../hooks/useMinhasFinancas';
-import { MF_CATEGORY_ICONS, MF_CATEGORY_COLORS } from './MFCategoryIcons';
+import { MF_CATEGORY_ICONS } from './MFCategoryIcons';
+import MFColorGrid from './MFColorGrid';
 import { MF_BRAND_ICONS } from './MFIconData';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupIcon from './MFGroupIcon';
@@ -493,29 +494,11 @@ export default function MFGroupModal({ group = null, user, onClose, onSaved, def
         {/* Cor do grupo (trilho/destaque) — como o ícone, à escolha */}
         <div className="input-group" style={{ marginTop: '0.75rem' }}>
           <label>{t('minhasfinancas.group_color')}</label>
-          <div
-            role="radiogroup"
-            aria-label={t('minhasfinancas.group_color')}
-            data-testid="mf-group-color-picker"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}
-          >
-            {MF_CATEGORY_COLORS.map((swatch, index) => (
-              <button
-                key={swatch}
-                type="button"
-                role="radio"
-                aria-checked={color === swatch}
-                aria-label={swatch}
-                title={swatch}
-                data-testid={`mf-group-color-${index}`}
-                onClick={() => setColor((prev) => (prev === swatch ? '' : swatch))}
-                style={{
-                  ...swatchStyle(color === swatch),
-                  background: swatch,
-                }}
-              />
-            ))}
-          </div>
+          <MFColorGrid
+            value={color}
+            onChange={(swatch) => setColor((prev) => (prev === swatch ? '' : swatch))}
+            testId="mf-group-color"
+          />
         </div>
 
         {/* Flags */}

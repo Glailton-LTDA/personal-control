@@ -171,29 +171,37 @@ describe('MFConfig — Ajustes (categorias, tags, responsáveis)', () => {
     expect(screen.getByTestId('mf-config')).toBeInTheDocument();
   });
 
-  it('cria tag e bloqueia duplicidade', async () => {
+  it('seção de tags usa o gerenciador (busca, linhas e nova tag)', async () => {
     renderConfig();
     await waitFor(() => {
-      expect(screen.getByTestId('mf-cfg-tag-save')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tags-manager-row-tag-1')).toBeInTheDocument();
     });
+
+    // busca filtra
+    fireEvent.change(screen.getByTestId('mf-tags-manager-search'), {
+      target: { value: 'viag' },
+    });
+    expect(screen.getByTestId('mf-tags-manager-row-tag-1')).toBeInTheDocument();
+
+    // nova tag abre o modal
+    fireEvent.click(screen.getByTestId('mf-tags-manager-new'));
+    expect(screen.getByTestId('mf-tag-modal')).toBeInTheDocument();
+  });
+
+  it('exclui tag com confirmação automática', async () => {
+    renderConfig();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tags-manager-del-tag-1')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tags-manager-del-tag-1'));
+
     const { supabase } = await import('../../lib/supabase');
     const tags = supabase.from('mf_tags');
-
-    // Duplicada
-    fireEvent.change(screen.getByTestId('mf-cfg-tag-name'), { target: { value: 'viagem' } });
-    fireEvent.click(screen.getByTestId('mf-cfg-tag-save'));
-    expect(tags.insert).not.toHaveBeenCalled();
-
-    // Nova
-    fireEvent.change(screen.getByTestId('mf-cfg-tag-name'), { target: { value: 'Trabalho' } });
-    fireEvent.click(screen.getByTestId('mf-cfg-tag-save'));
     await waitFor(() => {
-      expect(tags.insert).toHaveBeenCalled();
+      expect(tags.delete).toHaveBeenCalled();
     });
-    expect(tags.insert.mock.calls[0][0]).toMatchObject({
-      user_id: 'test-user',
-      name: 'Trabalho',
-    });
+    expect(tags.eq).toHaveBeenCalledWith('id', 'tag-1');
   });
 
   it('cria responsável com perfil principal', async () => {
@@ -218,22 +226,6 @@ describe('MFConfig — Ajustes (categorias, tags, responsáveis)', () => {
       email: 'maria@x.com',
       is_main: true,
     });
-  });
-
-  it('exclui tag com confirmação automática', async () => {
-    renderConfig();
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-cfg-tag-del-tag-1')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('mf-cfg-tag-del-tag-1'));
-
-    const { supabase } = await import('../../lib/supabase');
-    const tags = supabase.from('mf_tags');
-    await waitFor(() => {
-      expect(tags.delete).toHaveBeenCalled();
-    });
-    expect(tags.eq).toHaveBeenCalledWith('id', 'tag-1');
   });
 
   /* ── Pontos de restauração (Fase 9) ────────────────────── */

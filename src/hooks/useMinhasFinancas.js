@@ -1744,6 +1744,61 @@ export function useDeleteMFTag() {
   });
 }
 
+/**
+ * Utilização das tags: quantos lançamentos usam cada tag (gestão em
+ * Ajustes). Uma leitura dos vínculos; a contagem é client-side.
+ */
+export function useMFTagUsage(user) {
+  return useQuery({
+    queryKey: ['mf-tag-usage', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await mfSelect(
+        'mf_transaction_tags',
+        () => supabase.from('mf_transaction_tags').select('tag_id,transaction_id'),
+        {}
+      );
+      if (error) throw error;
+      const counts = {};
+      (data ?? []).forEach((row) => {
+        if (row?.tag_id) counts[row.tag_id] = (counts[row.tag_id] || 0) + 1;
+      });
+      return { counts };
+    },
+  });
+}
+
+/** Lançamentos recentes de uma tag (drill "ver lançamentos", 50 últimos). */
+export function useMFTagTransactions(user, tagId) {
+  return useQuery({
+    queryKey: ['mf-tag-transactions', user?.id, tagId ?? 'none'],
+    enabled: !!user?.id && !!tagId,
+    queryFn: async () => {
+      const links = await mfSelect(
+        'mf_transaction_tags',
+        () => supabase.from('mf_transaction_tags').select('tag_id,transaction_id'),
+        { filter: (rows) => rows.filter((row) => row.tag_id === tagId) }
+      );
+      if (links.error) throw links.error;
+      const ids = [...new Set((links.data ?? []).map((row) => row.transaction_id).filter(Boolean))].slice(0, 50);
+      if (ids.length === 0) return [];
+      const txs = await mfSelect(
+        'mf_transactions',
+        () => supabase.from('mf_transactions').select('*').in('id', ids),
+        {
+          filter: (rows) => rows.filter((row) => ids.includes(row.id)),
+          sort: (rows) =>
+            [...rows].sort((a, b) =>
+              String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
+            ),
+        }
+      );
+      if (txs.error) throw txs.error;
+      return txs.data ?? [];
+    },
+  });
+}
+
 export function useCreateMFResponsible() {
   const invalidate = useInvalidateAll();
   return useMutation({

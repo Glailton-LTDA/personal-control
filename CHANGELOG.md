@@ -5,6 +5,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ## [Unreleased]
 
 ### Adicionado
+- **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.
+- **Busca no seletor de tags do lançamento (MF)**: o picker (criação e edição rápida) ganhou campo de busca para filtrar as tags.
+- **Seletor de ícone e cor no objetivo (MF)**: o modal de objetivo ganhou o `MFIconPicker` compartilhado (busca + emojis + marcas + glifos, extraído do modal de categoria) e a grade de cores do app original — no lugar do campo de texto e do input de cor nativo. O cartão do objetivo renderiza marca/glifo via `MFAccountIcon`.
+- **Grade de cores do app original + marcas streaming/tech (MF)**: `MFColorGrid` (54 tons em 6 colunas, com ✓) nos modais de categoria, grupo e tag; novas marcas `brand:` Ambev Tech, HBO Max, Netflix, Disney+ e Apple (monogramas; Shopee/AliExpress/Shein/Mercado Livre/Magalu já existiam).
 - **Lembretes do Minhas Finanças com sino + push (MF)**: sino no header do Resumo com os lembretes do dia (D-3, D-0 e D+3 exatos, sem spam; fatura de cartão usa o vencimento da fatura; contas "Ignorar nos totais" também geram; transferências ficam de fora) — o clique leva aos Lançamentos no mês do vencimento. Opt-in de push no painel (Web Push/VAPID, mesma base da `send-push` do Babylog). Servidor: Edge Function `mf-reminders` (cron diário, resumo de até 5 por usuário, limpa inscrições mortas) + tabela `mf_push_subscriptions` + handlers de push/clique no service worker. Para ativar o push faltam: chaves VAPID, secrets (`CRON_SECRET`, `VAPID_*`, `MF_VAPID_MAILTO`) e o cron diário.
 
 ### Adicionado
@@ -15,6 +19,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ### Alterado
 - **Saldo inicial do detalhe da conta é o fechamento do mês anterior (MF)**: o card mostrava a âncora de criação/reajuste (`initial_balance`, ex.: £240) enquanto o mês anterior tinha fechado em outro valor (£64,05) — com aviso de "customizado" para explicar a divergência. Agora a abertura é sempre o fechamento anterior (`prevClose`); a âncora continua valendo na matemática, mas não aparece mais como "inicial". Saíram a linha "Saldo sem o inicial" e o aviso (perderam o sentido), e os valores ganharam destaque (Saldo 1,4rem, abertura 1,15rem, movimentação e Previsão maiores).
+
+### Corrigido
+- **Spinners nativos quebrados no tema escuro (MF)**: o `type=number` (ex.: qtd de parcelas na antecipação) renderizava as setinhas numa caixa clara sobre o fundo escuro — regra global esconde as setinhas (teclado numérico continua).
+- **Tabela web multimoeda sem sobreposição (MF)**: o pill do total do grupo estourava a coluna e invadia a vizinha — total agora direto na célula; rodapé com fonte compacta.
 
 ## [1.8.0] - 2026-10-15
 

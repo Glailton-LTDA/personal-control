@@ -320,6 +320,31 @@ export const MF_CATEGORY_COLORS = [
   '#64748b', '#34d399',
 ];
 
+/**
+ * Grade de cores do Minhas Finanças original (6 colunas): usada pelo
+ * MFColorGrid nos modais de categoria, grupo e tag.
+ */
+export const MF_COLOR_GRID = [
+  // vermelhos
+  '#f44336', '#ef5350', '#e57373', '#e53935', '#c62828', '#b71c1c',
+  // rosas
+  '#e91e63', '#ec407a', '#f06292', '#d81b60', '#ad1457', '#880e4f',
+  // roxos
+  '#9c27b0', '#ab47bc', '#ba68c9', '#8e24aa', '#7b1fa2', '#6a1b9a',
+  // roxo-azulados
+  '#673ab7', '#7e57c2', '#9575cd', '#5e35b1', '#4527a0', '#311b92',
+  // azuis
+  '#2196f3', '#42a5f5', '#64b5f6', '#1e88e5', '#1976d2', '#0d47a1',
+  // cianos/petróleo
+  '#00bcd4', '#26c6da', '#4dd0e1', '#00acc1', '#0097a7', '#006064',
+  // verdes
+  '#4caf50', '#66bb6a', '#81c784', '#43a047', '#388e3c', '#1b5e20',
+  // lima/amarelos
+  '#cddc39', '#d4e157', '#ffeb3b', '#fdd835', '#fbc02d', '#f9a825',
+  // laranjas + cinzas
+  '#ff9800', '#ffa726', '#fb8c00', '#ef6c00', '#9e9e9e', '#616161',
+];
+
 /** Cores de fallback (categorias migradas sem cor) — determinísticas. */
 const FALLBACK_COLORS = [
   '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',

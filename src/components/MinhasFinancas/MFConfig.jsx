@@ -4,16 +4,13 @@ import { Settings, Plus, Pencil, Trash2, Tag, Users, FolderTree, Landmark, Star,
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import MFCategoriesScreen from './MFCategoriesScreen';
+import MFTagsManager from './MFTagsManager';
 import { MF_CATEGORY_ICONS } from './MFCategoryIcons';
 import {
   MF_ACCOUNT_TYPE_ICONS,
   MF_BUILTIN_ACCOUNT_TYPES,
   useMFCategories,
-  useMFTags,
   useMFResponsibles,
-  useCreateMFTag,
-  useUpdateMFTag,
-  useDeleteMFTag,
   useCreateMFResponsible,
   useUpdateMFResponsible,
   useDeleteMFResponsible,
@@ -30,7 +27,6 @@ import {
   useDeleteAccountType,
 } from '../../hooks/useMinhasFinancas';
 
-const emptyTag = { name: '', color: '#6366f1' };
 const emptyResponsible = { name: '', email: '', color: '#6366f1', is_main: false };
 const emptyProfile = { name: '', color: '#6366f1' };
 const emptyType = { name: '', icon: '💳' };
@@ -81,12 +77,8 @@ export default function MFConfig({ user }) {
   const { t, i18n } = useTranslation();
 
   const { data: categories = [] } = useMFCategories(user);
-  const { data: tags = [] } = useMFTags(user);
   const { data: responsibles = [] } = useMFResponsibles(user);
 
-  const createTag = useCreateMFTag();
-  const updateTag = useUpdateMFTag();
-  const deleteTag = useDeleteMFTag();
   const createResponsible = useCreateMFResponsible();
   const updateResponsible = useUpdateMFResponsible();
   const deleteResponsible = useDeleteMFResponsible();
@@ -98,8 +90,6 @@ export default function MFConfig({ user }) {
   const createType = useCreateAccountType();
   const deleteType = useDeleteAccountType();
 
-  const [tagForm, setTagForm] = useState(emptyTag);
-  const [tagEditingId, setTagEditingId] = useState(null);
   const [respForm, setRespForm] = useState(emptyResponsible);
   const [respEditingId, setRespEditingId] = useState(null);
   const [pfForm, setPfForm] = useState(emptyProfile);
@@ -151,48 +141,6 @@ export default function MFConfig({ user }) {
       },
       { danger: true, confirmText: t('minhasfinancas.delete') }
     );
-  };
-
-  /* ── Tags ───────────────────────────────────────────────── */
-
-  const startEditTag = (tag) => {
-    setTagEditingId(tag.id);
-    setTagForm({ name: tag.name, color: tag.color || '#6366f1' });
-  };
-
-  const saveTag = async () => {
-    const name = tagForm.name.trim();
-    if (!name) {
-      toast.error(t('minhasfinancas.cfg_name_required'));
-      return;
-    }
-    if (tags.some((tag) => tag.id !== tagEditingId && tag.name.toLowerCase() === name.toLowerCase())) {
-      toast.error(t('minhasfinancas.cfg_duplicate_tag'));
-      return;
-    }
-    try {
-      if (tagEditingId) {
-        await updateTag.mutateAsync({ id: tagEditingId, name, color: tagForm.color });
-      } else {
-        await createTag.mutateAsync({ user_id: user.id, name, color: tagForm.color });
-      }
-      toast.success(t('minhasfinancas.cfg_saved'));
-      setTagForm(emptyTag);
-      setTagEditingId(null);
-    } catch {
-      toast.error(t('minhasfinancas.save_error'));
-    }
-  };
-
-  const removeTag = (tag) => {
-    confirmToast(t('minhasfinancas.cfg_del_tag_confirm', { name: tag.name }), async () => {
-      try {
-        await deleteTag.mutateAsync(tag.id);
-        toast.success(t('minhasfinancas.cfg_deleted'));
-      } catch {
-        toast.error(t('minhasfinancas.save_error'));
-      }
-    }, { danger: true, confirmText: t('minhasfinancas.delete') });
   };
 
   /* ── Responsáveis ───────────────────────────────────────── */
@@ -301,10 +249,6 @@ export default function MFConfig({ user }) {
     );
   };
 
-  const cancelTag = () => {
-    setTagForm(emptyTag);
-    setTagEditingId(null);
-  };
   const cancelResp = () => {
     setRespForm(emptyResponsible);
     setRespEditingId(null);
@@ -611,97 +555,13 @@ export default function MFConfig({ user }) {
         </div>
       </div>
 
-      {/* ── Tags ── */}
+      {/* ── Tags (gestão completa: busca, utilização, lançamentos) ── */}
       <div className="glass-card" data-testid="mf-cfg-section-tags" style={{ padding: '1.25rem 1.5rem' }}>
         <h3 style={sectionTitle}>
           <Tag size={17} /> {t('minhasfinancas.cfg_tags')}
         </h3>
         <p style={sectionDesc}>{t('minhasfinancas.cfg_tags_desc')}</p>
-
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '0.75rem' }}>
-          <div className="input-group" style={{ flex: '2 1 200px' }}>
-            <label>{t('minhasfinancas.cfg_name')}</label>
-            <input
-              type="text"
-              style={inputStyle}
-              value={tagForm.name}
-              onChange={(event) => setTagForm((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder={t('minhasfinancas.cfg_name')}
-              data-testid="mf-cfg-tag-name"
-            />
-          </div>
-          <div className="input-group" style={{ flex: '0 0 auto' }}>
-            <label>{t('minhasfinancas.cfg_color')}</label>
-            <input
-              type="color"
-              value={tagForm.color}
-              onChange={(event) => setTagForm((prev) => ({ ...prev, color: event.target.value }))}
-              data-testid="mf-cfg-tag-color"
-              style={{ width: 44, height: 34, padding: 2, border: '1px solid var(--glass-border)', borderRadius: 10, background: 'transparent' }}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            data-testid="mf-cfg-tag-save"
-            onClick={saveTag}
-            style={{ padding: '0.55rem 1rem', fontSize: '0.85rem' }}
-          >
-            <Plus size={15} />
-            {t('minhasfinancas.save')}
-          </button>
-          {tagEditingId && (
-            <button type="button" className="btn-cancel" onClick={cancelTag} style={{ padding: '0.55rem 0.8rem' }}>
-              {t('minhasfinancas.cancel')}
-            </button>
-          )}
-        </div>
-
-        {tags.length === 0 && (
-          <p data-testid="mf-cfg-empty-tags" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.5rem 0' }}>
-            {t('minhasfinancas.cfg_empty_tags')}
-          </p>
-        )}
-
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {tags.map((tag) => (
-            <span
-              key={tag.id}
-              data-testid="mf-cfg-tag-row"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                border: '1px solid var(--glass-border)',
-                borderRadius: 999,
-                padding: '0.3rem 0.7rem',
-              }}
-            >
-              <span style={colorDot(tag.color)} />
-              # {tag.name}
-              <button
-                type="button"
-                className="icon-btn"
-                data-testid={`mf-cfg-tag-edit-${tag.id}`}
-                aria-label={t('minhasfinancas.edit')}
-                onClick={() => startEditTag(tag)}
-              >
-                <Pencil size={13} />
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                data-testid={`mf-cfg-tag-del-${tag.id}`}
-                aria-label={t('minhasfinancas.delete')}
-                onClick={() => removeTag(tag)}
-              >
-                <Trash2 size={13} />
-              </button>
-            </span>
-          ))}
-        </div>
+        <MFTagsManager user={user} />
       </div>
 
       {/* ── Responsáveis ── */}

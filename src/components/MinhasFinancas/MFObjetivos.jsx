@@ -26,6 +26,7 @@ import {
   formatMoney,
 } from '../../hooks/useMinhasFinancas';
 import MFGoalModal from './MFGoalModal';
+import MFAccountIcon from './MFAccountIcon';
 import MFSelect from './MFSelect';
 
 const emptyContribution = { kind: 'DEPOSIT', amount: '', contribution_date: '', notes: '' };
@@ -263,7 +264,14 @@ export default function MFObjetivos({ user, showValues = true }) {
                       background: `color-mix(in srgb, ${goal.color || 'var(--primary)'} 16%, transparent)`,
                     }}
                   >
-                    {goal.icon || '🎯'}
+                    {String(goal.icon || '').includes(':') ? (
+                      <MFAccountIcon
+                        account={{ icon: goal.icon, name: goal.name, color: goal.color }}
+                        size={22}
+                      />
+                    ) : (
+                      goal.icon || '🎯'
+                    )}
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <strong style={{ fontSize: '0.98rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

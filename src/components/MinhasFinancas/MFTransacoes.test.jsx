@@ -417,9 +417,13 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
     expect(screen.queryByTestId('mf-repeat-modal')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-tx-repeat-summary')).toBeInTheDocument();
-    // Tags: seletor fechado por padrão — abre e escolhe a tag
+    // Tags: seletor fechado por padrão — abre, filtra pela busca e escolhe
     fireEvent.click(screen.getByTestId('mf-tx-tags-toggle'));
     expect(screen.getByTestId('mf-tx-tags-picker')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mf-tx-tags-search'), {
+      target: { value: 'via' },
+    });
+    expect(screen.queryByTestId('mf-tx-tag-tag-home')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('mf-tx-tag-tag-trip'));
 
     fireEvent.click(screen.getByTestId('mf-tx-save'));
