@@ -6,6 +6,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ### Adicionado
 - **Resumo compacto no estreito + grupos recolhidos por padrão (MF)**: em telas ≤768px o Resumo mostra Inicial/Saldo/Previsto sem gráficos; grupos começam recolhidos (web e mobile). Lançamento novo já nasce efetivado (PAGO).
+- **Resumo mobile sem rolagem lateral**: no estreito, contas e cartões viram lista de linhas (ícone + saldo/previsto + total) em vez da tabela; atalho (olho) no cabeçalho das seções abre o painel de contas visíveis.
 
 ### Adicionado
 - **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.

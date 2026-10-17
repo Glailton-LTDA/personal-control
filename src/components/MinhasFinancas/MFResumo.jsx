@@ -911,18 +911,123 @@ export default function MFResumo({
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
                   {t(`minhasfinancas.${section.title}`)}
                 </h3>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  data-testid={section.actionTestId}
-                  onClick={() => goTo(section.tab)}
-                  style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem' }}
-                >
-                  {t('minhasfinancas.see_all')}
-                  <ArrowRight size={14} />
-                </button>
+                <span style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  {/* Atalho para escolher quais contas aparecem no Resumo */}
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    data-testid={`mf-resumo-pick-accounts-${section.title}`}
+                    aria-label={t('minhasfinancas.dash_accts_title')}
+                    title={t('minhasfinancas.dash_accts_title')}
+                    onClick={() => setCustomizing(true)}
+                  >
+                    <Eye size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    data-testid={section.actionTestId}
+                    onClick={() => goTo(section.tab)}
+                    style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem' }}
+                  >
+                    {t('minhasfinancas.see_all')}
+                    <ArrowRight size={14} />
+                  </button>
+                </span>
               </div>
 
+              {isNarrow ? (
+                /* Estreito (mockup): linhas com ícone + saldo, sem tabela
+                   com rolagem lateral. */
+                <div data-testid={`${section.sectionTestId}-list`} style={{ display: 'flex', flexDirection: 'column' }}>
+                  {section.rows.map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      data-testid={section.testid}
+                      onClick={() => setSelectedId(row.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.7rem 0.25rem',
+                        background: 'none',
+                        border: 'none',
+                        borderBottom: '1px solid var(--glass-border)',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      <MFAccountIcon
+                        account={row}
+                        size={38}
+                        data-testid={`mf-resumo-icon-${row.id}`}
+                      />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span
+                          data-testid={`mf-resumo-open-account-${row.id}`}
+                          style={{
+                            display: 'block',
+                            fontWeight: 800,
+                            fontSize: '0.92rem',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {row.name}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {t('minhasfinancas.accounts_table_forecast')}:{' '}
+                          {nativeMoney(row.previsto, row.currency)}
+                        </span>
+                      </span>
+                      <span style={{ fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
+                        {nativeMoney(row.saldo, row.currency)}
+                      </span>
+                    </button>
+                  ))}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      marginTop: '0.6rem',
+                      padding: '0.6rem 0.75rem',
+                      background: 'var(--input-bg)',
+                      borderRadius: 12,
+                      fontWeight: 800,
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.8rem' }}>
+                      {t('minhasfinancas.total')}
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {t('minhasfinancas.accounts_table_forecast')}
+                      </span>
+                    </span>
+                    <span style={{ textAlign: 'right' }}>
+                      <MFTotalsStack
+                        totals={groupTotalsByCurrency(section.rows, 'saldo')}
+                        showValues={showValues}
+                        align="right"
+                        fontSize="inherit"
+                      />
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        <MFTotalsStack
+                          totals={groupTotalsByCurrency(section.rows, 'previsto')}
+                          showValues={showValues}
+                          align="right"
+                          fontSize="inherit"
+                        />
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
                   <thead>
@@ -1049,6 +1154,7 @@ export default function MFResumo({
                   </tfoot>
                 </table>
               </div>
+              )}
             </div>
           ))}
         </div>
@@ -1482,7 +1588,9 @@ export default function MFResumo({
               KPIs, Grupos, Contas e Gráficos ocupam a faixa cheia;
               Orçamento e Objetivo dividem a última linha em duas colunas. */}
           {orderedWidgets
-            .filter((id) => !isNarrow || id !== 'charts')
+            // Estreito: o compacto substitui os cards de KPI e os gráficos
+            // (vão embora na Fase D, quando forem redesenhados para o mobile).
+            .filter((id) => !isNarrow || (id !== 'charts' && id !== 'kpis'))
             .map((id) => (
             <div
               key={id}

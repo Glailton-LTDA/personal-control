@@ -117,9 +117,39 @@ describe('MFResumo — compacto no estreito (Fase A)', () => {
       expect(screen.getByTestId('mf-resumo-compact-balance')).toBeInTheDocument();
       expect(screen.getByTestId('mf-resumo-compact-forecast')).toBeInTheDocument();
       expect(screen.queryByTestId('mf-chart-categories-BRL')).not.toBeInTheDocument();
+      // os cards de KPI grandes somem: o compacto substitui
+      expect(screen.queryByTestId('mf-kpi-kpi_balance')).not.toBeInTheDocument();
     } finally {
       restoreViewport();
     }
+  });
+
+  it('contas viram lista de linhas (sem tabela com rolagem lateral)', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-resumo-accounts-section-list')).toBeInTheDocument();
+      });
+      const rows = screen.getAllByTestId('mf-resumo-account-row');
+      expect(rows.length).toBeGreaterThan(0);
+      // linha clicável abre o detalhe da conta
+      fireEvent.click(rows[0]);
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('atalho "Contas visíveis" no cabeçalho da seção abre o painel de personalização', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-resumo-accounts-section')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-resumo-pick-accounts-accounts_title'));
+    expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-dash-acct-acc-brl')).toBeInTheDocument();
   });
 });
 
