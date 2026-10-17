@@ -71,24 +71,28 @@ input, select, textarea {
 }
 
 [data-theme='dark'] {
-  --bg-canvas: #0f172a;
-  --bg-card: rgba(30, 41, 59, 0.8);
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --input-bg: rgba(15, 23, 42, 0.7);
-  --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  --card-action-bg: rgba(255, 255, 255, 0.04);
-  --map-bg: #0f172a;
-  --map-country: rgba(255, 255, 255, 0.03);
-  --map-stroke: rgba(255, 255, 255, 0.1);
-  --map-hover: rgba(99, 102, 241, 0.2);
-  --stat-income: rgba(16, 185, 129, 0.1);
-  --stat-expense: rgba(239, 68, 68, 0.1);
-  --stat-pending: rgba(245, 158, 11, 0.1);
-  --stat-balance: rgba(99, 102, 241, 0.1);
-  --tabs-bg: rgba(0, 0, 0, 0.2);
+  /* Tema noturno = cores do mock (Fase G): fundo quase preto, cards sólidos. */
+  --bg-canvas: #0b0d12;
+  --bg-card: #14171e;
+  --text-main: #f1f3f7;
+  --text-muted: #8a93a5;
+  --glass-border: #262b36;
+  --input-bg: #10131a;
+  --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  --card-action-bg: #1a1e27;
+  --map-bg: #0b0d12;
+  --map-country: #1a1e27;
+  --map-stroke: #262b36;
+  --map-hover: rgba(99, 102, 241, 0.25);
+  --stat-income: rgba(74, 222, 128, 0.12);
+  --stat-expense: rgba(248, 113, 113, 0.12);
+  --stat-pending: rgba(251, 191, 36, 0.12);
+  --stat-balance: rgba(124, 154, 255, 0.14);
+  --tabs-bg: #10131a;
   --tab-active-bg: var(--bg-card);
+  --btn-primary-bg: #6366f1;
+  --select-bg: #1a1e27;
+  --select-text: #f1f3f7;
 }
 
 [data-theme='light'] {

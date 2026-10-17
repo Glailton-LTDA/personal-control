@@ -18,16 +18,19 @@ describe('normalizeWidgetPref', () => {
       order: [...MF_DASHBOARD_WIDGETS],
       hidden: [],
       hiddenAccounts: [],
+      hiddenCharts: [],
     });
     expect(normalizeWidgetPref('não é json {')).toEqual({
       order: [...MF_DASHBOARD_WIDGETS],
       hidden: [],
       hiddenAccounts: [],
+      hiddenCharts: [],
     });
     expect(normalizeWidgetPref({ order: 'x', hidden: 1, hiddenAccounts: 'y' })).toEqual({
       order: [...MF_DASHBOARD_WIDGETS],
       hidden: [],
       hiddenAccounts: [],
+      hiddenCharts: [],
     });
   });
 
@@ -35,7 +38,7 @@ describe('normalizeWidgetPref', () => {
     const pref = normalizeWidgetPref(
       JSON.stringify({ order: ['goals', 'fantasma', 'kpis'], hidden: ['kpis', 'outro'] })
     );
-    expect(pref.order).toEqual(['goals', 'kpis', 'groups', 'accounts', 'charts', 'budgets']);
+    expect(pref.order).toEqual(['goals', 'kpis', 'groups', 'accounts', 'recent', 'charts', 'budgets']);
     expect(pref.hidden).toEqual(['kpis']);
     expect(pref.hiddenAccounts).toEqual([]);
   });
@@ -44,7 +47,7 @@ describe('normalizeWidgetPref', () => {
     const pref = normalizeWidgetPref(
       JSON.stringify({ order: ['accounts', 'accounts'], hidden: ['goals', 'goals'] })
     );
-    expect(pref.order).toEqual(['accounts', 'charts', 'budgets', 'goals', 'kpis', 'groups']);
+    expect(pref.order).toEqual(['accounts', 'recent', 'charts', 'budgets', 'goals', 'kpis', 'groups']);
     expect(pref.hidden).toEqual(['goals']);
   });
 
@@ -60,6 +63,7 @@ describe('normalizeWidgetPref', () => {
       'kpis',
       'groups',
       'accounts',
+      'recent',
       'charts',
       'budgets',
       'goals',
@@ -130,9 +134,10 @@ describe('load/save (localStorage)', () => {
 
   it('round-trip: salvar e recarregar mantém a configuração', () => {
     const pref = {
-      order: ['budgets', 'kpis', 'accounts', 'groups', 'charts', 'goals'],
+      order: ['budgets', 'kpis', 'accounts', 'recent', 'groups', 'charts', 'goals'],
       hidden: ['goals'],
       hiddenAccounts: ['acc-9'],
+      hiddenCharts: ['chart_flow'],
     };
     saveWidgetPref(pref);
     expect(loadWidgetPref()).toEqual(pref);
@@ -144,6 +149,7 @@ describe('load/save (localStorage)', () => {
       order: [...MF_DASHBOARD_WIDGETS],
       hidden: [],
       hiddenAccounts: [],
+      hiddenCharts: [],
     });
   });
 });

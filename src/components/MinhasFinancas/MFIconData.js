@@ -42,7 +42,7 @@ export const MF_BRAND_ICONS = {
   santander: { bg: '#EC0000', fg: '#ffffff', glyph: 'san', name: 'Santander' },
   caixa: { bg: '#0066B3', fg: '#FFDF00', glyph: 'cx', name: 'Caixa Econômica' },
   inter: { bg: '#FF7A00', fg: '#ffffff', glyph: 'int', name: 'Banco Inter' },
-  c6: { bg: '#1C1C1C', fg: '#ffffff', glyph: 'c6', name: 'C6 Bank' },
+  c6: { bg: '#000000', fg: '#ffffff', glyph: 'c6', name: 'C6 Bank' },
   neon: { bg: '#00D1B2', fg: '#0E0E1B', glyph: 'ne', name: 'Neon' },
   picpay: { bg: '#21C25E', fg: '#ffffff', glyph: 'pp', name: 'PicPay' },
   will: { bg: '#1E88E5', fg: '#ffffff', glyph: 'wi', name: 'Will Bank' },

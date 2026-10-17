@@ -334,7 +334,7 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
                 </button>
                 <button
                   type="button"
-                  className={fixedMonthly ? 'btn-secondary' : 'btn-cancel'}
+                  className={fixedMonthly ? 'btn-primary' : 'btn-secondary'}
                   data-testid="mf-transfer-repeat-fixed"
                   aria-pressed={fixedMonthly}
                   onClick={() => {

@@ -1,18 +1,18 @@
 import React from 'react';
 import { Check } from 'lucide-react';
-import { MF_COLOR_GRID } from './MFCategoryIcons';
+import { MF_CATEGORY_COLORS } from './MFCategoryIcons';
 
 /**
- * Grade de cores (padrão do Minhas Finanças original): 6 colunas de
- * círculos com a selecionada marcada por ✓. A paleta vive em
- * MFCategoryIcons (MF_COLOR_GRID); aqui só o render.
+ * Fileira de cores do seletor (MF_CATEGORY_COLORS, 19 tons): círculos com a
+ * selecionada marcada por ✓. Mesma paleta do app original — sem a grade de
+ * 54 tons.
  */
 export default function MFColorGrid({
   value,
   onChange,
   testId = 'mf-color',
-  columns = 6,
-  size = 34,
+  columns = 10,
+  size = 30,
 }) {
   return (
     <div
@@ -25,7 +25,7 @@ export default function MFColorGrid({
         justifyContent: 'start',
       }}
     >
-      {MF_COLOR_GRID.map((swatch, index) => {
+      {MF_CATEGORY_COLORS.map((swatch, index) => {
         const active = value === swatch;
         return (
           <button

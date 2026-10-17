@@ -1,18 +1,25 @@
 /**
  * Painel personalizável do Resumo (Fase 9 — adiado da Fase 6).
  *
- * Preferência em localStorage: `{ order, hidden, hiddenAccounts }`.
+ * Preferência em localStorage: `{ order, hidden, hiddenAccounts, hiddenCharts }`.
  * - `order`: ordem de exibição dos widgets (ids conhecidos);
  * - `hidden`: widgets ocultados pelo usuário;
  * - `hiddenAccounts`: contas que NÃO aparecem no painel (KPIs, tabela e
- *   gráficos seguem essa seleção). Lista vazia = todas visíveis.
+ *   gráficos seguem essa seleção). Lista vazia = todas visíveis;
+ * - `hiddenCharts`: gráficos ocultados dentro do widget "charts" (Fase D).
  * Ids desconhecidos são descartados e widgets novos entram logo APÓS o
  * vizinho da ordem padrão (ex.: "groups" aparece logo abaixo de "kpis",
  * ACIMA de "accounts"), visíveis por padrão (migração automática entre
  * versões).
  */
 
-export const MF_DASHBOARD_WIDGETS = ['kpis', 'groups', 'accounts', 'charts', 'budgets', 'goals'];
+export const MF_DASHBOARD_WIDGETS = ['kpis', 'groups', 'accounts', 'recent', 'charts', 'budgets', 'goals'];
+
+/**
+ * Gráficos do widget "charts" (Fase D) — cada um pode ser ocultado à parte.
+ * Ordem de exibição; todos visíveis por padrão.
+ */
+export const MF_CHARTS = ['chart_categories', 'chart_flow', 'chart_income', 'chart_bytype'];
 
 export const MF_DASHBOARD_KEY = 'mf_dashboard_widgets';
 
@@ -54,12 +61,28 @@ export const normalizeWidgetPref = (raw) => {
   const hiddenAccounts = Array.isArray(parsed?.hiddenAccounts)
     ? [...new Set(parsed.hiddenAccounts.filter((id) => typeof id === 'string' && id))]
     : [];
-  return { order, hidden, hiddenAccounts };
+  const knownCharts = new Set(MF_CHARTS);
+  const hiddenCharts = Array.isArray(parsed?.hiddenCharts)
+    ? [...new Set(parsed.hiddenCharts.filter((id) => knownCharts.has(id)))]
+    : [];
+  return { order, hidden, hiddenAccounts, hiddenCharts };
 };
 
 /** Widgets visíveis na ordem configurada. */
 export const visibleWidgets = (pref) =>
   pref.order.filter((id) => !pref.hidden.includes(id));
+
+/** Gráficos visíveis na ordem configurada. */
+export const visibleCharts = (pref) =>
+  MF_CHARTS.filter((id) => !(pref.hiddenCharts ?? []).includes(id));
+
+/** Alterna a visibilidade de um gráfico (Fase D). */
+export const toggleChart = (pref, id) => ({
+  ...pref,
+  hiddenCharts: (pref.hiddenCharts ?? []).includes(id)
+    ? (pref.hiddenCharts ?? []).filter((item) => item !== id)
+    : [...(pref.hiddenCharts ?? []), id],
+});
 
 /** Alterna a visibilidade de um widget. */
 export const toggleWidget = (pref, id) => ({

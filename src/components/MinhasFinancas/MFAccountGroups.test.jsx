@@ -356,7 +356,7 @@ describe('MFGroupModal', () => {
 
     fireEvent.change(screen.getByTestId('mf-group-name'), { target: { value: 'Viagem' } });
     // Grade nova: busca pelo hex; clicar de novo desmarca (automático)
-    const swatch = screen.getByTitle('#e91e63');
+    const swatch = screen.getByTitle('#ec4899');
     fireEvent.click(swatch);
     expect(swatch).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(swatch);
@@ -371,7 +371,7 @@ describe('MFGroupModal', () => {
     });
     expect(groupInserts(calls)[0].rows[0]).toMatchObject({
       name: 'Viagem',
-      color: '#e91e63',
+      color: '#ec4899',
     });
   });
 

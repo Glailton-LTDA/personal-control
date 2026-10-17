@@ -189,7 +189,7 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
     expect(screen.getByTestId('mf-cat-modal')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-cat-modal-icon-0')); // 🍔
-    fireEvent.click(screen.getByTitle('#f44336')); // grade nova: busca pelo hex
+    fireEvent.click(screen.getByTitle('#ef4444')); // fileira de 19: busca pelo hex
     fireEvent.click(screen.getByTestId('mf-cat-modal-type'));
     fireEvent.click(screen.getByTestId('mf-cat-modal-type-option-RECEITA'));
     fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
@@ -207,7 +207,7 @@ describe('MFCategoriesScreen — Gerenciar categorias (Configurações)', () => 
       name: 'Transporte',
       type: 'RECEITA',
       parent_id: null,
-      color: '#f44336',
+      color: '#ef4444',
       icon: '🍔',
     });
     await waitFor(() =>

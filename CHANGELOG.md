@@ -7,6 +7,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Adicionado
 - **Resumo compacto no estreito + grupos recolhidos por padrão (MF)**: em telas ≤768px o Resumo mostra Inicial/Saldo/Previsto sem gráficos; grupos começam recolhidos (web e mobile). Lançamento novo já nasce efetivado (PAGO).
 - **Resumo mobile sem rolagem lateral**: no estreito, contas e cartões viram lista de linhas (ícone + saldo/previsto + total) em vez da tabela; atalho (olho) no cabeçalho das seções abre o painel de contas visíveis.
+- **Próxima fatura por cartão no Resumo (MF)**: cada linha de cartão mostra a data da próxima fatura com despesa vinculada (mesma fonte da tela de Cartões — `buildCardInvoices`) e o rodapé da seção traz "A pagar / próxima" (fatura corrente em aberto × total da próxima), nos modos tabela e lista.
+- **Feed de lançamentos recentes no Resumo (MF)**: widget "Recentes" com os 10 últimos lançamentos de todas as contas, independente do mês navegado — data, descrição, conta · categoria e valor colorido (− despesa / + receita); clique leva aos Lançamentos. Widget novo migra sozinho na preferência salva (entra logo abaixo de "Contas").
+- **Gráficos novos com visibilidade individual (MF)**: o Resumo ganhou "Receitas por categoria" (pizza) e "Despesas por tipo de conta" (barras, com ícone e nome do tipo) somando-se aos dois atuais. No "Personalizar painel", a seção "Gráficos do Resumo" oculta/revela cada um à parte (persistido em `hiddenCharts`, todos visíveis por padrão).
+- **Orçamentos e objetivos em lista com barra (MF)**: os widgets do Resumo mostram cada orçamento (uso/límite + barra de uso, vermelha ao estourar) e cada objetivo ativo (ícone, nome, atual/meta + barra de progresso e %), em vez de um destaque único.
+- **Seletor de cor de volta à fileira de 19 tons (MF)**: categoria, grupo, tag e objetivo voltam à paleta original (`MF_CATEGORY_COLORS`) em vez da grade de 54 tons; a constante `MF_COLOR_GRID` foi removida.
+- **Tema noturno com as cores do mock (MF)**: só tokens em `index.css` — fundo `#0b0d12`, cards sólidos `#14171e`, bordas `#262b36`, texto `#f1f3f7` e muted `#8a93a5`; primária índigo mantida.
+- **C6 Bank em preto puro (MF)**: o quadradinho da marca passa a `#000000`; marcas escuras (C6, XP, Safra, Pine, Stone…) ganham anel interno claro para não sumirem no card do tema noturno.
+- **Toggle "Fixa mensal" da transferência com estados claros (MF)**: selecionado usa o botão primário preenchido (índigo) e não selecionado o neutro, em vez do contorno vermelho de antes.
 
 ### Adicionado
 - **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.

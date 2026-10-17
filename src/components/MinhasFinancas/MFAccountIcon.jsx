@@ -7,6 +7,17 @@ const brandFontSize = (size, glyph) => {
   return Math.round(size * (len <= 2 ? 0.42 : len === 3 ? 0.33 : 0.27));
 };
 
+/** Marca de fundo escuro (preto puro, #1C1C1C, Safra…) precisa de anel
+ *  interno claro para não sumir no card do tema noturno. */
+const isDarkBg = (hex) => {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 64;
+};
+
 /**
  * Ícone da conta/cartão: logotipo oficial embutido (quando existe),
  * marca aproximada, glifo genérico ou — sem ícone — a inicial do nome
@@ -66,6 +77,9 @@ export default function MFAccountIcon({ account, size = 26, style, ...rest }) {
           fontWeight: 800,
           fontSize: brandFontSize(size, brand.glyph),
           letterSpacing: '-0.03em',
+          ...(isDarkBg(brand.bg)
+            ? { boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.18)' }
+            : {}),
         }}
         {...rest}
       >

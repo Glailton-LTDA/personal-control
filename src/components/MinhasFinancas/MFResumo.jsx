@@ -37,7 +37,11 @@ import {
   useMFAccountBalances,
   useMFCategories,
   useMFGroups,
+  useMFCardUpcoming,
+  useMFRecentTransactions,
   useUpdateMFGroup,
+  MF_BUILTIN_ACCOUNT_TYPES,
+  MF_ACCOUNT_TYPE_ICONS,
   budgetSpent,
   budgetLimit,
   goalCurrentAmount,
@@ -61,8 +65,11 @@ import MFGroupModal from './MFGroupModal';
 import MFAccountModal from './MFAccountModal';
 import MFRemindersBell from './MFRemindersBell';
 import {
+  MF_CHARTS,
   visibleWidgets,
+  visibleCharts,
   toggleWidget,
+  toggleChart,
   moveWidget,
   toggleAccountVisible,
   setHiddenAccounts,
@@ -81,6 +88,13 @@ const shortMonthLabel = (monthKey, language) => {
 };
 
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
+
+/** '2026-11-30' → '30/11' (dia/mês da próxima fatura). */
+const shortDate = (iso) => {
+  if (!iso) return '';
+  const [, m, d] = String(iso).split('-');
+  return `${d}/${m}`;
+};
 
 const tooltipStyle = {
   background: 'var(--input-bg)',
@@ -176,6 +190,19 @@ export default function MFResumo({
   );
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  // Próxima fatura por cartão (Fase B): só contas de cartão ativas.
+  const cardAccounts = useMemo(
+    () => rows.filter((row) => row.account_type === 'CARTAO' && !row.archived_at),
+    [rows]
+  );
+  const cardUpcoming = useMFCardUpcoming(user, cardAccounts);
+  // Feed de recentes (Fase C): 10 últimos lançamentos de todas as contas,
+  // independente do mês navegado.
+  const { data: recentTxs = [] } = useMFRecentTransactions(user, 10);
+  const accountsById = useMemo(
+    () => Object.fromEntries(rows.map((row) => [row.id, row])),
+    [rows]
+  );
   const currencyOptions = useMemo(() => [...new Set(rows.map((row) => row.currency))], [rows]);
   const visibleRows = useMemo(
     () =>
@@ -308,24 +335,24 @@ export default function MFResumo({
     return currencies.map((cur) => {
       const curTxs = txs.filter((tx) => tx.c === cur);
       // Pizza: despesas realizadas do mês por categoria (top 7 + Outros).
-      const byCat = {};
-      curTxs.forEach((tx) => {
-        if (tx.t !== 'DESPESA' || tx.m !== monthKey) return;
-        const id = tx.cat || 'none';
-        byCat[id] = (byCat[id] || 0) + tx.v;
-      });
-      const sorted = Object.entries(byCat)
-        .map(([id, value]) => ({
-          id,
-          name:
-            id === 'none' || !categoriesById[id]
-              ? t('minhasfinancas.chart_uncategorized')
-              : categoriesById[id].name,
-          value,
-        }))
-        .sort((a, b) => b.value - a.value);
-      const pie =
-        sorted.length > 8
+      const pieFor = (type) => {
+        const byCat = {};
+        curTxs.forEach((tx) => {
+          if (tx.t !== type || tx.m !== monthKey) return;
+          const id = tx.cat || 'none';
+          byCat[id] = (byCat[id] || 0) + tx.v;
+        });
+        const sorted = Object.entries(byCat)
+          .map(([id, value]) => ({
+            id,
+            name:
+              id === 'none' || !categoriesById[id]
+                ? t('minhasfinancas.chart_uncategorized')
+                : categoriesById[id].name,
+            value,
+          }))
+          .sort((a, b) => b.value - a.value);
+        return sorted.length > 8
           ? [
               ...sorted.slice(0, 7),
               {
@@ -335,6 +362,30 @@ export default function MFResumo({
               },
             ]
           : sorted;
+      };
+      const pie = pieFor('DESPESA');
+      const pieIncome = pieFor('RECEITA');
+      // Barras por tipo de conta: despesas realizadas do mês (top 6 + Outros).
+      const accountTypeById = Object.fromEntries(activeRows.map((row) => [row.id, row]));
+      const byType = {};
+      curTxs.forEach((tx) => {
+        if (tx.t !== 'DESPESA' || tx.m !== monthKey) return;
+        const key = accountTypeById[tx.a]?.account_type || 'OUTRO';
+        byType[key] = (byType[key] || 0) + tx.v;
+      });
+      const typeSorted = Object.entries(byType)
+        .map(([type, value]) => ({ type, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6)
+        .map(({ type, value }) => ({
+          // rótulo = ícone do tipo + nome (builtin traduzido, custom cru)
+          label: `${MF_ACCOUNT_TYPE_ICONS[type] ?? '💰'} ${
+            MF_BUILTIN_ACCOUNT_TYPES.includes(type)
+              ? t(`minhasfinancas.acct_type_${type.toLowerCase()}`)
+              : type
+          }`,
+          value,
+        }));
       // Barras: receitas x despesas realizadas nos últimos 6 meses.
       const flow = flowMonths.map((mk) => {
         let income = 0;
@@ -351,7 +402,7 @@ export default function MFResumo({
           despesas: expense,
         };
       });
-      return { currency: cur, pie, flow };
+      return { currency: cur, pie, pieIncome, flow, byType: typeSorted };
     });
   }, [data, activeRows, currency, monthKey, flowMonths, categoriesById, t, i18n.language]);
   const budgetItems = useMemo(() => {
@@ -397,18 +448,6 @@ export default function MFResumo({
       ),
     [allGoals]
   );
-  const featuredGoal = activeGoals.length > 0 ? activeGoals[0] : null;
-  const featuredCurrent = featuredGoal
-    ? goalCurrentAmount(featuredGoal, allContributions, goalBalances[featuredGoal.account_id])
-    : 0;
-  const featuredPct = featuredGoal
-    ? Math.min(
-        100,
-        Math.round(
-          (featuredCurrent / (Number(featuredGoal.target_amount) || 1)) * 100
-        )
-      )
-    : 0;
 
   const cards = [
     {
@@ -716,7 +755,8 @@ export default function MFResumo({
           </div>
         );
       }
-      if (chartData.length === 0) {
+      const shownCharts = visibleCharts(widgetPref);
+      if (chartData.length === 0 || shownCharts.length === 0) {
         return (
           <div
             className="glass-card"
@@ -735,88 +775,177 @@ export default function MFResumo({
             gap: '1.5rem',
           }}
         >
-          {chartData.map(({ currency: cur, pie, flow }) => (
+          {chartData.map(({ currency: cur, pie, pieIncome, flow, byType }) => (
             <React.Fragment key={cur}>
-              <div
-                className="glass-card"
-                data-testid={`mf-chart-categories-${cur}`}
-                style={{ padding: '1.25rem 1.5rem' }}
-              >
-                <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                  {t('minhasfinancas.chart_categories')}
-                  {chartData.length > 1 ? ` (${cur})` : ''}
-                </h3>
-                {pie.length === 0 ? (
-                  <p
-                    data-testid={`mf-chart-pie-empty-${cur}`}
-                    style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
-                  >
-                    {t('minhasfinancas.chart_no_data')}
-                  </p>
-                ) : (
+              {shownCharts.includes('chart_categories') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-categories-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_categories')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
+                  {pie.length === 0 ? (
+                    <p
+                      data-testid={`mf-chart-pie-empty-${cur}`}
+                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+                    >
+                      {t('minhasfinancas.chart_no_data')}
+                    </p>
+                  ) : (
+                    <div style={{ height: 230 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pie}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={52}
+                            outerRadius={78}
+                            paddingAngle={2}
+                            isAnimationActive={false}
+                          >
+                            {pie.map((entry, index) => (
+                              <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => formatMoney(value, cur)}
+                            contentStyle={tooltipStyle}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
+              {shownCharts.includes('chart_income') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-income-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_income')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
+                  {pieIncome.length === 0 ? (
+                    <p
+                      data-testid={`mf-chart-income-empty-${cur}`}
+                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+                    >
+                      {t('minhasfinancas.chart_no_data')}
+                    </p>
+                  ) : (
+                    <div style={{ height: 230 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieIncome}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={52}
+                            outerRadius={78}
+                            paddingAngle={2}
+                            isAnimationActive={false}
+                          >
+                            {pieIncome.map((entry, index) => (
+                              <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => formatMoney(value, cur)}
+                            contentStyle={tooltipStyle}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
+              {shownCharts.includes('chart_flow') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-flow-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_flow')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
                   <div style={{ height: 230 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pie}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={52}
-                          outerRadius={78}
-                          paddingAngle={2}
-                          isAnimationActive={false}
-                        >
-                          {pie.map((entry, index) => (
-                            <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
+                      <BarChart data={flow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
+                        <YAxis hide />
                         <Tooltip
                           formatter={(value) => formatMoney(value, cur)}
                           contentStyle={tooltipStyle}
                         />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                      </PieChart>
+                        <Bar
+                          dataKey="receitas"
+                          name={t('minhasfinancas.accounts_table_income')}
+                          fill="#10b981"
+                          radius={[3, 3, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                        <Bar
+                          dataKey="despesas"
+                          name={t('minhasfinancas.accounts_table_expense')}
+                          fill="#ef4444"
+                          radius={[3, 3, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
-                )}
-              </div>
-              <div
-                className="glass-card"
-                data-testid={`mf-chart-flow-${cur}`}
-                style={{ padding: '1.25rem 1.5rem' }}
-              >
-                <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                  {t('minhasfinancas.chart_flow')}
-                  {chartData.length > 1 ? ` (${cur})` : ''}
-                </h3>
-                <div style={{ height: 230 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={flow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis hide />
-                      <Tooltip
-                        formatter={(value) => formatMoney(value, cur)}
-                        contentStyle={tooltipStyle}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar
-                        dataKey="receitas"
-                        name={t('minhasfinancas.accounts_table_income')}
-                        fill="#10b981"
-                        radius={[3, 3, 0, 0]}
-                        isAnimationActive={false}
-                      />
-                      <Bar
-                        dataKey="despesas"
-                        name={t('minhasfinancas.accounts_table_expense')}
-                        fill="#ef4444"
-                        radius={[3, 3, 0, 0]}
-                        isAnimationActive={false}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
                 </div>
-              </div>
+              )}
+              {shownCharts.includes('chart_bytype') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-bytype-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_bytype')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
+                  {byType.length === 0 ? (
+                    <p
+                      data-testid={`mf-chart-bytype-empty-${cur}`}
+                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+                    >
+                      {t('minhasfinancas.chart_no_data')}
+                    </p>
+                  ) : (
+                    <div style={{ height: 230 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={byType} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
+                          <YAxis hide />
+                          <Tooltip
+                            formatter={(value) => formatMoney(value, cur)}
+                            contentStyle={tooltipStyle}
+                          />
+                          <Bar
+                            dataKey="value"
+                            name={t('minhasfinancas.accounts_table_expense')}
+                            fill="#6366f1"
+                            radius={[3, 3, 0, 0]}
+                            isAnimationActive={false}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
             </React.Fragment>
           ))}
         </div>
@@ -829,6 +958,10 @@ export default function MFResumo({
       // somam todas as contas ativas.
       const accountRows = visibleRows.filter((row) => row.account_type !== 'CARTAO');
       const cardRows = visibleRows.filter((row) => row.account_type === 'CARTAO');
+      // Próxima fatura por cartão (Fase B) — lookup por id.
+      const upcomingById = Object.fromEntries(
+        (cardUpcoming?.items ?? []).map((item) => [item.card.id, item])
+      );
       const sections = [
         {
           title: 'accounts_title',
@@ -979,13 +1112,25 @@ export default function MFResumo({
                         >
                           {row.name}
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {t('minhasfinancas.accounts_table_forecast')}:{' '}
-                          {nativeMoney(row.previsto, row.currency)}
-                        </span>
+                        {section.title === 'cards_title' && upcomingById[row.id]?.upcoming?.dueISO ? (
+                          <span
+                            data-testid={`mf-resumo-card-due-${row.id}`}
+                            style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                          >
+                            {t('minhasfinancas.accounts_table_forecast')}:{' '}
+                            {shortDate(upcomingById[row.id].upcoming.dueISO)}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {t('minhasfinancas.accounts_table_forecast')}:{' '}
+                            {nativeMoney(row.previsto, row.currency)}
+                          </span>
+                        )}
                       </span>
                       <span style={{ fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
-                        {nativeMoney(row.saldo, row.currency)}
+                        {section.title === 'cards_title' && upcomingById[row.id]?.upcoming
+                          ? nativeMoney(Number(upcomingById[row.id].upcoming.total) || 0, upcomingById[row.id].card.currency || 'BRL')
+                          : nativeMoney(row.saldo, row.currency)}
                       </span>
                     </button>
                   ))}
@@ -1006,24 +1151,49 @@ export default function MFResumo({
                     <span style={{ fontSize: '0.8rem' }}>
                       {t('minhasfinancas.total')}
                       <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                        {t('minhasfinancas.accounts_table_forecast')}
+                        {section.title === 'cards_title'
+                          ? t('minhasfinancas.resumo_open_to_pay')
+                          : t('minhasfinancas.accounts_table_forecast')}
                       </span>
                     </span>
                     <span style={{ textAlign: 'right' }}>
-                      <MFTotalsStack
-                        totals={groupTotalsByCurrency(section.rows, 'saldo')}
-                        showValues={showValues}
-                        align="right"
-                        fontSize="inherit"
-                      />
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        <MFTotalsStack
-                          totals={groupTotalsByCurrency(section.rows, 'previsto')}
-                          showValues={showValues}
-                          align="right"
-                          fontSize="inherit"
-                        />
-                      </span>
+                      {section.title === 'cards_title' ? (
+                        <>
+                          <MFTotalsStack
+                            totals={cardUpcoming?.openTotalByCurrency ?? {}}
+                            showValues={showValues}
+                            align="right"
+                            fontSize="inherit"
+                            testId="mf-resumo-cards-open-total"
+                          />
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            <MFTotalsStack
+                              totals={cardUpcoming?.upcomingTotalByCurrency ?? {}}
+                              showValues={showValues}
+                              align="right"
+                              fontSize="inherit"
+                              testId="mf-resumo-cards-next-total"
+                            />
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <MFTotalsStack
+                            totals={groupTotalsByCurrency(section.rows, 'saldo')}
+                            showValues={showValues}
+                            align="right"
+                            fontSize="inherit"
+                          />
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            <MFTotalsStack
+                              totals={groupTotalsByCurrency(section.rows, 'previsto')}
+                              showValues={showValues}
+                              align="right"
+                              fontSize="inherit"
+                            />
+                          </span>
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -1119,7 +1289,18 @@ export default function MFResumo({
                           {nativeMoney(row.saldo, row.currency)}
                         </td>
                         <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                          {nativeMoney(row.previsto, row.currency)}
+                          {section.title === 'cards_title' && upcomingById[row.id]?.upcoming
+                            ? (() => {
+                                const inv = upcomingById[row.id].upcoming;
+                                const date = shortDate(inv.dueISO);
+                                return (
+                                  <span data-testid={`mf-resumo-card-due-${row.id}`}>
+                                    {date ? `${date} · ` : ''}
+                                    {nativeMoney(Number(inv.total) || 0, upcomingById[row.id].card.currency || 'BRL')}
+                                  </span>
+                                );
+                              })()
+                            : nativeMoney(row.previsto, row.currency)}
                         </td>
                       </tr>
                     ))}
@@ -1137,6 +1318,11 @@ export default function MFResumo({
                         }}
                       >
                         {t('minhasfinancas.total')}
+                        {section.title === 'cards_title' && (
+                          <span style={{ display: 'block', textTransform: 'none', fontWeight: 500 }}>
+                            {t('minhasfinancas.resumo_open_to_pay')}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
                         {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
@@ -1145,10 +1331,22 @@ export default function MFResumo({
                         {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
+                        {section.title === 'cards_title' ? (
+                          <span data-testid="mf-resumo-cards-open-total">
+                            {formatTotals(cardUpcoming?.openTotalByCurrency ?? {}, showValues)}
+                          </span>
+                        ) : (
+                          formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)
+                        )}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)}
+                        {section.title === 'cards_title' ? (
+                          <span data-testid="mf-resumo-cards-next-total">
+                            {formatTotals(cardUpcoming?.upcomingTotalByCurrency ?? {}, showValues)}
+                          </span>
+                        ) : (
+                          formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)
+                        )}
                       </td>
                     </tr>
                   </tfoot>
@@ -1157,6 +1355,104 @@ export default function MFResumo({
               )}
             </div>
           ))}
+        </div>
+      );
+    }
+
+    if (id === 'recent') {
+      // Feed único (Fase C): últimos lançamentos de todas as contas,
+      // independente do mês navegado. Clique leva aos Lançamentos.
+      const feed = recentTxs.filter((tx) => tx.status !== 'CANCELADO').slice(0, 10);
+      return (
+        <div
+          className="glass-card"
+          data-testid="mf-resumo-recent-card"
+          style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: 560 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong style={{ fontSize: '0.9rem' }}>{t('minhasfinancas.res_recent_title')}</strong>
+            <button
+              type="button"
+              className="icon-btn"
+              data-testid="mf-resumo-go-recent"
+              aria-label={t('minhasfinancas.see_all')}
+              onClick={() => goTo('minhasfinancas-transactions')}
+            >
+              <ArrowRight size={15} />
+            </button>
+          </div>
+          {feed.length === 0 ? (
+            <p
+              data-testid="mf-resumo-recent-empty"
+              style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+            >
+              {t('minhasfinancas.res_recent_empty')}
+            </p>
+          ) : (
+            feed.map((tx) => {
+              const amount = Number(tx.amount) || 0;
+              const isExpense = tx.type === 'DESPESA';
+              const isTransfer = tx.type === 'TRANSFERENCIA';
+              return (
+                <button
+                  key={tx.id}
+                  type="button"
+                  data-testid={`mf-resumo-recent-row-${tx.id}`}
+                  onClick={() => goTo('minhasfinancas-transactions')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    width: '100%',
+                    padding: '0.35rem 0.25rem',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid var(--glass-border)',
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {shortDate(tx.payment_date)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                    {tx.description || t('minhasfinancas.chart_uncategorized')}
+                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {accountsById[tx.account_id]?.name ?? ''}
+                      {!isTransfer && tx.category_id
+                        ? ` · ${categoriesById[tx.category_id]?.name ?? t('minhasfinancas.chart_uncategorized')}`
+                        : ''}
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      whiteSpace: 'nowrap',
+                      color: isTransfer
+                        ? 'var(--text-muted)'
+                        : isExpense
+                          ? '#ef4444'
+                          : '#10b981',
+                    }}
+                  >
+                    {isTransfer
+                      ? nativeMoney(amount, accountsById[tx.account_id]?.currency || 'BRL')
+                      : `${isExpense ? '−' : '+'}${nativeMoney(amount, accountsById[tx.account_id]?.currency || 'BRL')}`}
+                  </span>
+                </button>
+              );
+            })
+          )}
         </div>
       );
     }
@@ -1195,23 +1491,49 @@ export default function MFResumo({
                   breached: budgetBreaches,
                 })}
               </span>
-              {currency !== 'all' && (
-                <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>
-                  {showValues
-                    ? formatMoney(
-                        budgetItems.reduce((sum, item) => sum + item.spent, 0),
-                        currency
-                      )
-                    : '•••'}{' '}
-                  /{' '}
-                  {showValues
-                    ? formatMoney(
-                        budgetItems.reduce((sum, item) => sum + item.limit, 0),
-                        currency
-                      )
-                    : '•••'}
-                </span>
-              )}
+              {/* Lista com barra de uso por orçamento (Fase E) */}
+              {budgetItems.map((item, index) => {
+                const pct =
+                  item.limit > 0
+                    ? Math.min(100, Math.round((item.spent / item.limit) * 100))
+                    : 0;
+                return (
+                  <div
+                    key={item.budget.id ?? index}
+                    data-testid={`mf-resumo-budget-item-${index}`}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.budget.name}
+                      </span>
+                      <span style={{ color: item.breached ? '#ef4444' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {showValues ? formatMoney(item.spent, currency) : '•••'} /{' '}
+                        {showValues ? formatMoney(item.limit, currency) : '•••'}
+                      </span>
+                    </span>
+                    <div style={{ height: 6, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>
+                      <div
+                        data-testid={`mf-resumo-budget-bar-${index}`}
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: item.breached ? '#ef4444' : 'var(--primary)',
+                          transition: 'width 0.3s',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
               {budgetBreaches > 0 && (
                 <span
                   data-testid="mf-resumo-budget-alert"
@@ -1245,7 +1567,7 @@ export default function MFResumo({
               <ArrowRight size={15} />
             </button>
           </div>
-          {!featuredGoal ? (
+          {activeGoals.length === 0 ? (
             <p
               data-testid="mf-resumo-goal-empty"
               style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
@@ -1254,27 +1576,55 @@ export default function MFResumo({
             </p>
           ) : (
             <>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                {featuredGoal.icon || '🎯'} {featuredGoal.name}
-              </span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>
-                {showValues ? formatMoney(featuredCurrent) : '•••'} /{' '}
-                {showValues ? formatMoney(Number(featuredGoal.target_amount) || 0) : '•••'}
-              </span>
-              <div style={{ height: 8, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>
-                <div
-                  data-testid="mf-resumo-goal-progress"
-                  style={{
-                    width: `${featuredPct}%`,
-                    height: '100%',
-                    background: featuredGoal.color || 'var(--primary)',
-                    transition: 'width 0.3s',
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: featuredGoal.color || 'var(--primary)' }}>
-                {t('minhasfinancas.bdg_pct', { pct: featuredPct })}
-              </span>
+              {/* Lista com barra de progresso por objetivo (Fase E) */}
+              {activeGoals.map((goal, index) => {
+                const current = goalCurrentAmount(
+                  goal,
+                  allContributions,
+                  goalBalances[goal.account_id]
+                );
+                const target = Number(goal.target_amount) || 0;
+                const pct = Math.min(100, Math.round((current / (target || 1)) * 100));
+                return (
+                  <div
+                    key={goal.id ?? index}
+                    data-testid={`mf-resumo-goal-item-${index}`}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {goal.icon || '🎯'} {goal.name}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {showValues ? formatMoney(current, goal.currency || currency) : '•••'} /{' '}
+                        {showValues ? formatMoney(target, goal.currency || currency) : '•••'}
+                      </span>
+                    </span>
+                    <div style={{ height: 6, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>
+                      <div
+                        data-testid={`mf-resumo-goal-bar-${index}`}
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: goal.color || 'var(--primary)',
+                          transition: 'width 0.3s',
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 800, color: goal.color || 'var(--primary)' }}>
+                      {t('minhasfinancas.bdg_pct', { pct })}
+                    </span>
+                  </div>
+                );
+              })}
             </>
           )}
         </div>
@@ -1431,6 +1781,51 @@ export default function MFResumo({
               </div>
             );
           })}
+
+          {/* Gráficos do widget "charts" — cada um ocultável à parte (Fase D) */}
+          <div
+            style={{
+              marginTop: '0.75rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid var(--glass-border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+            }}
+          >
+            <strong style={{ fontSize: '0.85rem' }}>{t('minhasfinancas.dash_charts_title')}</strong>
+            {MF_CHARTS.map((chartId) => {
+              const chartHidden = (widgetPref.hiddenCharts ?? []).includes(chartId);
+              return (
+                <button
+                  key={chartId}
+                  type="button"
+                  data-testid={`mf-chart-toggle-${chartId}`}
+                  onClick={() => updateWidgetPref(toggleChart(widgetPref, chartId))}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.4rem 0',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid var(--glass-border)',
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    opacity: chartHidden ? 0.55 : 1,
+                  }}
+                >
+                  <span style={{ fontSize: '0.85rem', fontWeight: chartHidden ? 500 : 700 }}>
+                    {t(`minhasfinancas.${chartId}`)}
+                  </span>
+                  {chartHidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Contas visíveis no painel (KPIs, tabela e gráficos seguem) */}
           <div

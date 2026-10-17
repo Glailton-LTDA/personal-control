@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
@@ -2722,6 +2722,33 @@ export function useMFAllTransactions(user) {
 }
 
 /**
+ * Feed do Resumo: N lançamentos mais recentes de TODAS as contas do escopo,
+ * independente do mês navegado (Fase C). Ordena por data (decrescente) e id
+ * para a página ser determinística.
+ */
+export function useMFRecentTransactions(user, limit = 10) {
+  const profileId = useMFProfileScope();
+  return useQuery({
+    queryKey: ['mf-recent-transactions', user?.id, limit, profileId ?? 'all'],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const scopeIds = await profileAccountIds(profileId);
+      if (scopeIds && scopeIds.length === 0) return [];
+      let query = supabase
+        .from('mf_transactions')
+        .select('*')
+        .order('payment_date', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (scopeIds) query = query.in('account_id', scopeIds);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
  * Lançamentos que tocam UM conjunto de contas (drill-down da conta):
  * origem OU destino — inclui compras dos cartões vinculados e
  * transferências de/para a conta. Sem recorte de data (saldos, 12 meses
@@ -3536,4 +3563,57 @@ export function useDeleteMFProfile() {
     },
     onSuccess: invalidate,
   });
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Resumo: próxima fatura por cartão (Fase B)
+ * ──────────────────────────────────────────────────────────── */
+
+/**
+ * Próxima fatura de cada cartão ativo (reaproveita `buildCardInvoices`,
+ * mesma fonte da tela de Cartões). Para cada cartão retorna a fatura corrente
+ * + a próxima com despesa vinculada (`upcomingInvoices`), e o total em aberto
+ * a pagar. Escopo enxuto: só transações das contas de cartão + vinculadas.
+ */
+export function useMFCardUpcoming(user, cards) {
+  const cardIds = useMemo(
+    () => (cards ?? []).map((card) => card.id).filter(Boolean),
+    [cards]
+  );
+  const { data } = useMFAccountTransactions(user, null, cardIds);
+  return useMemo(() => {
+    if (!cards || cards.length === 0) {
+      return { items: [], openTotalByCurrency: {}, upcomingTotalByCurrency: {} };
+    }
+    const allTxs = data ?? [];
+    const openTotalByCurrency = {};
+    const upcomingTotalByCurrency = {};
+    const refISO = toISODate(new Date());
+    const items = cards.map((card) => {
+      const cur = card.currency || 'BRL';
+      const { current, upcomingInvoices = [] } = buildCardInvoices({
+        card,
+        transactions: allTxs,
+        refISO,
+        monthKey: currentMonthKey(),
+        count: 6,
+        includeFutureBound: true,
+      });
+      // Próxima fatura = primeira futura com despesa vinculada, senão a corrente.
+      const upcoming = upcomingInvoices.find(
+        (inv) => Number(inv.total) > 0 || Number(inv.openAmount) > 0
+      );
+      const shown = upcoming ?? current;
+      const openAmount = Number(current?.openAmount) || 0;
+      if (openAmount > 0) {
+        openTotalByCurrency[cur] = (openTotalByCurrency[cur] || 0) + openAmount;
+      }
+      const upcomingAmount = Number(shown?.openAmount) || Number(shown?.total) || 0;
+      if (upcomingAmount > 0) {
+        upcomingTotalByCurrency[cur] = (upcomingTotalByCurrency[cur] || 0) + upcomingAmount;
+      }
+      return { card, current, upcoming: shown, openAmount };
+    });
+    return { items, openTotalByCurrency, upcomingTotalByCurrency };
+  }, [cards, data]);
 }
