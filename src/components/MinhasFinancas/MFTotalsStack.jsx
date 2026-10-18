@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatMoney, currencyFlag } from '../../hooks/useMinhasFinancas';
+import { formatMoney } from '../../hooks/useMinhasFinancas';
 
 /**
  * Totais por moeda empilhados (uma moeda por linha, BRL primeiro) —
@@ -7,10 +7,9 @@ import { formatMoney, currencyFlag } from '../../hooks/useMinhasFinancas';
  * estoura o card com muitas moedas). `totals` = { BRL: n, USD: n }.
  * Cada linha ganha `${testId}-line-${code}` quando há testId.
  *
- * - `showFlags`: bandeira antes de cada moeda que NÃO é BRL (o R$ é o padrão
- *   do app e não precisa de bandeira) — formato do mock de referência.
  * - `hero`: a primeira linha (BRL) sai em destaque (peso 800) e as demais
- *   ficam menores e discretas — saldo real em grande, o resto ao lado.
+ *   ficam menores e discretas — saldo real em grande, o resto embaixo
+ *   (só a sigla, sem bandeira — padrão do mock de referência).
  * - `align`: 'left' | 'center' | 'right'.
  */
 export default function MFTotalsStack({
@@ -21,7 +20,6 @@ export default function MFTotalsStack({
   fontSize,
   align = 'left',
   lineHeight = 1.35,
-  showFlags = false,
   hero = false,
 }) {
   const codes = Object.keys(totals).sort((a, b) =>
@@ -58,11 +56,6 @@ export default function MFTotalsStack({
                   : undefined
             }
           >
-            {showFlags && code !== 'BRL' && (
-              <span aria-hidden style={{ marginRight: '0.3em' }}>
-                {currencyFlag(code)}
-              </span>
-            )}
             {prefix}
             {formatMoney(totals[code], code)}
           </span>

@@ -89,6 +89,18 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
 
   const togglePush = async () => {
     if (pushBusy) return;
+    // Em http (dev por IP local) o navegador não expõe service worker nem
+    // notificação — antes o botão ficava morto sem explicar; agora o clique
+    // avisa por que não funciona.
+    if (
+      pushState === 'unsupported' ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window) ||
+      !window.isSecureContext
+    ) {
+      toast.error(t('minhasfinancas.rem_push_unavailable'));
+      return;
+    }
     setPushBusy(true);
     try {
       const registration = await navigator.serviceWorker.ready;
@@ -318,7 +330,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
               type="button"
               className="btn-cancel"
               data-testid={`${testId}-push-toggle`}
-              disabled={pushBusy || pushState === 'unsupported' || pushState === 'unknown'}
+              disabled={pushBusy || pushState === 'unknown'}
               aria-pressed={pushState === 'on'}
               onClick={togglePush}
               style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', flexShrink: 0 }}

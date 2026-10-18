@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import MFTotalsStack from './MFTotalsStack';
-import { currencyFlag } from '../../hooks/useMinhasFinancas';
 
 // Mock react-i18next (não usado aqui, mas o módulo importa formatMoney do hook)
 vi.mock('react-i18next', () => ({
@@ -35,11 +34,11 @@ describe('MFTotalsStack — uma moeda por linha', () => {
     expect(screen.getByText('•••')).toBeInTheDocument();
   });
 
-  it('showFlags: bandeira só nas moedas que não são BRL', () => {
-    render(<MFTotalsStack totals={{ BRL: 10, USD: 5 }} showFlags testId="mf-flags" />);
-    // R$ é o padrão do app → sem bandeira; as demais ganham a bandeira
-    expect(screen.getByTestId('mf-flags-line-BRL').textContent).not.toContain(currencyFlag('USD'));
-    expect(screen.getByTestId('mf-flags-line-USD')).toHaveTextContent(currencyFlag('USD'));
+  it('não desenha bandeiras — só a sigla do formatMoney (pedido do usuário)', () => {
+    render(<MFTotalsStack totals={{ BRL: 10, USD: 5 }} testId="mf-sigla" />);
+    const usd = screen.getByTestId('mf-sigla-line-USD').textContent;
+    expect(usd).toContain('US$');
+    expect(usd).not.toMatch(/\p{Extended_Pictographic}/u);
   });
 
   it('hero: primeira moeda em destaque e as demais menores e discretas', () => {

@@ -197,29 +197,35 @@ describe('MFResumo — menu de três pontos (moedas + personalizar)', () => {
     mockData.reset();
   });
 
-  it('troca a moeda pelo menu e "Personalizar" abre o modal', async () => {
+  it('menu em 2 níveis: Selecionar moeda → lista; escolher filtra e fecha', async () => {
     renderScreen();
     await waitForData();
 
     // fechado por padrão
     expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
 
-    // abre: "Todas" + uma opção por moeda das contas
+    // abre no nível 1: "Selecionar moeda" (com a moeda atual) + "Personalizar"
     fireEvent.click(screen.getByTestId('mf-resumo-menu'));
     expect(screen.getByTestId('mf-resumo-menu-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-menu-currency-open')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-menu-currency-all')).not.toBeInTheDocument();
+
+    // nível 2: lista de moedas — "Todas" marcado
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-open'));
     expect(screen.getByTestId('mf-resumo-menu-currency-all')).toHaveAttribute(
       'aria-checked',
       'true'
     );
 
-    // escolher USD no largo fecha o menu e filtra KPIs/listas
+    // escolher USD fecha o menu e filtra KPIs/listas
     fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-USD'));
     expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-kpi-value-kpi_balance')).not.toHaveTextContent('R$');
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(1);
 
-    // reabre: USD marcado, "Todas" desmarcado
+    // reabre e entra na lista: USD marcado, "Todas" desmarcado
     fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-open'));
     expect(screen.getByTestId('mf-resumo-menu-currency-USD')).toHaveAttribute(
       'aria-checked',
       'true'
@@ -229,7 +235,14 @@ describe('MFResumo — menu de três pontos (moedas + personalizar)', () => {
       'false'
     );
 
+    // "Voltar" retorna ao nível 1 e o ✕ fecha o menu (nunca se fica preso)
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-back'));
+    expect(screen.queryByTestId('mf-resumo-menu-currency-all')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-close'));
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+
     // "Personalizar painel" fecha o menu e abre o MODAL de verdade
+    fireEvent.click(screen.getByTestId('mf-resumo-menu'));
     fireEvent.click(screen.getByTestId('mf-resumo-customize'));
     expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-widget-panel-overlay')).toBeInTheDocument();

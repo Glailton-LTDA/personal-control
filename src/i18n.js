@@ -99,6 +99,7 @@ i18n
             dash_customize: 'Personalizar painel',
             dash_done: 'Concluir',
             more_options: 'Mais opções',
+            select_currency: 'Selecionar moeda',
             rem_title: 'Lembretes',
             rem_empty: 'Nada vencendo por aqui. 🎉',
             rem_upcoming: 'Vence em 3 dias',
@@ -110,6 +111,8 @@ i18n
             rem_push_on: 'Lembretes ativados neste aparelho.',
             rem_push_off: 'Lembretes desativados neste aparelho.',
             rem_push_blocked: 'Permissão de notificação bloqueada no navegador.',
+            rem_push_unavailable:
+              'Push indisponível aqui: o navegador exige HTTPS (ou localhost) para notificações — no endereço http atual elas não funcionam.',
             dash_hint:
               'Escolha quais widgets aparecem e a ordem deles. A ordem salva fica neste dispositivo.',
             dash_up: 'Mover para cima',
@@ -1960,6 +1963,7 @@ i18n
             dash_customize: 'Customize dashboard',
             dash_done: 'Done',
             more_options: 'More options',
+            select_currency: 'Select currency',
             rem_title: 'Reminders',
             rem_empty: 'Nothing due here. 🎉',
             rem_upcoming: 'Due in 3 days',
@@ -1971,6 +1975,8 @@ i18n
             rem_push_on: 'Reminders enabled on this device.',
             rem_push_off: 'Reminders disabled on this device.',
             rem_push_blocked: 'Notification permission blocked in the browser.',
+            rem_push_unavailable:
+              'Push unavailable here: notifications require HTTPS (or localhost) — they do not work on this http address.',
             dash_hint:
               'Choose which widgets appear and their order. The saved order stays on this device.',
             dash_up: 'Move up',
@@ -3762,6 +3768,7 @@ i18n
             dash_customize: 'Personalizar panel',
             dash_done: 'Listo',
             more_options: 'Más opciones',
+            select_currency: 'Seleccionar moneda',
             rem_title: 'Recordatorios',
             rem_empty: 'Nada por vencer aquí. 🎉',
             rem_upcoming: 'Vence en 3 días',
@@ -3773,6 +3780,8 @@ i18n
             rem_push_on: 'Recordatorios activados en este dispositivo.',
             rem_push_off: 'Recordatorios desactivados en este dispositivo.',
             rem_push_blocked: 'Permiso de notificación bloqueado en el navegador.',
+            rem_push_unavailable:
+              'Push no disponible aquí: las notificaciones requieren HTTPS (o localhost) — no funcionan en esta dirección http.',
             dash_hint:
               'Elige qué widgets aparecen y su orden. El orden guardado queda en este dispositivo.',
             dash_up: 'Mover hacia arriba',

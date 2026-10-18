@@ -18,6 +18,8 @@ import {
   MoreVertical,
   Check,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   Legend,
@@ -57,11 +59,11 @@ import {
   shiftMonth,
   sumField,
   currentMonthKey,
-  currencyFlag,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
 import MFTotalsStack from './MFTotalsStack';
+import MFTotalsHero from './MFTotalsHero';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
@@ -171,6 +173,28 @@ export default function MFResumo({
   // Menu de três pontos do cabeçalho: moedas + personalizar (padrão do app
   // de referência; no estreito vira bottom-sheet, como o sino).
   const [menuOpen, setMenuOpen] = useState(false);
+  // Menu em 2 níveis: raiz (Selecionar moeda / Personalizar) → lista de moedas.
+  const [menuView, setMenuView] = useState('root');
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setMenuView('root');
+  };
+  const menuItemStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    width: '100%',
+    padding: '0.5rem 0.55rem',
+    borderRadius: 10,
+    border: '1px solid transparent',
+    background: 'transparent',
+    color: 'inherit',
+    font: 'inherit',
+    fontSize: '0.85rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
   const menuStyle = isNarrow
     ? {
         position: 'fixed',
@@ -553,12 +577,11 @@ export default function MFResumo({
                     {t(`minhasfinancas.${card.key}`)}
                   </span>
                 </div>
-                <div data-testid={`mf-kpi-value-${card.key}`} style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>
+                <div data-testid={`mf-kpi-value-${card.key}`} style={{ margin: 0 }}>
                   {isLoading ? '…' : isError ? '—' : (
-                    <MFTotalsStack
+                    <MFTotalsHero
                       totals={card.valueTotals}
                       showValues={showValues}
-                      fontSize="inherit"
                     />
                   )}
                 </div>
@@ -1677,6 +1700,10 @@ export default function MFResumo({
           gap: '1rem',
           alignItems: 'center',
           justifyContent: 'space-between',
+          // O backdrop-filter cria um stacking context; sem isto os dropdowns
+          // (menu ⋮ e sino) ficavam ATRÁS dos cards de KPI (z-index do app).
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <div>
@@ -1688,19 +1715,22 @@ export default function MFResumo({
           </p>
         </div>
         {!selectedRow && (
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              // No estreito os ícones de ação vão encostados à direita do
+              // cabeçalho; o seletor de mês fica numa linha própria central.
+              marginLeft: isNarrow ? 'auto' : undefined,
+            }}
+          >
             <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
             {/* Menu de três pontos (padrão do app de referência): moedas +
                 personalizar painel. No estreito a régua de abas some e o
                 menu abre como bottom-sheet. */}
             <span style={{ position: 'relative' }}>
-              {menuOpen && isNarrow && (
-                <span
-                  data-testid="mf-resumo-menu-overlay"
-                  onClick={() => setMenuOpen(false)}
-                  style={{ position: 'fixed', inset: 0, zIndex: 89, background: 'rgba(0, 0, 0, 0.55)' }}
-                />
-              )}
               <button
                 type="button"
                 className="icon-btn"
@@ -1708,105 +1738,152 @@ export default function MFResumo({
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label={t('minhasfinancas.more_options')}
-                onClick={() => setMenuOpen((prev) => !prev)}
+                onClick={() => {
+                  if (!menuOpen) setMenuView('root');
+                  setMenuOpen((prev) => !prev);
+                }}
               >
                 <MoreVertical size={18} />
               </button>
               {menuOpen && (
-                <div
-                  data-testid="mf-resumo-menu-panel"
-                  role="menu"
-                  aria-label={t('minhasfinancas.more_options')}
-                  style={menuStyle}
-                >
+                <>
+                  {/* Clicar fora fecha: fundo escuro no estreito, invisível
+                      no largo (só captura o clique). */}
                   <span
+                    data-testid="mf-resumo-menu-overlay"
+                    onClick={closeMenu}
                     style={{
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                      color: 'var(--text-muted)',
-                      padding: '0.15rem 0.35rem',
+                      position: 'fixed',
+                      inset: 0,
+                      zIndex: isNarrow ? 89 : 59,
+                      background: isNarrow ? 'rgba(0, 0, 0, 0.55)' : 'transparent',
                     }}
-                  >
-                    {t('minhasfinancas.currency_label')}
-                  </span>
-                  {[
-                    { code: 'all', label: t('minhasfinancas.currency_all') },
-                    ...currencyOptions.map((code) => ({ code, label: code })),
-                  ].map((option) => (
-                    <button
-                      key={option.code}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={currency === option.code}
-                      data-testid={`mf-resumo-menu-currency-${option.code}`}
-                      onClick={() => {
-                        setCurrency(option.code);
-                        // No estreito o sheet fica aberto (dá pra ver o ✓ mudar
-                        // e trocar de novo); no largo as abas já refletem a
-                        // troca → fecha.
-                        if (!isNarrow) setMenuOpen(false);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        width: '100%',
-                        padding: '0.5rem 0.55rem',
-                        borderRadius: 10,
-                        border: '1px solid',
-                        borderColor:
-                          currency === option.code ? 'var(--primary)' : 'transparent',
-                        background:
-                          currency === option.code
-                            ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
-                            : 'transparent',
-                        color: 'inherit',
-                        font: 'inherit',
-                        fontSize: '0.85rem',
-                        fontWeight: currency === option.code ? 800 : 600,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <span aria-hidden>
-                        {option.code === 'all' ? '💱' : currencyFlag(option.code)}
-                      </span>
-                      <span style={{ flex: 1 }}>{option.label}</span>
-                      {currency === option.code && <Check size={14} />}
-                    </button>
-                  ))}
-                  <span
-                    style={{ borderTop: '1px solid var(--glass-border)', margin: '0.3rem 0' }}
                   />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="mf-resumo-customize"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setCustomizing(true);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      width: '100%',
-                      padding: '0.5rem 0.55rem',
-                      borderRadius: 10,
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'inherit',
-                      font: 'inherit',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
+                  <div
+                    data-testid="mf-resumo-menu-panel"
+                    role="menu"
+                    aria-label={t('minhasfinancas.more_options')}
+                    style={menuStyle}
                   >
-                    <SlidersHorizontal size={15} />
-                    {t('minhasfinancas.dash_customize')}
-                  </button>
-                </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <strong style={{ flex: 1, fontSize: '0.8rem' }}>
+                        {menuView === 'currency'
+                          ? t('minhasfinancas.currency_label')
+                          : t('minhasfinancas.more_options')}
+                      </strong>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        data-testid="mf-resumo-menu-close"
+                        aria-label={t('minhasfinancas.cancel')}
+                        onClick={closeMenu}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+
+                    {menuView === 'root' ? (
+                      <>
+                        {/* Nível 1: Selecionar moeda → lista; Personalizar. */}
+                        <button
+                          type="button"
+                          role="menuitem"
+                          data-testid="mf-resumo-menu-currency-open"
+                          onClick={() => setMenuView('currency')}
+                          style={menuItemStyle}
+                        >
+                          <span style={{ flex: 1, textAlign: 'left' }}>
+                            {t('minhasfinancas.select_currency')}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              color: 'var(--text-muted)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {currency === 'all'
+                              ? t('minhasfinancas.currency_all')
+                              : currency}
+                          </span>
+                          <ChevronRight size={14} />
+                        </button>
+                        <span
+                          style={{
+                            borderTop: '1px solid var(--glass-border)',
+                            margin: '0.3rem 0',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          role="menuitem"
+                          data-testid="mf-resumo-customize"
+                          onClick={() => {
+                            closeMenu();
+                            setCustomizing(true);
+                          }}
+                          style={menuItemStyle}
+                        >
+                          <SlidersHorizontal size={15} />
+                          {t('minhasfinancas.dash_customize')}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Nível 2: lista de moedas — escolher aplica e fecha
+                            (assim nunca se fica preso no menu). */}
+                        <button
+                          type="button"
+                          role="menuitem"
+                          data-testid="mf-resumo-menu-back"
+                          onClick={() => setMenuView('root')}
+                          style={menuItemStyle}
+                        >
+                          <ChevronLeft size={14} />
+                          {t('minhasfinancas.back')}
+                        </button>
+                        <span
+                          style={{
+                            borderTop: '1px solid var(--glass-border)',
+                            margin: '0.3rem 0',
+                          }}
+                        />
+                        {[
+                          { code: 'all', label: t('minhasfinancas.currency_all') },
+                          ...currencyOptions.map((code) => ({ code, label: code })),
+                        ].map((option) => {
+                          const active = currency === option.code;
+                          return (
+                            <button
+                              key={option.code}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={active}
+                              data-testid={`mf-resumo-menu-currency-${option.code}`}
+                              onClick={() => {
+                                setCurrency(option.code);
+                                closeMenu();
+                              }}
+                              style={{
+                                ...menuItemStyle,
+                                borderColor: active ? 'var(--primary)' : 'transparent',
+                                background: active
+                                  ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
+                                  : 'transparent',
+                                fontWeight: active ? 800 : 600,
+                              }}
+                            >
+                              <span style={{ flex: 1, textAlign: 'left' }}>
+                                {option.label}
+                              </span>
+                              {active && <Check size={14} />}
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                </>
               )}
             </span>
             {/* Sem abas no estreito: o badge deixa visível qual moeda está
@@ -1828,13 +1905,21 @@ export default function MFResumo({
               </span>
             )}
             {!isNarrow && (
-              <MFCurrencyTabs
-                currencies={currencyOptions}
-                value={currency}
-                onChange={setCurrency}
-                testId="mf-resumo-currency-tabs"
-              />
+              <>
+                <MFCurrencyTabs
+                  currencies={currencyOptions}
+                  value={currency}
+                  onChange={setCurrency}
+                  testId="mf-resumo-currency-tabs"
+                />
+                <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
+              </>
             )}
+          </div>
+        )}
+        {/* Seletor de mês centralizado no estreito (linha própria) */}
+        {!selectedRow && isNarrow && (
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
             <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
           </div>
         )}
@@ -1886,7 +1971,6 @@ export default function MFResumo({
                   <MFTotalsStack
                     totals={item.totals}
                     showValues={showValues}
-                    showFlags
                     hero={item.hero}
                     align={item.align}
                     fontSize="inherit"
