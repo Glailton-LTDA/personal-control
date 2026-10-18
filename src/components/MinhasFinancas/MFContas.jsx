@@ -1076,6 +1076,8 @@ export default function MFContas({
                   showValues={showValues}
                   testId="mf-contas-narrow-summary-saldo"
                   fontSize="inherit"
+                  showFlags
+                  hero
                 />
               </div>
             </div>
@@ -1090,6 +1092,7 @@ export default function MFContas({
                   testId="mf-contas-narrow-summary-previsto"
                   align="right"
                   fontSize="inherit"
+                  showFlags
                 />
               </div>
             </div>

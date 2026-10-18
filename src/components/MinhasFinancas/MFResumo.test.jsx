@@ -98,6 +98,12 @@ const domOrder = () =>
 
 const DEFAULT_ORDER = ['kpis', 'groups', 'accounts', 'recent', 'charts', 'budgets', 'goals'];
 
+/** Abre o menu ⋮ do cabeçalho e escolhe "Personalizar painel". */
+const openCustomize = () => {
+  fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+  fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+};
+
 describe('MFResumo — compacto no estreito (Fase A)', () => {
   const mockNarrow = () => {
     window.matchMedia = vi.fn().mockReturnValue({
@@ -120,9 +126,36 @@ describe('MFResumo — compacto no estreito (Fase A)', () => {
       expect(screen.getByTestId('mf-resumo-compact-initial')).toBeInTheDocument();
       expect(screen.getByTestId('mf-resumo-compact-balance')).toBeInTheDocument();
       expect(screen.getByTestId('mf-resumo-compact-forecast')).toBeInTheDocument();
+      // saldo central com R$ em destaque (hero), formato do mock
+      // (espera as contas carregarem: antes disso o compacto mostra '…')
+      expect(
+        await screen.findByTestId('mf-resumo-compact-balance-totals-line-BRL')
+      ).toBeInTheDocument();
       expect(screen.queryByTestId('mf-chart-categories-BRL')).not.toBeInTheDocument();
       // os cards de KPI grandes somem: o compacto substitui
       expect(screen.queryByTestId('mf-kpi-kpi_balance')).not.toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('menu⋮ vira bottom-sheet e a régua de abas de moedas some', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-resumo-compact')).toBeInTheDocument();
+      });
+      // no estreito as abas não existem: as moedas vivem no menu de 3 pontos
+      expect(screen.queryByTestId('mf-resumo-currency-tabs')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+      expect(screen.getByTestId('mf-resumo-menu-panel')).toHaveStyle({ position: 'fixed' });
+      expect(screen.getByTestId('mf-resumo-menu-overlay')).toBeInTheDocument();
+
+      // tocar no fundo escuro fecha o sheet
+      fireEvent.click(screen.getByTestId('mf-resumo-menu-overlay'));
+      expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
     } finally {
       restoreViewport();
     }
@@ -154,6 +187,71 @@ describe('MFResumo — compacto no estreito (Fase A)', () => {
     fireEvent.click(screen.getByTestId('mf-resumo-pick-accounts-accounts_title'));
     expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
     expect(screen.getByTestId('mf-dash-acct-acc-brl')).toBeInTheDocument();
+  });
+});
+
+describe('MFResumo — menu de três pontos (moedas + personalizar)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('troca a moeda pelo menu e "Personalizar" abre o modal', async () => {
+    renderScreen();
+    await waitForData();
+
+    // fechado por padrão
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+
+    // abre: "Todas" + uma opção por moeda das contas
+    fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+    expect(screen.getByTestId('mf-resumo-menu-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-menu-currency-all')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+
+    // escolher USD no largo fecha o menu e filtra KPIs/listas
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-USD'));
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-kpi-value-kpi_balance')).not.toHaveTextContent('R$');
+    expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(1);
+
+    // reabre: USD marcado, "Todas" desmarcado
+    fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+    expect(screen.getByTestId('mf-resumo-menu-currency-USD')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByTestId('mf-resumo-menu-currency-all')).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
+
+    // "Personalizar painel" fecha o menu e abre o MODAL de verdade
+    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-widget-panel-overlay')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-widget-panel')).toHaveAttribute('role', 'dialog');
+
+    // clicar no fundo escuro fecha o modal
+    fireEvent.click(screen.getByTestId('mf-widget-panel-overlay'));
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+  });
+
+  it('modal de personalização fecha pelo X e pelo "Concluir"', async () => {
+    renderScreen();
+    await waitForData();
+
+    openCustomize();
+    expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-widget-panel-close'));
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+
+    openCustomize();
+    fireEvent.click(screen.getByTestId('mf-widget-panel-done'));
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
   });
 });
 
@@ -258,7 +356,7 @@ describe('MFResumo — gráficos novos com toggle (Fase D)', () => {
     expect(screen.getByTestId('mf-chart-flow-BRL')).toBeInTheDocument();
 
     // ocultar "chart_income" some SÓ esse gráfico; os demais seguem
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-chart-toggle-chart_income'));
     expect(screen.queryByTestId('mf-chart-income-BRL')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-chart-bytype-BRL')).toBeInTheDocument();
@@ -272,7 +370,7 @@ describe('MFResumo — gráficos novos com toggle (Fase D)', () => {
     expect(screen.getByTestId('mf-chart-bytype-BRL')).toBeInTheDocument();
 
     // revelar de volta pelo painel
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-chart-toggle-chart_income'));
     expect(await screen.findByTestId('mf-chart-income-BRL')).toBeInTheDocument();
   });
@@ -290,7 +388,7 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     await waitForData();
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-widget-toggle-accounts'));
@@ -313,7 +411,7 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     await waitForData();
     expect(domOrder()).toEqual(DEFAULT_ORDER);
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
@@ -338,11 +436,11 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     await waitForData();
     expect(screen.getByTestId('mf-resumo-budget-card')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-widget-toggle-budgets'));
     expect(screen.queryByTestId('mf-resumo-budget-card')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    fireEvent.click(screen.getByTestId('mf-widget-panel-done'));
     expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-resumo-budget-card')).not.toBeInTheDocument();
   });
@@ -438,13 +536,13 @@ describe('MFResumo — drill-down da conta', () => {
 
     expect(await screen.findByTestId('mf-account-detail')).toBeInTheDocument();
     // controles do painel saem enquanto o detalhe está aberto
-    expect(screen.queryByTestId('mf-resumo-customize')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-menu')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-resumo-account-row')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
-    expect(screen.getByTestId('mf-resumo-customize')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-menu')).toBeInTheDocument();
   });
 
   it('clicar na própria linha (fora do nome) também abre o detalhe', async () => {
@@ -474,7 +572,7 @@ describe('MFResumo — contas visíveis no painel', () => {
     // total misto BRL+USD aparece agrupado
     expect(screen.getByTestId('mf-kpi-value-kpi_balance')).toHaveTextContent('US$');
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-dash-acct-acc-usd'));
 
     // Filtro é visual: some da tabela do painel…
@@ -499,11 +597,11 @@ describe('MFResumo — contas visíveis no painel', () => {
     renderScreen();
     await waitForData();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-dash-accts-none'));
     expect(screen.queryByTestId('mf-resumo-account-row')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize')); // Concluir
+    fireEvent.click(screen.getByTestId('mf-widget-panel-done')); // Concluir
     expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-resumo-no-visible')).toBeInTheDocument();
 
@@ -529,7 +627,7 @@ describe('MFResumo — contas visíveis no painel', () => {
     renderScreen();
     await waitForData();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     expect(screen.getByTestId('mf-dash-accts-search')).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('mf-dash-accts-search'), {
@@ -628,7 +726,7 @@ describe('MFResumo — cartões em seção separada', () => {
     await waitForData();
     expect(screen.getByTestId('mf-resumo-cards-section')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-dash-acct-acc-card'));
 
     // filtro é visual: a seção de cartões some…

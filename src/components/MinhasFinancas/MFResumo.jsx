@@ -15,6 +15,9 @@ import {
   Eye,
   EyeOff,
   FolderTree,
+  MoreVertical,
+  Check,
+  X,
 } from 'lucide-react';
 import {
   Legend,
@@ -54,6 +57,7 @@ import {
   shiftMonth,
   sumField,
   currentMonthKey,
+  currencyFlag,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
@@ -164,6 +168,42 @@ export default function MFResumo({
   // Painel personalizável (Fase 9): widgets + contas visíveis
   const [widgetPref, setWidgetPref] = useState(loadWidgetPref);
   const [customizing, setCustomizing] = useState(false);
+  // Menu de três pontos do cabeçalho: moedas + personalizar (padrão do app
+  // de referência; no estreito vira bottom-sheet, como o sino).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuStyle = isNarrow
+    ? {
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 90,
+        maxHeight: '60vh',
+        overflowY: 'auto',
+        background: 'var(--glass-bg, #1e293b)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: '16px 16px 0 0',
+        padding: '0.9rem 1rem calc(1rem + env(safe-area-inset-bottom))',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.3rem',
+        boxShadow: '0 -12px 32px rgba(0, 0, 0, 0.5)',
+      }
+    : {
+        position: 'absolute',
+        right: 0,
+        top: 'calc(100% + 0.4rem)',
+        zIndex: 60,
+        width: 250,
+        background: 'var(--glass-bg, #1e293b)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: 14,
+        padding: '0.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.25rem',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45)',
+      };
   const [acctSearch, setAcctSearch] = useState('');
   const updateWidgetPref = (next) => {
     setWidgetPref(next);
@@ -1650,31 +1690,159 @@ export default function MFResumo({
         {!selectedRow && (
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
-            <button
-              type="button"
-              className={customizing ? 'btn-primary' : 'btn-secondary'}
-              data-testid="mf-resumo-customize"
-              onClick={() => setCustomizing((prev) => !prev)}
-              style={{ padding: '0.55rem 0.9rem', fontSize: '0.8rem' }}
-              aria-pressed={customizing}
-            >
-              <SlidersHorizontal size={15} />
-              {t(customizing ? 'minhasfinancas.dash_done' : 'minhasfinancas.dash_customize')}
-            </button>
-            <MFCurrencyTabs
-              currencies={currencyOptions}
-              value={currency}
-              onChange={setCurrency}
-              testId="mf-resumo-currency-tabs"
-            />
+            {/* Menu de três pontos (padrão do app de referência): moedas +
+                personalizar painel. No estreito a régua de abas some e o
+                menu abre como bottom-sheet. */}
+            <span style={{ position: 'relative' }}>
+              {menuOpen && isNarrow && (
+                <span
+                  data-testid="mf-resumo-menu-overlay"
+                  onClick={() => setMenuOpen(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 89, background: 'rgba(0, 0, 0, 0.55)' }}
+                />
+              )}
+              <button
+                type="button"
+                className="icon-btn"
+                data-testid="mf-resumo-menu"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label={t('minhasfinancas.more_options')}
+                onClick={() => setMenuOpen((prev) => !prev)}
+              >
+                <MoreVertical size={18} />
+              </button>
+              {menuOpen && (
+                <div
+                  data-testid="mf-resumo-menu-panel"
+                  role="menu"
+                  aria-label={t('minhasfinancas.more_options')}
+                  style={menuStyle}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      color: 'var(--text-muted)',
+                      padding: '0.15rem 0.35rem',
+                    }}
+                  >
+                    {t('minhasfinancas.currency_label')}
+                  </span>
+                  {[
+                    { code: 'all', label: t('minhasfinancas.currency_all') },
+                    ...currencyOptions.map((code) => ({ code, label: code })),
+                  ].map((option) => (
+                    <button
+                      key={option.code}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={currency === option.code}
+                      data-testid={`mf-resumo-menu-currency-${option.code}`}
+                      onClick={() => {
+                        setCurrency(option.code);
+                        // No estreito o sheet fica aberto (dá pra ver o ✓ mudar
+                        // e trocar de novo); no largo as abas já refletem a
+                        // troca → fecha.
+                        if (!isNarrow) setMenuOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        width: '100%',
+                        padding: '0.5rem 0.55rem',
+                        borderRadius: 10,
+                        border: '1px solid',
+                        borderColor:
+                          currency === option.code ? 'var(--primary)' : 'transparent',
+                        background:
+                          currency === option.code
+                            ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
+                            : 'transparent',
+                        color: 'inherit',
+                        font: 'inherit',
+                        fontSize: '0.85rem',
+                        fontWeight: currency === option.code ? 800 : 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span aria-hidden>
+                        {option.code === 'all' ? '💱' : currencyFlag(option.code)}
+                      </span>
+                      <span style={{ flex: 1 }}>{option.label}</span>
+                      {currency === option.code && <Check size={14} />}
+                    </button>
+                  ))}
+                  <span
+                    style={{ borderTop: '1px solid var(--glass-border)', margin: '0.3rem 0' }}
+                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="mf-resumo-customize"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setCustomizing(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      width: '100%',
+                      padding: '0.5rem 0.55rem',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'inherit',
+                      font: 'inherit',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <SlidersHorizontal size={15} />
+                    {t('minhasfinancas.dash_customize')}
+                  </button>
+                </div>
+              )}
+            </span>
+            {/* Sem abas no estreito: o badge deixa visível qual moeda está
+                filtrando (some quando é "Todas"). */}
+            {isNarrow && currency !== 'all' && (
+              <span
+                data-testid="mf-resumo-currency-badge"
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  color: 'var(--primary)',
+                  background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
+                  border: '1px solid var(--primary)',
+                  borderRadius: 999,
+                  padding: '0.15rem 0.45rem',
+                }}
+              >
+                {currency}
+              </span>
+            )}
+            {!isNarrow && (
+              <MFCurrencyTabs
+                currencies={currencyOptions}
+                value={currency}
+                onChange={setCurrency}
+                testId="mf-resumo-currency-tabs"
+              />
+            )}
             <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
           </div>
         )}
       </div>
 
-      {/* Compacto do estreito (formato do mockup): saldo grande no topo e
-          Inicial/Previsto como linhas de total embaixo — sem as 3 colunas
-          poluídas que quebravam no mobile. */}
+      {/* Compacto do estreito (formato do mock de referência): Inicial à
+          esquerda, saldo em R$ em destaque no centro e Previsto à direita —
+          as demais moedas saem menores, com bandeira, sob o R$. */}
       {isNarrow && !selectedRow && groupPath.length === 0 && (
         <div
           className="glass-card"
@@ -1682,60 +1850,90 @@ export default function MFResumo({
           style={{
             padding: '0.9rem 1.1rem',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '0.4rem',
           }}
         >
-          <div data-testid="mf-resumo-compact-balance">
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {t('minhasfinancas.kpi_balance')}
-            </div>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800 }}>
-              {isLoading ? '…' : isError ? '—' : (
-                <MFTotalsStack totals={kpis.saldo} showValues={showValues} align="left" fontSize="inherit" />
-              )}
-            </div>
-          </div>
           {[
-            { key: 'initial', label: t('minhasfinancas.initial'), totals: kpis.initial },
-            { key: 'forecast', label: t('minhasfinancas.kpi_forecast'), totals: kpis.previsto },
+            { key: 'initial', label: t('minhasfinancas.initial'), totals: kpis.initial, hero: false, align: 'left' },
+            { key: 'balance', label: t('minhasfinancas.kpi_balance'), totals: kpis.saldo, hero: true, align: 'center' },
+            { key: 'forecast', label: t('minhasfinancas.kpi_forecast'), totals: kpis.previsto, hero: false, align: 'right' },
           ].map((item) => (
             <div
               key={item.key}
               data-testid={`mf-resumo-compact-${item.key}`}
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '0.75rem',
-                background: 'var(--card-action-bg)',
-                borderRadius: 12,
-                padding: '0.45rem 0.7rem',
+                minWidth: 0,
+                flex: item.hero ? '0 1 auto' : '1 1 0',
+                textAlign: item.align,
               }}
             >
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+              <div
+                style={{
+                  fontSize: '0.7rem',
+                  color: 'var(--text-muted)',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {item.label}
-              </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, textAlign: 'right' }}>
+              </div>
+              <div style={item.hero ? { fontSize: '1.3rem', fontWeight: 800 } : { fontSize: '0.82rem', fontWeight: 700 }}>
                 {isLoading ? '…' : isError ? '—' : (
-                  <MFTotalsStack totals={item.totals} showValues={showValues} align="right" fontSize="inherit" />
+                  <MFTotalsStack
+                    totals={item.totals}
+                    showValues={showValues}
+                    showFlags
+                    hero={item.hero}
+                    align={item.align}
+                    fontSize="inherit"
+                    lineHeight={1.25}
+                    testId={`mf-resumo-compact-${item.key}-totals`}
+                  />
                 )}
-              </span>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Painel de personalização (Fase 9) */}
+      {/* Personalizar painel: modal de verdade — antes era um card solto no
+          meio da página e o usuário não entendia o que tinha aberto. */}
       {!selectedRow && customizing && (
         <div
-          className="glass-card"
-          data-testid="mf-widget-panel"
-          style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+          className="modal-overlay"
+          data-testid="mf-widget-panel-overlay"
+          onClick={() => setCustomizing(false)}
         >
-          <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {t('minhasfinancas.dash_hint')}
-          </p>
+          <div
+            className="glass-card modal-content"
+            data-testid="mf-widget-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('minhasfinancas.dash_customize')}
+            onClick={(event) => event.stopPropagation()}
+            style={{ padding: '1.5rem 1.6rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, flex: 1 }}>
+                {t('minhasfinancas.dash_customize')}
+              </h3>
+              <button
+                type="button"
+                className="icon-btn"
+                data-testid="mf-widget-panel-close"
+                aria-label={t('minhasfinancas.cancel')}
+                onClick={() => setCustomizing(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.dash_hint')}
+            </p>
           {widgetPref.order.map((id, index) => {
             const hidden = widgetPref.hidden.includes(id);
             return (
@@ -1948,6 +2146,16 @@ export default function MFResumo({
                 </p>
               )}
             </div>
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            data-testid="mf-widget-panel-done"
+            onClick={() => setCustomizing(false)}
+            style={{ marginTop: '0.9rem', alignSelf: 'flex-end', display: 'inline-flex' }}
+          >
+            {t('minhasfinancas.dash_done')}
+          </button>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import MFTotalsStack from './MFTotalsStack';
+import { currencyFlag } from '../../hooks/useMinhasFinancas';
 
 // Mock react-i18next (não usado aqui, mas o módulo importa formatMoney do hook)
 vi.mock('react-i18next', () => ({
@@ -32,5 +33,22 @@ describe('MFTotalsStack — uma moeda por linha', () => {
 
     render(<MFTotalsStack totals={{ BRL: 100 }} showValues={false} />);
     expect(screen.getByText('•••')).toBeInTheDocument();
+  });
+
+  it('showFlags: bandeira só nas moedas que não são BRL', () => {
+    render(<MFTotalsStack totals={{ BRL: 10, USD: 5 }} showFlags testId="mf-flags" />);
+    // R$ é o padrão do app → sem bandeira; as demais ganham a bandeira
+    expect(screen.getByTestId('mf-flags-line-BRL').textContent).not.toContain(currencyFlag('USD'));
+    expect(screen.getByTestId('mf-flags-line-USD')).toHaveTextContent(currencyFlag('USD'));
+  });
+
+  it('hero: primeira moeda em destaque e as demais menores e discretas', () => {
+    render(<MFTotalsStack totals={{ BRL: 1000, USD: 200 }} hero testId="mf-hero" />);
+    const brl = screen.getByTestId('mf-hero-line-BRL');
+    const usd = screen.getByTestId('mf-hero-line-USD');
+    // R$ grande e forte; US$ menor e apagado (formato do mock de referência)
+    expect(brl.style.fontWeight).toBe('800');
+    expect(usd.style.fontSize).toBe('0.66em');
+    expect(usd.style.color).toBe('var(--text-muted)');
   });
 });
