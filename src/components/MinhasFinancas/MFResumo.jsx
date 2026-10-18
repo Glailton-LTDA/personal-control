@@ -1706,14 +1706,23 @@ export default function MFResumo({
           zIndex: 1,
         }}
       >
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+        {/* Largo: título + descrição no bloco à esquerda. */}
+        {!isNarrow && (
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+              {t('minhasfinancas.title')}
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.25rem 0 0' }}>
+              {t('minhasfinancas.overview_desc')}
+            </p>
+          </div>
+        )}
+        {/* Estreito no drill-down: título sem asções (somem no detalhe) */}
+        {isNarrow && selectedRow && (
+          <h2 style={{ width: '100%', fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
             {t('minhasfinancas.title')}
           </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.25rem 0 0' }}>
-            {t('minhasfinancas.overview_desc')}
-          </p>
-        </div>
+        )}
         {!selectedRow && (
           <div
             style={{
@@ -1721,11 +1730,24 @@ export default function MFResumo({
               gap: '0.75rem',
               flexWrap: 'wrap',
               alignItems: 'center',
-              // No estreito os ícones de ação vão encostados à direita do
-              // cabeçalho; o seletor de mês fica numa linha própria central.
-              marginLeft: isNarrow ? 'auto' : undefined,
+              // Estreito: nome do módulo e ícones na MESMA linha (título à
+              // esquerda, ações coladas à direita — pedido do usuário).
+              ...(isNarrow ? { width: '100%' } : {}),
             }}
           >
+            {isNarrow && (
+              <h2
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  margin: 0,
+                }}
+              >
+                {t('minhasfinancas.title')}
+              </h2>
+            )}
             <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
             {/* Menu de três pontos (padrão do app de referência): moedas +
                 personalizar painel. No estreito a régua de abas some e o
@@ -1917,7 +1939,20 @@ export default function MFResumo({
             )}
           </div>
         )}
-        {/* Seletor de mês centralizado no estreito (linha própria) */}
+        {/* Estreito: descrição abaixo da linha do título… */}
+        {isNarrow && (
+          <p
+            style={{
+              width: '100%',
+              color: 'var(--text-muted)',
+              fontSize: '0.9rem',
+              margin: 0,
+            }}
+          >
+            {t('minhasfinancas.overview_desc')}
+          </p>
+        )}
+        {/* …e seletor de mês centralizado em linha própria */}
         {!selectedRow && isNarrow && (
           <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
             <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
@@ -1927,7 +1962,7 @@ export default function MFResumo({
 
       {/* Compacto do estreito (formato do mock de referência): Inicial à
           esquerda, saldo em R$ em destaque no centro e Previsto à direita —
-          as demais moedas saem menores, com bandeira, sob o R$. */}
+          as demais moedas saem menores e apagadas, só com a sigla. */}
       {isNarrow && !selectedRow && groupPath.length === 0 && (
         <div
           className="glass-card"
