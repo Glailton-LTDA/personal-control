@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
   Wallet,
@@ -20,6 +21,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
+  Lock,
+  LockOpen,
 } from 'lucide-react';
 import {
   Legend,
@@ -59,6 +63,7 @@ import {
   shiftMonth,
   sumField,
   currentMonthKey,
+  currencyFlag,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
@@ -96,11 +101,47 @@ const shortMonthLabel = (monthKey, language) => {
 
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
 
+// Ordenação das contas no Resumo, a critério do usuário (persistida em
+// localStorage). `name` é o padrão (ordem alfabética, como chega).
+const ACCOUNT_SORT_OPTIONS = [
+  { value: 'name', labelKey: 'minhasfinancas.sort_name' },
+  { value: 'balance_desc', labelKey: 'minhasfinancas.sort_balance_desc' },
+  { value: 'balance_asc', labelKey: 'minhasfinancas.sort_balance_asc' },
+  { value: 'forecast_desc', labelKey: 'minhasfinancas.sort_forecast_desc' },
+  { value: 'forecast_asc', labelKey: 'minhasfinancas.sort_forecast_asc' },
+];
+
 /** '2026-11-30' → '30/11' (dia/mês da próxima fatura). */
 const shortDate = (iso) => {
   if (!iso) return '';
   const [, m, d] = String(iso).split('-');
   return `${d}/${m}`;
+};
+
+/** '2026-10-31' → '31/OUT' (dia + mês abreviado — fechamento/vencimento de fatura). */
+const dayMonthLabel = (iso, language) => {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const month = new Intl.DateTimeFormat(language, { month: 'short' })
+    .format(new Date(y, m - 1, 1))
+    .replace('.', '')
+    .toUpperCase();
+  return `${String(d).padStart(2, '0')}/${month}`;
+};
+
+/** Estado visual da fatura corrente: paga (check verde), fechada (cadeado
+ *  âmbar — período travado aguardando vencimento/pagamento) ou aberta
+ *  (cadeado azul — ciclo ainda acumulando compras). */
+const cardInvoiceState = (current) => {
+  if (!current) return null;
+  if (current.status === 'PAGA')
+    return { icon: 'paid', color: '#10b981', labelKey: 'card_status_paid' };
+  if (current.status === 'AGENDADA')
+    return { icon: 'closed', color: '#f59e0b', labelKey: 'card_status_scheduled' };
+  // CORRENTE: fechada quando o ciclo já virou (closeISO hoje ou antes).
+  return current.closed
+    ? { icon: 'closed', color: '#f59e0b', labelKey: 'inv_status_closed' }
+    : { icon: 'open', color: 'var(--primary)', labelKey: 'card_status_open' };
 };
 
 const tooltipStyle = {
@@ -164,6 +205,16 @@ export default function MFResumo({
 
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
+  // Ordenação das contas no Resumo, a critério do usuário (persistida).
+  const [accountsSort, setAccountsSort] = useState(
+    () => localStorage.getItem('mf_accounts_sort') || 'name'
+  );
+  const [sortOpen, setSortOpen] = useState(false);
+  const changeAccountsSort = (value) => {
+    setAccountsSort(value);
+    localStorage.setItem('mf_accounts_sort', value);
+    setSortOpen(false);
+  };
   // Estreito (tablet retrato/mobile): cabeçalho compacto sem gráficos.
   const isNarrow = useMFNarrowScreen();
 
@@ -201,7 +252,9 @@ export default function MFResumo({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 90,
+        // Acima do .main-header (z-index 100) — o painel é renderizado via
+        // portal no body e precisa cobrir o cabeçalho fixo do app.
+        zIndex: 1100,
         maxHeight: '60vh',
         overflowY: 'auto',
         background: 'var(--glass-bg, #1e293b)',
@@ -1010,7 +1063,28 @@ export default function MFResumo({
       // Cartões (account_type='CARTAO') têm seção própria — nunca se misturam
       // com as contas. Só esta lista segue o filtro visual; KPIs e gráficos
       // somam todas as contas ativas.
-      const accountRows = visibleRows.filter((row) => row.account_type !== 'CARTAO');
+      // Ordenação a critério do usuário (persistida): nome, maior/menor saldo
+      // ou maior/menor previsto.
+      const sortAccounts = (list) => {
+        const byNumber = (field) => (a, b) =>
+          (Number(b[field]) || 0) - (Number(a[field]) || 0);
+        switch (accountsSort) {
+          case 'balance_desc':
+            return [...list].sort(byNumber('saldo'));
+          case 'balance_asc':
+            return [...list].sort((a, b) => (Number(a.saldo) || 0) - (Number(b.saldo) || 0));
+          case 'forecast_desc':
+            return [...list].sort(byNumber('previsto'));
+          case 'forecast_asc':
+            return [...list].sort((a, b) => (Number(a.previsto) || 0) - (Number(b.previsto) || 0));
+          case 'name':
+          default:
+            return list;
+        }
+      };
+      const accountRows = sortAccounts(
+        visibleRows.filter((row) => row.account_type !== 'CARTAO')
+      );
       const cardRows = visibleRows.filter((row) => row.account_type === 'CARTAO');
       // Próxima fatura por cartão (Fase B) — lookup por id.
       const upcomingById = Object.fromEntries(
@@ -1099,6 +1173,20 @@ export default function MFResumo({
                   {t(`minhasfinancas.${section.title}`)}
                 </h3>
                 <span style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  {/* Ordenação das contas a critério do usuário (só na seção de contas) */}
+                  {section.title === 'accounts_title' && (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      data-testid="mf-resumo-accounts-sort"
+                      aria-label={t('minhasfinancas.accounts_sort_label')}
+                      title={t('minhasfinancas.accounts_sort_label')}
+                      aria-expanded={sortOpen}
+                      onClick={() => setSortOpen((v) => !v)}
+                    >
+                      <ArrowUpDown size={15} />
+                    </button>
+                  )}
                   {/* Atalho para escolher quais contas aparecem no Resumo */}
                   <button
                     type="button"
@@ -1123,71 +1211,242 @@ export default function MFResumo({
                 </span>
               </div>
 
+              {/* Ordenação das contas (crítica do usuário): chips que aplicam
+                  na hora e somem ao escolher — sem dropdown flutuante. */}
+              {section.title === 'accounts_title' && sortOpen && (
+                <div
+                  data-testid="mf-resumo-accounts-sort-menu"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.4rem',
+                    marginBottom: '0.9rem',
+                  }}
+                >
+                  {ACCOUNT_SORT_OPTIONS.map((opt) => {
+                    const active = accountsSort === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        data-testid={`mf-resumo-accounts-sort-${opt.value}`}
+                        aria-pressed={active}
+                        onClick={() => changeAccountsSort(opt.value)}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: 999,
+                          fontSize: '0.78rem',
+                          fontWeight: active ? 800 : 600,
+                          cursor: 'pointer',
+                          color: active ? '#fff' : 'inherit',
+                          background: active ? 'var(--primary)' : 'var(--input-bg)',
+                          border: `1px solid ${active ? 'var(--primary)' : 'var(--glass-border)'}`,
+                        }}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {isNarrow ? (
                 /* Estreito (mockup): linhas com ícone + saldo, sem tabela
                    com rolagem lateral. */
                 <div data-testid={`${section.sectionTestId}-list`} style={{ display: 'flex', flexDirection: 'column' }}>
-                  {section.rows.map((row) => (
-                    <button
-                      key={row.id}
-                      type="button"
-                      data-testid={section.testid}
-                      onClick={() => setSelectedId(row.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        padding: '0.7rem 0.25rem',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: '1px solid var(--glass-border)',
-                        color: 'inherit',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        width: '100%',
-                      }}
-                    >
-                      <MFAccountIcon
-                        account={row}
-                        size={38}
-                        data-testid={`mf-resumo-icon-${row.id}`}
-                      />
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          data-testid={`mf-resumo-open-account-${row.id}`}
+                  {section.rows.map((row) => {
+                    const isCard = section.title === 'cards_title';
+                    const cardItem = isCard ? upcomingById[row.id] : null;
+                    const current = cardItem?.current ?? null;
+                    const nextInv = cardItem?.next ?? null;
+                    const cur = cardItem?.card?.currency || row.currency || 'BRL';
+                    const invoiceState = isCard ? cardInvoiceState(current) : null;
+
+                    // Cartão (mock de referência): bandeira ao lado do nome,
+                    // ícone de status ao lado do valor e rótulos de fechamento,
+                    // vencimento e próxima fatura.
+                    if (isCard) {
+                      return (
+                        <button
+                          key={row.id}
+                          type="button"
+                          data-testid={section.testid}
+                          onClick={() => setSelectedId(row.id)}
                           style={{
-                            display: 'block',
-                            fontWeight: 800,
-                            fontSize: '0.92rem',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            padding: '0.75rem 0.25rem',
+                            background: 'none',
+                            border: 'none',
+                            borderBottom: '1px solid var(--glass-border)',
+                            color: 'inherit',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            width: '100%',
                           }}
                         >
-                          {row.name}
-                        </span>
-                        {section.title === 'cards_title' && upcomingById[row.id]?.upcoming?.dueISO ? (
-                          <span
-                            data-testid={`mf-resumo-card-due-${row.id}`}
-                            style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
-                          >
-                            {t('minhasfinancas.accounts_table_forecast')}:{' '}
-                            {shortDate(upcomingById[row.id].upcoming.dueISO)}
+                          <MFAccountIcon
+                            account={row}
+                            size={38}
+                            data-testid={`mf-resumo-icon-${row.id}`}
+                            style={{ marginTop: 2 }}
+                          />
+                          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            {/* nome + bandeira .......... valor + status */}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', width: '100%' }}>
+                              <span
+                                data-testid={`mf-resumo-open-account-${row.id}`}
+                                style={{
+                                  fontWeight: 800,
+                                  fontSize: '0.92rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {row.name}
+                              </span>
+                              <span
+                                data-testid={`mf-resumo-card-flag-${row.id}`}
+                                style={{ fontSize: '0.85rem', flexShrink: 0 }}
+                              >
+                                {currencyFlag(cur)}
+                              </span>
+                              <span
+                                style={{
+                                  marginLeft: 'auto',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <span
+                                  data-testid={`mf-resumo-card-total-${row.id}`}
+                                  style={{ fontWeight: 800, fontSize: '0.95rem' }}
+                                >
+                                  {nativeMoney(Number(current?.total) || 0, cur)}
+                                </span>
+                                {invoiceState && (
+                                  <span
+                                    data-testid={`mf-resumo-card-status-${row.id}`}
+                                    title={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    aria-label={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    style={{ color: invoiceState.color, display: 'inline-flex' }}
+                                  >
+                                    {invoiceState.icon === 'paid' && <CheckCircle2 size={15} />}
+                                    {invoiceState.icon === 'closed' && <Lock size={15} />}
+                                    {invoiceState.icon === 'open' && <LockOpen size={15} />}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                            {/* Fechamento / Vencimento / Próxima fatura */}
+                            {[
+                              current?.closeISO && {
+                                k: 'close',
+                                label: t('minhasfinancas.card_closing'),
+                                value: dayMonthLabel(current.closeISO, i18n.language),
+                              },
+                              current?.dueISO && {
+                                k: 'due',
+                                label: t('minhasfinancas.card_due_label'),
+                                value: dayMonthLabel(current.dueISO, i18n.language),
+                              },
+                              nextInv && {
+                                k: 'next',
+                                label: t('minhasfinancas.card_next_invoice'),
+                                value: nativeMoney(Number(nextInv.total) || 0, cur),
+                              },
+                            ]
+                              .filter(Boolean)
+                              .map((line) => (
+                                <span
+                                  key={line.k}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    fontSize: '0.72rem',
+                                  }}
+                                >
+                                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    {line.label}
+                                  </span>
+                                  <span
+                                    data-testid={`mf-resumo-card-${line.k}-${row.id}`}
+                                    style={{ fontWeight: 700 }}
+                                  >
+                                    {line.value}
+                                  </span>
+                                </span>
+                              ))}
                           </span>
-                        ) : (
+                        </button>
+                      );
+                    }
+
+                    // Conta: ícone + nome, previsão (vermelha quando negativa) + saldo.
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        data-testid={section.testid}
+                        onClick={() => setSelectedId(row.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          padding: '0.7rem 0.25rem',
+                          background: 'none',
+                          border: 'none',
+                          borderBottom: '1px solid var(--glass-border)',
+                          color: 'inherit',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          width: '100%',
+                        }}
+                      >
+                        <MFAccountIcon
+                          account={row}
+                          size={38}
+                          data-testid={`mf-resumo-icon-${row.id}`}
+                        />
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span
+                            data-testid={`mf-resumo-open-account-${row.id}`}
+                            style={{
+                              display: 'block',
+                              fontWeight: 800,
+                              fontSize: '0.92rem',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {row.name}
+                          </span>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             {t('minhasfinancas.accounts_table_forecast')}:{' '}
-                            {nativeMoney(row.previsto, row.currency)}
+                            <span
+                              style={
+                                Number(row.previsto) < 0
+                                  ? { color: '#ef4444', fontWeight: 700 }
+                                  : undefined
+                              }
+                            >
+                              {nativeMoney(row.previsto, row.currency)}
+                            </span>
                           </span>
-                        )}
-                      </span>
-                      <span style={{ fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
-                        {section.title === 'cards_title' && upcomingById[row.id]?.upcoming
-                          ? nativeMoney(Number(upcomingById[row.id].upcoming.total) || 0, upcomingById[row.id].card.currency || 'BRL')
-                          : nativeMoney(row.saldo, row.currency)}
-                      </span>
-                    </button>
-                  ))}
+                        </span>
+                        <span style={{ fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
+                          {nativeMoney(row.saldo, row.currency)}
+                        </span>
+                      </button>
+                    );
+                  })}
                   <div
                     style={{
                       display: 'flex',
@@ -1688,6 +1947,150 @@ export default function MFResumo({
     return null;
   };
 
+  // Camada do menu ⋮ (overlay + painel). No estreito ela vai via portal no
+  // <body>: o glass-card do cabeçalho tem backdrop-filter, que cria um
+  // containing block para position:fixed — sem o portal o painel ficava
+  // ancorado no card e ATRÁS do .main-header (z-index 100), escondendo
+  // "Todas as moedas" e impedindo a rolagem da lista de moedas.
+  const menuLayer = menuOpen ? (
+    <>
+      {/* Clicar fora fecha: fundo escuro no estreito, invisível
+          no largo (só captura o clique). */}
+      <span
+        data-testid="mf-resumo-menu-overlay"
+        onClick={closeMenu}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: isNarrow ? 1099 : 59,
+          background: isNarrow ? 'rgba(0, 0, 0, 0.55)' : 'transparent',
+        }}
+      />
+      <div
+        data-testid="mf-resumo-menu-panel"
+        role="menu"
+        aria-label={t('minhasfinancas.more_options')}
+        style={menuStyle}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <strong style={{ flex: 1, fontSize: '0.8rem' }}>
+            {menuView === 'currency'
+              ? t('minhasfinancas.currency_label')
+              : t('minhasfinancas.more_options')}
+          </strong>
+          <button
+            type="button"
+            className="icon-btn"
+            data-testid="mf-resumo-menu-close"
+            aria-label={t('minhasfinancas.cancel')}
+            onClick={closeMenu}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {menuView === 'root' ? (
+          <>
+            {/* Nível 1: Selecionar moeda → lista; Personalizar. */}
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="mf-resumo-menu-currency-open"
+              onClick={() => setMenuView('currency')}
+              style={menuItemStyle}
+            >
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                {t('minhasfinancas.select_currency')}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                  fontWeight: 700,
+                }}
+              >
+                {currency === 'all' ? t('minhasfinancas.currency_all') : currency}
+              </span>
+              <ChevronRight size={14} />
+            </button>
+            <span
+              style={{
+                borderTop: '1px solid var(--glass-border)',
+                margin: '0.3rem 0',
+              }}
+            />
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="mf-resumo-customize"
+              onClick={() => {
+                closeMenu();
+                setCustomizing(true);
+              }}
+              style={menuItemStyle}
+            >
+              <SlidersHorizontal size={15} />
+              {t('minhasfinancas.dash_customize')}
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Nível 2: lista de moedas — escolher aplica e fecha
+                (assim nunca se fica preso no menu). */}
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="mf-resumo-menu-back"
+              onClick={() => setMenuView('root')}
+              style={menuItemStyle}
+            >
+              <ChevronLeft size={14} />
+              {t('minhasfinancas.back')}
+            </button>
+            <span
+              style={{
+                borderTop: '1px solid var(--glass-border)',
+                margin: '0.3rem 0',
+              }}
+            />
+            {[
+              { code: 'all', label: t('minhasfinancas.currency_all') },
+              ...currencyOptions.map((code) => ({ code, label: code })),
+            ].map((option) => {
+              const active = currency === option.code;
+              return (
+                <button
+                  key={option.code}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  data-testid={`mf-resumo-menu-currency-${option.code}`}
+                  onClick={() => {
+                    setCurrency(option.code);
+                    closeMenu();
+                  }}
+                  style={{
+                    ...menuItemStyle,
+                    borderColor: active ? 'var(--primary)' : 'transparent',
+                    background: active
+                      ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
+                      : 'transparent',
+                    fontWeight: active ? 800 : 600,
+                  }}
+                >
+                  <span style={{ flex: 1, textAlign: 'left' }}>
+                    {option.label}
+                  </span>
+                  {active && <Check size={14} />}
+                </button>
+              );
+            })}
+          </>
+        )}
+      </div>
+    </>
+  ) : null;
+
   return (
     <div data-testid="mf-resumo" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Cabeçalho + navegação de mês */}
@@ -1767,146 +2170,8 @@ export default function MFResumo({
               >
                 <MoreVertical size={18} />
               </button>
-              {menuOpen && (
-                <>
-                  {/* Clicar fora fecha: fundo escuro no estreito, invisível
-                      no largo (só captura o clique). */}
-                  <span
-                    data-testid="mf-resumo-menu-overlay"
-                    onClick={closeMenu}
-                    style={{
-                      position: 'fixed',
-                      inset: 0,
-                      zIndex: isNarrow ? 89 : 59,
-                      background: isNarrow ? 'rgba(0, 0, 0, 0.55)' : 'transparent',
-                    }}
-                  />
-                  <div
-                    data-testid="mf-resumo-menu-panel"
-                    role="menu"
-                    aria-label={t('minhasfinancas.more_options')}
-                    style={menuStyle}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <strong style={{ flex: 1, fontSize: '0.8rem' }}>
-                        {menuView === 'currency'
-                          ? t('minhasfinancas.currency_label')
-                          : t('minhasfinancas.more_options')}
-                      </strong>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        data-testid="mf-resumo-menu-close"
-                        aria-label={t('minhasfinancas.cancel')}
-                        onClick={closeMenu}
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-
-                    {menuView === 'root' ? (
-                      <>
-                        {/* Nível 1: Selecionar moeda → lista; Personalizar. */}
-                        <button
-                          type="button"
-                          role="menuitem"
-                          data-testid="mf-resumo-menu-currency-open"
-                          onClick={() => setMenuView('currency')}
-                          style={menuItemStyle}
-                        >
-                          <span style={{ flex: 1, textAlign: 'left' }}>
-                            {t('minhasfinancas.select_currency')}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              color: 'var(--text-muted)',
-                              fontWeight: 700,
-                            }}
-                          >
-                            {currency === 'all'
-                              ? t('minhasfinancas.currency_all')
-                              : currency}
-                          </span>
-                          <ChevronRight size={14} />
-                        </button>
-                        <span
-                          style={{
-                            borderTop: '1px solid var(--glass-border)',
-                            margin: '0.3rem 0',
-                          }}
-                        />
-                        <button
-                          type="button"
-                          role="menuitem"
-                          data-testid="mf-resumo-customize"
-                          onClick={() => {
-                            closeMenu();
-                            setCustomizing(true);
-                          }}
-                          style={menuItemStyle}
-                        >
-                          <SlidersHorizontal size={15} />
-                          {t('minhasfinancas.dash_customize')}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {/* Nível 2: lista de moedas — escolher aplica e fecha
-                            (assim nunca se fica preso no menu). */}
-                        <button
-                          type="button"
-                          role="menuitem"
-                          data-testid="mf-resumo-menu-back"
-                          onClick={() => setMenuView('root')}
-                          style={menuItemStyle}
-                        >
-                          <ChevronLeft size={14} />
-                          {t('minhasfinancas.back')}
-                        </button>
-                        <span
-                          style={{
-                            borderTop: '1px solid var(--glass-border)',
-                            margin: '0.3rem 0',
-                          }}
-                        />
-                        {[
-                          { code: 'all', label: t('minhasfinancas.currency_all') },
-                          ...currencyOptions.map((code) => ({ code, label: code })),
-                        ].map((option) => {
-                          const active = currency === option.code;
-                          return (
-                            <button
-                              key={option.code}
-                              type="button"
-                              role="menuitemradio"
-                              aria-checked={active}
-                              data-testid={`mf-resumo-menu-currency-${option.code}`}
-                              onClick={() => {
-                                setCurrency(option.code);
-                                closeMenu();
-                              }}
-                              style={{
-                                ...menuItemStyle,
-                                borderColor: active ? 'var(--primary)' : 'transparent',
-                                background: active
-                                  ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
-                                  : 'transparent',
-                                fontWeight: active ? 800 : 600,
-                              }}
-                            >
-                              <span style={{ flex: 1, textAlign: 'left' }}>
-                                {option.label}
-                              </span>
-                              {active && <Check size={14} />}
-                            </button>
-                          );
-                        })}
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
+              {menuLayer &&
+                (isNarrow ? createPortal(menuLayer, document.body) : menuLayer)}
             </span>
             {/* Sem abas no estreito: o badge deixa visível qual moeda está
                 filtrando (some quando é "Todas"). */}

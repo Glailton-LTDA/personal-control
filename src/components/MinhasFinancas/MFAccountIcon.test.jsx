@@ -29,6 +29,18 @@ describe('MFAccountIcon', () => {
     expect(img.getAttribute('src')).toBe('/mf-brands/tesourodireto.svg');
   });
 
+  it('C6 Bank usa chip escuro com o logo invertido para branco (igual à referência)', () => {
+    render(<MFAccountIcon account={{ icon: 'brand:c6', name: 'C6 Bank' }} data-testid="icon" />);
+    const box = screen.getByTestId('icon');
+    // fundo preto da marca (não o chip branco padrão)…
+    expect(box).toHaveStyle({ background: '#000000' });
+    // …e o logo monocromático invertido para branco
+    const img = box.querySelector('img');
+    expect(img).toBeInTheDocument();
+    expect(img.getAttribute('src')).toBe('/mf-brands/c6.svg');
+    expect(img).toHaveStyle({ filter: 'invert(1)' });
+  });
+
   it('todos os arquivos de marca apontam para SVGs existentes em public/mf-brands', () => {
     const missing = Object.values(MF_BRAND_FILES).filter(
       (file) => !fs.existsSync(`public/mf-brands/${file}`)

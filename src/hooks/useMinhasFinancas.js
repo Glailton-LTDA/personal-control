@@ -3632,7 +3632,10 @@ export function useMFCardUpcoming(user, cards) {
       if (upcomingAmount > 0) {
         upcomingTotalByCurrency[cur] = (upcomingTotalByCurrency[cur] || 0) + upcomingAmount;
       }
-      return { card, current, upcoming: shown, openAmount };
+      // `next` = próxima fatura DISTINTA da corrente (só quando existe uma
+      // futura com despesa vinculada); `upcoming` continua o mostrado no
+      // rodapé (fallback para a corrente).
+      return { card, current, upcoming: shown, next: upcoming ?? null, openAmount };
     });
     return { items, openTotalByCurrency, upcomingTotalByCurrency };
   }, [cards, data]);

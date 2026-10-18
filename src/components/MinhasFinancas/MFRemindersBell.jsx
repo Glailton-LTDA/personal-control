@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { createPortal } from 'react-dom';
 import { Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
@@ -173,7 +174,8 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 90,
+        // Acima do .main-header (z-index 100) — o painel é portalizado no body.
+        zIndex: 1100,
         width: 'auto',
         maxWidth: 'none',
         maxHeight: '70vh',
@@ -206,15 +208,112 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
         boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
       };
 
-  return (
-    <span style={{ position: 'relative' }}>
-      {open && isNarrow && (
+  // Camada do sino (overlay + painel). No estreito ela vai via portal no
+  // <body>: o glass-card do cabeçalho tem backdrop-filter, que cria um
+  // containing block para position:fixed — sem o portal o bottom-sheet
+  // ficava ancorado no card em vez do pé da tela. zIndex acima do header.
+  const bellLayer = open ? (
+    <>
+      {isNarrow && (
         <span
           data-testid={`${testId}-overlay`}
           onClick={() => setOpen(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 89, background: 'rgba(0, 0, 0, 0.55)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1099, background: 'rgba(0, 0, 0, 0.55)' }}
         />
       )}
+      <span data-testid={`${testId}-panel`} style={panelStyle}>
+        <span style={{ fontSize: '0.8rem', fontWeight: 800, padding: '0.1rem 0.3rem' }}>
+          {t('minhasfinancas.rem_title')}
+        </span>
+        {reminders.length === 0 && (
+          <span
+            data-testid={`${testId}-empty`}
+            style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '0.4rem 0.3rem' }}
+          >
+            {t('minhasfinancas.rem_empty')}
+          </span>
+        )}
+        {reminders.map((reminder) => {
+          const kind = kindStyle(reminder.kind);
+          return (
+            <button
+              key={reminder.key}
+              type="button"
+              data-testid={`${testId}-item-${reminder.txId}`}
+              onClick={() => pick(reminder)}
+              style={{
+                background: 'none',
+                border: 'none',
+                textAlign: 'left',
+                padding: '0.55rem 0.6rem',
+                borderRadius: 10,
+                cursor: 'pointer',
+                font: 'inherit',
+                color: 'var(--text-main)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.15rem',
+              }}
+            >
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {reminder.description}
+                  {mfInstallmentSuffix({
+                    installments_current: reminder.installmentsCurrent,
+                    installments_total: reminder.installmentsTotal,
+                  })}
+                </span>
+                <span style={{ fontWeight: 800, fontSize: '0.85rem', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                  {formatMoney(reminder.amount, reminder.currency)}
+                </span>
+              </span>
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {reminder.accountName ?? ''}
+                </span>
+                <span style={{ color: kind.color, fontWeight: 700, flexShrink: 0 }}>
+                  {kind.label} · {dueLabel(reminder)}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+        <span
+          style={{
+            borderTop: '1px solid var(--glass-border)',
+            marginTop: '0.3rem',
+            paddingTop: '0.55rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+          }}
+        >
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {t('minhasfinancas.rem_push_hint')}
+          </span>
+          <button
+            type="button"
+            className="btn-cancel"
+            data-testid={`${testId}-push-toggle`}
+            disabled={pushBusy || pushState === 'unknown'}
+            aria-pressed={pushState === 'on'}
+            onClick={togglePush}
+            style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', flexShrink: 0 }}
+          >
+            {t(
+              pushState === 'on'
+                ? 'minhasfinancas.rem_push_on_btn'
+                : 'minhasfinancas.rem_push_off_btn'
+            )}
+          </button>
+        </span>
+      </span>
+    </>
+  ) : null;
+
+  return (
+    <span style={{ position: 'relative' }}>
       <button
         type="button"
         className="icon-btn"
@@ -251,99 +350,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
           </span>
         )}
       </button>
-      {open && (
-        <span
-          data-testid={`${testId}-panel`}
-          style={panelStyle}
-        >
-          <span style={{ fontSize: '0.8rem', fontWeight: 800, padding: '0.1rem 0.3rem' }}>
-            {t('minhasfinancas.rem_title')}
-          </span>
-          {reminders.length === 0 && (
-            <span
-              data-testid={`${testId}-empty`}
-              style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '0.4rem 0.3rem' }}
-            >
-              {t('minhasfinancas.rem_empty')}
-            </span>
-          )}
-          {reminders.map((reminder) => {
-            const kind = kindStyle(reminder.kind);
-            return (
-              <button
-                key={reminder.key}
-                type="button"
-                data-testid={`${testId}-item-${reminder.txId}`}
-                onClick={() => pick(reminder)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  textAlign: 'left',
-                  padding: '0.55rem 0.6rem',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  font: 'inherit',
-                  color: 'var(--text-main)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.15rem',
-                }}
-              >
-                <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {reminder.description}
-                    {mfInstallmentSuffix({
-                      installments_current: reminder.installmentsCurrent,
-                      installments_total: reminder.installmentsTotal,
-                    })}
-                  </span>
-                  <span style={{ fontWeight: 800, fontSize: '0.85rem', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                    {formatMoney(reminder.amount, reminder.currency)}
-                  </span>
-                </span>
-                <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {reminder.accountName ?? ''}
-                  </span>
-                  <span style={{ color: kind.color, fontWeight: 700, flexShrink: 0 }}>
-                    {kind.label} · {dueLabel(reminder)}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-          <span
-            style={{
-              borderTop: '1px solid var(--glass-border)',
-              marginTop: '0.3rem',
-              paddingTop: '0.55rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-            }}
-          >
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              {t('minhasfinancas.rem_push_hint')}
-            </span>
-            <button
-              type="button"
-              className="btn-cancel"
-              data-testid={`${testId}-push-toggle`}
-              disabled={pushBusy || pushState === 'unknown'}
-              aria-pressed={pushState === 'on'}
-              onClick={togglePush}
-              style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', flexShrink: 0 }}
-            >
-              {t(
-                pushState === 'on'
-                  ? 'minhasfinancas.rem_push_on_btn'
-                  : 'minhasfinancas.rem_push_off_btn'
-              )}
-            </button>
-          </span>
-        </span>
-      )}
+      {bellLayer && (isNarrow ? createPortal(bellLayer, document.body) : bellLayer)}
     </span>
   );
 }

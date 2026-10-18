@@ -1,6 +1,11 @@
 import React from 'react';
 import { MF_BRAND_ICONS, MF_BRAND_FILES, MF_GLYPH_ICONS } from './MFIconData';
 
+// Marcas cujo logotipo oficial é um SVG preto (monocromático). O chip claro
+// padrão deixaria o C6 "branco"; no chip escuro da marca o logo é invertido
+// para branco — igual ao app de referência (quadrado preto, logo claro).
+const DARK_CHIP_LOGOS = new Set(['c6']);
+
 /** Tamanho da fonte do glifo de marca conforme o comprimento. */
 const brandFontSize = (size, glyph) => {
   const len = glyph.length;
@@ -42,14 +47,19 @@ export default function MFAccountIcon({ account, size = 26, style, ...rest }) {
     const brand = MF_BRAND_ICONS[key];
     const file = MF_BRAND_FILES[key];
     if (file) {
-      // Chip claro com o logotipo oficial na cor original da marca.
+      const darkChip = DARK_CHIP_LOGOS.has(key);
+      // Chip claro com o logotipo oficial na cor original da marca; para
+      // marcas de logo preto (C6) o fundo vira o da marca e o logo inverte
+      // para branco — igual ao app de referência.
       return (
         <span
           title={account?.name}
           style={{
             ...box,
-            background: '#ffffff',
-            boxShadow: 'inset 0 0 0 1px rgba(15, 23, 42, 0.12)',
+            background: darkChip ? brand.bg || '#000000' : '#ffffff',
+            boxShadow: darkChip
+              ? 'inset 0 0 0 1px rgba(255, 255, 255, 0.18)'
+              : 'inset 0 0 0 1px rgba(15, 23, 42, 0.12)',
             overflow: 'hidden',
           }}
           {...rest}
@@ -62,6 +72,7 @@ export default function MFAccountIcon({ account, size = 26, style, ...rest }) {
               height: Math.round(size * 0.74),
               objectFit: 'contain',
               display: 'block',
+              ...(darkChip ? { filter: 'invert(1)' } : {}),
             }}
           />
         </span>
