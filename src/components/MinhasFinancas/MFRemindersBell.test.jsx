@@ -51,6 +51,9 @@ vi.mock('../../hooks/useMinhasFinancas', () => ({
   formatMoney: (value) => `R$ ${value}`,
   mfInstallmentSuffix: () => '',
   toISODate: (date) => date.toISOString().slice(0, 10),
+  // sem matchMedia no jsdom os testes rodam no modo largo; mockando
+  // window.matchMedia com matches: true o modo estreito (bottom-sheet) liga
+  useMFNarrowScreen: () => !!window.matchMedia?.('(max-width: 768px)').matches,
 }));
 
 vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 15, 12, 0, 0) });
@@ -107,5 +110,29 @@ describe('MFRemindersBell — sino de lembretes', () => {
     });
     fireEvent.click(screen.getByTestId('mf-reminders-bell'));
     expect(screen.getByTestId('mf-reminders-push-toggle')).toBeDisabled();
+  });
+
+  it('no estreito o painel abre como bottom-sheet com overlay que fecha', async () => {
+    // Mobile: o sino encosta na borda esquerda e o dropdown sairia da tela
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    try {
+      renderBell();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-reminders-count')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-reminders-bell'));
+      const panel = screen.getByTestId('mf-reminders-panel');
+      expect(panel).toHaveStyle({ position: 'fixed' });
+      expect(screen.getByTestId('mf-reminders-overlay')).toBeInTheDocument();
+      // tocar no overlay escuro fecha o painel
+      fireEvent.click(screen.getByTestId('mf-reminders-overlay'));
+      expect(screen.queryByTestId('mf-reminders-panel')).not.toBeInTheDocument();
+    } finally {
+      delete window.matchMedia;
+    }
   });
 });

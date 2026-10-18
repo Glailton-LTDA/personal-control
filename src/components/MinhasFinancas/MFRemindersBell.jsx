@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   useMFAccounts,
   useMFAllTransactions,
+  useMFNarrowScreen,
   formatMoney,
   mfInstallmentSuffix,
   toISODate,
@@ -37,6 +38,10 @@ const toBase64Url = (buffer) =>
 export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-reminders' }) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
+  // No estreito o sino encosta na borda esquerda e o dropdown sairia da
+  // tela — o painel vira bottom-sheet ancorado embaixo (mesma lógica de
+  // breakpoint do Resumo, ≤768px).
+  const isNarrow = useMFNarrowScreen();
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: allTx = [], isLoading } = useMFAllTransactions(user);
   const [pushState, setPushState] = useState('unknown'); // on | off | unsupported | unknown
@@ -148,8 +153,56 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
     }
   };
 
+  // No estreito vira bottom-sheet de baixo (fixed); no largo, o dropdown
+  // ancorado no sino como antes.
+  const panelStyle = isNarrow
+    ? {
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 90,
+        width: 'auto',
+        maxWidth: 'none',
+        maxHeight: '70vh',
+        overflowY: 'auto',
+        background: 'var(--glass-bg, #1e293b)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: '16px 16px 0 0',
+        padding: '0.9rem 1rem calc(1rem + env(safe-area-inset-bottom))',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.35rem',
+        boxShadow: '0 -12px 32px rgba(0,0,0,0.5)',
+      }
+    : {
+        position: 'absolute',
+        right: 0,
+        top: 'calc(100% + 0.4rem)',
+        zIndex: 60,
+        width: 330,
+        maxWidth: '86vw',
+        maxHeight: 420,
+        overflowY: 'auto',
+        background: 'var(--glass-bg, #1e293b)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: 14,
+        padding: '0.7rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.35rem',
+        boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+      };
+
   return (
     <span style={{ position: 'relative' }}>
+      {open && isNarrow && (
+        <span
+          data-testid={`${testId}-overlay`}
+          onClick={() => setOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 89, background: 'rgba(0, 0, 0, 0.55)' }}
+        />
+      )}
       <button
         type="button"
         className="icon-btn"
@@ -189,24 +242,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
       {open && (
         <span
           data-testid={`${testId}-panel`}
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 0.4rem)',
-            zIndex: 60,
-            width: 330,
-            maxWidth: '86vw',
-            maxHeight: 420,
-            overflowY: 'auto',
-            background: 'var(--glass-bg, #1e293b)',
-            border: '1px solid var(--glass-border)',
-            borderRadius: 14,
-            padding: '0.7rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.35rem',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
-          }}
+          style={panelStyle}
         >
           <span style={{ fontSize: '0.8rem', fontWeight: 800, padding: '0.1rem 0.3rem' }}>
             {t('minhasfinancas.rem_title')}

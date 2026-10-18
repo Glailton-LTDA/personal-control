@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
@@ -39,6 +39,7 @@ import {
   useMFGroups,
   useMFCardUpcoming,
   useMFRecentTransactions,
+  useMFNarrowScreen,
   useUpdateMFGroup,
   MF_BUILTIN_ACCOUNT_TYPES,
   MF_ACCOUNT_TYPE_ICONS,
@@ -158,17 +159,7 @@ export default function MFResumo({
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
   // Estreito (tablet retrato/mobile): cabeçalho compacto sem gráficos.
-  const [isNarrow, setIsNarrow] = useState(
-    () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 768px)').matches
-  );
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-    const query = window.matchMedia('(max-width: 768px)');
-    const onChange = (event) => setIsNarrow(event.matches);
-    query.addEventListener?.('change', onChange);
-    setIsNarrow(query.matches);
-    return () => query.removeEventListener?.('change', onChange);
-  }, []);
+  const isNarrow = useMFNarrowScreen();
 
   // Painel personalizável (Fase 9): widgets + contas visíveis
   const [widgetPref, setWidgetPref] = useState(loadWidgetPref);
@@ -1681,7 +1672,9 @@ export default function MFResumo({
         )}
       </div>
 
-      {/* Compacto do estreito: Inicial / Saldo / Previsto, sem gráficos */}
+      {/* Compacto do estreito (formato do mockup): saldo grande no topo e
+          Inicial/Previsto como linhas de total embaixo — sem as 3 colunas
+          poluídas que quebravam no mobile. */}
       {isNarrow && !selectedRow && groupPath.length === 0 && (
         <div
           className="glass-card"
@@ -1689,26 +1682,45 @@ export default function MFResumo({
           style={{
             padding: '0.9rem 1.1rem',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-around',
+            flexDirection: 'column',
             gap: '0.5rem',
-            textAlign: 'center',
           }}
         >
+          <div data-testid="mf-resumo-compact-balance">
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {t('minhasfinancas.kpi_balance')}
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800 }}>
+              {isLoading ? '…' : isError ? '—' : (
+                <MFTotalsStack totals={kpis.saldo} showValues={showValues} align="left" fontSize="inherit" />
+              )}
+            </div>
+          </div>
           {[
             { key: 'initial', label: t('minhasfinancas.initial'), totals: kpis.initial },
-            { key: 'balance', label: t('minhasfinancas.kpi_balance'), totals: kpis.saldo, big: true },
             { key: 'forecast', label: t('minhasfinancas.kpi_forecast'), totals: kpis.previsto },
           ].map((item) => (
-            <div key={item.key} data-testid={`mf-resumo-compact-${item.key}`} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            <div
+              key={item.key}
+              data-testid={`mf-resumo-compact-${item.key}`}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.75rem',
+                background: 'var(--card-action-bg)',
+                borderRadius: 12,
+                padding: '0.45rem 0.7rem',
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>
                 {item.label}
-              </div>
-              <div style={item.big ? { fontSize: '1.25rem', fontWeight: 800 } : { fontSize: '0.85rem', fontWeight: 700 }}>
+              </span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, textAlign: 'right' }}>
                 {isLoading ? '…' : isError ? '—' : (
                   <MFTotalsStack totals={item.totals} showValues={showValues} align="right" fontSize="inherit" />
                 )}
-              </div>
+              </span>
             </div>
           ))}
         </div>

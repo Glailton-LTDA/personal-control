@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
@@ -2719,6 +2719,26 @@ export function useMFAllTransactions(user) {
       return data ?? [];
     },
   });
+}
+
+/**
+ * Detecta viewport estreita (≤768px = mobile/tablet retrato) e reage a
+ * mudanças de tamanho — base do layout compacto do Resumo, do sino e das
+ * moedas no mobile.
+ */
+export function useMFNarrowScreen(query = '(max-width: 768px)') {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const media = window.matchMedia(query);
+    const onChange = (event) => setNarrow(event.matches);
+    media.addEventListener?.('change', onChange);
+    setNarrow(media.matches);
+    return () => media.removeEventListener?.('change', onChange);
+  }, [query]);
+  return narrow;
 }
 
 /**

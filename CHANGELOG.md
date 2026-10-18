@@ -5,6 +5,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ## [Unreleased]
 
 ### Adicionado
+- **Ajustes mobile do Resumo (MF)**: sino de lembretes e seletor de moedas viram bottom-sheet no estreito (antes o dropdown saía da tela e as abas vazavam com rolagem lateral); o card compacto passa ao formato do mockup — saldo grande no topo e Inicial/Previsto como linhas de total. Novo hook compartilhado `useMFNarrowScreen` (≤768px) no lugar do matchMedia duplicado.
 - **Resumo compacto no estreito + grupos recolhidos por padrão (MF)**: em telas ≤768px o Resumo mostra Inicial/Saldo/Previsto sem gráficos; grupos começam recolhidos (web e mobile). Lançamento novo já nasce efetivado (PAGO).
 - **Resumo mobile sem rolagem lateral**: no estreito, contas e cartões viram lista de linhas (ícone + saldo/previsto + total) em vez da tabela; atalho (olho) no cabeçalho das seções abre o painel de contas visíveis.
 - **Próxima fatura por cartão no Resumo (MF)**: cada linha de cartão mostra a data da próxima fatura com despesa vinculada (mesma fonte da tela de Cartões — `buildCardInvoices`) e o rodapé da seção traz "A pagar / próxima" (fatura corrente em aberto × total da próxima), nos modos tabela e lista.
