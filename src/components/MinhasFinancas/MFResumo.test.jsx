@@ -805,9 +805,14 @@ describe('MFResumo — cartões em seção separada', () => {
 
     // A query de transações do cartão só liga depois que as linhas do resumo
     // carregam (round-trip seguinte) — esperar o dado chegar.
+    // Layout Minhas Finanças: Vencimento = fatura corrente; Próxima = valor
+    // do mês seguinte; Fatura = valor da fatura corrente.
     const due = await screen.findByTestId('mf-resumo-card-due-acc-card');
-    // a próxima fatura é a de novembro (fecha 01/11, vence 10/11 → "10/11")
-    expect(due).toHaveTextContent('10/11');
+    // a fatura corrente (outubro) vence 10/10
+    expect(due).toHaveTextContent('10/10');
+    expect(screen.getByTestId('mf-resumo-card-close-acc-card')).toHaveTextContent('01/10');
+    expect(screen.getByTestId('mf-resumo-card-total-acc-card')).toHaveTextContent('89,90');
+    expect(screen.getByTestId('mf-resumo-card-next-acc-card')).toHaveTextContent('250,00');
     // a pagar (fatura corrente em aberto) e o total da próxima fatura
     expect(screen.getByTestId('mf-resumo-cards-open-total')).toHaveTextContent('89,90');
     expect(screen.getByTestId('mf-resumo-cards-next-total')).toHaveTextContent('250,00');

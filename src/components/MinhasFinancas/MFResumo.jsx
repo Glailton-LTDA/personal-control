@@ -118,6 +118,20 @@ const shortDate = (iso) => {
   return `${d}/${m}`;
 };
 
+/** '2026-09-30' → '30/09, qua.' (fechamento/vencimento com dia da semana,
+ *  como no Minhas Finanças). Sem dia da semana válido, cai no 'dd/mm'. */
+const shortDateWeekday = (iso, language) => {
+  if (!iso) return '';
+  try {
+    const wd = new Intl.DateTimeFormat(language, { weekday: 'short' }).format(
+      new Date(`${iso}T12:00:00`)
+    );
+    return `${shortDate(iso)}, ${wd}`;
+  } catch {
+    return shortDate(iso);
+  }
+};
+
 /** '2026-10-31' → '31/OUT' (dia + mês abreviado — fechamento/vencimento de fatura). */
 const dayMonthLabel = (iso, language) => {
   if (!iso) return '';
@@ -1515,20 +1529,37 @@ export default function MFResumo({
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
                   <thead>
                     <tr>
-                      {/* Coluna da conta (ícone + nome): sem rótulo */}
+                      {/* Coluna da conta (ícone + nome) / descrição do cartão */}
                       <th
-                        aria-hidden
+                        aria-hidden={section.title !== 'cards_title'}
                         style={{
                           padding: '0.6rem 0.75rem',
                           borderBottom: '1px solid var(--glass-border)',
+                          textAlign: 'left',
+                          fontSize: '0.72rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          color: 'var(--text-muted)',
                         }}
-                      />
-                      {[
-                        'accounts_table_income',
-                        'accounts_table_expense',
-                        'accounts_table_balance',
-                        'accounts_table_forecast',
-                      ].map((key) => (
+                      >
+                        {section.title === 'cards_title'
+                          ? t('minhasfinancas.cards_col_desc')
+                          : null}
+                      </th>
+                      {(section.title === 'cards_title'
+                        ? [
+                            'card_closing',
+                            'card_due_label',
+                            'cards_col_invoice',
+                            'cards_col_next',
+                          ]
+                        : [
+                            'accounts_table_income',
+                            'accounts_table_expense',
+                            'accounts_table_balance',
+                            'accounts_table_forecast',
+                          ]
+                      ).map((key) => (
                         <th
                           key={key}
                           style={{
@@ -1547,76 +1578,215 @@ export default function MFResumo({
                     </tr>
                   </thead>
                   <tbody>
-                    {section.rows.map((row) => (
-                      <tr
-                        key={row.id}
-                        data-testid={section.testid}
-                        className="table-row-hover"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setSelectedId(row.id)}
-                      >
-                        <td
-                          style={{
-                            padding: '0.75rem',
-                            borderBottom: '1px solid var(--glass-border)',
-                            fontWeight: 700,
-                            fontSize: '0.9rem',
-                            textAlign: 'left',
-                          }}
-                        >
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                            <MFAccountIcon
-                              account={row}
-                              size={20}
-                              data-testid={`mf-resumo-icon-${row.id}`}
-                            />
-                            <button
-                              type="button"
-                              data-testid={`mf-resumo-open-account-${row.id}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setSelectedId(row.id);
-                              }}
+                    {section.rows.map((row) => {
+                      // Cartões: layout do Minhas Finanças — Descrição,
+                      // Fechamento, Vencimento, Fatura e Próxima (em vez de
+                      // receitas/despesas/saldo/previsão).
+                      if (section.title === 'cards_title') {
+                        const cardItem = upcomingById[row.id];
+                        const current = cardItem?.current ?? null;
+                        const nextInv = cardItem?.next ?? null;
+                        const cur = cardItem?.card?.currency || row.currency || 'BRL';
+                        const invoiceState = cardInvoiceState(current);
+                        return (
+                          <tr
+                            key={row.id}
+                            data-testid={section.testid}
+                            className="table-row-hover"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => setSelectedId(row.id)}
+                          >
+                            {/* Descrição: ícone + nome + bandeira da moeda */}
+                            <td
                               style={{
-                                background: 'none',
-                                border: 'none',
-                                padding: 0,
-                                font: 'inherit',
+                                padding: '0.75rem',
+                                borderBottom: '1px solid var(--glass-border)',
                                 fontWeight: 700,
-                                color: 'inherit',
-                                cursor: 'pointer',
+                                fontSize: '0.9rem',
                                 textAlign: 'left',
                               }}
                             >
-                              {row.name}
-                            </button>
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#10b981', fontSize: '0.9rem' }}>
-                          {nativeMoney(row.receitas, row.currency)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#ef4444', fontSize: '0.9rem' }}>
-                          {nativeMoney(row.despesas, row.currency)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 800, fontSize: '0.9rem' }}>
-                          {nativeMoney(row.saldo, row.currency)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                          {section.title === 'cards_title' && upcomingById[row.id]?.upcoming
-                            ? (() => {
-                                const inv = upcomingById[row.id].upcoming;
-                                const date = shortDate(inv.dueISO);
-                                return (
-                                  <span data-testid={`mf-resumo-card-due-${row.id}`}>
-                                    {date ? `${date} · ` : ''}
-                                    {nativeMoney(Number(inv.total) || 0, upcomingById[row.id].card.currency || 'BRL')}
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <MFAccountIcon
+                                  account={row}
+                                  size={20}
+                                  data-testid={`mf-resumo-icon-${row.id}`}
+                                />
+                                <button
+                                  type="button"
+                                  data-testid={`mf-resumo-open-account-${row.id}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setSelectedId(row.id);
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 0,
+                                    font: 'inherit',
+                                    fontWeight: 700,
+                                    color: 'inherit',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                  }}
+                                >
+                                  {row.name}
+                                </button>
+                                <span
+                                  data-testid={`mf-resumo-card-flag-${row.id}`}
+                                  style={{ fontSize: '0.9rem' }}
+                                >
+                                  {currencyFlag(cur)}
+                                </span>
+                              </span>
+                            </td>
+                            {/* Fechamento */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                color: 'var(--text-muted)',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              {current?.closeISO && (
+                                <span data-testid={`mf-resumo-card-close-${row.id}`}>
+                                  {shortDateWeekday(current.closeISO, i18n.language)}
+                                </span>
+                              )}
+                            </td>
+                            {/* Vencimento (fatura corrente) */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              {current?.dueISO && (
+                                <span data-testid={`mf-resumo-card-due-${row.id}`}>
+                                  {shortDateWeekday(current.dueISO, i18n.language)}
+                                </span>
+                              )}
+                            </td>
+                            {/* Fatura (valor da fatura corrente + status) */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                fontWeight: 800,
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                {invoiceState && (
+                                  <span
+                                    title={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    aria-label={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    style={{ color: invoiceState.color, display: 'inline-flex' }}
+                                  >
+                                    {invoiceState.icon === 'paid' && <CheckCircle2 size={14} />}
+                                    {invoiceState.icon === 'closed' && <Lock size={14} />}
+                                    {invoiceState.icon === 'open' && <LockOpen size={14} />}
                                   </span>
-                                );
-                              })()
-                            : nativeMoney(row.previsto, row.currency)}
-                        </td>
-                      </tr>
-                    ))}
+                                )}
+                                <span data-testid={`mf-resumo-card-total-${row.id}`}>
+                                  {nativeMoney(Number(current?.total) || 0, cur)}
+                                </span>
+                              </span>
+                            </td>
+                            {/* Próxima fatura (mês seguinte) */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                fontWeight: 700,
+                                color: 'var(--text-muted)',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              {nextInv && (
+                                <span data-testid={`mf-resumo-card-next-${row.id}`}>
+                                  {nativeMoney(Number(nextInv.total) || 0, cur)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      // Contas: colunas originais (Previsão em vermelho se negativa)
+                      return (
+                        <tr
+                          key={row.id}
+                          data-testid={section.testid}
+                          className="table-row-hover"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setSelectedId(row.id)}
+                        >
+                          <td
+                            style={{
+                              padding: '0.75rem',
+                              borderBottom: '1px solid var(--glass-border)',
+                              fontWeight: 700,
+                              fontSize: '0.9rem',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <MFAccountIcon
+                                account={row}
+                                size={20}
+                                data-testid={`mf-resumo-icon-${row.id}`}
+                              />
+                              <button
+                                type="button"
+                                data-testid={`mf-resumo-open-account-${row.id}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedId(row.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: 0,
+                                  font: 'inherit',
+                                  fontWeight: 700,
+                                  color: 'inherit',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                {row.name}
+                              </button>
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#10b981', fontSize: '0.9rem' }}>
+                            {nativeMoney(row.receitas, row.currency)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#ef4444', fontSize: '0.9rem' }}>
+                            {nativeMoney(row.despesas, row.currency)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 800, fontSize: '0.9rem' }}>
+                            {nativeMoney(row.saldo, row.currency)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, fontSize: '0.9rem' }}>
+                            <span
+                              style={
+                                Number(row.previsto) < 0
+                                  ? { color: '#ef4444', fontWeight: 800 }
+                                  : { color: 'var(--text-muted)' }
+                              }
+                            >
+                              {nativeMoney(row.previsto, row.currency)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr>
@@ -1637,30 +1807,40 @@ export default function MFResumo({
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
-                        {section.title === 'cards_title' ? (
-                          <span data-testid="mf-resumo-cards-open-total">
-                            {formatTotals(cardUpcoming?.openTotalByCurrency ?? {}, showValues)}
-                          </span>
-                        ) : (
-                          formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)
-                        )}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                        {section.title === 'cards_title' ? (
-                          <span data-testid="mf-resumo-cards-next-total">
-                            {formatTotals(cardUpcoming?.upcomingTotalByCurrency ?? {}, showValues)}
-                          </span>
-                        ) : (
-                          formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)
-                        )}
-                      </td>
+                      {section.title === 'cards_title' ? (
+                        <>
+                          {/* Fechamento / Vencimento: sem total */}
+                          <td style={{ padding: '0.75rem' }} />
+                          <td style={{ padding: '0.75rem' }} />
+                          {/* Fatura: total a pagar (fatura corrente em aberto) */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
+                            <span data-testid="mf-resumo-cards-open-total">
+                              {formatTotals(cardUpcoming?.openTotalByCurrency ?? {}, showValues)}
+                            </span>
+                          </td>
+                          {/* Próxima: total da próxima fatura */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            <span data-testid="mf-resumo-cards-next-total">
+                              {formatTotals(cardUpcoming?.upcomingTotalByCurrency ?? {}, showValues)}
+                            </span>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   </tfoot>
                 </table>
