@@ -49,8 +49,7 @@ import {
   useMFCardUpcoming,
   useMFRecentTransactions,
   useMFNarrowScreen,
-  useUpdateMFGroup,
-  useUpdateAccount,
+  useMFReorder,
   MF_BUILTIN_ACCOUNT_TYPES,
   MF_ACCOUNT_TYPE_ICONS,
   budgetSpent,
@@ -377,10 +376,12 @@ export default function MFResumo({
   const [groupModal, setGroupModal] = useState(null);
   // Reordenar grupos (raízes) pelos botões ↑/↓ nos cards.
   const [groupsReordering, setGroupsReordering] = useState(false);
-  const updateGroupMutation = useUpdateMFGroup();
-  // Reordenação manual das contas no Resumo (chip "Manual"): ↑/↓ trocam
-  // o sort_order com o vizinho — mesma persistência da tela Contas.
-  const updateAccountMutation = useUpdateAccount();
+  const reorderGroups = useMFReorder('mf_account_groups');
+  // Reordenação manual das contas no Resumo (chip Manual + botão
+  // Reordenar): ↑/↓ trocam o sort_order com o vizinho — otimista (a UI
+  // move na hora, sem esperar o refetch da RPC) e a mesma ordem vale na
+  // tela Contas (tudo ordena por sort_order).
+  const reorderAccounts = useMFReorder('mf_accounts');
   // Modal de nova conta com o grupo do drill já pré-selecionado
   const [accountModalGroup, setAccountModalGroup] = useState(null);
   // Modal de EDIÇÃO de conta a partir do detalhe (drill ou widget)
@@ -399,10 +400,8 @@ export default function MFResumo({
     const next = [...siblings];
     [next[index], next[target]] = [next[target], next[index]];
     try {
-      await Promise.all(
-        next.map((item, position) =>
-          updateGroupMutation.mutateAsync({ id: item.id, sort_order: position })
-        )
+      await reorderGroups.mutateAsync(
+        next.map((item, position) => ({ id: item.id, sort_order: position }))
       );
     } catch {
       toast.error(t('minhasfinancas.save_error'));
@@ -1140,9 +1139,9 @@ export default function MFResumo({
         const toIndex = allAccounts.findIndex((row) => row.id === neighbor.id);
         if (fromIndex < 0 || toIndex < 0) return;
         try {
-          await Promise.all([
-            updateAccountMutation.mutateAsync({ id: rowId, sort_order: toIndex }),
-            updateAccountMutation.mutateAsync({ id: neighbor.id, sort_order: fromIndex }),
+          await reorderAccounts.mutateAsync([
+            { id: rowId, sort_order: toIndex },
+            { id: neighbor.id, sort_order: fromIndex },
           ]);
         } catch {
           toast.error(t('minhasfinancas.save_error'));

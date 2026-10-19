@@ -1096,6 +1096,87 @@ export function useDeleteAccount() {
   });
 }
 
+/** Aplica o `sort_order` novo nos itens com `byId` de um cache MF e
+ * REORDENA o array pela régua do banco (sort_order, id — a mesma da RPC
+ * mf_month_summary). Arrays sem nenhum item tocado ficam intactos
+ * (ordenados ou não) — transações e afins nunca reordenam por acaso. */
+const applySortOrderToCache = (old, byId) => {
+  const patchArray = (items) => {
+    if (!Array.isArray(items)) return items;
+    let changed = false;
+    const patched = items.map((item) => {
+      if (item && byId.has(item.id)) {
+        changed = true;
+        return { ...item, sort_order: byId.get(item.id) };
+      }
+      return item;
+    });
+    if (!changed) return items;
+    return patched.sort(
+      (a, b) =>
+        (Number(a?.sort_order) || 0) - (Number(b?.sort_order) || 0) ||
+        String(a?.id ?? '').localeCompare(String(b?.id ?? ''))
+    );
+  };
+  if (Array.isArray(old)) return patchArray(old);
+  if (old && typeof old === 'object' && Array.isArray(old.rows)) {
+    const rows = patchArray(old.rows);
+    return rows === old.rows ? old : { ...old, rows };
+  }
+  return old;
+};
+
+/**
+ * Reordenação OTIMISTA de contas/grupos (`updates` = [{ id, sort_order }]):
+ * o novo `sort_order` vai para os caches MF no instante do clique e a
+ * gravação corre em paralelo — a UI move na hora. Antes, cada clique
+ * disparava `useInvalidateAll` e a tela só se movia quando TODAS as
+ * queries refetchavam, incluindo a RPC do resumo (varre todos os
+ * lançamentos do mês + 5 meses de gráfico) — dava a sensação de
+ * travar. Reordenação não muda valores, então em SUCESSO não invalida
+ * nada; em ERRO restaura os snapshots e invalida tudo (rollback).
+ */
+export function useMFReorder(table) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: async (updates) => {
+      await Promise.all(
+        updates.map(({ id, sort_order }) =>
+          mfMutate({
+            table,
+            action: 'update',
+            id,
+            payload: { sort_order },
+            run: async () => {
+              const { error } = await supabase
+                .from(table)
+                .update({ sort_order })
+                .eq('id', id);
+              if (error) throw error;
+              return { id, sort_order };
+            },
+          })
+        )
+      );
+      return updates;
+    },
+    onMutate: async (updates) => {
+      const byId = new Map(updates.map((update) => [update.id, update.sort_order]));
+      await queryClient.cancelQueries({ predicate: isMFQuery });
+      const snapshots = queryClient.getQueriesData({ predicate: isMFQuery });
+      queryClient.setQueriesData({ predicate: isMFQuery }, (old) =>
+        applySortOrderToCache(old, byId)
+      );
+      return { snapshots };
+    },
+    onError: (_error, _variables, context) => {
+      context?.snapshots?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      invalidate();
+    },
+  });
+}
+
 export function useCreateTransfer() {
   const invalidate = useInvalidateAll();
   return useMutation({

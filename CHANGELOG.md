@@ -37,6 +37,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Alterado
 - **Coluna Saldo em 1ª no Resumo (MF)**: a tabela larga de contas passou a ordem **Saldo · Receitas · Despesas · Previsão** (antes Receitas · Despesas · Saldo · Previsão) — no cabeçalho, nas linhas e no rodapé TOTAL.
 
+### Corrigido
+- **Reordenar contas e grupos não "trava" mais (MF)**: cada clique de ↑/↓ (Resumo e Contas, contas e grupos) disparava a invalidação de **todas** as queries do MF — incluindo a RPC do resumo, que varre todos os lançamentos do mês + 5 meses de gráfico — e a linha só se movia quando o refetch terminava (dava a sensação de travar). A reordenação virou **otimista**: o `sort_order` novo vai para os caches na hora do clique (a UI move na hora) e a gravação corre em paralelo; como reordenar não muda valores, o sucesso não refetcha nada — em erro, os snapshots são restaurados e tudo é invalidado (rollback).
+
 ### Adicionado
 - **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.
 - **Busca no seletor de tags do lançamento (MF)**: o picker (criação e edição rápida) ganhou campo de busca para filtrar as tags.
