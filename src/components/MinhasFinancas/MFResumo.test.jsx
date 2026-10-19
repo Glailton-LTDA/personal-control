@@ -278,7 +278,7 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
   it('ordenação das contas a critério do usuário é aplicada e persistida', async () => {
     renderScreen();
     await waitForData();
-    // padrão: ordem alfabética (Conta BRL antes de Conta USD)
+    // padrão = modo Manual: ordem do banco (sort_order 0 → 1)
     let rows = screen.getAllByTestId('mf-resumo-account-row');
     expect(within(rows[0]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
     expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-usd')).toBeInTheDocument();
@@ -293,6 +293,71 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
     expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
     // a preferência fica salva para as próximas sessões
     expect(localStorage.getItem('mf_accounts_sort')).toBe('balance_asc');
+  });
+
+  it('modo Manual (padrão) mostra ↑/↓ e a troca persiste o sort_order com o vizinho', async () => {
+    renderScreen();
+    await waitForData();
+
+    // padrão = Manual: as setas já aparecem nas linhas de conta
+    expect(screen.getByTestId('mf-resumo-account-move-up-acc-brl')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-account-move-down-acc-brl')).toBeInTheDocument();
+
+    // desce a Conta BRL: sort_order troca com o da Conta USD (índices na
+    // lista completa de contas — mesmo padrão da tela Contas)
+    fireEvent.click(screen.getByTestId('mf-resumo-account-move-down-acc-brl'));
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_accounts');
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'acc-brl');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'acc-usd');
+  });
+
+  it('setas do modo Manual também aparecem na lista estreita', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      // no estreito não existe o KPI largo — esperar a linha direto
+      const down = await screen.findByTestId('mf-resumo-account-move-down-acc-brl');
+      fireEvent.click(down);
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_accounts');
+      expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+      expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('critério "Nome (A–Z)" ordena de verdade e esconde as setas do modo Manual', async () => {
+    // Conta extra com o MAIOR sort_order — última no banco, primeira no A–Z.
+    mockData.accounts.push({
+      id: 'acc-aaa',
+      name: 'AAA Extra',
+      account_type: 'CORRENTE',
+      currency: 'BRL',
+      initial_balance: 0,
+      color: '#a855f7',
+      sort_order: 9,
+    });
+    renderScreen();
+    await waitForData();
+
+    // modo Manual: ordem do banco (AAA por último)
+    let rows = screen.getAllByTestId('mf-resumo-account-row');
+    expect(rows).toHaveLength(3);
+    expect(within(rows[2]).getByTestId('mf-resumo-open-account-acc-aaa')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort'));
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort-name'));
+
+    // Nome (A–Z) ordena de verdade: AAA Extra primeiro
+    rows = screen.getAllByTestId('mf-resumo-account-row');
+    expect(within(rows[0]).getByTestId('mf-resumo-open-account-acc-aaa')).toBeInTheDocument();
+    expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
+    // fora do modo Manual não há setas
+    expect(screen.queryByTestId('mf-resumo-account-move-up-acc-brl')).not.toBeInTheDocument();
   });
 });
 

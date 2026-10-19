@@ -50,6 +50,7 @@ import {
   useMFRecentTransactions,
   useMFNarrowScreen,
   useUpdateMFGroup,
+  useUpdateAccount,
   MF_BUILTIN_ACCOUNT_TYPES,
   MF_ACCOUNT_TYPE_ICONS,
   budgetSpent,
@@ -103,8 +104,10 @@ const shortMonthLabel = (monthKey, language) => {
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
 
 // Ordenação das contas no Resumo, a critério do usuário (persistida em
-// localStorage). `name` é o padrão (ordem alfabética, como chega).
+// localStorage). `manual` é o padrão: ordem do banco (sort_order), com
+// ↑/↓ por linha para reordenar — a mesma ordem vale na tela Contas.
 const ACCOUNT_SORT_OPTIONS = [
+  { value: 'manual', labelKey: 'minhasfinancas.sort_manual' },
   { value: 'name', labelKey: 'minhasfinancas.sort_name' },
   { value: 'balance_desc', labelKey: 'minhasfinancas.sort_balance_desc' },
   { value: 'balance_asc', labelKey: 'minhasfinancas.sort_balance_asc' },
@@ -221,8 +224,10 @@ export default function MFResumo({
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
   // Ordenação das contas no Resumo, a critério do usuário (persistida).
+  // Padrão = manual (ordem do banco, reordenável com ↑/↓); 'name' gravado
+  // em versões antigas virava "Nome (A–Z)" de fato — antes só rotulava.
   const [accountsSort, setAccountsSort] = useState(
-    () => localStorage.getItem('mf_accounts_sort') || 'name'
+    () => localStorage.getItem('mf_accounts_sort') || 'manual'
   );
   const [sortOpen, setSortOpen] = useState(false);
   const changeAccountsSort = (value) => {
@@ -367,6 +372,9 @@ export default function MFResumo({
   // Reordenar grupos (raízes) pelos botões ↑/↓ nos cards.
   const [groupsReordering, setGroupsReordering] = useState(false);
   const updateGroupMutation = useUpdateMFGroup();
+  // Reordenação manual das contas no Resumo (chip "Manual"): ↑/↓ trocam
+  // o sort_order com o vizinho — mesma persistência da tela Contas.
+  const updateAccountMutation = useUpdateAccount();
   // Modal de nova conta com o grupo do drill já pré-selecionado
   const [accountModalGroup, setAccountModalGroup] = useState(null);
   // Modal de EDIÇÃO de conta a partir do detalhe (drill ou widget)
@@ -1083,12 +1091,17 @@ export default function MFResumo({
       // Cartões (account_type='CARTAO') têm seção própria — nunca se misturam
       // com as contas. Só esta lista segue o filtro visual; KPIs e gráficos
       // somam todas as contas ativas.
-      // Ordenação a critério do usuário (persistida): nome, maior/menor saldo
-      // ou maior/menor previsto.
+      // Ordenação a critério do usuário (persistida): manual (ordem do
+      // banco, reordenável com ↑/↓), nome A–Z ou maior/menor saldo e
+      // previsto.
       const sortAccounts = (list) => {
         const byNumber = (field) => (a, b) =>
           (Number(b[field]) || 0) - (Number(a[field]) || 0);
         switch (accountsSort) {
+          case 'name':
+            return [...list].sort((a, b) =>
+              String(a.name ?? '').localeCompare(String(b.name ?? ''), i18n.language)
+            );
           case 'balance_desc':
             return [...list].sort(byNumber('saldo'));
           case 'balance_asc':
@@ -1097,7 +1110,7 @@ export default function MFResumo({
             return [...list].sort(byNumber('previsto'));
           case 'forecast_asc':
             return [...list].sort((a, b) => (Number(a.previsto) || 0) - (Number(b.previsto) || 0));
-          case 'name':
+          case 'manual':
           default:
             return list;
         }
@@ -1106,6 +1119,29 @@ export default function MFResumo({
         visibleRows.filter((row) => row.account_type !== 'CARTAO')
       );
       const cardRows = visibleRows.filter((row) => row.account_type === 'CARTAO');
+      // Modo manual: reordenar ↑/↓ trocando o sort_order (índice na lista
+      // COMPLETA de contas — nunca cartões) com o VIZINHO visível. A RPC
+      // mf_month_summary ordena por sort_order e o update invalida tudo —
+      // a mesma ordem aparece na tela Contas (contas compartilham o
+      // espaço de sort_order com os cartões, mas cada tipo ordena o seu).
+      const accountsManual = accountsSort === 'manual';
+      const moveAccount = async (rowId, direction) => {
+        const visibleIndex = accountRows.findIndex((row) => row.id === rowId);
+        const neighbor = accountRows[visibleIndex + direction];
+        if (visibleIndex < 0 || !neighbor) return;
+        const allAccounts = rows.filter((row) => row.account_type !== 'CARTAO');
+        const fromIndex = allAccounts.findIndex((row) => row.id === rowId);
+        const toIndex = allAccounts.findIndex((row) => row.id === neighbor.id);
+        if (fromIndex < 0 || toIndex < 0) return;
+        try {
+          await Promise.all([
+            updateAccountMutation.mutateAsync({ id: rowId, sort_order: toIndex }),
+            updateAccountMutation.mutateAsync({ id: neighbor.id, sort_order: fromIndex }),
+          ]);
+        } catch {
+          toast.error(t('minhasfinancas.save_error'));
+        }
+      };
       // Próxima fatura por cartão (Fase B) — lookup por id.
       const upcomingById = Object.fromEntries(
         (cardUpcoming?.items ?? []).map((item) => [item.card.id, item])
@@ -1416,9 +1452,14 @@ export default function MFResumo({
                     }
 
                     // Conta: ícone + nome, previsão (vermelha quando negativa) + saldo.
+                    // Modo Manual: setas ↑/↓ como IRMÃS do botão da linha (button
+                    // dentro de button é inválido) — a linha segue clicável.
                     return (
-                      <button
+                      <div
                         key={row.id}
+                        style={{ display: 'flex', alignItems: 'center', width: '100%' }}
+                      >
+                      <button
                         type="button"
                         data-testid={section.testid}
                         onClick={() => setSelectedId(row.id)}
@@ -1433,7 +1474,8 @@ export default function MFResumo({
                           color: 'inherit',
                           cursor: 'pointer',
                           textAlign: 'left',
-                          width: '100%',
+                          flex: 1,
+                          minWidth: 0,
                         }}
                       >
                         <MFAccountIcon
@@ -1476,6 +1518,38 @@ export default function MFResumo({
                           {nativeMoney(row.saldo, row.currency)}
                         </span>
                       </button>
+                      {accountsManual && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            gap: '0.15rem',
+                            flexShrink: 0,
+                            paddingLeft: '0.35rem',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={t('minhasfinancas.move_up')}
+                            data-testid={`mf-resumo-account-move-up-${row.id}`}
+                            onClick={() => moveAccount(row.id, -1)}
+                            style={{ padding: '0.3rem' }}
+                          >
+                            <ChevronUp size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={t('minhasfinancas.move_down')}
+                            data-testid={`mf-resumo-account-move-down-${row.id}`}
+                            onClick={() => moveAccount(row.id, 1)}
+                            style={{ padding: '0.3rem' }}
+                          >
+                            <ChevronDown size={16} />
+                          </button>
+                        </span>
+                      )}
+                      </div>
                     );
                   })}
                   <div
@@ -1787,6 +1861,44 @@ export default function MFResumo({
                                 {row.name}
                               </button>
                               <MFIgnoreDots show={row.ignore_in_totals} />
+                              {/* Modo Manual: ↑/↓ trocam a posição com o vizinho */}
+                              {accountsManual && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    gap: '0.15rem',
+                                    flexShrink: 0,
+                                    marginLeft: '0.25rem',
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    aria-label={t('minhasfinancas.move_up')}
+                                    data-testid={`mf-resumo-account-move-up-${row.id}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      moveAccount(row.id, -1);
+                                    }}
+                                    style={{ padding: '0.25rem' }}
+                                  >
+                                    <ChevronUp size={15} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    aria-label={t('minhasfinancas.move_down')}
+                                    data-testid={`mf-resumo-account-move-down-${row.id}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      moveAccount(row.id, 1);
+                                    }}
+                                    style={{ padding: '0.25rem' }}
+                                  >
+                                    <ChevronDown size={15} />
+                                  </button>
+                                </span>
+                              )}
                             </span>
                           </td>
                           {/* Saldo em 1ª coluna (pedido) */}
