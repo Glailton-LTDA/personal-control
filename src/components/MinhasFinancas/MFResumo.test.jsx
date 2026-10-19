@@ -220,13 +220,14 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
     mockData.reset();
   });
 
-  it('cartão no estreito mostra bandeira, status, fechamento, vencimento e próxima fatura', async () => {
+  it('cartão no estreito mostra bandeira da rede, status, fechamento, vencimento e próxima fatura', async () => {
     // Cartão (BRL) com despesa corrente + despesa vinculada à próxima fatura.
     mockData.accounts.push({
       id: 'acc-card',
       name: 'Nubank Cartão',
       account_type: 'CARTAO',
       currency: 'BRL',
+      card_brand: 'visa',
       initial_balance: 0,
       color: '#820AD1',
       sort_order: 2,
@@ -259,8 +260,9 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
       await screen.findByTestId('mf-resumo-card-row');
       // …e não mistura com as contas (só as 2 contas-base na seção de contas)
       expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
-      // bandeira da moeda ao lado do nome (BRL → 🇧🇷)
-      expect(screen.getByTestId('mf-resumo-card-flag-acc-card')).toHaveTextContent('🇧🇷');
+      // bandeira da REDE (Visa) ao lado do nome — não a da moeda
+      expect(screen.getByTestId('mf-brand-icon-visa')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-resumo-card-brand-acc-card')).toBeInTheDocument();
       // as infos da fatura só aparecem quando as transações do cartão carregam
       await screen.findByTestId('mf-resumo-card-due-acc-card');
       expect(screen.getByTestId('mf-resumo-card-status-acc-card')).toBeInTheDocument();
@@ -771,6 +773,7 @@ describe('MFResumo — cartões em seção separada', () => {
       name: 'C6 Bank Cartão',
       account_type: 'CARTAO',
       currency: 'BRL',
+      card_brand: 'mastercard',
       initial_balance: 0,
       color: '#f59e0b',
       sort_order: 2,
@@ -813,6 +816,9 @@ describe('MFResumo — cartões em seção separada', () => {
     expect(screen.getByTestId('mf-resumo-card-close-acc-card')).toHaveTextContent('01/10');
     expect(screen.getByTestId('mf-resumo-card-total-acc-card')).toHaveTextContent('89,90');
     expect(screen.getByTestId('mf-resumo-card-next-acc-card')).toHaveTextContent('250,00');
+    // bandeira da REDE (Mastercard) na descrição — não a da moeda
+    expect(screen.getByTestId('mf-resumo-card-brand-acc-card')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-brand-icon-mastercard')).toBeInTheDocument();
     // a pagar (fatura corrente em aberto) e o total da próxima fatura
     expect(screen.getByTestId('mf-resumo-cards-open-total')).toHaveTextContent('89,90');
     expect(screen.getByTestId('mf-resumo-cards-next-total')).toHaveTextContent('250,00');

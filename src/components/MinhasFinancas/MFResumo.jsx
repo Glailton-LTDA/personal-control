@@ -63,7 +63,6 @@ import {
   shiftMonth,
   sumField,
   currentMonthKey,
-  currencyFlag,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
@@ -71,6 +70,7 @@ import MFTotalsStack from './MFTotalsStack';
 import MFTotalsHero from './MFTotalsHero';
 import MFIgnoreDots from './MFIgnoreDots';
 import MFAccountIcon from './MFAccountIcon';
+import MFCardBrandIcon from './MFCardBrandIcon';
 import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
 import MFGroupDrill from './MFGroupDrill';
@@ -1327,12 +1327,19 @@ export default function MFResumo({
                               >
                                 {row.name}
                               </span>
-                              <span
-                                data-testid={`mf-resumo-card-flag-${row.id}`}
-                                style={{ fontSize: '0.85rem', flexShrink: 0 }}
-                              >
-                                {currencyFlag(cur)}
-                              </span>
+                              {/* bandeira da REDE (Visa/Master/Elo…) */}
+                              {Boolean(row.card_brand) && (
+                                <span
+                                  data-testid={`mf-resumo-card-brand-${row.id}`}
+                                  style={{ display: 'inline-flex', flexShrink: 0 }}
+                                >
+                                  <MFCardBrandIcon
+                                    brand={row.card_brand}
+                                    size={16}
+                                    title={t(`minhasfinancas.card_brand_${row.card_brand}`)}
+                                  />
+                                </span>
+                              )}
                               <span
                                 style={{
                                   marginLeft: 'auto',
@@ -1606,7 +1613,7 @@ export default function MFResumo({
                             style={{ cursor: 'pointer' }}
                             onClick={() => setSelectedId(row.id)}
                           >
-                            {/* Descrição: ícone + nome + bandeira da moeda */}
+                            {/* Descrição: ícone + nome + bandeira da rede */}
                             <td
                               style={{
                                 padding: '0.75rem',
@@ -1642,12 +1649,19 @@ export default function MFResumo({
                                 >
                                   {row.name}
                                 </button>
-                                <span
-                                  data-testid={`mf-resumo-card-flag-${row.id}`}
-                                  style={{ fontSize: '0.9rem' }}
-                                >
-                                  {currencyFlag(cur)}
-                                </span>
+                                {/* bandeira da REDE (Visa/Master/Elo…) */}
+                                {Boolean(row.card_brand) && (
+                                  <span
+                                    data-testid={`mf-resumo-card-brand-${row.id}`}
+                                    style={{ display: 'inline-flex', flexShrink: 0 }}
+                                  >
+                                    <MFCardBrandIcon
+                                      brand={row.card_brand}
+                                      size={18}
+                                      title={t(`minhasfinancas.card_brand_${row.card_brand}`)}
+                                    />
+                                  </span>
+                                )}
                               </span>
                             </td>
                             {/* Fechamento */}
