@@ -39,6 +39,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Coluna Saldo em 1ª no Resumo (MF)**: a tabela larga de contas passou a ordem **Saldo · Receitas · Despesas · Previsão** (antes Receitas · Despesas · Saldo · Previsão) — no cabeçalho, nas linhas e no rodapé TOTAL.
 
 ### Corrigido
+- **Scroll do Contas (e do Extrato) travando no mobile (MF)**: cada linha de conta, cada cabeçalho de grupo e cada card de dia era um `.glass-card` — ou seja, `backdrop-filter: blur(20px)` **por elemento**: no scroll o navegador refazia o blur do fundo por linha a cada frame, e a lista engasgava (com o `--bg-card` opaco o blur nem chegava a aparecer). Listas repetidas passaram a usar a nova classe `.glass-card-flat` (mesmo visual, sem blur nem transition) — linhas e grupos do Contas (inclusive as aninhadas) e os cards por dia do Extrato; instâncias únicas (cabeçalhos, KPIs, totais, modais) seguem com `glass-card`.
 - **Reordenar contas e grupos não "trava" mais (MF)**: cada clique de ↑/↓ (Resumo e Contas, contas e grupos) disparava a invalidação de **todas** as queries do MF — incluindo a RPC do resumo, que varre todos os lançamentos do mês + 5 meses de gráfico — e a linha só se movia quando o refetch terminava (dava a sensação de travar). A reordenação virou **otimista**: o `sort_order` novo vai para os caches na hora do clique (a UI move na hora) e a gravação corre em paralelo; como reordenar não muda valores, o sucesso não refetcha nada — em erro, os snapshots são restaurados e tudo é invalidado (rollback).
 
 ### Adicionado

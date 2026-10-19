@@ -206,7 +206,7 @@ export default function MFExtrato({
 
       {!isLoading &&
         groups.map((group) => (
-          <div key={group.date} className="glass-card" data-testid="mf-statement-day" style={{ padding: '1rem 1.5rem' }}>
+          <div key={group.date} className="glass-card-flat" data-testid="mf-statement-day" style={{ padding: '1rem 1.5rem' }}>
             <div
               style={{
                 display: 'flex',

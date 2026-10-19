@@ -532,7 +532,7 @@ export default function MFContas({
             setSelectedId(row.id);
           }
         }}
-        className="glass-card table-row-hover"
+        className="glass-card-flat table-row-hover"
         style={{
           padding: '0.9rem 1rem',
           display: 'flex',
@@ -1152,7 +1152,7 @@ export default function MFContas({
               <div
                 key={isGroup ? group.id : UNGROUPED_ID}
                 data-testid={isGroup ? `mf-group-header-${group.id}` : 'mf-ungrouped-header'}
-                className="glass-card"
+                className="glass-card-flat"
                 style={{
                   padding: '0.9rem 1rem',
                   display: 'flex',
