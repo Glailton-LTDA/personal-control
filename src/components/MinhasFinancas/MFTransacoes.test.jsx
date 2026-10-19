@@ -1640,3 +1640,139 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.getByTestId('mf-tx-amount')).toHaveValue('18,00');
   });
 });
+
+describe('Lançamentos — estreito (mobile, cartões por dia, sem scroll lateral)', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    localStorage.setItem('pc_skip_confirmations', 'true');
+    const mocked = await import('../../lib/supabase');
+    allTxMock.mockReturnValue({
+      data: mocked.__txRows ?? [],
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('pc_skip_confirmations');
+  });
+
+  const mockNarrow = () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  };
+  const restoreViewport = () => {
+    delete window.matchMedia;
+  };
+
+  it('lista em cartões agrupados por dia, sem tabela; KPIs, badge de itens e FAB', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+
+      // 3 lançamentos em 3 dias distintos (05, 06 e 10) → 3 grupos de dia
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-day-2026-10-05')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-day-2026-10-06')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-day-2026-10-10')).toBeInTheDocument();
+
+      // Cabeçalho: badge de itens; o "+" do cabeçalho sai e o FAB assume
+      expect(screen.getByTestId('mf-tx-count')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-new-tx')).not.toBeInTheDocument();
+      expect(screen.getByTestId('mf-new-tx-fab')).toBeInTheDocument();
+
+      // Tira de KPIs (Receitas / Despesas / Transf.)
+      expect(screen.getByTestId('mf-tx-kpi-receita')).toHaveTextContent('R$ 5.000,00');
+      expect(screen.getByTestId('mf-tx-kpi-despesa')).toHaveTextContent(/US\$ 100,00/);
+      expect(screen.getByTestId('mf-tx-kpi-transfer')).toBeInTheDocument();
+
+      // Cartão mantém descrição, parcelas, categoria, tags e status
+      expect(screen.getByTestId('mf-tx-desc-tx-1')).toHaveTextContent('Salário');
+      expect(screen.getByTestId('mf-tx-installment-badge')).toHaveTextContent('2/12');
+      expect(screen.getAllByTestId('mf-tx-tag-badge')).toHaveLength(2);
+      expect(screen.getAllByTestId('mf-tx-status-badge')).toHaveLength(3);
+      expect(screen.getByTestId('mf-tx-menu-tx-1')).toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('checkbox do dia marca o dia inteiro e Pagar grava PAGO (sem barra global)', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      // Sem seleção: Pagar do dia fica desabilitado
+      expect(screen.getByTestId('mf-tx-day-pay-2026-10-10')).toBeDisabled();
+
+      // Marca o dia 10 por inteiro (só tx-3 ali)
+      fireEvent.click(screen.getByTestId('mf-tx-day-select-2026-10-10'));
+      expect(screen.getByTestId('mf-tx-select-tx-3')).toBeChecked();
+      // No estreito a barra de lote global não aparece — os botões do dia assumem
+      expect(screen.queryByTestId('mf-tx-bulk-bar')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('mf-tx-day-pay-2026-10-10'));
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(chain.in).toHaveBeenCalledWith('id', ['tx-3']);
+      });
+      expect(chain.update.mock.calls[0][0]).toMatchObject({ status: 'PAGO' });
+
+      // Seleção esvazia → o botão do dia volta a ficar desabilitado
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-day-pay-2026-10-10')).toBeDisabled();
+      });
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('Excluir do dia exclui só os selecionados do dia', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      fireEvent.click(screen.getByTestId('mf-tx-day-select-2026-10-05'));
+      fireEvent.click(screen.getByTestId('mf-tx-day-delete-2026-10-05'));
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(chain.in).toHaveBeenCalledWith('id', ['tx-1']);
+      });
+      expect(chain.delete).toHaveBeenCalled();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('⋮ do cartão abre os Detalhes (mesmo modal do lápis da tabela)', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      fireEvent.click(screen.getByTestId('mf-tx-menu-tx-2'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-detail')).toBeInTheDocument();
+      });
+    } finally {
+      restoreViewport();
+    }
+  });
+});

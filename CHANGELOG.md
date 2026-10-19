@@ -35,6 +35,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Toggle "Fixa mensal" da transferência com estados claros (MF)**: selecionado usa o botão primário preenchido (índigo) e não selecionado o neutro, em vez do contorno vermelho de antes.
 
 ### Alterado
+- **Tela de Lançamentos no estreito (mobile) no layout do Minhas Finanças (MF)**: a lista virou **cartões agrupados por dia de pagamento** (separador "● 01 DE OUTUBRO DE 2026 · N transações") — acabou a rolagem lateral da tabela de 940px. Cada cartão traz ícone (da categoria, senão da conta), descrição com selos de fixa/parcela/anexo, badge de categoria + tags + conta, valor colorido à direita, status e o ⋮ que abre os Detalhes (mesmo modal do lápis). Cada dia ganhou sua linha de seleção ("Selecionar todos" + **Pagar** + **Excluir**, ativos só com algo selecionado do dia — a barra de lote global ficou só no largo); o cabeçalho recebeu o badge de itens, a busca largou para largura total, os filtros de KPI viraram tira de 3 colunas (Receitas · Despesas · Transf. — novo total de transferências) e o "+" do cabeçalho virou **FAB fixo** no canto inferior direito.
 - **Coluna Saldo em 1ª no Resumo (MF)**: a tabela larga de contas passou a ordem **Saldo · Receitas · Despesas · Previsão** (antes Receitas · Despesas · Saldo · Previsão) — no cabeçalho, nas linhas e no rodapé TOTAL.
 
 ### Corrigido
