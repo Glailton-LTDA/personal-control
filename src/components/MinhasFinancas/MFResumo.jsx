@@ -104,8 +104,9 @@ const shortMonthLabel = (monthKey, language) => {
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
 
 // Ordenação das contas no Resumo, a critério do usuário (persistida em
-// localStorage). `manual` é o padrão: ordem do banco (sort_order), com
-// ↑/↓ por linha para reordenar — a mesma ordem vale na tela Contas.
+// localStorage). `manual` é o padrão: ordem do banco (sort_order) — as
+// setas ↑/↓ só aparecem com o modo Reordenar ligado (mesma ordem vale
+// na tela Contas).
 const ACCOUNT_SORT_OPTIONS = [
   { value: 'manual', labelKey: 'minhasfinancas.sort_manual' },
   { value: 'name', labelKey: 'minhasfinancas.sort_name' },
@@ -230,8 +231,13 @@ export default function MFResumo({
     () => localStorage.getItem('mf_accounts_sort') || 'manual'
   );
   const [sortOpen, setSortOpen] = useState(false);
+  // Modo reordenar (setas ↑/↓ nas linhas): só no critério "Manual" e
+  // enquanto o botão "Reordenar" estiver ligado — mesmos padrão dos
+  // grupos e da tela Contas; escolher outro critério desliga.
+  const [accountsReordering, setAccountsReordering] = useState(false);
   const changeAccountsSort = (value) => {
     setAccountsSort(value);
+    setAccountsReordering(false);
     localStorage.setItem('mf_accounts_sort', value);
     setSortOpen(false);
   };
@@ -1119,12 +1125,12 @@ export default function MFResumo({
         visibleRows.filter((row) => row.account_type !== 'CARTAO')
       );
       const cardRows = visibleRows.filter((row) => row.account_type === 'CARTAO');
-      // Modo manual: reordenar ↑/↓ trocando o sort_order (índice na lista
-      // COMPLETA de contas — nunca cartões) com o VIZINHO visível. A RPC
-      // mf_month_summary ordena por sort_order e o update invalida tudo —
-      // a mesma ordem aparece na tela Contas (contas compartilham o
-      // espaço de sort_order com os cartões, mas cada tipo ordena o seu).
-      const accountsManual = accountsSort === 'manual';
+      // Modo reordenar (toggle "Reordenar" + critério Manual): ↑/↓ trocam
+      // o sort_order (índice na lista COMPLETA de contas — nunca cartões)
+      // com o VIZINHO visível. A RPC mf_month_summary ordena por
+      // sort_order e o update invalida tudo — a mesma ordem aparece na
+      // tela Contas (contas e cartões dividem o espaço de sort_order,
+      // mas cada tipo ordena o seu).
       const moveAccount = async (rowId, direction) => {
         const visibleIndex = accountRows.findIndex((row) => row.id === rowId);
         const neighbor = accountRows[visibleIndex + direction];
@@ -1241,6 +1247,32 @@ export default function MFResumo({
                       onClick={() => setSortOpen((v) => !v)}
                     >
                       <ArrowUpDown size={15} />
+                    </button>
+                  )}
+                  {/* Modo reordenar: setas ↑/↓ nas linhas de conta (só no
+                      critério Manual — escolher outro critério desliga). */}
+                  {section.title === 'accounts_title' && accountsSort === 'manual' && (
+                    <button
+                      type="button"
+                      className="btn-cancel"
+                      data-testid="mf-resumo-accounts-reorder-toggle"
+                      aria-pressed={accountsReordering}
+                      onClick={() => setAccountsReordering((prev) => !prev)}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        fontSize: '0.8rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        background: accountsReordering
+                          ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
+                          : undefined,
+                        color: accountsReordering ? 'var(--primary)' : undefined,
+                        borderColor: accountsReordering ? 'var(--primary)' : undefined,
+                      }}
+                    >
+                      <ArrowUpDown size={14} />
+                      {t('minhasfinancas.accounts_reorder')}
                     </button>
                   )}
                   {/* Atalho para escolher quais contas aparecem no Resumo */}
@@ -1452,7 +1484,7 @@ export default function MFResumo({
                     }
 
                     // Conta: ícone + nome, previsão (vermelha quando negativa) + saldo.
-                    // Modo Manual: setas ↑/↓ como IRMÃS do botão da linha (button
+                    // Modo reordenar: setas ↑/↓ como IRMÃS do botão da linha (button
                     // dentro de button é inválido) — a linha segue clicável.
                     return (
                       <div
@@ -1518,7 +1550,7 @@ export default function MFResumo({
                           {nativeMoney(row.saldo, row.currency)}
                         </span>
                       </button>
-                      {accountsManual && (
+                      {accountsReordering && (
                         <span
                           style={{
                             display: 'inline-flex',
@@ -1861,8 +1893,8 @@ export default function MFResumo({
                                 {row.name}
                               </button>
                               <MFIgnoreDots show={row.ignore_in_totals} />
-                              {/* Modo Manual: ↑/↓ trocam a posição com o vizinho */}
-                              {accountsManual && (
+                              {/* Modo reordenar: ↑/↓ trocam a posição com o vizinho */}
+                              {accountsReordering && (
                                 <span
                                   style={{
                                     display: 'inline-flex',

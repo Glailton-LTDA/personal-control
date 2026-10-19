@@ -295,11 +295,14 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
     expect(localStorage.getItem('mf_accounts_sort')).toBe('balance_asc');
   });
 
-  it('modo Manual (padrão) mostra ↑/↓ e a troca persiste o sort_order com o vizinho', async () => {
+  it('botão Reordenar liga as setas ↑/↓ e a troca persiste o sort_order com o vizinho', async () => {
     renderScreen();
     await waitForData();
 
-    // padrão = Manual: as setas já aparecem nas linhas de conta
+    // sem as no início: o modo Reordenar precisa ser ligado
+    expect(screen.queryByTestId('mf-resumo-account-move-down-acc-brl')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-reorder-toggle'));
     expect(screen.getByTestId('mf-resumo-account-move-up-acc-brl')).toBeInTheDocument();
     expect(screen.getByTestId('mf-resumo-account-move-down-acc-brl')).toBeInTheDocument();
 
@@ -312,15 +315,22 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
     expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
     expect(chain.eq).toHaveBeenCalledWith('id', 'acc-brl');
     expect(chain.eq).toHaveBeenCalledWith('id', 'acc-usd');
+
+    // escolher outro critério desliga o modo reordenar
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort'));
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort-balance_desc'));
+    expect(screen.queryByTestId('mf-resumo-account-move-down-acc-brl')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-accounts-reorder-toggle')).not.toBeInTheDocument();
   });
 
-  it('setas do modo Manual também aparecem na lista estreita', async () => {
+  it('setas do modo Reordenar também aparecem na lista estreita', async () => {
     mockNarrow();
     try {
       renderScreen();
-      // no estreito não existe o KPI largo — esperar a linha direto
-      const down = await screen.findByTestId('mf-resumo-account-move-down-acc-brl');
-      fireEvent.click(down);
+      // no estreito não existe o KPI largo — esperar o botão direto
+      const toggle = await screen.findByTestId('mf-resumo-accounts-reorder-toggle');
+      fireEvent.click(toggle);
+      fireEvent.click(screen.getByTestId('mf-resumo-account-move-down-acc-brl'));
       const { supabase } = await import('../../lib/supabase');
       const chain = supabase.from('mf_accounts');
       expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
@@ -356,8 +366,9 @@ describe('MFResumo — cartão no estreito (info de fatura) e ordenação de con
     rows = screen.getAllByTestId('mf-resumo-account-row');
     expect(within(rows[0]).getByTestId('mf-resumo-open-account-acc-aaa')).toBeInTheDocument();
     expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
-    // fora do modo Manual não há setas
+    // fora do critério Manual não há setas nem botão Reordenar
     expect(screen.queryByTestId('mf-resumo-account-move-up-acc-brl')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-accounts-reorder-toggle')).not.toBeInTheDocument();
   });
 });
 
