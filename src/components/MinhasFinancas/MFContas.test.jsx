@@ -277,6 +277,13 @@ describe('MFContas', () => {
       // Rodapé segue a tabela (soma tudo que está listado: 100 + 50 = 150,
       // valor que só existe no rodapé — nem no KPI nem no grupo)
       expect(screen.getByTestId('mf-contas')).toHaveTextContent('R$ 150,00');
+      // A ignorada avisa com os pontos (vermelho + âmbar) e o tooltip —
+      // só ela; as demais linhas ficam sem a marca. Ela está dentro do
+      // grupo grp-1, que começa recolhido: expande para ver a linha.
+      expandGroups();
+      const dots = screen.getAllByTestId('mf-ignore-dots');
+      expect(dots).toHaveLength(1);
+      expect(dots[0]).toHaveAttribute('title', 'minhasfinancas.ignore_in_totals');
     } finally {
       supabase.from.mockImplementation(realFrom);
     }

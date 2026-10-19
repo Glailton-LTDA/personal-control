@@ -409,8 +409,11 @@ export function invoiceCloseForDueMonth(card, dueMonthKey) {
 
 /**
  * Saldo de uma conta ao fim do mês:
- *  - saldo    = saldo inicial + lançamentos PAGO até o fim do mês
- *  - previsto = saldo + lançamentos PENDENTE com data até o fim do mês
+ *  - saldo     = saldo inicial + lançamentos PAGO até o fim do mês
+ *  - saldoPrev = saldo inicial + lançamentos PAGO até o fim do mês
+ *                anterior (fechamento do mês — o "Inicial" do Resumo;
+ *                espelha a RPC mf_month_summary, campo saldoPrev)
+ *  - previsto  = saldo + lançamentos PENDENTE com data até o fim do mês
  * Movimentações do mês (colunas da tabela): receitas, despesas e
  * transferências não canceladas com payment_date dentro do mês.
  * Também calcula receitas/despesas do mês anterior (para variação % dos KPIs).
@@ -424,6 +427,7 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
     let transfCredito = 0;
     let transfDebito = 0;
     let saldoMov = 0;
+    let saldoMovPrev = 0;
     let pendenteMov = 0;
 
     transactions.forEach((tx) => {
@@ -432,15 +436,18 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
       const inMonth = tx.payment_date >= start && tx.payment_date <= end;
       const inPrev = prevStart && tx.payment_date >= prevStart && tx.payment_date <= prevEnd;
       const untilEnd = tx.payment_date <= end;
+      const untilPrevEnd = prevEnd && tx.payment_date <= prevEnd;
 
       if (tx.type === 'TRANSFERENCIA') {
         if (tx.account_id === acc.id) {
           if (inMonth) transfDebito += amount;
           if (untilEnd) (tx.status === 'PAGO' ? (saldoMov -= amount) : (pendenteMov -= amount));
+          if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev -= amount;
         }
         if (tx.transfer_account_id === acc.id) {
           if (inMonth) transfCredito += amount;
           if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += amount) : (pendenteMov += amount));
+          if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev += amount;
         }
         return;
       }
@@ -456,9 +463,11 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
         else despesasPrev += amount;
       }
       if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += delta) : (pendenteMov += delta));
+      if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev += delta;
     });
 
     const saldo = (Number(acc.initial_balance) || 0) + saldoMov;
+    const saldoPrev = (Number(acc.initial_balance) || 0) + saldoMovPrev;
     return {
       ...acc,
       currency: acc.currency || 'BRL',
@@ -469,6 +478,7 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
       transfCredito,
       transfDebito,
       saldo,
+      saldoPrev,
       previsto: saldo + pendenteMov,
     };
   });
@@ -2018,6 +2028,26 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     const [ly, lm] = maxLinkedClose.split('-').map(Number);
     futureCount = Math.max(1, (ly - refYear) * 12 + (lm - refMonth) + 1);
   }
+  // Parcela SEM vínculo com data futura estende a janela igual à
+  // vinculada (espelha maxLinkedClose): sem isso, meses que só têm gasto
+  // sem invoice_close não geram ciclo e a despesa fica invisível para a
+  // Próxima/EM ABERTO/agendador até o mês chegar (bug Nomand).
+  const maxFutureUnbound = transactions
+    .filter(
+      (tx) =>
+        tx.account_id === card.id &&
+        tx.type === 'DESPESA' &&
+        tx.status !== 'CANCELADO' &&
+        !tx.invoice_close &&
+        String(tx.payment_date || '') > refISO
+    )
+    .map((tx) => tx.payment_date)
+    .sort()
+    .pop();
+  if (maxFutureUnbound) {
+    const [uy, um] = maxFutureUnbound.split('-').map(Number);
+    futureCount = Math.max(futureCount, (uy - refYear) * 12 + (um - refMonth) + 1);
+  }
   const cycles = cardCycles(card, refISO, historyCount, futureCount);
   const closed = cycles.filter((cycle) => cycle.closed); // mais recente primeiro
   const upcoming = cycles
@@ -2089,23 +2119,32 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
   // (limite já comprometido), mas não viram "ativa" nem entram no FIFO
   // (só pagamento vinculado as quita, até o ciclo chegar). A corrente
   // nunca entra aqui, mesmo sendo futura.
-  // `includeFutureBound` (agendador): despesas vinculadas com data futura
-  // contam mesmo fora da janela — senão o espelho só nasce na fatura
-  // vigente e os meses seguintes ficam sem "cobrança agendada".
+  // `includeFutureBound` (agendador/Resumo): as despesas VINCULADAS contam
+  // mesmo fora da janela — senão o espelho só nasce na fatura vigente e os
+  // meses seguintes ficam sem "cobrança agendada". As SEM invoice_close só
+  // entram no mês vivo: na Próxima do mês atual valem pela régua do mês
+  // (bug Nomand: 513,54 × 1.096,25 — parcelas do mês seguinte sem fatura
+  // escolhida sumiam da Próxima); em relatório de época a compra "ainda
+  // não existia" e não pode vazar para o mês passado. Sem a flag, a fonte
+  // segue a janela `expenses` (exibição de época).
   const upcomingRowsSource = includeFutureBound
     ? transactions.filter(
         (tx) =>
           tx.account_id === card.id &&
           tx.type === 'DESPESA' &&
           tx.status !== 'CANCELADO' &&
-          tx.invoice_close
+          (tx.invoice_close || live)
       )
     : expenses;
   const upcomingInvoices = upcoming
     .filter((cycle) => cycle.closeISO !== currentCloseISO)
     .map((cycle) => {
+      // Mesma régua das fechadas: vinculada vai para o ciclo exato do
+      // invoice_close; sem vínculo vale o mês da data = mês do
+      // vencimento (as de mês anterior/da corrente nunca vazam aqui —
+      // os ciclos futuros só têm vencimento > mês de referência).
       const rows = upcomingRowsSource
-        .filter((tx) => tx.invoice_close === cycle.closeISO)
+        .filter((tx) => inCycle(tx, cycle))
         .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
       if (rows.length === 0) return null;
       const total = round(rows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0));

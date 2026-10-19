@@ -167,10 +167,14 @@ export default function MFAdjustBalanceModal({
           rows: old.rows.map((row) => {
             if (row.id !== account.id) return row;
             if (option === 'initial') {
+              // Mexer no inicial muda o fechamento do mês anterior na
+              // mesma medida (saldoPrev = inicial + pago até o fim do
+              // mês anterior) — o "Inicial" do Resumo acompanha na hora.
               return {
                 ...row,
                 initial_balance: round2((Number(row.initial_balance) || 0) + diff),
                 saldo: round2((Number(row.saldo) || 0) + diff),
+                saldoPrev: round2((Number(row.saldoPrev) || 0) + diff),
                 previsto: round2((Number(row.previsto) || 0) + diff),
               };
             }

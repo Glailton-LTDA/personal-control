@@ -22,6 +22,7 @@ import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
 import MFTotalsStack from './MFTotalsStack';
 import MFAccountModal from './MFAccountModal';
+import MFIgnoreDots from './MFIgnoreDots';
 import MFAccountIcon from './MFAccountIcon';
 import MFTransferModal from './MFTransferModal';
 import MFGroupModal from './MFGroupModal';
@@ -634,6 +635,7 @@ export default function MFContas({
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <MFIgnoreDots show={row.ignore_in_totals} />
           <span style={badgeStyle} data-testid="mf-account-type-badge">
             <span aria-hidden>{typeInfo.icon}</span>
             {typeLabel}
@@ -1691,6 +1693,7 @@ export default function MFContas({
                             {row.name}
                           </button>
                           <span style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <MFIgnoreDots show={row.ignore_in_totals} style={{ alignSelf: 'center' }} />
                             <span style={badgeStyle} data-testid="mf-account-type-badge">
                               <span aria-hidden>{info.icon}</span>
                               {typeLabel}

@@ -626,6 +626,98 @@ describe('buildCardInvoices — despesa com fatura escolhida (picker do app orig
   });
 });
 
+describe('buildCardInvoices — "Próxima" x Movimentação do detalhe (bug Nomand)', () => {
+  // O Resumo (includeFutureBound no mês vivo) listava na Próxima só as
+  // despesas com invoice_close (fatura escolhida no picker); as parcelas
+  // do mês seguinte SEM invoice_close (legado) ficavam de fora e a soma
+  // divergia da Movimentação do detalhe (513,54 × 1.096,25). Regra nova:
+  // na Próxima do mês vivo, sem invoice_close vale o mês da data = mês do
+  // vencimento — a mesma régua já usada nas faturas fechadas (inCycle).
+  // O gate é o mês vivo, então as datas derivam do mês real: fixar
+  // out/2026 explodiria quando o calendário virasse.
+  const card14 = { ...card, closing_day: 14, due_day: 20 };
+  const expense = (over) => ({
+    id: 'e',
+    account_id: 'acc-card',
+    type: 'DESPESA',
+    status: 'PAGO',
+    description: 'Compra',
+    ...over,
+  });
+  const pad = (n) => String(n).padStart(2, '0');
+  const shiftMonth = (monthKey, delta) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    const index = month - 1 + delta;
+    return `${year + Math.floor(index / 12)}-${pad((((index % 12) + 12) % 12) + 1)}`;
+  };
+  const nowISO = new Date().toISOString().slice(0, 10);
+  const refMonth = nowISO.slice(0, 7); // mês vivo (live)
+  const nextMonth = shiftMonth(refMonth, 1);
+
+  it('sem invoice_close futura entra na Próxima pela régua do mês', () => {
+    const txs = [
+      // Vinculada: cai pelo invoice_close exato (como antes).
+      expense({ id: 'vinc', payment_date: `${nextMonth}-05`, amount: 513.54, invoice_close: `${nextMonth}-14` }),
+      // Sem invoice_close: mês da data = mês do vencimento (20) → ciclo 14.
+      expense({ id: 'sem-a', payment_date: `${nextMonth}-08`, amount: 300 }),
+      expense({ id: 'sem-b', payment_date: `${nextMonth}-20`, amount: 282.71 }),
+      // Mês da corrente não pode vazar para a Próxima.
+      expense({ id: 'no', payment_date: `${refMonth}-10`, amount: 582.71 }),
+    ];
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: nowISO,
+      monthKey: refMonth,
+      transactions: txs,
+      includeFutureBound: true,
+    });
+
+    const next = built.upcomingInvoices.find((inv) => inv.closeISO === `${nextMonth}-14`);
+    expect(next).toBeTruthy();
+    expect(next.dueISO).toBe(`${nextMonth}-20`);
+    expect(next.transactions).toHaveLength(3);
+    expect(next.total).toBe(1096.25); // 513,54 + 300 + 282,71 — igual ao detalhe
+    expect(next.openAmount).toBe(1096.25);
+    // Corrente intacta: só o mês dela.
+    expect(built.current.total).toBe(582.71);
+  });
+
+  it('sem invoice_close futura não vaza no relatório de época (mês não vivo)', () => {
+    // Em mês passado a compra "ainda não existia": só a vinculada vaza
+    // (comprometimento de limite) — regressão de fev/2023 em MFCartoes.
+    const prevMonth = shiftMonth(refMonth, -1);
+    const txs = [
+      expense({ id: 'sem-a', payment_date: `${nextMonth}-08`, amount: 300 }),
+      expense({ id: 'vinc', payment_date: `${nextMonth}-05`, amount: 150, invoice_close: `${nextMonth}-14` }),
+    ];
+    const built = buildCardInvoices({
+      card: card14,
+      refISO: `${prevMonth}-28`,
+      monthKey: prevMonth,
+      transactions: txs,
+      includeFutureBound: true,
+    });
+
+    const next = built.upcomingInvoices.find((inv) => inv.closeISO === `${nextMonth}-14`);
+    expect(next).toBeTruthy();
+    expect(next.total).toBe(150); // só a vinculada — a sem invoice_close fica de fora
+  });
+
+  it('sem invoice_close futura some da exibição sem includeFutureBound', () => {
+    // Sem a flag a fonte é a janela `expenses` (corte por data): nem o
+    // mês vivo vê a Próxima sem vínculo — paridade com a tela de mês.
+    const txs = [expense({ id: 'sem-a', payment_date: `${nextMonth}-08`, amount: 300 })];
+    const display = buildCardInvoices({
+      card: card14,
+      refISO: nowISO,
+      monthKey: refMonth,
+      transactions: txs,
+    });
+    expect(display.upcomingInvoices).toHaveLength(0);
+    expect(display.current.total).toBe(0);
+  });
+});
+
 describe('cardCycles — mês da fatura é o do vencimento (vale todos os cartões)', () => {  it('fecha 30/vence 7: compra de 11/10 cai no ciclo que vence 07/11', () => {
     const cycles = cardCycles(
       { closing_day: 30, due_day: 7 },

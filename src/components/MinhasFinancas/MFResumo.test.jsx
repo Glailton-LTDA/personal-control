@@ -932,3 +932,99 @@ describe('MFResumo — orçamentos e objetivos em lista (Fase E)', () => {
     expect(second).toHaveTextContent('Reserva');
   });
 });
+
+describe('MFResumo — "Inicial" = fechamento do mês anterior', () => {
+  const mockNarrow = () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  };
+  const restoreViewport = () => {
+    delete window.matchMedia;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('mostra o saldo de fechamento do mês anterior, não a soma dos iniciais', async () => {
+    // Conta BRL: inicial 1.000 + 500 recebidos em setembro (PAGO) →
+    // fechamento de setembro 1.500. A despesa PENDENTE de setembro não
+    // conta (só PAGO entra no saldoPrev) e a despesa de outubro mexe no
+    // Saldo (1.300), não no Inicial — os três números são distintos.
+    mockData.transactions.push(
+      {
+        id: 'tx-prev-receita',
+        account_id: 'acc-brl',
+        type: 'RECEITA',
+        status: 'PAGO',
+        amount: 500,
+        payment_date: '2026-09-10',
+      },
+      {
+        id: 'tx-prev-pendente',
+        account_id: 'acc-brl',
+        type: 'DESPESA',
+        status: 'PENDENTE',
+        amount: 999,
+        payment_date: '2026-09-20',
+      },
+      {
+        id: 'tx-cur-despesa',
+        account_id: 'acc-brl',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 200,
+        payment_date: '2026-10-05',
+      }
+    );
+
+    mockNarrow();
+    try {
+      renderScreen();
+      await screen.findByTestId('mf-resumo-compact');
+      // Inicial = fechamento de setembro (1.500) — não o marcador de
+      // configuração (1.000) nem marcador + pendente (1).
+      expect(
+        await screen.findByTestId('mf-resumo-compact-initial-totals-line-BRL')
+      ).toHaveTextContent('R$ 1.500,00');
+      // USD intocado: fechamento = inicial (200).
+      expect(
+        await screen.findByTestId('mf-resumo-compact-initial-totals-line-USD')
+      ).toHaveTextContent('200,00');
+      // Saldo do mês segue distinto: 1.500 − 200 = 1.300.
+      expect(
+        await screen.findByTestId('mf-resumo-compact-balance-totals-line-BRL')
+      ).toHaveTextContent('R$ 1.300,00');
+    } finally {
+      restoreViewport();
+    }
+  });
+});
+
+describe('MFResumo — pontos de "Ignorar nos totais"', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('conta ignorada ganha os pontos na tabela larga; as demais não', async () => {
+    mockData.accounts[1].ignore_in_totals = true; // acc-usd
+    renderScreen();
+    await waitForData();
+
+    const dots = await screen.findAllByTestId('mf-ignore-dots');
+    expect(dots).toHaveLength(1);
+    expect(dots[0]).toHaveAttribute('title', 'minhasfinancas.ignore_in_totals');
+    // fica na linha da USD, ao lado do nome — a BRL não tem a marca.
+    const usdRow = screen.getByTestId('mf-resumo-open-account-acc-usd').closest('tr');
+    expect(within(usdRow).getByTestId('mf-ignore-dots')).toBeInTheDocument();
+    const brlRow = screen.getByTestId('mf-resumo-open-account-acc-brl').closest('tr');
+    expect(within(brlRow).queryByTestId('mf-ignore-dots')).not.toBeInTheDocument();
+  });
+});

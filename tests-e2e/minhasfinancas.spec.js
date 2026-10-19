@@ -58,6 +58,7 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
       let transfCredito = 0;
       let transfDebito = 0;
       let saldoMov = 0;
+      let saldoMovPrev = 0;
       let pendenteMov = 0;
       txs.forEach((tx) => {
         if (tx.status === 'CANCELADO') return;
@@ -65,14 +66,17 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         const inMonth = tx.payment_date >= start && tx.payment_date <= end;
         const inPrev = tx.payment_date >= prevStart && tx.payment_date <= prevEnd;
         const untilEnd = tx.payment_date <= end;
+        const untilPrevEnd = tx.payment_date <= prevEnd;
         if (tx.type === 'TRANSFERENCIA') {
           if (tx.account_id === acc.id) {
             if (inMonth) transfDebito += amount;
             if (untilEnd) (tx.status === 'PAGO' ? (saldoMov -= amount) : (pendenteMov -= amount));
+            if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev -= amount;
           }
           if (tx.transfer_account_id === acc.id) {
             if (inMonth) transfCredito += amount;
             if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += amount) : (pendenteMov += amount));
+            if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev += amount;
           }
           return;
         }
@@ -87,8 +91,10 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
           else despesasPrev += amount;
         }
         if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += delta) : (pendenteMov += delta));
+        if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev += delta;
       });
       const saldo = (Number(acc.initial_balance) || 0) + saldoMov;
+      const saldoPrev = (Number(acc.initial_balance) || 0) + saldoMovPrev;
       return {
         ...acc,
         currency: acc.currency || 'BRL',
@@ -99,6 +105,7 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         transfCredito,
         transfDebito,
         saldo,
+        saldoPrev,
         previsto: saldo + pendenteMov,
       };
     });

@@ -69,6 +69,7 @@ import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
 import MFTotalsStack from './MFTotalsStack';
 import MFTotalsHero from './MFTotalsHero';
+import MFIgnoreDots from './MFIgnoreDots';
 import MFAccountIcon from './MFAccountIcon';
 import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
@@ -423,7 +424,10 @@ export default function MFResumo({
     recebido: groupTotalsByCurrency(countedRows, 'receitas'),
     gasto: groupTotalsByCurrency(countedRows, 'despesas'),
     previsto: groupTotalsByCurrency(countedRows, 'previsto'),
-    initial: groupTotalsByCurrency(countedRows, 'initial_balance'),
+    // "Inicial" = fechamento do mês anterior (saldoPrev, da RPC
+    // mf_month_summary), não a soma dos initial_balance — o marcador de
+    // configuração não acompanha o movimento já ocorrido.
+    initial: groupTotalsByCurrency(countedRows, 'saldoPrev'),
   };
   const singleCurrency = new Set(activeRows.map((row) => row.currency)).size <= 1;
   const nativeMoney = (value, rowCurrency) =>
@@ -1432,15 +1436,19 @@ export default function MFResumo({
                           <span
                             data-testid={`mf-resumo-open-account-${row.id}`}
                             style={{
-                              display: 'block',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
                               fontWeight: 800,
                               fontSize: '0.92rem',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
-                              textOverflow: 'ellipsis',
                             }}
                           >
-                            {row.name}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {row.name}
+                            </span>
+                            <MFIgnoreDots show={row.ignore_in_totals} />
                           </span>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             {t('minhasfinancas.accounts_table_forecast')}:{' '}
@@ -1762,6 +1770,7 @@ export default function MFResumo({
                               >
                                 {row.name}
                               </button>
+                              <MFIgnoreDots show={row.ignore_in_totals} />
                             </span>
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#10b981', fontSize: '0.9rem' }}>
