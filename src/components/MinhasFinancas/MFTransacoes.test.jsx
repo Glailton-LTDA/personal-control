@@ -1720,6 +1720,11 @@ describe('Lançamentos — estreito (mobile, cartões por dia, sem scroll latera
       // No estreito a barra de lote global não aparece — os botões do dia assumem
       expect(screen.queryByTestId('mf-tx-bulk-bar')).not.toBeInTheDocument();
 
+      // Clicar no checkbox do card seleciona sem abrir os Detalhes
+      fireEvent.click(screen.getByTestId('mf-tx-select-tx-1'));
+      expect(screen.getByTestId('mf-tx-select-tx-1')).toBeChecked();
+      expect(screen.queryByTestId('mf-tx-detail')).not.toBeInTheDocument();
+
       fireEvent.click(screen.getByTestId('mf-tx-day-pay-2026-10-10'));
       const { supabase } = await import('../../lib/supabase');
       const chain = supabase.from('mf_transactions');
@@ -1759,7 +1764,7 @@ describe('Lançamentos — estreito (mobile, cartões por dia, sem scroll latera
     }
   });
 
-  it('⋮ do cartão abre os Detalhes (mesmo modal do lápis da tabela)', async () => {
+  it('⋮ expande as ações dentro do card; o card abre os Detalhes', async () => {
     mockNarrow();
     try {
       renderScreen();
@@ -1767,9 +1772,52 @@ describe('Lançamentos — estreito (mobile, cartões por dia, sem scroll latera
         expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
       });
 
+      // ⋮ NÃO abre mais o modal: expande as ações dentro do próprio card
       fireEvent.click(screen.getByTestId('mf-tx-menu-tx-2'));
+      expect(screen.getByTestId('mf-tx-actions-tx-2')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-tx-detail')).not.toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-action-paid-tx-2')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-action-edit-tx-2')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-action-send-tx-2')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-tx-action-delete-tx-2')).toBeInTheDocument();
+
+      // Clicar de novo recolhe as ações
+      fireEvent.click(screen.getByTestId('mf-tx-menu-tx-2'));
+      expect(screen.queryByTestId('mf-tx-actions-tx-2')).not.toBeInTheDocument();
+
+      // O card (área clicável) abre os Detalhes
+      fireEvent.click(screen.getByTestId('mf-tx-open-tx-2'));
       await waitFor(() => {
         expect(screen.getByTestId('mf-tx-detail')).toBeInTheDocument();
+      });
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('ações do card: Pago grava o status e Editar abre a edição completa', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+
+      // tx-3 está PENDENTE → Pago grava PAGO
+      fireEvent.click(screen.getByTestId('mf-tx-menu-tx-3'));
+      fireEvent.click(screen.getByTestId('mf-tx-action-paid-tx-3'));
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(chain.update.mock.calls[0][0]).toMatchObject({ status: 'PAGO' });
+      });
+      expect(chain.eq).toHaveBeenCalledWith('id', 'tx-3');
+
+      // Editar abre a tela completa de edição
+      fireEvent.click(screen.getByTestId('mf-tx-menu-tx-2'));
+      fireEvent.click(screen.getByTestId('mf-tx-action-edit-tx-2'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-screen')).toBeInTheDocument();
       });
     } finally {
       restoreViewport();
