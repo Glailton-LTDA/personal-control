@@ -1571,9 +1571,9 @@ export default function MFResumo({
                             'cards_col_next',
                           ]
                         : [
+                            'accounts_table_balance',
                             'accounts_table_income',
                             'accounts_table_expense',
-                            'accounts_table_balance',
                             'accounts_table_forecast',
                           ]
                       ).map((key) => (
@@ -1789,14 +1789,15 @@ export default function MFResumo({
                               <MFIgnoreDots show={row.ignore_in_totals} />
                             </span>
                           </td>
+                          {/* Saldo em 1ª coluna (pedido) */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 800, fontSize: '0.9rem' }}>
+                            {nativeMoney(row.saldo, row.currency)}
+                          </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#10b981', fontSize: '0.9rem' }}>
                             {nativeMoney(row.receitas, row.currency)}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#ef4444', fontSize: '0.9rem' }}>
                             {nativeMoney(row.despesas, row.currency)}
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 800, fontSize: '0.9rem' }}>
-                            {nativeMoney(row.saldo, row.currency)}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, fontSize: '0.9rem' }}>
                             <span
@@ -1852,14 +1853,15 @@ export default function MFResumo({
                         </>
                       ) : (
                         <>
+                          {/* Saldo em 1ª coluna (pedido) */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
+                          </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
                             {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
                             {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
-                            {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                             {formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)}

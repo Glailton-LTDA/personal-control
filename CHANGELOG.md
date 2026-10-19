@@ -33,6 +33,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **C6 Bank em preto puro (MF)**: o quadradinho da marca passa a `#000000`; marcas escuras (C6, XP, Safra, Pine, Stone…) ganham anel interno claro para não sumirem no card do tema noturno.
 - **Toggle "Fixa mensal" da transferência com estados claros (MF)**: selecionado usa o botão primário preenchido (índigo) e não selecionado o neutro, em vez do contorno vermelho de antes.
 
+### Alterado
+- **Coluna Saldo em 1ª no Resumo (MF)**: a tabela larga de contas passou a ordem **Saldo · Receitas · Despesas · Previsão** (antes Receitas · Despesas · Saldo · Previsão) — no cabeçalho, nas linhas e no rodapé TOTAL.
+
 ### Adicionado
 - **Gestão de tags nos Ajustes (MF)**: seção refeita com busca, utilização (nº de lançamentos), ver lançamentos (drill expansível), editar (modal Nova/Editar tag com nome + grade de cores) e excluir com confirmação.
 - **Busca no seletor de tags do lançamento (MF)**: o picker (criação e edição rápida) ganhou campo de busca para filtrar as tags.
