@@ -318,7 +318,9 @@ export default function MFResumo({
     () => rows.filter((row) => row.account_type === 'CARTAO' && !row.archived_at),
     [rows]
   );
-  const cardUpcoming = useMFCardUpcoming(user, cardAccounts);
+  // Mensal como o resto do Resumo: navegar o mês troca os valores das
+  // faturas (mesma convenção da tela de Cartões, via monthRefISO).
+  const cardUpcoming = useMFCardUpcoming(user, cardAccounts, monthKey);
   // Feed de recentes (Fase C): 10 últimos lançamentos de todas as contas,
   // independente do mês navegado.
   const { data: recentTxs = [] } = useMFRecentTransactions(user, 10);
@@ -2106,8 +2108,11 @@ export default function MFResumo({
                         {goal.icon || '🎯'} {goal.name}
                       </span>
                       <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {showValues ? formatMoney(current, goal.currency || currency) : '•••'} /{' '}
-                        {showValues ? formatMoney(target, goal.currency || currency) : '•••'}
+                        {/* Objetivo sem moeda própria = padrão (BRL), como
+                            na tela de Objetivos — o escopo da tela ('all')
+                            não é moeda (vazava como "ALL", o Lek albanês). */}
+                        {showValues ? formatMoney(current, goal.currency) : '•••'} /{' '}
+                        {showValues ? formatMoney(target, goal.currency) : '•••'}
                       </span>
                     </span>
                     <div style={{ height: 6, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>

@@ -144,10 +144,16 @@ const formatterCache = new Map();
 /**
  * Formata um valor na moeda informada (padrão BRL).
  * Sem cotação/conversão: cada valor é exibido na moeda nativa.
+ * O escopo de moeda da tela ('all' = "Todas as moedas") NÃO é moeda:
+ * 'ALL' existe na ISO 4217 (Lek albanês) e vazava como "ALL 15.031,10"
+ * nos widgets de objetivos/orçamentos — fora do catálogo MF_CURRENCIES,
+ * 'all' cai no padrão BRL.
  */
 export const formatMoney = (value, currency = 'BRL') => {
   const code =
-    typeof currency === 'string' && /^[A-Za-z]{3}$/.test(currency)
+    typeof currency === 'string' &&
+    /^[A-Za-z]{3}$/.test(currency) &&
+    currency.toLowerCase() !== 'all'
       ? currency.toUpperCase()
       : 'BRL';
   let formatter = formatterCache.get(code);
@@ -3632,11 +3638,21 @@ export function useDeleteMFProfile() {
  * Próxima fatura de cada cartão ativo (reaproveita `buildCardInvoices`,
  * mesma fonte da tela de Cartões). Para cada cartão retorna a fatura corrente
  * + a próxima com despesa vinculada (`upcomingInvoices`), e o total em aberto
- * a pagar. Escopo enxuto: só transações das contas de cartão + vinculadas.
+ * a pagar. Escopo enxuto: contas de cartão + vinculadas. Mensal como o resto
+ * do Resumo (e como a tela de Cartões): `monthKey` vira `refISO`/ciclo via
+ * `monthRefISO` — navegar o mês troca os valores de verdade.
  */
-export function useMFCardUpcoming(user, cards) {
+export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
+  // Escopo enxuto: cartões + contas vinculadas. A vinculada é obrigatória:
+  // o pagamento de fatura é DESPESA na conta vinculada (isPaymentTx exige
+  // invoice_close) — sem ela no recorte o Resumo nunca via o pagamento e a
+  // fatura já paga ficava com o cadeado (o dado certo só aparecia na tela
+  // de Cartões, que já inclui a vinculada).
   const cardIds = useMemo(
-    () => (cards ?? []).map((card) => card.id).filter(Boolean),
+    () =>
+      (cards ?? []).flatMap((card) =>
+        card?.id ? [card.id, card.linked_account_id].filter(Boolean) : []
+      ),
     [cards]
   );
   const { data } = useMFAccountTransactions(user, null, cardIds);
@@ -3647,14 +3663,14 @@ export function useMFCardUpcoming(user, cards) {
     const allTxs = data ?? [];
     const openTotalByCurrency = {};
     const upcomingTotalByCurrency = {};
-    const refISO = toISODate(new Date());
+    const refISO = monthRefISO(monthKey);
     const items = cards.map((card) => {
       const cur = card.currency || 'BRL';
       const { current, upcomingInvoices = [] } = buildCardInvoices({
         card,
         transactions: allTxs,
         refISO,
-        monthKey: currentMonthKey(),
+        monthKey,
         count: 6,
         includeFutureBound: true,
       });
@@ -3677,5 +3693,5 @@ export function useMFCardUpcoming(user, cards) {
       return { card, current, upcoming: shown, next: upcoming ?? null, openAmount };
     });
     return { items, openTotalByCurrency, upcomingTotalByCurrency };
-  }, [cards, data]);
+  }, [cards, data, monthKey]);
 }

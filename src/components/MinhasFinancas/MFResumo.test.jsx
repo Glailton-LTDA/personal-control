@@ -818,6 +818,43 @@ describe('MFResumo — cartões em seção separada', () => {
     expect(screen.getByTestId('mf-resumo-cards-next-total')).toHaveTextContent('250,00');
   });
 
+  it('fatura corrente quitada mostra o check verde de paga', async () => {
+    // Pagamento como cria o modal "Pagar fatura": DESPESA na CONTA
+    // VINCULADA com invoice_close = fechamento da fatura corrente (dia 1).
+    // Compra 89,90 sem vínculo − pagamento 89,90 = fatura zerada → PAGA.
+    mockData.accounts.push({
+      id: 'acc-linked',
+      name: 'Conta Pagamento',
+      account_type: 'CORRENTE',
+      currency: 'BRL',
+      initial_balance: 0,
+      color: '#10b981',
+      sort_order: 3,
+    });
+    // o cartão fixture passa a apontar a conta de pagamento (isPaymentTx
+    // exige account_id === linked_account_id + invoice_close); a mutação é
+    // local porque adicionar a conta no beforeEach mudaria a contagem de
+    // linhas das demais verificações desta suite.
+    mockData.accounts.find((row) => row.id === 'acc-card').linked_account_id = 'acc-linked';
+    mockData.transactions.push({
+      id: 'tx-pay',
+      account_id: 'acc-linked',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 89.9,
+      payment_date: '2026-10-06',
+      invoice_close: '2026-10-01',
+    });
+    renderScreen();
+    await waitForData();
+
+    // ícone pago (check verde) no lugar do cadeado âmbar
+    expect(await screen.findByLabelText('minhasfinancas.card_status_paid')).toBeInTheDocument();
+    expect(screen.queryByLabelText('minhasfinancas.inv_status_closed')).not.toBeInTheDocument();
+    // e nada mais fica em aberto no rodapé
+    expect(screen.getByTestId('mf-resumo-cards-open-total')).toHaveTextContent('0,00');
+  });
+
   it('cartão não mistura com as contas: aparece só na seção própria', async () => {
     renderScreen();
     await waitForData();
@@ -930,6 +967,12 @@ describe('MFResumo — orçamentos e objetivos em lista (Fase E)', () => {
     expect(screen.getByTestId('mf-resumo-goal-bar-1')).toBeInTheDocument();
     expect(first).toHaveTextContent('Viagem');
     expect(second).toHaveTextContent('Reserva');
+    // valores na moeda padrão (R$): o escopo "Todas as moedas" da tela
+    // não vaza como moeda — 'ALL' é o Lek albanês e aparecia "ALL …".
+    const card = screen.getByTestId('mf-resumo-goal-card');
+    expect(card).toHaveTextContent('R$ 0,00');
+    expect(card).toHaveTextContent('R$ 1.000,00');
+    expect(card.textContent).not.toMatch(/\bALL\b/);
   });
 });
 
