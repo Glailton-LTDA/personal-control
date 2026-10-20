@@ -382,6 +382,12 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                         {t('minhasfinancas.inv_month_expenses')}:{' '}
                         <strong style={{ color: '#ef4444' }}>{money(invGross)}</strong>
                       </span>
+                      {invRefunds > 0 && (
+                        <span>
+                          {t('minhasfinancas.inv_refunds')}:{' '}
+                          <strong style={{ color: '#10b981' }}>{money(invRefunds)}</strong>
+                        </span>
+                      )}
                     </>
                   ) : invIsScheduled ? (
                     <>
@@ -393,6 +399,12 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                         {t('minhasfinancas.inv_month_expenses')}:{' '}
                         <strong style={{ color: '#ef4444' }}>{money(invGross)}</strong>
                       </span>
+                      {invRefunds > 0 && (
+                        <span>
+                          {t('minhasfinancas.inv_refunds')}:{' '}
+                          <strong style={{ color: '#10b981' }}>{money(invRefunds)}</strong>
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>

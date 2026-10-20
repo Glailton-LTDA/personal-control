@@ -395,7 +395,18 @@ export default function MFAccountDetail({
 
   const pieData = useMemo(() => {
     const byCat = {};
-    (lanc?.transactions ?? []).forEach((tx) => {
+    // Cartão: as MESMAS linhas da fatura do mês (régua da seção "Faturas
+    // do cartão": invoice_close, ou mês do vencimento sem vínculo). A
+    // régua antiga (mês de pagamento de qualquer compra) contava parcelas
+    // já vinculadas a faturas futuras — caso real do Nubank: gráfico
+    // 4.854,22 × fatura 2.954,73/2.962,69 no mesmo mês. Conta segue a
+    // régua de sempre (mês de pagamento, só efetivas positivas).
+    const rows =
+      account.account_type === 'CARTAO'
+        ? buildCardInvoices({ card: account, transactions: allTx ?? [], refISO, monthKey })
+            .current?.transactions ?? []
+        : (lanc?.transactions ?? []);
+    rows.forEach((tx) => {
       if (tx.account_id !== account.id || tx.type !== 'DESPESA' || tx.status !== 'PAGO') return;
       const amount = Number(tx.amount) || 0;
       if (!(amount > 0)) return;
@@ -422,7 +433,7 @@ export default function MFAccountDetail({
           ? [...top, { id: 'other', value: round2(rest), name: t('common.other') }]
           : top,
     };
-  }, [lanc, account.id, categoryById, t]);
+  }, [lanc, account, allTx, refISO, monthKey, categoryById, t]);
 
   const monthShort = (mk) => {
     const [year, month] = mk.split('-').map(Number);

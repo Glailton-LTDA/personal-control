@@ -178,6 +178,23 @@ vi.mock('../../lib/supabase', () => {
         recurrence: 'NONE',
       },
       {
+        // Parcela já vinculada à fatura de NOVEMBRO (fecha 10/11), paga
+        // em outubro: conta no mês de pagamento, mas NÃO é da fatura
+        // corrente de outubro (fecha 10/10) — base do teste da pizza.
+        id: 'tx-card-future',
+        account_id: 'acc-card',
+        type: 'DESPESA',
+        description: 'Parcela vinculada',
+        amount: 100,
+        payment_date: '2026-10-05',
+        due_date: '2026-10-05',
+        effective_date: '2026-10-05',
+        status: 'PAGO',
+        category_id: 'cat-market',
+        invoice_close: '2026-11-10',
+        recurrence: 'NONE',
+      },
+      {
         // Fatura quitada do 2º cartão (setembro: fecha 05/09, vence 15/09)
         id: 'tx-card2-buy',
         account_id: 'acc-card2',
@@ -846,6 +863,23 @@ describe('MFAccountDetail', () => {
     );
   });
 
+  it('cartão: total da pizza bate com a fatura do mês (parcela de outra fatura fica fora)', async () => {
+    renderDetail({ account: cardAccount });
+
+    // Chip da fatura corrente e pizza saem da MESMA régua (linhas da
+    // fatura do mês): avulsa de outubro na corrente; a parcela já
+    // vinculada à fatura de novembro (paga em outubro) fica DE FORA —
+    // a régua antiga (mês de pagamento) contava as duas e mostrava 450.
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-chip-current')).toHaveTextContent('R$ 350,00');
+    });
+    await waitFor(() => {
+      expect(txt('mf-det-categories-total')).toContain('R$ 350,00');
+    });
+    expect(screen.getByTestId('mf-invoice-chip-current')).toHaveTextContent(
+      'minhasfinancas.card_current'
+    );
+  });
 
   it('ações no cabeçalho: editar chama o callback, arquivar grava e exclui fecha', async () => {
     const onEdit = vi.fn();

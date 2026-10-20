@@ -13,6 +13,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Corrigido
 - **Espelho PENDENTE revaloriza nas duas direções (MF)**: a régua antiga (`em aberto + espelho`) só seguia a fatura pra cima — o `openAmount` trava em 0 na queda e o agendamento parado ficava no valor antigo (a conta continuava com o valor antigo e o excedente virava crédito FIFO da próxima fatura). O valor-alvo agora sai do total da fatura (`billable − fifoCovered − demais vínculos`): fatura reduzida abaixa o pagamento pendente na hora, e a fatura aberta segue sem lançamento de diferença (nada foi pago ainda).
 
+## [1.11.1] - 2026-10-20
+
+### Corrigido
+- **Pizza "Despesas por categoria" do detalhe do cartão não batia com a fatura (MF)**: o gráfico somava **qualquer compra paga no mês** (parcelas já vinculadas às faturas futuras entravam junto), enquanto a fatura e a Movimentação usam a régua da fatura (mês da fatura) — caso real do Nubank em outubro/2026: **R$ 4.854,22 no gráfico × R$ 2.954,73 na fatura**. A pizza do cartão passou a usar as **mesmas linhas da fatura do mês** (o mesmo `buildCardInvoices` do chip "Fatura corrente"); contas seguem a régua de sempre. De quebra, o resumo da fatura paga/agendada passou a exibir a linha **"Estornos"** ao lado de "Gastos do mês" (bruto − estornos = líquido), reconciliando o número do resumo com o chip e com o gráfico (2.962,69 − 7,96 = 2.954,73).
+
 ## [1.10.0] - 2026-10-20
 
 ### Adicionado
