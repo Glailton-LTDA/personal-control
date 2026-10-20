@@ -131,4 +131,18 @@ describe('useMFCardUpcoming — escopo enxuto com conta vinculada', () => {
     expect(current.openAmount).toBe(100);
     expect(result.current.openTotalByCurrency).toEqual({ BRL: 100 });
   });
+
+  it('agendamento PENDENTE não zera "a pagar" (fatura só zera com PAGO)', async () => {
+    rows = [purchase, { ...payment, id: 'tx-sched', status: 'PENDENTE' }];
+    const { result } = renderUpcoming();
+
+    await waitFor(() =>
+      expect(result.current.items[0]?.current?.total).toBe(100)
+    );
+    // agendado não abate (dinheiro só sai no vencimento): a fatura
+    // corrente segue inteira em "A pagar"…
+    expect(result.current.openTotalByCurrency).toEqual({ BRL: 100 });
+    // …e a próxima também conta a fatura cheia
+    expect(result.current.upcomingTotalByCurrency).toEqual({ BRL: 100 });
+  });
 });

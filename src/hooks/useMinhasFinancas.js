@@ -3760,11 +3760,16 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
         (inv) => Number(inv.total) > 0 || Number(inv.openAmount) > 0
       );
       const shown = upcoming ?? current;
-      const openAmount = Number(current?.openAmount) || 0;
+      // "A pagar" = fatura NÃO PAGA: agendamento PENDENTE não abate (o
+      // dinheiro só sai no vencimento — só PAGO zera), na mesma régua da
+      // métrica EM ABERTO de Cartões (em aberto + disponível = limite).
+      const unpaidOf = (inv) =>
+        Math.round(((Number(inv?.openAmount) || 0) + (Number(inv?.pendingBound) || 0)) * 100) / 100;
+      const openAmount = unpaidOf(current);
       if (openAmount > 0) {
         openTotalByCurrency[cur] = (openTotalByCurrency[cur] || 0) + openAmount;
       }
-      const upcomingAmount = Number(shown?.openAmount) || Number(shown?.total) || 0;
+      const upcomingAmount = unpaidOf(shown) || Number(shown?.total) || 0;
       if (upcomingAmount > 0) {
         upcomingTotalByCurrency[cur] = (upcomingTotalByCurrency[cur] || 0) + upcomingAmount;
       }

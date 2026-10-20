@@ -377,10 +377,10 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     }
   });
 
-  it('agendado compromete o limite: em aberto zerado, disponível reduzido (mês corrente)', async () => {
+  it('agendado compromete o limite: em aberto conta a fatura não paga, disponível desconta (mês corrente)', async () => {
     // Mês corrente com a fatura coberta por espelho PENDENTE: EM ABERTO
-    // fica R$ 0 (invariant), mas o DISPONÍVEL tem que descontar — o
-    // dinheiro ainda não saiu.
+    // segue a fatura não paga (agendamento não abate — o dinheiro só sai
+    // no vencimento, só PAGO zera) e DISPONÍVEL = limite − em aberto.
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
     __mfState.transactions = [
@@ -392,10 +392,30 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       await waitFor(() => {
         expect(screen.getByTestId('mf-card-fatura-scheduled-acc-card')).toBeInTheDocument();
       });
-      // em aberto zerado (agendado), disponível = 3000 − 500
-      expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 0,00');
+      // em aberto = fatura não paga (500), disponível = 3000 − 500
+      expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 500,00');
       expect(screen.getByTestId('mf-card-available-acc-card')).toHaveTextContent('R$ 2.500,00');
+      // invariante da régua do usuário: em aberto + disponível = limite
+      expect(screen.getByTestId('mf-card-limit-acc-card')).toHaveTextContent('R$ 3.000,00');
       expect(screen.getByTestId('mf-card-usage-acc-card')).toHaveStyle({ width: '16.666666666666664%' });
+    } finally {
+      __mfState.transactions = original;
+    }
+  });
+
+  it('agendamento PARCIAL não abate: em aberto mantém a fatura cheia até o pagamento (só PAGO zera)', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      { id: 'tx-buy', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-10-02', status: 'PAGO', description: 'Compra' },
+      { id: 'tx-sched', account_id: 'acc-check', type: 'DESPESA', amount: 200, payment_date: '2026-10-20', status: 'PENDENTE', invoice_close: '2026-10-10', description: 'Pagamento parcial' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 500,00');
+      });
+      expect(screen.getByTestId('mf-card-available-acc-card')).toHaveTextContent('R$ 2.500,00');
     } finally {
       __mfState.transactions = original;
     }

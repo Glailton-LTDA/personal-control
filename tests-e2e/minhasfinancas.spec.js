@@ -709,7 +709,7 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   };
 
-  test('pagamento de fatura: modal parcial zera o em aberto na hora', async ({ page }) => {
+  test('pagamento de fatura: modal parcial agenda sem abater — em aberto segue a fatura não paga', async ({ page }) => {
     const today = localISO();
     // closing_day dinâmico (nunca hoje): no dia do fechamento a compra
     // "de hoje" cairia na fatura recém-fechada e a corrente zeraria.
@@ -759,9 +759,12 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await page.getByTestId('mf-pay-continue').click();
 
     await expect(page.getByTestId('mf-pay-modal')).toBeHidden();
-    // rodapé mantém o VALOR da fatura; o em aberto reage na métrica EM ABERTO
+    // rodapé mantém o VALOR da fatura e o EM ABERTO segue a fatura não
+    // paga: agendamento PENDENTE não abate (só PAGO zera) — a régua do
+    // usuário vale: em aberto + disponível = limite
     await expect(page.getByTestId('mf-card-fatura-acc-e2e-card')).toHaveText('R$ 300,00');
-    await expect(page.getByTestId('mf-card-open-acc-e2e-card')).toHaveText('R$ 150,00');
+    await expect(page.getByTestId('mf-card-open-acc-e2e-card')).toHaveText('R$ 300,00');
+    await expect(page.getByTestId('mf-card-available-acc-e2e-card')).toHaveText('R$ 4.700,00');
     // a despesa de pagamento entrou no store (PENDENTE, no vencimento,
     // na conta vinculada — sem transação no cartão)
     const paid = page.mfStore.mf_transactions.find(

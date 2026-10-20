@@ -294,9 +294,11 @@ export default function MFCartoes({ user, showValues = true }) {
               // EM ABERTO e DISPONÍVEL seguem a mesma régua das faturas
               // (fechadas + corrente, incluindo parcelas/estornos), em vez
               // de recalcular um saldo paralelo que divergia do detalhe.
-              // EM ABERTO = a pagar líquido (agendado zera — invariant do
-              // E2E "modal parcial"); DISPONÍVEL/barra = comprometido
-              // (aberto + agendado PENDENTE, que só libera no pagamento).
+              // EM ABERTO = TODAS as faturas não pagas (corrente + futuras
+              // + vencidas): agendamento PENDENTE não abate — o dinheiro só
+              // sai no vencimento, só PAGO zera. DISPONÍVEL/barra = limite
+              // − em aberto (EM ABERTO + DISPONÍVEL = LIMITE, régua do
+              // usuário; mesma régua do `payable` do modal de pagamento).
               const open = Math.max(0, Number(built.openTotal) || 0);
               const committed = Math.max(0, Number(built.pendingTotal) || 0);
               const currentOpen = Number(built.current.openAmount) || 0;
@@ -325,7 +327,7 @@ export default function MFCartoes({ user, showValues = true }) {
               return (
                 <div
                   key={item.id}
-                  className="glass-card"
+                  className="glass-card-flat"
                   data-testid={`mf-card-widget-${item.id}`}
                   onClick={(event) => {
                     if (event.target.closest('button')) return;
@@ -470,10 +472,10 @@ export default function MFCartoes({ user, showValues = true }) {
                         style={{
                           fontSize: '0.85rem',
                           fontWeight: 800,
-                          color: open > 0 ? '#ef4444' : undefined,
+                          color: used > 0 ? '#ef4444' : undefined,
                         }}
                       >
-                        {cardMoney(open)}
+                        {cardMoney(used)}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
