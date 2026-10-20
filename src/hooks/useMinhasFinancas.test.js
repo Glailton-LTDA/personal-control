@@ -11,7 +11,20 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfMutate: vi.fn(),
 }));
 
-import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx } from './useMinhasFinancas';
+import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney } from './useMinhasFinancas';
+
+describe('formatMoney', () => {
+  it('escopo "all" da tela não é moeda — cai no padrão BRL (não Lek albanês)', () => {
+    // 'ALL' é código ISO válido (Lek albanês): o escopo "Todas as
+    // moedas" vazava como "ALL 15.031,10" nos widgets do Resumo.
+    const brl = formatMoney(15031.1);
+    expect(brl).toContain('15.031,10');
+    expect(formatMoney(15031.1, 'all')).toBe(brl);
+    expect(formatMoney(15031.1, 'ALL')).toBe(brl);
+    // moeda de verdade segue nativa
+    expect(formatMoney(10, 'USD')).toContain('US$');
+  });
+});
 
 describe('countableRows', () => {
   it('mantém as contas padrão e remove as marcadas com "Ignorar nos totais"', () => {

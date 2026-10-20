@@ -249,7 +249,7 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
       expect(supabase.from('mf_goals').insert).toHaveBeenCalled();
     });
     const payload = supabase.from('mf_goals').insert.mock.calls[0][0];
-    expect(payload).toMatchObject({ name: 'Carro 2027', color: '#f44336' });
+    expect(payload).toMatchObject({ name: 'Carro 2027', color: '#6366f1' });
     expect(typeof payload.icon).toBe('string');
     expect(payload.icon.length).toBeGreaterThan(0);
   });

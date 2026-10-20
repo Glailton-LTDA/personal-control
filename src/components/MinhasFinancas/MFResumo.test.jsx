@@ -22,12 +22,13 @@ const mockData = vi.hoisted(() => {
     { id: 'acc-brl', name: 'Conta BRL', account_type: 'CORRENTE', currency: 'BRL', initial_balance: 1000, color: '#6366f1', sort_order: 0 },
     { id: 'acc-usd', name: 'Conta USD', account_type: 'CORRENTE', currency: 'USD', initial_balance: 200, color: '#10b981', sort_order: 1 },
   ];
-  const data = { accounts: baseAccounts(), transactions: [], categories: [], groups: [], baseAccounts };
+  const data = { accounts: baseAccounts(), transactions: [], categories: [], groups: [], goals: [], baseAccounts };
   data.reset = () => {
     data.accounts.splice(0, data.accounts.length, ...baseAccounts());
     data.transactions.length = 0;
     data.categories.length = 0;
     data.groups.length = 0;
+    data.goals.length = 0;
   };
   return data;
 });
@@ -41,6 +42,8 @@ vi.mock('../../lib/supabase', () => {
       update: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
       lte: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -58,6 +61,7 @@ vi.mock('../../lib/supabase', () => {
     mf_transactions: makeChain({ data: mockData.transactions, error: null }),
     mf_categories: makeChain({ data: mockData.categories, error: null }),
     mf_account_groups: makeChain({ data: mockData.groups, error: null }),
+    mf_goals: makeChain({ data: mockData.goals, error: null }),
   };
   const empty = makeChain({ data: [], error: null });
 
@@ -92,7 +96,480 @@ const domOrder = () =>
     (el) => el.dataset.widget
   );
 
-const DEFAULT_ORDER = ['kpis', 'groups', 'accounts', 'charts', 'budgets', 'goals'];
+const DEFAULT_ORDER = ['kpis', 'groups', 'accounts', 'recent', 'charts', 'budgets', 'goals'];
+
+/** Abre o menu ⋮ do cabeçalho e escolhe "Personalizar painel". */
+const openCustomize = () => {
+  fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+  fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+};
+
+describe('MFResumo — compacto no estreito (Fase A)', () => {
+  const mockNarrow = () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  };
+  const restoreViewport = () => {
+    delete window.matchMedia;
+  };
+
+  it('mostra Inicial/Saldo/Previsto e esconde os gráficos', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-resumo-compact')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('mf-resumo-compact-initial')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-resumo-compact-balance')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-resumo-compact-forecast')).toBeInTheDocument();
+      // saldo central com R$ em destaque (hero), formato do mock
+      // (espera as contas carregarem: antes disso o compacto mostra '…')
+      expect(
+        await screen.findByTestId('mf-resumo-compact-balance-totals-line-BRL')
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-chart-categories-BRL')).not.toBeInTheDocument();
+      // os cards de KPI grandes somem: o compacto substitui
+      expect(screen.queryByTestId('mf-kpi-kpi_balance')).not.toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('menu⋮ vira bottom-sheet e a régua de abas de moedas some', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-resumo-compact')).toBeInTheDocument();
+      });
+      // no estreito as abas não existem: as moedas vivem no menu de 3 pontos
+      expect(screen.queryByTestId('mf-resumo-currency-tabs')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+      expect(screen.getByTestId('mf-resumo-menu-panel')).toHaveStyle({ position: 'fixed' });
+      expect(screen.getByTestId('mf-resumo-menu-overlay')).toBeInTheDocument();
+      // O painel é portalizado no <body>: o glass-card tem backdrop-filter
+      // (containing block para fixed) — sem o portal ele ficava atrás do
+      // .main-header (z-index 100), escondendo o topo da lista de moedas.
+      expect(screen.queryByTestId('mf-resumo').contains(screen.getByTestId('mf-resumo-menu-panel'))).toBe(false);
+
+      // nível 2: a opção "Todas as moedas" precisa existir no mobile
+      fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-open'));
+      expect(screen.getByTestId('mf-resumo-menu-currency-all')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-all'));
+      expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+
+      // tocar no fundo escuro fecha o sheet
+      fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+      fireEvent.click(screen.getByTestId('mf-resumo-menu-overlay'));
+      expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('contas viram lista de linhas (sem tabela com rolagem lateral)', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-resumo-accounts-section-list')).toBeInTheDocument();
+      });
+      const rows = screen.getAllByTestId('mf-resumo-account-row');
+      expect(rows.length).toBeGreaterThan(0);
+      // linha clicável abre o detalhe da conta
+      fireEvent.click(rows[0]);
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('atalho "Contas visíveis" no cabeçalho da seção abre o painel de personalização', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-resumo-accounts-section')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-resumo-pick-accounts-accounts_title'));
+    expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-dash-acct-acc-brl')).toBeInTheDocument();
+  });
+});
+
+describe('MFResumo — cartão no estreito (info de fatura) e ordenação de contas', () => {
+  const mockNarrow = () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  };
+  const restoreViewport = () => {
+    delete window.matchMedia;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    localStorage.removeItem('mf_accounts_sort');
+    mockData.reset();
+  });
+
+  it('cartão no estreito mostra bandeira da rede, status, fechamento, vencimento e próxima fatura', async () => {
+    // Cartão (BRL) com despesa corrente + despesa vinculada à próxima fatura.
+    mockData.accounts.push({
+      id: 'acc-card',
+      name: 'Nubank Cartão',
+      account_type: 'CARTAO',
+      currency: 'BRL',
+      card_brand: 'visa',
+      initial_balance: 0,
+      color: '#820AD1',
+      sort_order: 2,
+    });
+    mockData.categories.push({ id: 'cat-food', name: 'Alimentação' });
+    mockData.transactions.push({
+      id: 'tx-card',
+      account_id: 'acc-card',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 89.9,
+      payment_date: '2026-10-02',
+      category_id: 'cat-food',
+    });
+    mockData.transactions.push({
+      id: 'tx-card-next',
+      account_id: 'acc-card',
+      type: 'DESPESA',
+      status: 'PENDENTE',
+      amount: 250,
+      payment_date: '2026-10-20',
+      category_id: 'cat-food',
+      invoice_close: '2026-11-01',
+    });
+
+    mockNarrow();
+    try {
+      renderScreen();
+      // a linha do cartão renderiza na lista estreita…
+      await screen.findByTestId('mf-resumo-card-row');
+      // …e não mistura com as contas (só as 2 contas-base na seção de contas)
+      expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
+      // bandeira da REDE (Visa) ao lado do nome — não a da moeda
+      expect(screen.getByTestId('mf-brand-icon-visa')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-resumo-card-brand-acc-card')).toBeInTheDocument();
+      // as infos da fatura só aparecem quando as transações do cartão carregam
+      await screen.findByTestId('mf-resumo-card-due-acc-card');
+      expect(screen.getByTestId('mf-resumo-card-status-acc-card')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-resumo-card-close-acc-card')).toBeInTheDocument();
+      // fatura corrente (89,90) e a próxima com a despesa vinculada (250,00)
+      expect(screen.getByTestId('mf-resumo-card-total-acc-card')).toHaveTextContent('89,90');
+      expect(screen.getByTestId('mf-resumo-card-next-acc-card')).toHaveTextContent('250,00');
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('ordenação das contas a critério do usuário é aplicada e persistida', async () => {
+    renderScreen();
+    await waitForData();
+    // padrão = modo Manual: ordem do banco (sort_order 0 → 1)
+    let rows = screen.getAllByTestId('mf-resumo-account-row');
+    expect(within(rows[0]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
+    expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-usd')).toBeInTheDocument();
+
+    // abre o seletor e escolhe "Menor saldo" (USD 200 antes de BRL 1000)
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort'));
+    expect(screen.getByTestId('mf-resumo-accounts-sort-menu')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort-balance_asc'));
+
+    rows = screen.getAllByTestId('mf-resumo-account-row');
+    expect(within(rows[0]).getByTestId('mf-resumo-open-account-acc-usd')).toBeInTheDocument();
+    expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
+    // a preferência fica salva para as próximas sessões
+    expect(localStorage.getItem('mf_accounts_sort')).toBe('balance_asc');
+  });
+
+  it('botão Reordenar liga as setas ↑/↓ e a troca persiste o sort_order com o vizinho', async () => {
+    renderScreen();
+    await waitForData();
+
+    // sem as no início: o modo Reordenar precisa ser ligado
+    expect(screen.queryByTestId('mf-resumo-account-move-down-acc-brl')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-reorder-toggle'));
+    expect(screen.getByTestId('mf-resumo-account-move-up-acc-brl')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-account-move-down-acc-brl')).toBeInTheDocument();
+
+    // desce a Conta BRL: sort_order troca com o da Conta USD (índices na
+    // lista completa de contas — mesmo padrão da tela Contas)
+    fireEvent.click(screen.getByTestId('mf-resumo-account-move-down-acc-brl'));
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_accounts');
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+    expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'acc-brl');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'acc-usd');
+
+    // escolher outro critério desliga o modo reordenar
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort'));
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort-balance_desc'));
+    expect(screen.queryByTestId('mf-resumo-account-move-down-acc-brl')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-accounts-reorder-toggle')).not.toBeInTheDocument();
+  });
+
+  it('setas do modo Reordenar também aparecem na lista estreita', async () => {
+    mockNarrow();
+    try {
+      renderScreen();
+      // no estreito não existe o KPI largo — esperar o botão direto
+      const toggle = await screen.findByTestId('mf-resumo-accounts-reorder-toggle');
+      fireEvent.click(toggle);
+      fireEvent.click(screen.getByTestId('mf-resumo-account-move-down-acc-brl'));
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_accounts');
+      expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
+      expect(chain.update).toHaveBeenCalledWith({ sort_order: 0 });
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it('critério "Nome (A–Z)" ordena de verdade e esconde as setas do modo Manual', async () => {
+    // Conta extra com o MAIOR sort_order — última no banco, primeira no A–Z.
+    mockData.accounts.push({
+      id: 'acc-aaa',
+      name: 'AAA Extra',
+      account_type: 'CORRENTE',
+      currency: 'BRL',
+      initial_balance: 0,
+      color: '#a855f7',
+      sort_order: 9,
+    });
+    renderScreen();
+    await waitForData();
+
+    // modo Manual: ordem do banco (AAA por último)
+    let rows = screen.getAllByTestId('mf-resumo-account-row');
+    expect(rows).toHaveLength(3);
+    expect(within(rows[2]).getByTestId('mf-resumo-open-account-acc-aaa')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort'));
+    fireEvent.click(screen.getByTestId('mf-resumo-accounts-sort-name'));
+
+    // Nome (A–Z) ordena de verdade: AAA Extra primeiro
+    rows = screen.getAllByTestId('mf-resumo-account-row');
+    expect(within(rows[0]).getByTestId('mf-resumo-open-account-acc-aaa')).toBeInTheDocument();
+    expect(within(rows[1]).getByTestId('mf-resumo-open-account-acc-brl')).toBeInTheDocument();
+    // fora do critério Manual não há setas nem botão Reordenar
+    expect(screen.queryByTestId('mf-resumo-account-move-up-acc-brl')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-accounts-reorder-toggle')).not.toBeInTheDocument();
+  });
+});
+
+describe('MFResumo — menu de três pontos (moedas + personalizar)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('menu em 2 níveis: Selecionar moeda → lista; escolher filtra e fecha', async () => {
+    renderScreen();
+    await waitForData();
+
+    // fechado por padrão
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+
+    // abre no nível 1: "Selecionar moeda" (com a moeda atual) + "Personalizar"
+    fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+    expect(screen.getByTestId('mf-resumo-menu-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-menu-currency-open')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-menu-currency-all')).not.toBeInTheDocument();
+
+    // nível 2: lista de moedas — "Todas" marcado
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-open'));
+    expect(screen.getByTestId('mf-resumo-menu-currency-all')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+
+    // escolher USD fecha o menu e filtra KPIs/listas
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-USD'));
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-kpi-value-kpi_balance')).not.toHaveTextContent('R$');
+    expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(1);
+
+    // reabre e entra na lista: USD marcado, "Todas" desmarcado
+    fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-currency-open'));
+    expect(screen.getByTestId('mf-resumo-menu-currency-USD')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByTestId('mf-resumo-menu-currency-all')).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
+
+    // "Voltar" retorna ao nível 1 e o ✕ fecha o menu (nunca se fica preso)
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-back'));
+    expect(screen.queryByTestId('mf-resumo-menu-currency-all')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-resumo-menu-close'));
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+
+    // "Personalizar painel" fecha o menu e abre o MODAL de verdade
+    fireEvent.click(screen.getByTestId('mf-resumo-menu'));
+    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    expect(screen.queryByTestId('mf-resumo-menu-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-widget-panel-overlay')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-widget-panel')).toHaveAttribute('role', 'dialog');
+
+    // clicar no fundo escuro fecha o modal
+    fireEvent.click(screen.getByTestId('mf-widget-panel-overlay'));
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+  });
+
+  it('modal de personalização fecha pelo X e pelo "Concluir"', async () => {
+    renderScreen();
+    await waitForData();
+
+    openCustomize();
+    expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-widget-panel-close'));
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+
+    openCustomize();
+    fireEvent.click(screen.getByTestId('mf-widget-panel-done'));
+    expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
+  });
+});
+
+describe('MFResumo — feed de recentes (Fase C)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+    // Lançamentos em meses DIFERENTES (ago e nov) — o feed ignora o mês
+    // navegado (outubro) e lista os mais recentes de todas as contas.
+    // A query ordena por data desc; o mock devolve na ordem do array.
+    mockData.categories.push({ id: 'cat-food', name: 'Alimentação' });
+    mockData.transactions.push(
+      {
+        id: 'tx-recent-new',
+        account_id: 'acc-brl',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 120.5,
+        payment_date: '2026-11-05',
+        description: 'Mercado',
+        category_id: 'cat-food',
+      },
+      {
+        id: 'tx-recent-old',
+        account_id: 'acc-usd',
+        type: 'RECEITA',
+        status: 'PAGO',
+        amount: 50,
+        payment_date: '2026-08-10',
+        description: 'Salário antigo',
+        category_id: 'cat-food',
+      }
+    );
+  });
+
+  it('mostra os lançamentos globais com valor e destino, sem depender do mês', async () => {
+    renderScreen();
+    // O card monta de imediato; as linhas só aparecem quando a query de
+    // recentes resolve (round-trip paralelo aos KPIs).
+    let rows;
+    await waitFor(() => {
+      rows = screen.getAllByTestId(/^mf-resumo-recent-row-/);
+      expect(rows).toHaveLength(2);
+    });
+    // as duas transações aparecem, mesmo sendo de meses fora do mês navegado
+    expect(rows).toHaveLength(2);
+    // a de novembro (mais recente) vem primeiro
+    expect(rows[0].textContent).toContain('Mercado');
+    expect(rows[0].textContent).toContain('−');
+    expect(rows[1].textContent).toContain('Salário antigo');
+    expect(rows[1].textContent).toContain('+');
+    // clique pede a troca de aba para os Lançamentos
+    const onTab = vi.fn();
+    window.addEventListener('set-active-tab', onTab);
+    try {
+      fireEvent.click(rows[0]);
+      expect(onTab).toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('set-active-tab', onTab);
+    }
+  });
+});
+
+describe('MFResumo — gráficos novos com toggle (Fase D)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+    mockData.categories.push({ id: 'cat-food', name: 'Alimentação' });
+    mockData.transactions.push(
+      {
+        id: 'tx-exp',
+        account_id: 'acc-brl',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 200,
+        payment_date: '2026-10-05',
+        description: 'Mercado',
+        category_id: 'cat-food',
+      },
+      {
+        id: 'tx-inc',
+        account_id: 'acc-brl',
+        type: 'RECEITA',
+        status: 'PAGO',
+        amount: 5000,
+        payment_date: '2026-10-10',
+        description: 'Salário',
+        category_id: 'cat-food',
+      }
+    );
+  });
+
+  it('mostra os 4 gráficos e oculta/revela um à parte pelo painel', async () => {
+    const view = renderScreen();
+    await waitForData();
+    // os dois novos (receitas por categoria + despesas por tipo) somam aos atuais
+    expect(await screen.findByTestId('mf-chart-income-BRL')).toBeInTheDocument();
+    expect(await screen.findByTestId('mf-chart-bytype-BRL')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-categories-BRL')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-flow-BRL')).toBeInTheDocument();
+
+    // ocultar "chart_income" some SÓ esse gráfico; os demais seguem
+    openCustomize();
+    fireEvent.click(screen.getByTestId('mf-chart-toggle-chart_income'));
+    expect(screen.queryByTestId('mf-chart-income-BRL')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-bytype-BRL')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-categories-BRL')).toBeInTheDocument();
+
+    // persiste na remontagem (reload)
+    view.unmount();
+    renderScreen();
+    await waitForData();
+    expect(screen.queryByTestId('mf-chart-income-BRL')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-bytype-BRL')).toBeInTheDocument();
+
+    // revelar de volta pelo painel
+    openCustomize();
+    fireEvent.click(screen.getByTestId('mf-chart-toggle-chart_income'));
+    expect(await screen.findByTestId('mf-chart-income-BRL')).toBeInTheDocument();
+  });
+});
 
 describe('MFResumo — painel personalizável (Fase 9)', () => {
   beforeEach(() => {
@@ -106,7 +583,7 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     await waitForData();
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     expect(screen.getByTestId('mf-widget-panel')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-widget-toggle-accounts'));
@@ -129,13 +606,14 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     await waitForData();
     expect(domOrder()).toEqual(DEFAULT_ORDER);
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
+    fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
 
-    expect(domOrder()).toEqual(['budgets', 'kpis', 'groups', 'accounts', 'charts', 'goals']);
+    expect(domOrder()).toEqual(['budgets', 'kpis', 'groups', 'accounts', 'recent', 'charts', 'goals']);
     // topo da lista: botão "subir" desabilitado
     expect(screen.getByTestId('mf-widget-up-budgets')).toBeDisabled();
 
@@ -153,11 +631,11 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     await waitForData();
     expect(screen.getByTestId('mf-resumo-budget-card')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-widget-toggle-budgets'));
     expect(screen.queryByTestId('mf-resumo-budget-card')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    fireEvent.click(screen.getByTestId('mf-widget-panel-done'));
     expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-resumo-budget-card')).not.toBeInTheDocument();
   });
@@ -253,13 +731,13 @@ describe('MFResumo — drill-down da conta', () => {
 
     expect(await screen.findByTestId('mf-account-detail')).toBeInTheDocument();
     // controles do painel saem enquanto o detalhe está aberto
-    expect(screen.queryByTestId('mf-resumo-customize')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-resumo-menu')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-resumo-account-row')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mf-acct-det-back'));
     expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('mf-resumo-account-row')).toHaveLength(2);
-    expect(screen.getByTestId('mf-resumo-customize')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-menu')).toBeInTheDocument();
   });
 
   it('clicar na própria linha (fora do nome) também abre o detalhe', async () => {
@@ -289,7 +767,7 @@ describe('MFResumo — contas visíveis no painel', () => {
     // total misto BRL+USD aparece agrupado
     expect(screen.getByTestId('mf-kpi-value-kpi_balance')).toHaveTextContent('US$');
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-dash-acct-acc-usd'));
 
     // Filtro é visual: some da tabela do painel…
@@ -314,11 +792,11 @@ describe('MFResumo — contas visíveis no painel', () => {
     renderScreen();
     await waitForData();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-dash-accts-none'));
     expect(screen.queryByTestId('mf-resumo-account-row')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize')); // Concluir
+    fireEvent.click(screen.getByTestId('mf-widget-panel-done')); // Concluir
     expect(screen.queryByTestId('mf-widget-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-resumo-no-visible')).toBeInTheDocument();
 
@@ -344,7 +822,7 @@ describe('MFResumo — contas visíveis no painel', () => {
     renderScreen();
     await waitForData();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     expect(screen.getByTestId('mf-dash-accts-search')).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('mf-dash-accts-search'), {
@@ -371,6 +849,7 @@ describe('MFResumo — cartões em seção separada', () => {
       name: 'C6 Bank Cartão',
       account_type: 'CARTAO',
       currency: 'BRL',
+      card_brand: 'mastercard',
       initial_balance: 0,
       color: '#f59e0b',
       sort_order: 2,
@@ -385,6 +864,77 @@ describe('MFResumo — cartões em seção separada', () => {
       payment_date: '2026-10-02',
       category_id: 'cat-food',
     });
+  });
+
+  it('cartão mostra a próxima fatura (data) e o total a pagar no rodapé', async () => {
+      // Compra parcelada numa fatura futura. O cartão mockado fecha dia 1 e
+      // vence dia 10 (defaults), então o ciclo de novembro fecha 2026-11-01 e
+      // vence 2026-12-10 — o invoice_close deve casar com o fechamento real.
+      mockData.transactions.push({
+        id: 'tx-card-next',
+        account_id: 'acc-card',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 250,
+        payment_date: '2026-10-20',
+        invoice_close: '2026-11-01',
+      });
+    renderScreen();
+    await waitForData();
+
+    // A query de transações do cartão só liga depois que as linhas do resumo
+    // carregam (round-trip seguinte) — esperar o dado chegar.
+    // Layout Minhas Finanças: Vencimento = fatura corrente; Próxima = valor
+    // do mês seguinte; Fatura = valor da fatura corrente.
+    const due = await screen.findByTestId('mf-resumo-card-due-acc-card');
+    // a fatura corrente (outubro) vence 10/10
+    expect(due).toHaveTextContent('10/10');
+    expect(screen.getByTestId('mf-resumo-card-close-acc-card')).toHaveTextContent('01/10');
+    expect(screen.getByTestId('mf-resumo-card-total-acc-card')).toHaveTextContent('89,90');
+    expect(screen.getByTestId('mf-resumo-card-next-acc-card')).toHaveTextContent('250,00');
+    // bandeira da REDE (Mastercard) na descrição — não a da moeda
+    expect(screen.getByTestId('mf-resumo-card-brand-acc-card')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-brand-icon-mastercard')).toBeInTheDocument();
+    // a pagar (fatura corrente em aberto) e o total da próxima fatura
+    expect(screen.getByTestId('mf-resumo-cards-open-total')).toHaveTextContent('89,90');
+    expect(screen.getByTestId('mf-resumo-cards-next-total')).toHaveTextContent('250,00');
+  });
+
+  it('fatura corrente quitada mostra o check verde de paga', async () => {
+    // Pagamento como cria o modal "Pagar fatura": DESPESA na CONTA
+    // VINCULADA com invoice_close = fechamento da fatura corrente (dia 1).
+    // Compra 89,90 sem vínculo − pagamento 89,90 = fatura zerada → PAGA.
+    mockData.accounts.push({
+      id: 'acc-linked',
+      name: 'Conta Pagamento',
+      account_type: 'CORRENTE',
+      currency: 'BRL',
+      initial_balance: 0,
+      color: '#10b981',
+      sort_order: 3,
+    });
+    // o cartão fixture passa a apontar a conta de pagamento (isPaymentTx
+    // exige account_id === linked_account_id + invoice_close); a mutação é
+    // local porque adicionar a conta no beforeEach mudaria a contagem de
+    // linhas das demais verificações desta suite.
+    mockData.accounts.find((row) => row.id === 'acc-card').linked_account_id = 'acc-linked';
+    mockData.transactions.push({
+      id: 'tx-pay',
+      account_id: 'acc-linked',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 89.9,
+      payment_date: '2026-10-06',
+      invoice_close: '2026-10-01',
+    });
+    renderScreen();
+    await waitForData();
+
+    // ícone pago (check verde) no lugar do cadeado âmbar
+    expect(await screen.findByLabelText('minhasfinancas.card_status_paid')).toBeInTheDocument();
+    expect(screen.queryByLabelText('minhasfinancas.inv_status_closed')).not.toBeInTheDocument();
+    // e nada mais fica em aberto no rodapé
+    expect(screen.getByTestId('mf-resumo-cards-open-total')).toHaveTextContent('0,00');
   });
 
   it('cartão não mistura com as contas: aparece só na seção própria', async () => {
@@ -417,7 +967,7 @@ describe('MFResumo — cartões em seção separada', () => {
     await waitForData();
     expect(screen.getByTestId('mf-resumo-cards-section')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-resumo-customize'));
+    openCustomize();
     fireEvent.click(screen.getByTestId('mf-dash-acct-acc-card'));
 
     // filtro é visual: a seção de cartões some…
@@ -474,5 +1024,132 @@ describe('MFResumo — reordenar grupos', () => {
     expect(chain.update).toHaveBeenCalledWith({ sort_order: 1 });
     expect(chain.eq).toHaveBeenCalledWith('id', 'grp-b');
     expect(chain.eq).toHaveBeenCalledWith('id', 'grp-a');
+  });
+});
+
+describe('MFResumo — orçamentos e objetivos em lista (Fase E)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('lista cada objetivo com a própria barra de progresso', async () => {
+    mockData.goals.push(
+      { id: 'goal-a', name: 'Viagem', status: 'ACTIVE', target_amount: 1000, icon: '✈️', color: '#6366f1' },
+      { id: 'goal-b', name: 'Reserva', status: 'ACTIVE', target_amount: 200, icon: '🛟', color: '#10b981' }
+    );
+    renderScreen();
+    await waitForData();
+
+    const first = await screen.findByTestId('mf-resumo-goal-item-0');
+    const second = screen.getByTestId('mf-resumo-goal-item-1');
+    // cada objetivo tem a própria barra (não mais só o "featured")
+    expect(screen.getByTestId('mf-resumo-goal-bar-0')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-resumo-goal-bar-1')).toBeInTheDocument();
+    expect(first).toHaveTextContent('Viagem');
+    expect(second).toHaveTextContent('Reserva');
+    // valores na moeda padrão (R$): o escopo "Todas as moedas" da tela
+    // não vaza como moeda — 'ALL' é o Lek albanês e aparecia "ALL …".
+    const card = screen.getByTestId('mf-resumo-goal-card');
+    expect(card).toHaveTextContent('R$ 0,00');
+    expect(card).toHaveTextContent('R$ 1.000,00');
+    expect(card.textContent).not.toMatch(/\bALL\b/);
+  });
+});
+
+describe('MFResumo — "Inicial" = fechamento do mês anterior', () => {
+  const mockNarrow = () => {
+    window.matchMedia = vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+  };
+  const restoreViewport = () => {
+    delete window.matchMedia;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('mostra o saldo de fechamento do mês anterior, não a soma dos iniciais', async () => {
+    // Conta BRL: inicial 1.000 + 500 recebidos em setembro (PAGO) →
+    // fechamento de setembro 1.500. A despesa PENDENTE de setembro não
+    // conta (só PAGO entra no saldoPrev) e a despesa de outubro mexe no
+    // Saldo (1.300), não no Inicial — os três números são distintos.
+    mockData.transactions.push(
+      {
+        id: 'tx-prev-receita',
+        account_id: 'acc-brl',
+        type: 'RECEITA',
+        status: 'PAGO',
+        amount: 500,
+        payment_date: '2026-09-10',
+      },
+      {
+        id: 'tx-prev-pendente',
+        account_id: 'acc-brl',
+        type: 'DESPESA',
+        status: 'PENDENTE',
+        amount: 999,
+        payment_date: '2026-09-20',
+      },
+      {
+        id: 'tx-cur-despesa',
+        account_id: 'acc-brl',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 200,
+        payment_date: '2026-10-05',
+      }
+    );
+
+    mockNarrow();
+    try {
+      renderScreen();
+      await screen.findByTestId('mf-resumo-compact');
+      // Inicial = fechamento de setembro (1.500) — não o marcador de
+      // configuração (1.000) nem marcador + pendente (1).
+      expect(
+        await screen.findByTestId('mf-resumo-compact-initial-totals-line-BRL')
+      ).toHaveTextContent('R$ 1.500,00');
+      // USD intocado: fechamento = inicial (200).
+      expect(
+        await screen.findByTestId('mf-resumo-compact-initial-totals-line-USD')
+      ).toHaveTextContent('200,00');
+      // Saldo do mês segue distinto: 1.500 − 200 = 1.300.
+      expect(
+        await screen.findByTestId('mf-resumo-compact-balance-totals-line-BRL')
+      ).toHaveTextContent('R$ 1.300,00');
+    } finally {
+      restoreViewport();
+    }
+  });
+});
+
+describe('MFResumo — pontos de "Ignorar nos totais"', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('conta ignorada ganha os pontos na tabela larga; as demais não', async () => {
+    mockData.accounts[1].ignore_in_totals = true; // acc-usd
+    renderScreen();
+    await waitForData();
+
+    const dots = await screen.findAllByTestId('mf-ignore-dots');
+    expect(dots).toHaveLength(1);
+    expect(dots[0]).toHaveAttribute('title', 'minhasfinancas.ignore_in_totals');
+    // fica na linha da USD, ao lado do nome — a BRL não tem a marca.
+    const usdRow = screen.getByTestId('mf-resumo-open-account-acc-usd').closest('tr');
+    expect(within(usdRow).getByTestId('mf-ignore-dots')).toBeInTheDocument();
+    const brlRow = screen.getByTestId('mf-resumo-open-account-acc-brl').closest('tr');
+    expect(within(brlRow).queryByTestId('mf-ignore-dots')).not.toBeInTheDocument();
   });
 });

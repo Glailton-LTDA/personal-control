@@ -95,7 +95,7 @@ describe('MFTagModal — Nova/Editar tag', () => {
     expect(supabase.from('mf_tags').insert.mock.calls[0][0]).toMatchObject({
       user_id: 'test-user',
       name: 'Praia',
-      color: '#f44336',
+      color: '#6366f1',
     });
     expect(onClose).toHaveBeenCalled();
   });

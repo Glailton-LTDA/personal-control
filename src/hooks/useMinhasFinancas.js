@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
@@ -144,10 +144,16 @@ const formatterCache = new Map();
 /**
  * Formata um valor na moeda informada (padrão BRL).
  * Sem cotação/conversão: cada valor é exibido na moeda nativa.
+ * O escopo de moeda da tela ('all' = "Todas as moedas") NÃO é moeda:
+ * 'ALL' existe na ISO 4217 (Lek albanês) e vazava como "ALL 15.031,10"
+ * nos widgets de objetivos/orçamentos — fora do catálogo MF_CURRENCIES,
+ * 'all' cai no padrão BRL.
  */
 export const formatMoney = (value, currency = 'BRL') => {
   const code =
-    typeof currency === 'string' && /^[A-Za-z]{3}$/.test(currency)
+    typeof currency === 'string' &&
+    /^[A-Za-z]{3}$/.test(currency) &&
+    currency.toLowerCase() !== 'all'
       ? currency.toUpperCase()
       : 'BRL';
   let formatter = formatterCache.get(code);
@@ -409,8 +415,11 @@ export function invoiceCloseForDueMonth(card, dueMonthKey) {
 
 /**
  * Saldo de uma conta ao fim do mês:
- *  - saldo    = saldo inicial + lançamentos PAGO até o fim do mês
- *  - previsto = saldo + lançamentos PENDENTE com data até o fim do mês
+ *  - saldo     = saldo inicial + lançamentos PAGO até o fim do mês
+ *  - saldoPrev = saldo inicial + lançamentos PAGO até o fim do mês
+ *                anterior (fechamento do mês — o "Inicial" do Resumo;
+ *                espelha a RPC mf_month_summary, campo saldoPrev)
+ *  - previsto  = saldo + lançamentos PENDENTE com data até o fim do mês
  * Movimentações do mês (colunas da tabela): receitas, despesas e
  * transferências não canceladas com payment_date dentro do mês.
  * Também calcula receitas/despesas do mês anterior (para variação % dos KPIs).
@@ -424,6 +433,7 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
     let transfCredito = 0;
     let transfDebito = 0;
     let saldoMov = 0;
+    let saldoMovPrev = 0;
     let pendenteMov = 0;
 
     transactions.forEach((tx) => {
@@ -432,15 +442,18 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
       const inMonth = tx.payment_date >= start && tx.payment_date <= end;
       const inPrev = prevStart && tx.payment_date >= prevStart && tx.payment_date <= prevEnd;
       const untilEnd = tx.payment_date <= end;
+      const untilPrevEnd = prevEnd && tx.payment_date <= prevEnd;
 
       if (tx.type === 'TRANSFERENCIA') {
         if (tx.account_id === acc.id) {
           if (inMonth) transfDebito += amount;
           if (untilEnd) (tx.status === 'PAGO' ? (saldoMov -= amount) : (pendenteMov -= amount));
+          if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev -= amount;
         }
         if (tx.transfer_account_id === acc.id) {
           if (inMonth) transfCredito += amount;
           if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += amount) : (pendenteMov += amount));
+          if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev += amount;
         }
         return;
       }
@@ -456,9 +469,11 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
         else despesasPrev += amount;
       }
       if (untilEnd) (tx.status === 'PAGO' ? (saldoMov += delta) : (pendenteMov += delta));
+      if (untilPrevEnd && tx.status === 'PAGO') saldoMovPrev += delta;
     });
 
     const saldo = (Number(acc.initial_balance) || 0) + saldoMov;
+    const saldoPrev = (Number(acc.initial_balance) || 0) + saldoMovPrev;
     return {
       ...acc,
       currency: acc.currency || 'BRL',
@@ -469,6 +484,7 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
       transfCredito,
       transfDebito,
       saldo,
+      saldoPrev,
       previsto: saldo + pendenteMov,
     };
   });
@@ -1077,6 +1093,87 @@ export function useDeleteAccount() {
         },
       }),
     onSuccess: invalidate,
+  });
+}
+
+/** Aplica o `sort_order` novo nos itens com `byId` de um cache MF e
+ * REORDENA o array pela régua do banco (sort_order, id — a mesma da RPC
+ * mf_month_summary). Arrays sem nenhum item tocado ficam intactos
+ * (ordenados ou não) — transações e afins nunca reordenam por acaso. */
+const applySortOrderToCache = (old, byId) => {
+  const patchArray = (items) => {
+    if (!Array.isArray(items)) return items;
+    let changed = false;
+    const patched = items.map((item) => {
+      if (item && byId.has(item.id)) {
+        changed = true;
+        return { ...item, sort_order: byId.get(item.id) };
+      }
+      return item;
+    });
+    if (!changed) return items;
+    return patched.sort(
+      (a, b) =>
+        (Number(a?.sort_order) || 0) - (Number(b?.sort_order) || 0) ||
+        String(a?.id ?? '').localeCompare(String(b?.id ?? ''))
+    );
+  };
+  if (Array.isArray(old)) return patchArray(old);
+  if (old && typeof old === 'object' && Array.isArray(old.rows)) {
+    const rows = patchArray(old.rows);
+    return rows === old.rows ? old : { ...old, rows };
+  }
+  return old;
+};
+
+/**
+ * Reordenação OTIMISTA de contas/grupos (`updates` = [{ id, sort_order }]):
+ * o novo `sort_order` vai para os caches MF no instante do clique e a
+ * gravação corre em paralelo — a UI move na hora. Antes, cada clique
+ * disparava `useInvalidateAll` e a tela só se movia quando TODAS as
+ * queries refetchavam, incluindo a RPC do resumo (varre todos os
+ * lançamentos do mês + 5 meses de gráfico) — dava a sensação de
+ * travar. Reordenação não muda valores, então em SUCESSO não invalida
+ * nada; em ERRO restaura os snapshots e invalida tudo (rollback).
+ */
+export function useMFReorder(table) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: async (updates) => {
+      await Promise.all(
+        updates.map(({ id, sort_order }) =>
+          mfMutate({
+            table,
+            action: 'update',
+            id,
+            payload: { sort_order },
+            run: async () => {
+              const { error } = await supabase
+                .from(table)
+                .update({ sort_order })
+                .eq('id', id);
+              if (error) throw error;
+              return { id, sort_order };
+            },
+          })
+        )
+      );
+      return updates;
+    },
+    onMutate: async (updates) => {
+      const byId = new Map(updates.map((update) => [update.id, update.sort_order]));
+      await queryClient.cancelQueries({ predicate: isMFQuery });
+      const snapshots = queryClient.getQueriesData({ predicate: isMFQuery });
+      queryClient.setQueriesData({ predicate: isMFQuery }, (old) =>
+        applySortOrderToCache(old, byId)
+      );
+      return { snapshots };
+    },
+    onError: (_error, _variables, context) => {
+      context?.snapshots?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      invalidate();
+    },
   });
 }
 
@@ -2018,6 +2115,26 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     const [ly, lm] = maxLinkedClose.split('-').map(Number);
     futureCount = Math.max(1, (ly - refYear) * 12 + (lm - refMonth) + 1);
   }
+  // Parcela SEM vínculo com data futura estende a janela igual à
+  // vinculada (espelha maxLinkedClose): sem isso, meses que só têm gasto
+  // sem invoice_close não geram ciclo e a despesa fica invisível para a
+  // Próxima/EM ABERTO/agendador até o mês chegar (bug Nomand).
+  const maxFutureUnbound = transactions
+    .filter(
+      (tx) =>
+        tx.account_id === card.id &&
+        tx.type === 'DESPESA' &&
+        tx.status !== 'CANCELADO' &&
+        !tx.invoice_close &&
+        String(tx.payment_date || '') > refISO
+    )
+    .map((tx) => tx.payment_date)
+    .sort()
+    .pop();
+  if (maxFutureUnbound) {
+    const [uy, um] = maxFutureUnbound.split('-').map(Number);
+    futureCount = Math.max(futureCount, (uy - refYear) * 12 + (um - refMonth) + 1);
+  }
   const cycles = cardCycles(card, refISO, historyCount, futureCount);
   const closed = cycles.filter((cycle) => cycle.closed); // mais recente primeiro
   const upcoming = cycles
@@ -2089,23 +2206,32 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
   // (limite já comprometido), mas não viram "ativa" nem entram no FIFO
   // (só pagamento vinculado as quita, até o ciclo chegar). A corrente
   // nunca entra aqui, mesmo sendo futura.
-  // `includeFutureBound` (agendador): despesas vinculadas com data futura
-  // contam mesmo fora da janela — senão o espelho só nasce na fatura
-  // vigente e os meses seguintes ficam sem "cobrança agendada".
+  // `includeFutureBound` (agendador/Resumo): as despesas VINCULADAS contam
+  // mesmo fora da janela — senão o espelho só nasce na fatura vigente e os
+  // meses seguintes ficam sem "cobrança agendada". As SEM invoice_close só
+  // entram no mês vivo: na Próxima do mês atual valem pela régua do mês
+  // (bug Nomand: 513,54 × 1.096,25 — parcelas do mês seguinte sem fatura
+  // escolhida sumiam da Próxima); em relatório de época a compra "ainda
+  // não existia" e não pode vazar para o mês passado. Sem a flag, a fonte
+  // segue a janela `expenses` (exibição de época).
   const upcomingRowsSource = includeFutureBound
     ? transactions.filter(
         (tx) =>
           tx.account_id === card.id &&
           tx.type === 'DESPESA' &&
           tx.status !== 'CANCELADO' &&
-          tx.invoice_close
+          (tx.invoice_close || live)
       )
     : expenses;
   const upcomingInvoices = upcoming
     .filter((cycle) => cycle.closeISO !== currentCloseISO)
     .map((cycle) => {
+      // Mesma régua das fechadas: vinculada vai para o ciclo exato do
+      // invoice_close; sem vínculo vale o mês da data = mês do
+      // vencimento (as de mês anterior/da corrente nunca vazam aqui —
+      // os ciclos futuros só têm vencimento > mês de referência).
       const rows = upcomingRowsSource
-        .filter((tx) => tx.invoice_close === cycle.closeISO)
+        .filter((tx) => inCycle(tx, cycle))
         .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
       if (rows.length === 0) return null;
       const total = round(rows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0));
@@ -2715,6 +2841,53 @@ export function useMFAllTransactions(user) {
           sort: byDateDesc('payment_date'),
         }
       );
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Detecta viewport estreita (≤768px = mobile/tablet retrato) e reage a
+ * mudanças de tamanho — base do layout compacto do Resumo, do sino e das
+ * moedas no mobile.
+ */
+export function useMFNarrowScreen(query = '(max-width: 768px)') {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const media = window.matchMedia(query);
+    const onChange = (event) => setNarrow(event.matches);
+    media.addEventListener?.('change', onChange);
+    setNarrow(media.matches);
+    return () => media.removeEventListener?.('change', onChange);
+  }, [query]);
+  return narrow;
+}
+
+/**
+ * Feed do Resumo: N lançamentos mais recentes de TODAS as contas do escopo,
+ * independente do mês navegado (Fase C). Ordena por data (decrescente) e id
+ * para a página ser determinística.
+ */
+export function useMFRecentTransactions(user, limit = 10) {
+  const profileId = useMFProfileScope();
+  return useQuery({
+    queryKey: ['mf-recent-transactions', user?.id, limit, profileId ?? 'all'],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const scopeIds = await profileAccountIds(profileId);
+      if (scopeIds && scopeIds.length === 0) return [];
+      let query = supabase
+        .from('mf_transactions')
+        .select('*')
+        .order('payment_date', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (scopeIds) query = query.in('account_id', scopeIds);
+      const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
     },
@@ -3536,4 +3709,75 @@ export function useDeleteMFProfile() {
     },
     onSuccess: invalidate,
   });
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Resumo: próxima fatura por cartão (Fase B)
+ * ──────────────────────────────────────────────────────────── */
+
+/**
+ * Próxima fatura de cada cartão ativo (reaproveita `buildCardInvoices`,
+ * mesma fonte da tela de Cartões). Para cada cartão retorna a fatura corrente
+ * + a próxima com despesa vinculada (`upcomingInvoices`), e o total em aberto
+ * a pagar. Escopo enxuto: contas de cartão + vinculadas. Mensal como o resto
+ * do Resumo (e como a tela de Cartões): `monthKey` vira `refISO`/ciclo via
+ * `monthRefISO` — navegar o mês troca os valores de verdade.
+ */
+export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
+  // Escopo enxuto: cartões + contas vinculadas. A vinculada é obrigatória:
+  // o pagamento de fatura é DESPESA na conta vinculada (isPaymentTx exige
+  // invoice_close) — sem ela no recorte o Resumo nunca via o pagamento e a
+  // fatura já paga ficava com o cadeado (o dado certo só aparecia na tela
+  // de Cartões, que já inclui a vinculada).
+  const cardIds = useMemo(
+    () =>
+      (cards ?? []).flatMap((card) =>
+        card?.id ? [card.id, card.linked_account_id].filter(Boolean) : []
+      ),
+    [cards]
+  );
+  const { data } = useMFAccountTransactions(user, null, cardIds);
+  return useMemo(() => {
+    if (!cards || cards.length === 0) {
+      return { items: [], openTotalByCurrency: {}, upcomingTotalByCurrency: {} };
+    }
+    const allTxs = data ?? [];
+    const openTotalByCurrency = {};
+    const upcomingTotalByCurrency = {};
+    const refISO = monthRefISO(monthKey);
+    const items = cards.map((card) => {
+      const cur = card.currency || 'BRL';
+      const { current, upcomingInvoices = [] } = buildCardInvoices({
+        card,
+        transactions: allTxs,
+        refISO,
+        monthKey,
+        count: 6,
+        includeFutureBound: true,
+      });
+      // Próxima fatura = primeira futura com despesa vinculada, senão a corrente.
+      const upcoming = upcomingInvoices.find(
+        (inv) => Number(inv.total) > 0 || Number(inv.openAmount) > 0
+      );
+      const shown = upcoming ?? current;
+      // "A pagar" = fatura NÃO PAGA: agendamento PENDENTE não abate (o
+      // dinheiro só sai no vencimento — só PAGO zera), na mesma régua da
+      // métrica EM ABERTO de Cartões (em aberto + disponível = limite).
+      const unpaidOf = (inv) =>
+        Math.round(((Number(inv?.openAmount) || 0) + (Number(inv?.pendingBound) || 0)) * 100) / 100;
+      const openAmount = unpaidOf(current);
+      if (openAmount > 0) {
+        openTotalByCurrency[cur] = (openTotalByCurrency[cur] || 0) + openAmount;
+      }
+      const upcomingAmount = unpaidOf(shown) || Number(shown?.total) || 0;
+      if (upcomingAmount > 0) {
+        upcomingTotalByCurrency[cur] = (upcomingTotalByCurrency[cur] || 0) + upcomingAmount;
+      }
+      // `next` = próxima fatura DISTINTA da corrente (só quando existe uma
+      // futura com despesa vinculada); `upcoming` continua o mostrado no
+      // rodapé (fallback para a corrente).
+      return { card, current, upcoming: shown, next: upcoming ?? null, openAmount };
+    });
+    return { items, openTotalByCurrency, upcomingTotalByCurrency };
+  }, [cards, data, monthKey]);
 }

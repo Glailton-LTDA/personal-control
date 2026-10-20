@@ -33,4 +33,21 @@ describe('MFTotalsStack — uma moeda por linha', () => {
     render(<MFTotalsStack totals={{ BRL: 100 }} showValues={false} />);
     expect(screen.getByText('•••')).toBeInTheDocument();
   });
+
+  it('não desenha bandeiras — só a sigla do formatMoney (pedido do usuário)', () => {
+    render(<MFTotalsStack totals={{ BRL: 10, USD: 5 }} testId="mf-sigla" />);
+    const usd = screen.getByTestId('mf-sigla-line-USD').textContent;
+    expect(usd).toContain('US$');
+    expect(usd).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
+  it('hero: primeira moeda em destaque e as demais menores e discretas', () => {
+    render(<MFTotalsStack totals={{ BRL: 1000, USD: 200 }} hero testId="mf-hero" />);
+    const brl = screen.getByTestId('mf-hero-line-BRL');
+    const usd = screen.getByTestId('mf-hero-line-USD');
+    // R$ grande e forte; US$ menor e apagado (formato do mock de referência)
+    expect(brl.style.fontWeight).toBe('800');
+    expect(usd.style.fontSize).toBe('0.66em');
+    expect(usd.style.color).toBe('var(--text-muted)');
+  });
 });

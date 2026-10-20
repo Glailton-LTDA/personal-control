@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
   Wallet,
@@ -15,6 +16,14 @@ import {
   Eye,
   EyeOff,
   FolderTree,
+  MoreVertical,
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Lock,
+  LockOpen,
 } from 'lucide-react';
 import {
   Legend,
@@ -37,7 +46,12 @@ import {
   useMFAccountBalances,
   useMFCategories,
   useMFGroups,
-  useUpdateMFGroup,
+  useMFCardUpcoming,
+  useMFRecentTransactions,
+  useMFNarrowScreen,
+  useMFReorder,
+  MF_BUILTIN_ACCOUNT_TYPES,
+  MF_ACCOUNT_TYPE_ICONS,
   budgetSpent,
   budgetLimit,
   goalCurrentAmount,
@@ -53,7 +67,10 @@ import {
 import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
 import MFTotalsStack from './MFTotalsStack';
+import MFTotalsHero from './MFTotalsHero';
+import MFIgnoreDots from './MFIgnoreDots';
 import MFAccountIcon from './MFAccountIcon';
+import MFCardBrandIcon from './MFCardBrandIcon';
 import MFGroupCard from './MFGroupCard';
 import MFAccountDetail from './MFAccountDetail';
 import MFGroupDrill from './MFGroupDrill';
@@ -61,8 +78,11 @@ import MFGroupModal from './MFGroupModal';
 import MFAccountModal from './MFAccountModal';
 import MFRemindersBell from './MFRemindersBell';
 import {
+  MF_CHARTS,
   visibleWidgets,
+  visibleCharts,
   toggleWidget,
+  toggleChart,
   moveWidget,
   toggleAccountVisible,
   setHiddenAccounts,
@@ -81,6 +101,66 @@ const shortMonthLabel = (monthKey, language) => {
 };
 
 const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
+
+// Ordenação das contas no Resumo, a critério do usuário (persistida em
+// localStorage). `manual` é o padrão: ordem do banco (sort_order) — as
+// setas ↑/↓ só aparecem com o modo Reordenar ligado (mesma ordem vale
+// na tela Contas).
+const ACCOUNT_SORT_OPTIONS = [
+  { value: 'manual', labelKey: 'minhasfinancas.sort_manual' },
+  { value: 'name', labelKey: 'minhasfinancas.sort_name' },
+  { value: 'balance_desc', labelKey: 'minhasfinancas.sort_balance_desc' },
+  { value: 'balance_asc', labelKey: 'minhasfinancas.sort_balance_asc' },
+  { value: 'forecast_desc', labelKey: 'minhasfinancas.sort_forecast_desc' },
+  { value: 'forecast_asc', labelKey: 'minhasfinancas.sort_forecast_asc' },
+];
+
+/** '2026-11-30' → '30/11' (dia/mês da próxima fatura). */
+const shortDate = (iso) => {
+  if (!iso) return '';
+  const [, m, d] = String(iso).split('-');
+  return `${d}/${m}`;
+};
+
+/** '2026-09-30' → '30/09, qua.' (fechamento/vencimento com dia da semana,
+ *  como no Minhas Finanças). Sem dia da semana válido, cai no 'dd/mm'. */
+const shortDateWeekday = (iso, language) => {
+  if (!iso) return '';
+  try {
+    const wd = new Intl.DateTimeFormat(language, { weekday: 'short' }).format(
+      new Date(`${iso}T12:00:00`)
+    );
+    return `${shortDate(iso)}, ${wd}`;
+  } catch {
+    return shortDate(iso);
+  }
+};
+
+/** '2026-10-31' → '31/OUT' (dia + mês abreviado — fechamento/vencimento de fatura). */
+const dayMonthLabel = (iso, language) => {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const month = new Intl.DateTimeFormat(language, { month: 'short' })
+    .format(new Date(y, m - 1, 1))
+    .replace('.', '')
+    .toUpperCase();
+  return `${String(d).padStart(2, '0')}/${month}`;
+};
+
+/** Estado visual da fatura corrente: paga (check verde), fechada (cadeado
+ *  âmbar — período travado aguardando vencimento/pagamento) ou aberta
+ *  (cadeado azul — ciclo ainda acumulando compras). */
+const cardInvoiceState = (current) => {
+  if (!current) return null;
+  if (current.status === 'PAGA')
+    return { icon: 'paid', color: '#10b981', labelKey: 'card_status_paid' };
+  if (current.status === 'AGENDADA')
+    return { icon: 'closed', color: '#f59e0b', labelKey: 'card_status_scheduled' };
+  // CORRENTE: fechada quando o ciclo já virou (closeISO hoje ou antes).
+  return current.closed
+    ? { icon: 'closed', color: '#f59e0b', labelKey: 'inv_status_closed' }
+    : { icon: 'open', color: 'var(--primary)', labelKey: 'card_status_open' };
+};
 
 const tooltipStyle = {
   background: 'var(--input-bg)',
@@ -143,10 +223,89 @@ export default function MFResumo({
 
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
+  // Ordenação das contas no Resumo, a critério do usuário (persistida).
+  // Padrão = manual (ordem do banco, reordenável com ↑/↓); 'name' gravado
+  // em versões antigas virava "Nome (A–Z)" de fato — antes só rotulava.
+  const [accountsSort, setAccountsSort] = useState(
+    () => localStorage.getItem('mf_accounts_sort') || 'manual'
+  );
+  const [sortOpen, setSortOpen] = useState(false);
+  // Modo reordenar (setas ↑/↓ nas linhas): só no critério "Manual" e
+  // enquanto o botão "Reordenar" estiver ligado — mesmos padrão dos
+  // grupos e da tela Contas; escolher outro critério desliga.
+  const [accountsReordering, setAccountsReordering] = useState(false);
+  const changeAccountsSort = (value) => {
+    setAccountsSort(value);
+    setAccountsReordering(false);
+    localStorage.setItem('mf_accounts_sort', value);
+    setSortOpen(false);
+  };
+  // Estreito (tablet retrato/mobile): cabeçalho compacto sem gráficos.
+  const isNarrow = useMFNarrowScreen();
 
   // Painel personalizável (Fase 9): widgets + contas visíveis
   const [widgetPref, setWidgetPref] = useState(loadWidgetPref);
   const [customizing, setCustomizing] = useState(false);
+  // Menu de três pontos do cabeçalho: moedas + personalizar (padrão do app
+  // de referência; no estreito vira bottom-sheet, como o sino).
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Menu em 2 níveis: raiz (Selecionar moeda / Personalizar) → lista de moedas.
+  const [menuView, setMenuView] = useState('root');
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setMenuView('root');
+  };
+  const menuItemStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    width: '100%',
+    padding: '0.5rem 0.55rem',
+    borderRadius: 10,
+    border: '1px solid transparent',
+    background: 'transparent',
+    color: 'inherit',
+    font: 'inherit',
+    fontSize: '0.85rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+  const menuStyle = isNarrow
+    ? {
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        // Acima do .main-header (z-index 100) — o painel é renderizado via
+        // portal no body e precisa cobrir o cabeçalho fixo do app.
+        zIndex: 1100,
+        maxHeight: '60vh',
+        overflowY: 'auto',
+        background: 'var(--glass-bg, #1e293b)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: '16px 16px 0 0',
+        padding: '0.9rem 1rem calc(1rem + env(safe-area-inset-bottom))',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.3rem',
+        boxShadow: '0 -12px 32px rgba(0, 0, 0, 0.5)',
+      }
+    : {
+        position: 'absolute',
+        right: 0,
+        top: 'calc(100% + 0.4rem)',
+        zIndex: 60,
+        width: 250,
+        background: 'var(--glass-bg, #1e293b)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: 14,
+        padding: '0.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.25rem',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45)',
+      };
   const [acctSearch, setAcctSearch] = useState('');
   const updateWidgetPref = (next) => {
     setWidgetPref(next);
@@ -164,6 +323,21 @@ export default function MFResumo({
   );
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  // Próxima fatura por cartão (Fase B): só contas de cartão ativas.
+  const cardAccounts = useMemo(
+    () => rows.filter((row) => row.account_type === 'CARTAO' && !row.archived_at),
+    [rows]
+  );
+  // Mensal como o resto do Resumo: navegar o mês troca os valores das
+  // faturas (mesma convenção da tela de Cartões, via monthRefISO).
+  const cardUpcoming = useMFCardUpcoming(user, cardAccounts, monthKey);
+  // Feed de recentes (Fase C): 10 últimos lançamentos de todas as contas,
+  // independente do mês navegado.
+  const { data: recentTxs = [] } = useMFRecentTransactions(user, 10);
+  const accountsById = useMemo(
+    () => Object.fromEntries(rows.map((row) => [row.id, row])),
+    [rows]
+  );
   const currencyOptions = useMemo(() => [...new Set(rows.map((row) => row.currency))], [rows]);
   const visibleRows = useMemo(
     () =>
@@ -202,7 +376,12 @@ export default function MFResumo({
   const [groupModal, setGroupModal] = useState(null);
   // Reordenar grupos (raízes) pelos botões ↑/↓ nos cards.
   const [groupsReordering, setGroupsReordering] = useState(false);
-  const updateGroupMutation = useUpdateMFGroup();
+  const reorderGroups = useMFReorder('mf_account_groups');
+  // Reordenação manual das contas no Resumo (chip Manual + botão
+  // Reordenar): ↑/↓ trocam o sort_order com o vizinho — otimista (a UI
+  // move na hora, sem esperar o refetch da RPC) e a mesma ordem vale na
+  // tela Contas (tudo ordena por sort_order).
+  const reorderAccounts = useMFReorder('mf_accounts');
   // Modal de nova conta com o grupo do drill já pré-selecionado
   const [accountModalGroup, setAccountModalGroup] = useState(null);
   // Modal de EDIÇÃO de conta a partir do detalhe (drill ou widget)
@@ -221,10 +400,8 @@ export default function MFResumo({
     const next = [...siblings];
     [next[index], next[target]] = [next[target], next[index]];
     try {
-      await Promise.all(
-        next.map((item, position) =>
-          updateGroupMutation.mutateAsync({ id: item.id, sort_order: position })
-        )
+      await reorderGroups.mutateAsync(
+        next.map((item, position) => ({ id: item.id, sort_order: position }))
       );
     } catch {
       toast.error(t('minhasfinancas.save_error'));
@@ -262,7 +439,10 @@ export default function MFResumo({
     recebido: groupTotalsByCurrency(countedRows, 'receitas'),
     gasto: groupTotalsByCurrency(countedRows, 'despesas'),
     previsto: groupTotalsByCurrency(countedRows, 'previsto'),
-    initial: groupTotalsByCurrency(countedRows, 'initial_balance'),
+    // "Inicial" = fechamento do mês anterior (saldoPrev, da RPC
+    // mf_month_summary), não a soma dos initial_balance — o marcador de
+    // configuração não acompanha o movimento já ocorrido.
+    initial: groupTotalsByCurrency(countedRows, 'saldoPrev'),
   };
   const singleCurrency = new Set(activeRows.map((row) => row.currency)).size <= 1;
   const nativeMoney = (value, rowCurrency) =>
@@ -296,24 +476,24 @@ export default function MFResumo({
     return currencies.map((cur) => {
       const curTxs = txs.filter((tx) => tx.c === cur);
       // Pizza: despesas realizadas do mês por categoria (top 7 + Outros).
-      const byCat = {};
-      curTxs.forEach((tx) => {
-        if (tx.t !== 'DESPESA' || tx.m !== monthKey) return;
-        const id = tx.cat || 'none';
-        byCat[id] = (byCat[id] || 0) + tx.v;
-      });
-      const sorted = Object.entries(byCat)
-        .map(([id, value]) => ({
-          id,
-          name:
-            id === 'none' || !categoriesById[id]
-              ? t('minhasfinancas.chart_uncategorized')
-              : categoriesById[id].name,
-          value,
-        }))
-        .sort((a, b) => b.value - a.value);
-      const pie =
-        sorted.length > 8
+      const pieFor = (type) => {
+        const byCat = {};
+        curTxs.forEach((tx) => {
+          if (tx.t !== type || tx.m !== monthKey) return;
+          const id = tx.cat || 'none';
+          byCat[id] = (byCat[id] || 0) + tx.v;
+        });
+        const sorted = Object.entries(byCat)
+          .map(([id, value]) => ({
+            id,
+            name:
+              id === 'none' || !categoriesById[id]
+                ? t('minhasfinancas.chart_uncategorized')
+                : categoriesById[id].name,
+            value,
+          }))
+          .sort((a, b) => b.value - a.value);
+        return sorted.length > 8
           ? [
               ...sorted.slice(0, 7),
               {
@@ -323,6 +503,30 @@ export default function MFResumo({
               },
             ]
           : sorted;
+      };
+      const pie = pieFor('DESPESA');
+      const pieIncome = pieFor('RECEITA');
+      // Barras por tipo de conta: despesas realizadas do mês (top 6 + Outros).
+      const accountTypeById = Object.fromEntries(activeRows.map((row) => [row.id, row]));
+      const byType = {};
+      curTxs.forEach((tx) => {
+        if (tx.t !== 'DESPESA' || tx.m !== monthKey) return;
+        const key = accountTypeById[tx.a]?.account_type || 'OUTRO';
+        byType[key] = (byType[key] || 0) + tx.v;
+      });
+      const typeSorted = Object.entries(byType)
+        .map(([type, value]) => ({ type, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6)
+        .map(({ type, value }) => ({
+          // rótulo = ícone do tipo + nome (builtin traduzido, custom cru)
+          label: `${MF_ACCOUNT_TYPE_ICONS[type] ?? '💰'} ${
+            MF_BUILTIN_ACCOUNT_TYPES.includes(type)
+              ? t(`minhasfinancas.acct_type_${type.toLowerCase()}`)
+              : type
+          }`,
+          value,
+        }));
       // Barras: receitas x despesas realizadas nos últimos 6 meses.
       const flow = flowMonths.map((mk) => {
         let income = 0;
@@ -339,7 +543,7 @@ export default function MFResumo({
           despesas: expense,
         };
       });
-      return { currency: cur, pie, flow };
+      return { currency: cur, pie, pieIncome, flow, byType: typeSorted };
     });
   }, [data, activeRows, currency, monthKey, flowMonths, categoriesById, t, i18n.language]);
   const budgetItems = useMemo(() => {
@@ -385,18 +589,6 @@ export default function MFResumo({
       ),
     [allGoals]
   );
-  const featuredGoal = activeGoals.length > 0 ? activeGoals[0] : null;
-  const featuredCurrent = featuredGoal
-    ? goalCurrentAmount(featuredGoal, allContributions, goalBalances[featuredGoal.account_id])
-    : 0;
-  const featuredPct = featuredGoal
-    ? Math.min(
-        100,
-        Math.round(
-          (featuredCurrent / (Number(featuredGoal.target_amount) || 1)) * 100
-        )
-      )
-    : 0;
 
   const cards = [
     {
@@ -471,12 +663,11 @@ export default function MFResumo({
                     {t(`minhasfinancas.${card.key}`)}
                   </span>
                 </div>
-                <div data-testid={`mf-kpi-value-${card.key}`} style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0 }}>
+                <div data-testid={`mf-kpi-value-${card.key}`} style={{ margin: 0 }}>
                   {isLoading ? '…' : isError ? '—' : (
-                    <MFTotalsStack
+                    <MFTotalsHero
                       totals={card.valueTotals}
                       showValues={showValues}
-                      fontSize="inherit"
                     />
                   )}
                 </div>
@@ -704,7 +895,8 @@ export default function MFResumo({
           </div>
         );
       }
-      if (chartData.length === 0) {
+      const shownCharts = visibleCharts(widgetPref);
+      if (chartData.length === 0 || shownCharts.length === 0) {
         return (
           <div
             className="glass-card"
@@ -723,88 +915,177 @@ export default function MFResumo({
             gap: '1.5rem',
           }}
         >
-          {chartData.map(({ currency: cur, pie, flow }) => (
+          {chartData.map(({ currency: cur, pie, pieIncome, flow, byType }) => (
             <React.Fragment key={cur}>
-              <div
-                className="glass-card"
-                data-testid={`mf-chart-categories-${cur}`}
-                style={{ padding: '1.25rem 1.5rem' }}
-              >
-                <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                  {t('minhasfinancas.chart_categories')}
-                  {chartData.length > 1 ? ` (${cur})` : ''}
-                </h3>
-                {pie.length === 0 ? (
-                  <p
-                    data-testid={`mf-chart-pie-empty-${cur}`}
-                    style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
-                  >
-                    {t('minhasfinancas.chart_no_data')}
-                  </p>
-                ) : (
+              {shownCharts.includes('chart_categories') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-categories-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_categories')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
+                  {pie.length === 0 ? (
+                    <p
+                      data-testid={`mf-chart-pie-empty-${cur}`}
+                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+                    >
+                      {t('minhasfinancas.chart_no_data')}
+                    </p>
+                  ) : (
+                    <div style={{ height: 230 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pie}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={52}
+                            outerRadius={78}
+                            paddingAngle={2}
+                            isAnimationActive={false}
+                          >
+                            {pie.map((entry, index) => (
+                              <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => formatMoney(value, cur)}
+                            contentStyle={tooltipStyle}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
+              {shownCharts.includes('chart_income') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-income-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_income')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
+                  {pieIncome.length === 0 ? (
+                    <p
+                      data-testid={`mf-chart-income-empty-${cur}`}
+                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+                    >
+                      {t('minhasfinancas.chart_no_data')}
+                    </p>
+                  ) : (
+                    <div style={{ height: 230 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieIncome}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={52}
+                            outerRadius={78}
+                            paddingAngle={2}
+                            isAnimationActive={false}
+                          >
+                            {pieIncome.map((entry, index) => (
+                              <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => formatMoney(value, cur)}
+                            contentStyle={tooltipStyle}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
+              {shownCharts.includes('chart_flow') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-flow-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_flow')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
                   <div style={{ height: 230 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pie}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={52}
-                          outerRadius={78}
-                          paddingAngle={2}
-                          isAnimationActive={false}
-                        >
-                          {pie.map((entry, index) => (
-                            <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
+                      <BarChart data={flow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
+                        <YAxis hide />
                         <Tooltip
                           formatter={(value) => formatMoney(value, cur)}
                           contentStyle={tooltipStyle}
                         />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                      </PieChart>
+                        <Bar
+                          dataKey="receitas"
+                          name={t('minhasfinancas.accounts_table_income')}
+                          fill="#10b981"
+                          radius={[3, 3, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                        <Bar
+                          dataKey="despesas"
+                          name={t('minhasfinancas.accounts_table_expense')}
+                          fill="#ef4444"
+                          radius={[3, 3, 0, 0]}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
-                )}
-              </div>
-              <div
-                className="glass-card"
-                data-testid={`mf-chart-flow-${cur}`}
-                style={{ padding: '1.25rem 1.5rem' }}
-              >
-                <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                  {t('minhasfinancas.chart_flow')}
-                  {chartData.length > 1 ? ` (${cur})` : ''}
-                </h3>
-                <div style={{ height: 230 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={flow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis hide />
-                      <Tooltip
-                        formatter={(value) => formatMoney(value, cur)}
-                        contentStyle={tooltipStyle}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar
-                        dataKey="receitas"
-                        name={t('minhasfinancas.accounts_table_income')}
-                        fill="#10b981"
-                        radius={[3, 3, 0, 0]}
-                        isAnimationActive={false}
-                      />
-                      <Bar
-                        dataKey="despesas"
-                        name={t('minhasfinancas.accounts_table_expense')}
-                        fill="#ef4444"
-                        radius={[3, 3, 0, 0]}
-                        isAnimationActive={false}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
                 </div>
-              </div>
+              )}
+              {shownCharts.includes('chart_bytype') && (
+                <div
+                  className="glass-card"
+                  data-testid={`mf-chart-bytype-${cur}`}
+                  style={{ padding: '1.25rem 1.5rem' }}
+                >
+                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
+                    {t('minhasfinancas.chart_bytype')}
+                    {chartData.length > 1 ? ` (${cur})` : ''}
+                  </h3>
+                  {byType.length === 0 ? (
+                    <p
+                      data-testid={`mf-chart-bytype-empty-${cur}`}
+                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+                    >
+                      {t('minhasfinancas.chart_no_data')}
+                    </p>
+                  ) : (
+                    <div style={{ height: 230 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={byType} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
+                          <YAxis hide />
+                          <Tooltip
+                            formatter={(value) => formatMoney(value, cur)}
+                            contentStyle={tooltipStyle}
+                          />
+                          <Bar
+                            dataKey="value"
+                            name={t('minhasfinancas.accounts_table_expense')}
+                            fill="#6366f1"
+                            radius={[3, 3, 0, 0]}
+                            isAnimationActive={false}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              )}
             </React.Fragment>
           ))}
         </div>
@@ -815,8 +1096,61 @@ export default function MFResumo({
       // Cartões (account_type='CARTAO') têm seção própria — nunca se misturam
       // com as contas. Só esta lista segue o filtro visual; KPIs e gráficos
       // somam todas as contas ativas.
-      const accountRows = visibleRows.filter((row) => row.account_type !== 'CARTAO');
+      // Ordenação a critério do usuário (persistida): manual (ordem do
+      // banco, reordenável com ↑/↓), nome A–Z ou maior/menor saldo e
+      // previsto.
+      const sortAccounts = (list) => {
+        const byNumber = (field) => (a, b) =>
+          (Number(b[field]) || 0) - (Number(a[field]) || 0);
+        switch (accountsSort) {
+          case 'name':
+            return [...list].sort((a, b) =>
+              String(a.name ?? '').localeCompare(String(b.name ?? ''), i18n.language)
+            );
+          case 'balance_desc':
+            return [...list].sort(byNumber('saldo'));
+          case 'balance_asc':
+            return [...list].sort((a, b) => (Number(a.saldo) || 0) - (Number(b.saldo) || 0));
+          case 'forecast_desc':
+            return [...list].sort(byNumber('previsto'));
+          case 'forecast_asc':
+            return [...list].sort((a, b) => (Number(a.previsto) || 0) - (Number(b.previsto) || 0));
+          case 'manual':
+          default:
+            return list;
+        }
+      };
+      const accountRows = sortAccounts(
+        visibleRows.filter((row) => row.account_type !== 'CARTAO')
+      );
       const cardRows = visibleRows.filter((row) => row.account_type === 'CARTAO');
+      // Modo reordenar (toggle "Reordenar" + critério Manual): ↑/↓ trocam
+      // o sort_order (índice na lista COMPLETA de contas — nunca cartões)
+      // com o VIZINHO visível. A RPC mf_month_summary ordena por
+      // sort_order e o update invalida tudo — a mesma ordem aparece na
+      // tela Contas (contas e cartões dividem o espaço de sort_order,
+      // mas cada tipo ordena o seu).
+      const moveAccount = async (rowId, direction) => {
+        const visibleIndex = accountRows.findIndex((row) => row.id === rowId);
+        const neighbor = accountRows[visibleIndex + direction];
+        if (visibleIndex < 0 || !neighbor) return;
+        const allAccounts = rows.filter((row) => row.account_type !== 'CARTAO');
+        const fromIndex = allAccounts.findIndex((row) => row.id === rowId);
+        const toIndex = allAccounts.findIndex((row) => row.id === neighbor.id);
+        if (fromIndex < 0 || toIndex < 0) return;
+        try {
+          await reorderAccounts.mutateAsync([
+            { id: rowId, sort_order: toIndex },
+            { id: neighbor.id, sort_order: fromIndex },
+          ]);
+        } catch {
+          toast.error(t('minhasfinancas.save_error'));
+        }
+      };
+      // Próxima fatura por cartão (Fase B) — lookup por id.
+      const upcomingById = Object.fromEntries(
+        (cardUpcoming?.items ?? []).map((item) => [item.card.id, item])
+      );
       const sections = [
         {
           title: 'accounts_title',
@@ -899,36 +1233,455 @@ export default function MFResumo({
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
                   {t(`minhasfinancas.${section.title}`)}
                 </h3>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  data-testid={section.actionTestId}
-                  onClick={() => goTo(section.tab)}
-                  style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem' }}
-                >
-                  {t('minhasfinancas.see_all')}
-                  <ArrowRight size={14} />
-                </button>
+                <span style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  {/* Ordenação das contas a critério do usuário (só na seção de contas) */}
+                  {section.title === 'accounts_title' && (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      data-testid="mf-resumo-accounts-sort"
+                      aria-label={t('minhasfinancas.accounts_sort_label')}
+                      title={t('minhasfinancas.accounts_sort_label')}
+                      aria-expanded={sortOpen}
+                      onClick={() => setSortOpen((v) => !v)}
+                    >
+                      <ArrowUpDown size={15} />
+                    </button>
+                  )}
+                  {/* Modo reordenar: setas ↑/↓ nas linhas de conta (só no
+                      critério Manual — escolher outro critério desliga). */}
+                  {section.title === 'accounts_title' && accountsSort === 'manual' && (
+                    <button
+                      type="button"
+                      className="btn-cancel"
+                      data-testid="mf-resumo-accounts-reorder-toggle"
+                      aria-pressed={accountsReordering}
+                      onClick={() => setAccountsReordering((prev) => !prev)}
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        fontSize: '0.8rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        background: accountsReordering
+                          ? 'color-mix(in srgb, var(--primary) 16%, transparent)'
+                          : undefined,
+                        color: accountsReordering ? 'var(--primary)' : undefined,
+                        borderColor: accountsReordering ? 'var(--primary)' : undefined,
+                      }}
+                    >
+                      <ArrowUpDown size={14} />
+                      {t('minhasfinancas.accounts_reorder')}
+                    </button>
+                  )}
+                  {/* Atalho para escolher quais contas aparecem no Resumo */}
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    data-testid={`mf-resumo-pick-accounts-${section.title}`}
+                    aria-label={t('minhasfinancas.dash_accts_title')}
+                    title={t('minhasfinancas.dash_accts_title')}
+                    onClick={() => setCustomizing(true)}
+                  >
+                    <Eye size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    data-testid={section.actionTestId}
+                    onClick={() => goTo(section.tab)}
+                    style={{ padding: '0.5rem 0.9rem', fontSize: '0.8rem' }}
+                  >
+                    {t('minhasfinancas.see_all')}
+                    <ArrowRight size={14} />
+                  </button>
+                </span>
               </div>
 
+              {/* Ordenação das contas (crítica do usuário): chips que aplicam
+                  na hora e somem ao escolher — sem dropdown flutuante. */}
+              {section.title === 'accounts_title' && sortOpen && (
+                <div
+                  data-testid="mf-resumo-accounts-sort-menu"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.4rem',
+                    marginBottom: '0.9rem',
+                  }}
+                >
+                  {ACCOUNT_SORT_OPTIONS.map((opt) => {
+                    const active = accountsSort === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        data-testid={`mf-resumo-accounts-sort-${opt.value}`}
+                        aria-pressed={active}
+                        onClick={() => changeAccountsSort(opt.value)}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: 999,
+                          fontSize: '0.78rem',
+                          fontWeight: active ? 800 : 600,
+                          cursor: 'pointer',
+                          color: active ? '#fff' : 'inherit',
+                          background: active ? 'var(--primary)' : 'var(--input-bg)',
+                          border: `1px solid ${active ? 'var(--primary)' : 'var(--glass-border)'}`,
+                        }}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {isNarrow ? (
+                /* Estreito (mockup): linhas com ícone + saldo, sem tabela
+                   com rolagem lateral. */
+                <div data-testid={`${section.sectionTestId}-list`} style={{ display: 'flex', flexDirection: 'column' }}>
+                  {section.rows.map((row) => {
+                    const isCard = section.title === 'cards_title';
+                    const cardItem = isCard ? upcomingById[row.id] : null;
+                    const current = cardItem?.current ?? null;
+                    const nextInv = cardItem?.next ?? null;
+                    const cur = cardItem?.card?.currency || row.currency || 'BRL';
+                    const invoiceState = isCard ? cardInvoiceState(current) : null;
+
+                    // Cartão (mock de referência): bandeira ao lado do nome,
+                    // ícone de status ao lado do valor e rótulos de fechamento,
+                    // vencimento e próxima fatura.
+                    if (isCard) {
+                      return (
+                        <button
+                          key={row.id}
+                          type="button"
+                          data-testid={section.testid}
+                          onClick={() => setSelectedId(row.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            padding: '0.75rem 0.25rem',
+                            background: 'none',
+                            border: 'none',
+                            borderBottom: '1px solid var(--glass-border)',
+                            color: 'inherit',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            width: '100%',
+                          }}
+                        >
+                          <MFAccountIcon
+                            account={row}
+                            size={38}
+                            data-testid={`mf-resumo-icon-${row.id}`}
+                            style={{ marginTop: 2 }}
+                          />
+                          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            {/* nome + bandeira .......... valor + status */}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', width: '100%' }}>
+                              <span
+                                data-testid={`mf-resumo-open-account-${row.id}`}
+                                style={{
+                                  fontWeight: 800,
+                                  fontSize: '0.92rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {row.name}
+                              </span>
+                              {/* bandeira da REDE (Visa/Master/Elo…) */}
+                              {Boolean(row.card_brand) && (
+                                <span
+                                  data-testid={`mf-resumo-card-brand-${row.id}`}
+                                  style={{ display: 'inline-flex', flexShrink: 0 }}
+                                >
+                                  <MFCardBrandIcon
+                                    brand={row.card_brand}
+                                    size={16}
+                                    title={t(`minhasfinancas.card_brand_${row.card_brand}`)}
+                                  />
+                                </span>
+                              )}
+                              <span
+                                style={{
+                                  marginLeft: 'auto',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <span
+                                  data-testid={`mf-resumo-card-total-${row.id}`}
+                                  style={{ fontWeight: 800, fontSize: '0.95rem' }}
+                                >
+                                  {nativeMoney(Number(current?.total) || 0, cur)}
+                                </span>
+                                {invoiceState && (
+                                  <span
+                                    data-testid={`mf-resumo-card-status-${row.id}`}
+                                    title={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    aria-label={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    style={{ color: invoiceState.color, display: 'inline-flex' }}
+                                  >
+                                    {invoiceState.icon === 'paid' && <CheckCircle2 size={15} />}
+                                    {invoiceState.icon === 'closed' && <Lock size={15} />}
+                                    {invoiceState.icon === 'open' && <LockOpen size={15} />}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                            {/* Fechamento / Vencimento / Próxima fatura */}
+                            {[
+                              current?.closeISO && {
+                                k: 'close',
+                                label: t('minhasfinancas.card_closing'),
+                                value: dayMonthLabel(current.closeISO, i18n.language),
+                              },
+                              current?.dueISO && {
+                                k: 'due',
+                                label: t('minhasfinancas.card_due_label'),
+                                value: dayMonthLabel(current.dueISO, i18n.language),
+                              },
+                              nextInv && {
+                                k: 'next',
+                                label: t('minhasfinancas.card_next_invoice'),
+                                value: nativeMoney(Number(nextInv.total) || 0, cur),
+                              },
+                            ]
+                              .filter(Boolean)
+                              .map((line) => (
+                                <span
+                                  key={line.k}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    fontSize: '0.72rem',
+                                  }}
+                                >
+                                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    {line.label}
+                                  </span>
+                                  <span
+                                    data-testid={`mf-resumo-card-${line.k}-${row.id}`}
+                                    style={{ fontWeight: 700 }}
+                                  >
+                                    {line.value}
+                                  </span>
+                                </span>
+                              ))}
+                          </span>
+                        </button>
+                      );
+                    }
+
+                    // Conta: ícone + nome, previsão (vermelha quando negativa) + saldo.
+                    // Modo reordenar: setas ↑/↓ como IRMÃS do botão da linha (button
+                    // dentro de button é inválido) — a linha segue clicável.
+                    return (
+                      <div
+                        key={row.id}
+                        style={{ display: 'flex', alignItems: 'center', width: '100%' }}
+                      >
+                      <button
+                        type="button"
+                        data-testid={section.testid}
+                        onClick={() => setSelectedId(row.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                          padding: '0.7rem 0.25rem',
+                          background: 'none',
+                          border: 'none',
+                          borderBottom: '1px solid var(--glass-border)',
+                          color: 'inherit',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        <MFAccountIcon
+                          account={row}
+                          size={38}
+                          data-testid={`mf-resumo-icon-${row.id}`}
+                        />
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span
+                            data-testid={`mf-resumo-open-account-${row.id}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              fontWeight: 800,
+                              fontSize: '0.92rem',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {row.name}
+                            </span>
+                            <MFIgnoreDots show={row.ignore_in_totals} />
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {t('minhasfinancas.accounts_table_forecast')}:{' '}
+                            <span
+                              style={
+                                Number(row.previsto) < 0
+                                  ? { color: '#ef4444', fontWeight: 700 }
+                                  : undefined
+                              }
+                            >
+                              {nativeMoney(row.previsto, row.currency)}
+                            </span>
+                          </span>
+                        </span>
+                        <span style={{ fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>
+                          {nativeMoney(row.saldo, row.currency)}
+                        </span>
+                      </button>
+                      {accountsReordering && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            gap: '0.15rem',
+                            flexShrink: 0,
+                            paddingLeft: '0.35rem',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={t('minhasfinancas.move_up')}
+                            data-testid={`mf-resumo-account-move-up-${row.id}`}
+                            onClick={() => moveAccount(row.id, -1)}
+                            style={{ padding: '0.3rem' }}
+                          >
+                            <ChevronUp size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={t('minhasfinancas.move_down')}
+                            data-testid={`mf-resumo-account-move-down-${row.id}`}
+                            onClick={() => moveAccount(row.id, 1)}
+                            style={{ padding: '0.3rem' }}
+                          >
+                            <ChevronDown size={16} />
+                          </button>
+                        </span>
+                      )}
+                      </div>
+                    );
+                  })}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      marginTop: '0.6rem',
+                      padding: '0.6rem 0.75rem',
+                      background: 'var(--input-bg)',
+                      borderRadius: 12,
+                      fontWeight: 800,
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.8rem' }}>
+                      {t('minhasfinancas.total')}
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {section.title === 'cards_title'
+                          ? t('minhasfinancas.resumo_open_to_pay')
+                          : t('minhasfinancas.accounts_table_forecast')}
+                      </span>
+                    </span>
+                    <span style={{ textAlign: 'right' }}>
+                      {section.title === 'cards_title' ? (
+                        <>
+                          <MFTotalsStack
+                            totals={cardUpcoming?.openTotalByCurrency ?? {}}
+                            showValues={showValues}
+                            align="right"
+                            fontSize="inherit"
+                            testId="mf-resumo-cards-open-total"
+                          />
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            <MFTotalsStack
+                              totals={cardUpcoming?.upcomingTotalByCurrency ?? {}}
+                              showValues={showValues}
+                              align="right"
+                              fontSize="inherit"
+                              testId="mf-resumo-cards-next-total"
+                            />
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <MFTotalsStack
+                            totals={groupTotalsByCurrency(section.rows, 'saldo')}
+                            showValues={showValues}
+                            align="right"
+                            fontSize="inherit"
+                          />
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            <MFTotalsStack
+                              totals={groupTotalsByCurrency(section.rows, 'previsto')}
+                              showValues={showValues}
+                              align="right"
+                              fontSize="inherit"
+                            />
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
                   <thead>
                     <tr>
-                      {/* Coluna da conta (ícone + nome): sem rótulo */}
+                      {/* Coluna da conta (ícone + nome) / descrição do cartão */}
                       <th
-                        aria-hidden
+                        aria-hidden={section.title !== 'cards_title'}
                         style={{
                           padding: '0.6rem 0.75rem',
                           borderBottom: '1px solid var(--glass-border)',
+                          textAlign: 'left',
+                          fontSize: '0.72rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          color: 'var(--text-muted)',
                         }}
-                      />
-                      {[
-                        'accounts_table_income',
-                        'accounts_table_expense',
-                        'accounts_table_balance',
-                        'accounts_table_forecast',
-                      ].map((key) => (
+                      >
+                        {section.title === 'cards_title'
+                          ? t('minhasfinancas.cards_col_desc')
+                          : null}
+                      </th>
+                      {(section.title === 'cards_title'
+                        ? [
+                            'card_closing',
+                            'card_due_label',
+                            'cards_col_invoice',
+                            'cards_col_next',
+                          ]
+                        : [
+                            'accounts_table_balance',
+                            'accounts_table_income',
+                            'accounts_table_expense',
+                            'accounts_table_forecast',
+                          ]
+                      ).map((key) => (
                         <th
                           key={key}
                           style={{
@@ -947,65 +1700,262 @@ export default function MFResumo({
                     </tr>
                   </thead>
                   <tbody>
-                    {section.rows.map((row) => (
-                      <tr
-                        key={row.id}
-                        data-testid={section.testid}
-                        className="table-row-hover"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setSelectedId(row.id)}
-                      >
-                        <td
-                          style={{
-                            padding: '0.75rem',
-                            borderBottom: '1px solid var(--glass-border)',
-                            fontWeight: 700,
-                            fontSize: '0.9rem',
-                            textAlign: 'left',
-                          }}
-                        >
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                            <MFAccountIcon
-                              account={row}
-                              size={20}
-                              data-testid={`mf-resumo-icon-${row.id}`}
-                            />
-                            <button
-                              type="button"
-                              data-testid={`mf-resumo-open-account-${row.id}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setSelectedId(row.id);
-                              }}
+                    {section.rows.map((row) => {
+                      // Cartões: layout do Minhas Finanças — Descrição,
+                      // Fechamento, Vencimento, Fatura e Próxima (em vez de
+                      // receitas/despesas/saldo/previsão).
+                      if (section.title === 'cards_title') {
+                        const cardItem = upcomingById[row.id];
+                        const current = cardItem?.current ?? null;
+                        const nextInv = cardItem?.next ?? null;
+                        const cur = cardItem?.card?.currency || row.currency || 'BRL';
+                        const invoiceState = cardInvoiceState(current);
+                        return (
+                          <tr
+                            key={row.id}
+                            data-testid={section.testid}
+                            className="table-row-hover"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => setSelectedId(row.id)}
+                          >
+                            {/* Descrição: ícone + nome + bandeira da rede */}
+                            <td
                               style={{
-                                background: 'none',
-                                border: 'none',
-                                padding: 0,
-                                font: 'inherit',
+                                padding: '0.75rem',
+                                borderBottom: '1px solid var(--glass-border)',
                                 fontWeight: 700,
-                                color: 'inherit',
-                                cursor: 'pointer',
+                                fontSize: '0.9rem',
                                 textAlign: 'left',
                               }}
                             >
-                              {row.name}
-                            </button>
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#10b981', fontSize: '0.9rem' }}>
-                          {nativeMoney(row.receitas, row.currency)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#ef4444', fontSize: '0.9rem' }}>
-                          {nativeMoney(row.despesas, row.currency)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 800, fontSize: '0.9rem' }}>
-                          {nativeMoney(row.saldo, row.currency)}
-                        </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                          {nativeMoney(row.previsto, row.currency)}
-                        </td>
-                      </tr>
-                    ))}
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <MFAccountIcon
+                                  account={row}
+                                  size={20}
+                                  data-testid={`mf-resumo-icon-${row.id}`}
+                                />
+                                <button
+                                  type="button"
+                                  data-testid={`mf-resumo-open-account-${row.id}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setSelectedId(row.id);
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 0,
+                                    font: 'inherit',
+                                    fontWeight: 700,
+                                    color: 'inherit',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                  }}
+                                >
+                                  {row.name}
+                                </button>
+                                {/* bandeira da REDE (Visa/Master/Elo…) */}
+                                {Boolean(row.card_brand) && (
+                                  <span
+                                    data-testid={`mf-resumo-card-brand-${row.id}`}
+                                    style={{ display: 'inline-flex', flexShrink: 0 }}
+                                  >
+                                    <MFCardBrandIcon
+                                      brand={row.card_brand}
+                                      size={18}
+                                      title={t(`minhasfinancas.card_brand_${row.card_brand}`)}
+                                    />
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            {/* Fechamento */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                color: 'var(--text-muted)',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              {current?.closeISO && (
+                                <span data-testid={`mf-resumo-card-close-${row.id}`}>
+                                  {shortDateWeekday(current.closeISO, i18n.language)}
+                                </span>
+                              )}
+                            </td>
+                            {/* Vencimento (fatura corrente) */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              {current?.dueISO && (
+                                <span data-testid={`mf-resumo-card-due-${row.id}`}>
+                                  {shortDateWeekday(current.dueISO, i18n.language)}
+                                </span>
+                              )}
+                            </td>
+                            {/* Fatura (valor da fatura corrente + status) */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                fontWeight: 800,
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                {invoiceState && (
+                                  <span
+                                    title={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    aria-label={t(`minhasfinancas.${invoiceState.labelKey}`)}
+                                    style={{ color: invoiceState.color, display: 'inline-flex' }}
+                                  >
+                                    {invoiceState.icon === 'paid' && <CheckCircle2 size={14} />}
+                                    {invoiceState.icon === 'closed' && <Lock size={14} />}
+                                    {invoiceState.icon === 'open' && <LockOpen size={14} />}
+                                  </span>
+                                )}
+                                <span data-testid={`mf-resumo-card-total-${row.id}`}>
+                                  {nativeMoney(Number(current?.total) || 0, cur)}
+                                </span>
+                              </span>
+                            </td>
+                            {/* Próxima fatura (mês seguinte) */}
+                            <td
+                              style={{
+                                padding: '0.75rem',
+                                textAlign: 'right',
+                                borderBottom: '1px solid var(--glass-border)',
+                                fontWeight: 700,
+                                color: 'var(--text-muted)',
+                                fontSize: '0.9rem',
+                              }}
+                            >
+                              {nextInv && (
+                                <span data-testid={`mf-resumo-card-next-${row.id}`}>
+                                  {nativeMoney(Number(nextInv.total) || 0, cur)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      // Contas: colunas originais (Previsão em vermelho se negativa)
+                      return (
+                        <tr
+                          key={row.id}
+                          data-testid={section.testid}
+                          className="table-row-hover"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setSelectedId(row.id)}
+                        >
+                          <td
+                            style={{
+                              padding: '0.75rem',
+                              borderBottom: '1px solid var(--glass-border)',
+                              fontWeight: 700,
+                              fontSize: '0.9rem',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <MFAccountIcon
+                                account={row}
+                                size={20}
+                                data-testid={`mf-resumo-icon-${row.id}`}
+                              />
+                              <button
+                                type="button"
+                                data-testid={`mf-resumo-open-account-${row.id}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setSelectedId(row.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: 0,
+                                  font: 'inherit',
+                                  fontWeight: 700,
+                                  color: 'inherit',
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                {row.name}
+                              </button>
+                              <MFIgnoreDots show={row.ignore_in_totals} />
+                              {/* Modo reordenar: ↑/↓ trocam a posição com o vizinho */}
+                              {accountsReordering && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    gap: '0.15rem',
+                                    flexShrink: 0,
+                                    marginLeft: '0.25rem',
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    aria-label={t('minhasfinancas.move_up')}
+                                    data-testid={`mf-resumo-account-move-up-${row.id}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      moveAccount(row.id, -1);
+                                    }}
+                                    style={{ padding: '0.25rem' }}
+                                  >
+                                    <ChevronUp size={15} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    aria-label={t('minhasfinancas.move_down')}
+                                    data-testid={`mf-resumo-account-move-down-${row.id}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      moveAccount(row.id, 1);
+                                    }}
+                                    style={{ padding: '0.25rem' }}
+                                  >
+                                    <ChevronDown size={15} />
+                                  </button>
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          {/* Saldo em 1ª coluna (pedido) */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 800, fontSize: '0.9rem' }}>
+                            {nativeMoney(row.saldo, row.currency)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#10b981', fontSize: '0.9rem' }}>
+                            {nativeMoney(row.receitas, row.currency)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: '#ef4444', fontSize: '0.9rem' }}>
+                            {nativeMoney(row.despesas, row.currency)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, fontSize: '0.9rem' }}>
+                            <span
+                              style={
+                                Number(row.previsto) < 0
+                                  ? { color: '#ef4444', fontWeight: 800 }
+                                  : { color: 'var(--text-muted)' }
+                              }
+                            >
+                              {nativeMoney(row.previsto, row.currency)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr>
@@ -1020,25 +1970,152 @@ export default function MFResumo({
                         }}
                       >
                         {t('minhasfinancas.total')}
+                        {section.title === 'cards_title' && (
+                          <span style={{ display: 'block', textTransform: 'none', fontWeight: 500 }}>
+                            {t('minhasfinancas.resumo_open_to_pay')}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                        {formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)}
-                      </td>
+                      {section.title === 'cards_title' ? (
+                        <>
+                          {/* Fechamento / Vencimento: sem total */}
+                          <td style={{ padding: '0.75rem' }} />
+                          <td style={{ padding: '0.75rem' }} />
+                          {/* Fatura: total a pagar (fatura corrente em aberto) */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
+                            <span data-testid="mf-resumo-cards-open-total">
+                              {formatTotals(cardUpcoming?.openTotalByCurrency ?? {}, showValues)}
+                            </span>
+                          </td>
+                          {/* Próxima: total da próxima fatura */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            <span data-testid="mf-resumo-cards-next-total">
+                              {formatTotals(cardUpcoming?.upcomingTotalByCurrency ?? {}, showValues)}
+                            </span>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          {/* Saldo em 1ª coluna (pedido) */}
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'saldo'), showValues)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'receitas'), showValues)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'despesas'), showValues)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            {formatTotals(groupTotalsByCurrency(section.rows, 'previsto'), showValues)}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   </tfoot>
                 </table>
               </div>
+              )}
             </div>
           ))}
+        </div>
+      );
+    }
+
+    if (id === 'recent') {
+      // Feed único (Fase C): últimos lançamentos de todas as contas,
+      // independente do mês navegado. Clique leva aos Lançamentos.
+      const feed = recentTxs.filter((tx) => tx.status !== 'CANCELADO').slice(0, 10);
+      return (
+        <div
+          className="glass-card"
+          data-testid="mf-resumo-recent-card"
+          style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: 560 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong style={{ fontSize: '0.9rem' }}>{t('minhasfinancas.res_recent_title')}</strong>
+            <button
+              type="button"
+              className="icon-btn"
+              data-testid="mf-resumo-go-recent"
+              aria-label={t('minhasfinancas.see_all')}
+              onClick={() => goTo('minhasfinancas-transactions')}
+            >
+              <ArrowRight size={15} />
+            </button>
+          </div>
+          {feed.length === 0 ? (
+            <p
+              data-testid="mf-resumo-recent-empty"
+              style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+            >
+              {t('minhasfinancas.res_recent_empty')}
+            </p>
+          ) : (
+            feed.map((tx) => {
+              const amount = Number(tx.amount) || 0;
+              const isExpense = tx.type === 'DESPESA';
+              const isTransfer = tx.type === 'TRANSFERENCIA';
+              return (
+                <button
+                  key={tx.id}
+                  type="button"
+                  data-testid={`mf-resumo-recent-row-${tx.id}`}
+                  onClick={() => goTo('minhasfinancas-transactions')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    width: '100%',
+                    padding: '0.35rem 0.25rem',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid var(--glass-border)',
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {shortDate(tx.payment_date)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                    {tx.description || t('minhasfinancas.chart_uncategorized')}
+                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {accountsById[tx.account_id]?.name ?? ''}
+                      {!isTransfer && tx.category_id
+                        ? ` · ${categoriesById[tx.category_id]?.name ?? t('minhasfinancas.chart_uncategorized')}`
+                        : ''}
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      whiteSpace: 'nowrap',
+                      color: isTransfer
+                        ? 'var(--text-muted)'
+                        : isExpense
+                          ? '#ef4444'
+                          : '#10b981',
+                    }}
+                  >
+                    {isTransfer
+                      ? nativeMoney(amount, accountsById[tx.account_id]?.currency || 'BRL')
+                      : `${isExpense ? '−' : '+'}${nativeMoney(amount, accountsById[tx.account_id]?.currency || 'BRL')}`}
+                  </span>
+                </button>
+              );
+            })
+          )}
         </div>
       );
     }
@@ -1077,23 +2154,49 @@ export default function MFResumo({
                   breached: budgetBreaches,
                 })}
               </span>
-              {currency !== 'all' && (
-                <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>
-                  {showValues
-                    ? formatMoney(
-                        budgetItems.reduce((sum, item) => sum + item.spent, 0),
-                        currency
-                      )
-                    : '•••'}{' '}
-                  /{' '}
-                  {showValues
-                    ? formatMoney(
-                        budgetItems.reduce((sum, item) => sum + item.limit, 0),
-                        currency
-                      )
-                    : '•••'}
-                </span>
-              )}
+              {/* Lista com barra de uso por orçamento (Fase E) */}
+              {budgetItems.map((item, index) => {
+                const pct =
+                  item.limit > 0
+                    ? Math.min(100, Math.round((item.spent / item.limit) * 100))
+                    : 0;
+                return (
+                  <div
+                    key={item.budget.id ?? index}
+                    data-testid={`mf-resumo-budget-item-${index}`}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.budget.name}
+                      </span>
+                      <span style={{ color: item.breached ? '#ef4444' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {showValues ? formatMoney(item.spent, currency) : '•••'} /{' '}
+                        {showValues ? formatMoney(item.limit, currency) : '•••'}
+                      </span>
+                    </span>
+                    <div style={{ height: 6, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>
+                      <div
+                        data-testid={`mf-resumo-budget-bar-${index}`}
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: item.breached ? '#ef4444' : 'var(--primary)',
+                          transition: 'width 0.3s',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
               {budgetBreaches > 0 && (
                 <span
                   data-testid="mf-resumo-budget-alert"
@@ -1127,7 +2230,7 @@ export default function MFResumo({
               <ArrowRight size={15} />
             </button>
           </div>
-          {!featuredGoal ? (
+          {activeGoals.length === 0 ? (
             <p
               data-testid="mf-resumo-goal-empty"
               style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
@@ -1136,27 +2239,58 @@ export default function MFResumo({
             </p>
           ) : (
             <>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                {featuredGoal.icon || '🎯'} {featuredGoal.name}
-              </span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 800 }}>
-                {showValues ? formatMoney(featuredCurrent) : '•••'} /{' '}
-                {showValues ? formatMoney(Number(featuredGoal.target_amount) || 0) : '•••'}
-              </span>
-              <div style={{ height: 8, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>
-                <div
-                  data-testid="mf-resumo-goal-progress"
-                  style={{
-                    width: `${featuredPct}%`,
-                    height: '100%',
-                    background: featuredGoal.color || 'var(--primary)',
-                    transition: 'width 0.3s',
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: featuredGoal.color || 'var(--primary)' }}>
-                {t('minhasfinancas.bdg_pct', { pct: featuredPct })}
-              </span>
+              {/* Lista com barra de progresso por objetivo (Fase E) */}
+              {activeGoals.map((goal, index) => {
+                const current = goalCurrentAmount(
+                  goal,
+                  allContributions,
+                  goalBalances[goal.account_id]
+                );
+                const target = Number(goal.target_amount) || 0;
+                const pct = Math.min(100, Math.round((current / (target || 1)) * 100));
+                return (
+                  <div
+                    key={goal.id ?? index}
+                    data-testid={`mf-resumo-goal-item-${index}`}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {goal.icon || '🎯'} {goal.name}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {/* Objetivo sem moeda própria = padrão (BRL), como
+                            na tela de Objetivos — o escopo da tela ('all')
+                            não é moeda (vazava como "ALL", o Lek albanês). */}
+                        {showValues ? formatMoney(current, goal.currency) : '•••'} /{' '}
+                        {showValues ? formatMoney(target, goal.currency) : '•••'}
+                      </span>
+                    </span>
+                    <div style={{ height: 6, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>
+                      <div
+                        data-testid={`mf-resumo-goal-bar-${index}`}
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: goal.color || 'var(--primary)',
+                          transition: 'width 0.3s',
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 800, color: goal.color || 'var(--primary)' }}>
+                      {t('minhasfinancas.bdg_pct', { pct })}
+                    </span>
+                  </div>
+                );
+              })}
             </>
           )}
         </div>
@@ -1165,6 +2299,150 @@ export default function MFResumo({
 
     return null;
   };
+
+  // Camada do menu ⋮ (overlay + painel). No estreito ela vai via portal no
+  // <body>: o glass-card do cabeçalho tem backdrop-filter, que cria um
+  // containing block para position:fixed — sem o portal o painel ficava
+  // ancorado no card e ATRÁS do .main-header (z-index 100), escondendo
+  // "Todas as moedas" e impedindo a rolagem da lista de moedas.
+  const menuLayer = menuOpen ? (
+    <>
+      {/* Clicar fora fecha: fundo escuro no estreito, invisível
+          no largo (só captura o clique). */}
+      <span
+        data-testid="mf-resumo-menu-overlay"
+        onClick={closeMenu}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: isNarrow ? 1099 : 59,
+          background: isNarrow ? 'rgba(0, 0, 0, 0.55)' : 'transparent',
+        }}
+      />
+      <div
+        data-testid="mf-resumo-menu-panel"
+        role="menu"
+        aria-label={t('minhasfinancas.more_options')}
+        style={menuStyle}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <strong style={{ flex: 1, fontSize: '0.8rem' }}>
+            {menuView === 'currency'
+              ? t('minhasfinancas.currency_label')
+              : t('minhasfinancas.more_options')}
+          </strong>
+          <button
+            type="button"
+            className="icon-btn"
+            data-testid="mf-resumo-menu-close"
+            aria-label={t('minhasfinancas.cancel')}
+            onClick={closeMenu}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {menuView === 'root' ? (
+          <>
+            {/* Nível 1: Selecionar moeda → lista; Personalizar. */}
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="mf-resumo-menu-currency-open"
+              onClick={() => setMenuView('currency')}
+              style={menuItemStyle}
+            >
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                {t('minhasfinancas.select_currency')}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                  fontWeight: 700,
+                }}
+              >
+                {currency === 'all' ? t('minhasfinancas.currency_all') : currency}
+              </span>
+              <ChevronRight size={14} />
+            </button>
+            <span
+              style={{
+                borderTop: '1px solid var(--glass-border)',
+                margin: '0.3rem 0',
+              }}
+            />
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="mf-resumo-customize"
+              onClick={() => {
+                closeMenu();
+                setCustomizing(true);
+              }}
+              style={menuItemStyle}
+            >
+              <SlidersHorizontal size={15} />
+              {t('minhasfinancas.dash_customize')}
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Nível 2: lista de moedas — escolher aplica e fecha
+                (assim nunca se fica preso no menu). */}
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="mf-resumo-menu-back"
+              onClick={() => setMenuView('root')}
+              style={menuItemStyle}
+            >
+              <ChevronLeft size={14} />
+              {t('minhasfinancas.back')}
+            </button>
+            <span
+              style={{
+                borderTop: '1px solid var(--glass-border)',
+                margin: '0.3rem 0',
+              }}
+            />
+            {[
+              { code: 'all', label: t('minhasfinancas.currency_all') },
+              ...currencyOptions.map((code) => ({ code, label: code })),
+            ].map((option) => {
+              const active = currency === option.code;
+              return (
+                <button
+                  key={option.code}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  data-testid={`mf-resumo-menu-currency-${option.code}`}
+                  onClick={() => {
+                    setCurrency(option.code);
+                    closeMenu();
+                  }}
+                  style={{
+                    ...menuItemStyle,
+                    borderColor: active ? 'var(--primary)' : 'transparent',
+                    background: active
+                      ? 'color-mix(in srgb, var(--primary) 14%, transparent)'
+                      : 'transparent',
+                    fontWeight: active ? 800 : 600,
+                  }}
+                >
+                  <span style={{ flex: 1, textAlign: 'left' }}>
+                    {option.label}
+                  </span>
+                  {active && <Check size={14} />}
+                </button>
+              );
+            })}
+          </>
+        )}
+      </div>
+    </>
+  ) : null;
 
   return (
     <div data-testid="mf-resumo" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -1178,51 +2456,221 @@ export default function MFResumo({
           gap: '1rem',
           alignItems: 'center',
           justifyContent: 'space-between',
+          // O backdrop-filter cria um stacking context; sem isto os dropdowns
+          // (menu ⋮ e sino) ficavam ATRÁS dos cards de KPI (z-index do app).
+          position: 'relative',
+          zIndex: 1,
         }}
       >
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+        {/* Largo: título + descrição no bloco à esquerda. */}
+        {!isNarrow && (
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+              {t('minhasfinancas.title')}
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.25rem 0 0' }}>
+              {t('minhasfinancas.overview_desc')}
+            </p>
+          </div>
+        )}
+        {/* Estreito no drill-down: título sem asções (somem no detalhe) */}
+        {isNarrow && selectedRow && (
+          <h2 style={{ width: '100%', fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
             {t('minhasfinancas.title')}
           </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.25rem 0 0' }}>
+        )}
+        {!selectedRow && (
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              // Estreito: nome do módulo e ícones na MESMA linha (título à
+              // esquerda, ações coladas à direita — pedido do usuário).
+              ...(isNarrow ? { width: '100%' } : {}),
+            }}
+          >
+            {isNarrow && (
+              <h2
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  margin: 0,
+                }}
+              >
+                {t('minhasfinancas.title')}
+              </h2>
+            )}
+            <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
+            {/* Menu de três pontos (padrão do app de referência): moedas +
+                personalizar painel. No estreito a régua de abas some e o
+                menu abre como bottom-sheet. */}
+            <span style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="icon-btn"
+                data-testid="mf-resumo-menu"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label={t('minhasfinancas.more_options')}
+                onClick={() => {
+                  if (!menuOpen) setMenuView('root');
+                  setMenuOpen((prev) => !prev);
+                }}
+              >
+                <MoreVertical size={18} />
+              </button>
+              {menuLayer &&
+                (isNarrow ? createPortal(menuLayer, document.body) : menuLayer)}
+            </span>
+            {/* Sem abas no estreito: o badge deixa visível qual moeda está
+                filtrando (some quando é "Todas"). */}
+            {isNarrow && currency !== 'all' && (
+              <span
+                data-testid="mf-resumo-currency-badge"
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  color: 'var(--primary)',
+                  background: 'color-mix(in srgb, var(--primary) 15%, transparent)',
+                  border: '1px solid var(--primary)',
+                  borderRadius: 999,
+                  padding: '0.15rem 0.45rem',
+                }}
+              >
+                {currency}
+              </span>
+            )}
+            {!isNarrow && (
+              <>
+                <MFCurrencyTabs
+                  currencies={currencyOptions}
+                  value={currency}
+                  onChange={setCurrency}
+                  testId="mf-resumo-currency-tabs"
+                />
+                <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
+              </>
+            )}
+          </div>
+        )}
+        {/* Estreito: descrição abaixo da linha do título… */}
+        {isNarrow && (
+          <p
+            style={{
+              width: '100%',
+              color: 'var(--text-muted)',
+              fontSize: '0.9rem',
+              margin: 0,
+            }}
+          >
             {t('minhasfinancas.overview_desc')}
           </p>
-        </div>
-        {!selectedRow && (
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
-            <button
-              type="button"
-              className={customizing ? 'btn-primary' : 'btn-secondary'}
-              data-testid="mf-resumo-customize"
-              onClick={() => setCustomizing((prev) => !prev)}
-              style={{ padding: '0.55rem 0.9rem', fontSize: '0.8rem' }}
-              aria-pressed={customizing}
-            >
-              <SlidersHorizontal size={15} />
-              {t(customizing ? 'minhasfinancas.dash_done' : 'minhasfinancas.dash_customize')}
-            </button>
-            <MFCurrencyTabs
-              currencies={currencyOptions}
-              value={currency}
-              onChange={setCurrency}
-              testId="mf-resumo-currency-tabs"
-            />
+        )}
+        {/* …e seletor de mês centralizado em linha própria */}
+        {!selectedRow && isNarrow && (
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
             <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
           </div>
         )}
       </div>
 
-      {/* Painel de personalização (Fase 9) */}
-      {!selectedRow && customizing && (
+      {/* Compacto do estreito (formato do mock de referência): Inicial à
+          esquerda, saldo em R$ em destaque no centro e Previsto à direita —
+          as demais moedas saem menores e apagadas, só com a sigla. */}
+      {isNarrow && !selectedRow && groupPath.length === 0 && (
         <div
           className="glass-card"
-          data-testid="mf-widget-panel"
-          style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+          data-testid="mf-resumo-compact"
+          style={{
+            padding: '0.9rem 1.1rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '0.4rem',
+          }}
         >
-          <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {t('minhasfinancas.dash_hint')}
-          </p>
+          {[
+            { key: 'initial', label: t('minhasfinancas.initial'), totals: kpis.initial, hero: false, align: 'left' },
+            { key: 'balance', label: t('minhasfinancas.kpi_balance'), totals: kpis.saldo, hero: true, align: 'center' },
+            { key: 'forecast', label: t('minhasfinancas.kpi_forecast'), totals: kpis.previsto, hero: false, align: 'right' },
+          ].map((item) => (
+            <div
+              key={item.key}
+              data-testid={`mf-resumo-compact-${item.key}`}
+              style={{
+                minWidth: 0,
+                flex: item.hero ? '0 1 auto' : '1 1 0',
+                textAlign: item.align,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.7rem',
+                  color: 'var(--text-muted)',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {item.label}
+              </div>
+              <div style={item.hero ? { fontSize: '1.3rem', fontWeight: 800 } : { fontSize: '0.82rem', fontWeight: 700 }}>
+                {isLoading ? '…' : isError ? '—' : (
+                  <MFTotalsStack
+                    totals={item.totals}
+                    showValues={showValues}
+                    hero={item.hero}
+                    align={item.align}
+                    fontSize="inherit"
+                    lineHeight={1.25}
+                    testId={`mf-resumo-compact-${item.key}-totals`}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Personalizar painel: modal de verdade — antes era um card solto no
+          meio da página e o usuário não entendia o que tinha aberto. */}
+      {!selectedRow && customizing && (
+        <div
+          className="modal-overlay"
+          data-testid="mf-widget-panel-overlay"
+          onClick={() => setCustomizing(false)}
+        >
+          <div
+            className="glass-card modal-content"
+            data-testid="mf-widget-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('minhasfinancas.dash_customize')}
+            onClick={(event) => event.stopPropagation()}
+            style={{ padding: '1.5rem 1.6rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, flex: 1 }}>
+                {t('minhasfinancas.dash_customize')}
+              </h3>
+              <button
+                type="button"
+                className="icon-btn"
+                data-testid="mf-widget-panel-close"
+                aria-label={t('minhasfinancas.cancel')}
+                onClick={() => setCustomizing(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.dash_hint')}
+            </p>
           {widgetPref.order.map((id, index) => {
             const hidden = widgetPref.hidden.includes(id);
             return (
@@ -1280,6 +2728,51 @@ export default function MFResumo({
               </div>
             );
           })}
+
+          {/* Gráficos do widget "charts" — cada um ocultável à parte (Fase D) */}
+          <div
+            style={{
+              marginTop: '0.75rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid var(--glass-border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+            }}
+          >
+            <strong style={{ fontSize: '0.85rem' }}>{t('minhasfinancas.dash_charts_title')}</strong>
+            {MF_CHARTS.map((chartId) => {
+              const chartHidden = (widgetPref.hiddenCharts ?? []).includes(chartId);
+              return (
+                <button
+                  key={chartId}
+                  type="button"
+                  data-testid={`mf-chart-toggle-${chartId}`}
+                  onClick={() => updateWidgetPref(toggleChart(widgetPref, chartId))}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.4rem 0',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid var(--glass-border)',
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    opacity: chartHidden ? 0.55 : 1,
+                  }}
+                >
+                  <span style={{ fontSize: '0.85rem', fontWeight: chartHidden ? 500 : 700 }}>
+                    {t(`minhasfinancas.${chartId}`)}
+                  </span>
+                  {chartHidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Contas visíveis no painel (KPIs, tabela e gráficos seguem) */}
           <div
@@ -1391,6 +2884,16 @@ export default function MFResumo({
               )}
             </div>
           </div>
+          <button
+            type="button"
+            className="btn-primary"
+            data-testid="mf-widget-panel-done"
+            onClick={() => setCustomizing(false)}
+            style={{ marginTop: '0.9rem', alignSelf: 'flex-end', display: 'inline-flex' }}
+          >
+            {t('minhasfinancas.dash_done')}
+          </button>
+          </div>
         </div>
       )}
 
@@ -1436,7 +2939,11 @@ export default function MFResumo({
           {/* Widgets do painel, na ordem configurada pelo usuário.
               KPIs, Grupos, Contas e Gráficos ocupam a faixa cheia;
               Orçamento e Objetivo dividem a última linha em duas colunas. */}
-          {orderedWidgets.map((id) => (
+          {orderedWidgets
+            // Estreito: o compacto substitui os cards de KPI e os gráficos
+            // (vão embora na Fase D, quando forem redesenhados para o mobile).
+            .filter((id) => !isNarrow || (id !== 'charts' && id !== 'kpis'))
+            .map((id) => (
             <div
               key={id}
               data-widget={id}

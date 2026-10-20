@@ -9,7 +9,7 @@ import {
   useMFGroups,
   useDeleteAccount,
   useUpdateAccount,
-  useUpdateMFGroup,
+  useMFReorder,
   formatMoney,
   groupTotalsByCurrency,
   countableRows,
@@ -22,6 +22,7 @@ import MFMonthNav from './MFMonthNav';
 import MFCurrencyTabs from './MFCurrencyTabs';
 import MFTotalsStack from './MFTotalsStack';
 import MFAccountModal from './MFAccountModal';
+import MFIgnoreDots from './MFIgnoreDots';
 import MFAccountIcon from './MFAccountIcon';
 import MFTransferModal from './MFTransferModal';
 import MFGroupModal from './MFGroupModal';
@@ -131,7 +132,12 @@ export default function MFContas({
   const { data: groups = [] } = useMFGroups(user);
   const deleteMutation = useDeleteAccount();
   const updateMutation = useUpdateAccount();
-  const updateGroupMutation = useUpdateMFGroup();
+  // Reordenação OTIMISTA de contas e grupos: o sort_order novo vai para os
+  // caches MF na hora do clique (a UI move sem esperar) e a gravação
+  // corre em paralelo — antes cada clique refetchava tudo (incluindo a
+  // RPC pesada do resumo) e dava a sensação de travar.
+  const reorderAccounts = useMFReorder('mf_accounts');
+  const reorderGroups = useMFReorder('mf_account_groups');
 
   const [search, setSearch] = useState('');
   const [currency, setCurrency] = useState('all');
@@ -140,6 +146,15 @@ export default function MFContas({
   // recolhidos ficam só com o cabeçalho (ids sentinel p/ "Sem grupo").
   const [groupedView, setGroupedView] = useState(true);
   const [folded, setFolded] = useState(() => new Set());
+  // Grupos começam recolhidos (web e mobile): o cabeçalho mostra o total
+  // e o clique/toque abre subgrupos e contas. Só na primeira carga — depois
+  // o usuário manda na sanfona.
+  const foldedInit = useRef(false);
+  useEffect(() => {
+    if (foldedInit.current || groups.length === 0) return;
+    foldedInit.current = true;
+    setFolded(new Set(groups.map((group) => group.id)));
+  }, [groups]);
   const [accountModal, setAccountModal] = useState(null); // null | 'new' | conta
   const [transferOpen, setTransferOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
@@ -459,9 +474,9 @@ export default function MFContas({
     const target = index + direction;
     if (index < 0 || target < 0 || target >= accounts.length) return;
     try {
-      await Promise.all([
-        updateMutation.mutateAsync({ id: accounts[index].id, sort_order: target }),
-        updateMutation.mutateAsync({ id: accounts[target].id, sort_order: index }),
+      await reorderAccounts.mutateAsync([
+        { id: accounts[index].id, sort_order: target },
+        { id: accounts[target].id, sort_order: index },
       ]);
     } catch {
       toast.error(t('minhasfinancas.save_error'));
@@ -482,10 +497,8 @@ export default function MFContas({
     const next = [...siblings];
     [next[index], next[target]] = [next[target], next[index]];
     try {
-      await Promise.all(
-        next.map((item, position) =>
-          updateGroupMutation.mutateAsync({ id: item.id, sort_order: position })
-        )
+      await reorderGroups.mutateAsync(
+        next.map((item, position) => ({ id: item.id, sort_order: position }))
       );
     } catch {
       toast.error(t('minhasfinancas.save_error'));
@@ -519,7 +532,7 @@ export default function MFContas({
             setSelectedId(row.id);
           }
         }}
-        className="glass-card table-row-hover"
+        className="glass-card-flat table-row-hover"
         style={{
           padding: '0.9rem 1rem',
           display: 'flex',
@@ -625,6 +638,7 @@ export default function MFContas({
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <MFIgnoreDots show={row.ignore_in_totals} />
           <span style={badgeStyle} data-testid="mf-account-type-badge">
             <span aria-hidden>{typeInfo.icon}</span>
             {typeLabel}
@@ -1067,6 +1081,7 @@ export default function MFContas({
                   showValues={showValues}
                   testId="mf-contas-narrow-summary-saldo"
                   fontSize="inherit"
+                  hero
                 />
               </div>
             </div>
@@ -1137,7 +1152,7 @@ export default function MFContas({
               <div
                 key={isGroup ? group.id : UNGROUPED_ID}
                 data-testid={isGroup ? `mf-group-header-${group.id}` : 'mf-ungrouped-header'}
-                className="glass-card"
+                className="glass-card-flat"
                 style={{
                   padding: '0.9rem 1rem',
                   display: 'flex',
@@ -1681,6 +1696,7 @@ export default function MFContas({
                             {row.name}
                           </button>
                           <span style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <MFIgnoreDots show={row.ignore_in_totals} style={{ alignSelf: 'center' }} />
                             <span style={badgeStyle} data-testid="mf-account-type-badge">
                               <span aria-hidden>{info.icon}</span>
                               {typeLabel}

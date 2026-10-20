@@ -11,6 +11,7 @@ import {
   Repeat,
   FastForward,
   Loader2,
+  MoreVertical,
   Send,
   X,
 } from 'lucide-react';
@@ -39,8 +40,10 @@ import {
   formatTotals,
   currentMonthKey,
   toISODate,
+  useMFNarrowScreen,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
+import MFAccountIcon from './MFAccountIcon';
 import MFCurrencyFilter from './MFCurrencyFilter';
 import MFTransacaoScreen from './MFTransacaoScreen';
 import MFAnticipateModal from './MFAnticipateModal';
@@ -78,6 +81,18 @@ const currentMonthLabel = (i18n) => {
   return name.charAt(0).toUpperCase() + name.slice(1);
 };
 
+/** '2026-10-01' → "01 DE OUTUBRO DE 2026" (separador de dia no estreito). */
+const dayLabel = (iso, language) => {
+  if (!iso) return '';
+  return new Intl.DateTimeFormat(language || 'pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+    .format(new Date(`${iso}T12:00:00`))
+    .toUpperCase();
+};
+
 /**
  * Tela de Lançamentos: lista do mês com filtros (busca, status, tipo,
  * conta, categoria, tag), pagar/estornar, edição em lote e CRUD
@@ -94,6 +109,9 @@ export default function MFTransacoes({
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: categories = [] } = useMFCategories(user);
   const { data: tags = [] } = useMFTags(user);
+  // Estreito (mobile/tablet retrato): lista em cartões agrupados por dia
+  // — a tabela de 940px sobrava com scroll lateral.
+  const isNarrow = useMFNarrowScreen();
 
   const setStatusMutation = useMFSetTransactionStatus();
   const deleteMutation = useDeleteMFTransaction();
@@ -132,6 +150,8 @@ export default function MFTransacoes({
   const [cardAnticipateTx, setCardAnticipateTx] = useState(null);
   // Detalhes do lançamento (modal resumo + menu ⋮; editar abre a tela)
   const [detailTx, setDetailTx] = useState(null);
+  // Estreito: id do lançamento com as ações abertas DENTRO do card (⋮)
+  const [actionsTxId, setActionsTxId] = useState(null);
   // Diálogo de escolha da série fixa (excluir escopo / contabilizar mês)
   const [choice, setChoice] = useState(null);
 
@@ -200,6 +220,22 @@ export default function MFTransacoes({
     [selection, filtered]
   );
 
+  // Estreito: lançamentos agrupados por dia de pagamento (separador com a
+  // data por extenso e a contagem do dia, como no Minhas Finanças).
+  const dayGroups = useMemo(() => {
+    const groups = [];
+    const byDate = new Map();
+    filtered.forEach((tx) => {
+      if (!byDate.has(tx.payment_date)) {
+        const rows = [];
+        byDate.set(tx.payment_date, rows);
+        groups.push({ date: tx.payment_date, rows });
+      }
+      byDate.get(tx.payment_date).push(tx);
+    });
+    return groups;
+  }, [filtered]);
+
   const totals = useMemo(() => {
     const income = filtered.filter(
       (tx) => tx.type === 'RECEITA' && tx.status !== 'CANCELADO'
@@ -207,12 +243,16 @@ export default function MFTransacoes({
     const expense = filtered.filter(
       (tx) => tx.type === 'DESPESA' && tx.status !== 'CANCELADO'
     );
+    const transfer = filtered.filter(
+      (tx) => tx.type === 'TRANSFERENCIA' && tx.status !== 'CANCELADO'
+    );
     const accCurrencyOf = (tx) => accountById[tx.account_id]?.currency || 'BRL';
     const withCurrency = (rows) =>
       rows.map((tx) => ({ ...tx, currency: accCurrencyOf(tx) }));
     return {
       receitas: formatTotals(groupTotalsByCurrency(withCurrency(income), 'amount'), showValues),
       despesas: formatTotals(groupTotalsByCurrency(withCurrency(expense), 'amount'), showValues),
+      transferencias: formatTotals(groupTotalsByCurrency(withCurrency(transfer), 'amount'), showValues),
     };
   }, [filtered, accountById, showValues]);
 
@@ -244,6 +284,17 @@ export default function MFTransacoes({
     const visibleIds = filtered.map((tx) => tx.id);
     const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
     setSelection(allSelected ? [] : visibleIds);
+  };
+
+  /** Estreito: marca/desmarca todos os lançamentos de um dia. */
+  const toggleDay = (rows) => {
+    const ids = rows.map((tx) => tx.id);
+    const allSelected = ids.length > 0 && ids.every((id) => selected.includes(id));
+    setSelection((prev) =>
+      allSelected
+        ? prev.filter((id) => !ids.includes(id))
+        : [...new Set([...prev, ...ids])]
+    );
   };
 
   /** Paga/despaga de fato (PAGO ↔ PENDENTE). */
@@ -378,18 +429,22 @@ export default function MFTransacoes({
     await applyTogglePaid(tx, { effective_date: todayISO, payment_date: todayISO });
   };
 
-  const handleBulkPay = async () => {
+  /** Paga uma lista de ids (barra larga = seleção; estreito = do dia). */
+  const bulkPayIds = async (ids) => {
+    if (!ids.length) return;
     try {
       await bulkMutation.mutateAsync({
-        ids: selected,
+        ids,
         patch: { status: 'PAGO', effective_date: toISODate(new Date()) },
       });
       toast.success(t('minhasfinancas.tx_bulk_done'));
-      setSelection([]);
+      setSelection((prev) => prev.filter((id) => !ids.includes(id)));
     } catch {
       toast.error(t('minhasfinancas.save_error'));
     }
   };
+
+  const handleBulkPay = () => bulkPayIds(selected);
 
   const handleBulkCategory = async (categoryId) => {
     if (!categoryId) return;
@@ -402,14 +457,16 @@ export default function MFTransacoes({
     }
   };
 
-  const handleBulkDelete = () => {
+  /** Exclui uma lista de ids (mesma confirmação da barra em lote). */
+  const bulkDeleteIds = (ids) => {
+    if (!ids.length) return;
     confirmToast(
-      t('minhasfinancas.tx_bulk_delete_confirm', { count: selected.length }),
+      t('minhasfinancas.tx_bulk_delete_confirm', { count: ids.length }),
       async () => {
         try {
-          await bulkDeleteMutation.mutateAsync(selected);
+          await bulkDeleteMutation.mutateAsync(ids);
           toast.success(t('minhasfinancas.tx_deleted'));
-          setSelection([]);
+          setSelection((prev) => prev.filter((id) => !ids.includes(id)));
         } catch {
           toast.error(t('minhasfinancas.save_error'));
         }
@@ -417,6 +474,8 @@ export default function MFTransacoes({
       { danger: true, confirmText: t('minhasfinancas.delete') }
     );
   };
+
+  const handleBulkDelete = () => bulkDeleteIds(selected);
 
   /** Menu "+" (4 opções): transferência abre o modal, o resto a tela. */
   const handleAdd = (kind) => {
@@ -462,6 +521,322 @@ export default function MFTransacoes({
     { label: t('minhasfinancas.tx_actions'), align: 'right' },
   ];
 
+  /** Cartão de lançamento no estreito (mock de referência): checkbox,
+   * área clicável (ícone da categoria, senão o da conta; descrição com
+   * selos; categoria + conta; valor + status) que abre os Detalhes, e
+   * ⋮ que expande as ações DENTRO do card — Pago · Editar · Enviar ·
+   * Excluir, os mesmos handlers da tabela larga. */
+  const renderNarrowTx = (tx) => {
+    const account = accountById[tx.account_id];
+    const category = tx.category_id ? categoryById[tx.category_id] : null;
+    const txTagIds = tagIdsByTx[tx.id] || [];
+    const delta = deltaOf(tx);
+    const isTransfer = tx.type === 'TRANSFERENCIA';
+    const iconSource = category?.icon ? { icon: category.icon, name: category.name } : account;
+    const paid = tx.status === 'PAGO';
+    const expanded = actionsTxId === tx.id;
+    const accent =
+      tx.status === 'CANCELADO'
+        ? 'var(--text-muted)'
+        : isTransfer
+          ? '#3b82f6'
+          : (delta ?? 0) > 0
+            ? '#10b981'
+            : '#ef4444';
+    const actionBtn = (extra = {}) => ({
+      padding: '0.4rem 0.7rem',
+      fontSize: '0.75rem',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+      ...extra,
+    });
+    return (
+      <div
+        key={tx.id}
+        data-testid="mf-tx-row"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          gap: '0.6rem',
+          padding: '0.7rem 0.6rem',
+          background: 'var(--input-bg)',
+          border: '1px solid var(--glass-border)',
+          borderLeft: `3px solid ${accent}`,
+          borderRadius: 14,
+        }}
+      >
+        <input
+          type="checkbox"
+          data-testid={`mf-tx-select-${tx.id}`}
+          aria-label={tx.description}
+          checked={selected.includes(tx.id)}
+          onChange={() => toggleSelect(tx.id)}
+          style={{ marginTop: '0.4rem', flexShrink: 0 }}
+        />
+        {/* Área clicável: abre os Detalhes. Checkbox e ⋮ são irmãos do
+            botão (button dentro de button é inválido). */}
+        <button
+          type="button"
+          data-testid={`mf-tx-open-${tx.id}`}
+          aria-label={tx.description}
+          onClick={() => openEdit(tx)}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.6rem',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            font: 'inherit',
+            color: 'inherit',
+            textAlign: 'left',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+            <MFAccountIcon account={iconSource} size={34} data-testid={`mf-tx-icon-${tx.id}`} />
+          </span>
+          <span
+            style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+              <span
+                data-testid={`mf-tx-desc-${tx.id}`}
+                style={{
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {`${tx.description}${mfInstallmentSuffix(tx)}`}
+              </span>
+              {tx.is_fixed ? (
+                <span
+                  data-testid="mf-tx-fixed-badge"
+                  title={t('minhasfinancas.tx_fixed_badge')}
+                  style={{ color: '#8b5cf6', display: 'inline-flex', flexShrink: 0 }}
+                >
+                  <Repeat size={13} />
+                </span>
+              ) : (
+                tx.recurrence &&
+                tx.recurrence !== 'NONE' && (
+                  <Repeat size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                )
+              )}
+              {tx.attachment_path && (
+                <Paperclip size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              )}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+              {tx.installments_total > 1 && (
+                <span
+                  data-testid="mf-tx-installment-badge"
+                  style={{
+                    fontSize: '0.64rem',
+                    fontWeight: 800,
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: 6,
+                    padding: '0.05rem 0.35rem',
+                    flexShrink: 0,
+                  }}
+                >
+                  {tx.installments_current}/{tx.installments_total}
+                </span>
+              )}
+              {category && (
+                <span
+                  data-testid="mf-tx-category-badge"
+                  style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    color: category.color || 'var(--text-muted)',
+                    background: category.color
+                      ? `color-mix(in srgb, ${category.color} 14%, transparent)`
+                      : 'transparent',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: 6,
+                    padding: '0.1rem 0.45rem',
+                    flexShrink: 0,
+                  }}
+                >
+                  {category.name}
+                </span>
+              )}
+              {txTagIds.slice(0, 2).map((tagId) => (
+                <span
+                  key={tagId}
+                  data-testid="mf-tx-tag-badge"
+                  style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 700,
+                    color: tagById[tagId]?.color || 'var(--primary)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: 6,
+                    padding: '0.1rem 0.45rem',
+                    flexShrink: 0,
+                  }}
+                >
+                  # {tagById[tagId]?.name ?? '—'}
+                </span>
+              ))}
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
+                {account?.name ?? '—'}
+                {account?.currency && account.currency !== 'BRL'
+                  ? ` (${account.currency})`
+                  : ''}
+              </span>
+            </span>
+          </span>
+          <span
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              gap: '0.3rem',
+              flexShrink: 0,
+            }}
+          >
+            <span
+              data-testid="mf-tx-row-amount"
+              style={{
+                fontWeight: 800,
+                fontSize: '0.92rem',
+                whiteSpace: 'nowrap',
+                color:
+                  tx.status === 'CANCELADO'
+                    ? 'var(--text-muted)'
+                    : isTransfer
+                      ? 'var(--text-main)'
+                      : (delta ?? 0) > 0
+                        ? '#10b981'
+                        : '#ef4444',
+                textDecoration: tx.status === 'CANCELADO' ? 'line-through' : undefined,
+              }}
+            >
+              {tx.status === 'CANCELADO'
+                ? ''
+                : isTransfer
+                  ? '⇄ '
+                  : (delta ?? 0) > 0
+                    ? '+ '
+                    : '− '}
+              {showValues
+                ? formatMoney(Math.abs(Number(tx.amount) || 0), account?.currency || 'BRL')
+                : '•••'}
+            </span>
+            <span
+              style={badge(statusColor[tx.status] || 'var(--text-muted)')}
+              data-testid="mf-tx-status-badge"
+            >
+              {t(`minhasfinancas.status_${String(tx.status).toLowerCase()}`)}
+            </span>
+          </span>
+        </button>
+        {/* ⋮: expande as ações DENTRO do card (mock de referência) */}
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid={`mf-tx-menu-${tx.id}`}
+          aria-label={t('minhasfinancas.tx_actions')}
+          aria-expanded={expanded}
+          title={t('minhasfinancas.tx_actions')}
+          onClick={() => setActionsTxId((prev) => (prev === tx.id ? null : tx.id))}
+          style={{ padding: '0.3rem', marginTop: '0.1rem', flexShrink: 0, alignSelf: 'flex-start' }}
+        >
+          <MoreVertical size={18} />
+        </button>
+        {expanded && (
+          <div
+            data-testid={`mf-tx-actions-${tx.id}`}
+            style={{
+              flex: '1 1 100%',
+              display: 'flex',
+              gap: '0.4rem',
+              flexWrap: 'wrap',
+              marginTop: '0.1rem',
+              paddingTop: '0.55rem',
+              borderTop: '1px solid var(--glass-border)',
+            }}
+          >
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid={`mf-tx-action-paid-${tx.id}`}
+              onClick={() => {
+                setActionsTxId(null);
+                handleTogglePaid(tx);
+              }}
+              style={actionBtn(
+                paid
+                  ? { color: '#10b981', background: 'color-mix(in srgb, #10b981 12%, transparent)' }
+                  : {}
+              )}
+            >
+              <CheckCircle size={14} />
+              {isTransfer
+                ? t('minhasfinancas.tx_detail_menu_settled')
+                : t('minhasfinancas.status_pago')}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid={`mf-tx-action-edit-${tx.id}`}
+              onClick={() => {
+                setActionsTxId(null);
+                openFullEdit(tx);
+              }}
+              style={actionBtn()}
+            >
+              <Pencil size={14} /> {t('minhasfinancas.edit')}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid={`mf-tx-action-send-${tx.id}`}
+              onClick={() => {
+                setActionsTxId(null);
+                openEmail(tx, category?.name ?? '');
+              }}
+              style={actionBtn(tx.email_sent ? { color: 'var(--primary)' } : {})}
+            >
+              <Send size={14} /> {t('minhasfinancas.email_send')}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid={`mf-tx-action-delete-${tx.id}`}
+              onClick={() => {
+                setActionsTxId(null);
+                handleDelete(tx);
+              }}
+              style={actionBtn({ color: 'var(--danger)' })}
+            >
+              <Trash2 size={14} /> {t('minhasfinancas.delete')}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div data-testid="mf-transacoes" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Modal de criação/edição de lançamento (padrão do modal de conta) */}
@@ -502,9 +877,28 @@ export default function MFTransacoes({
             <DollarSign size={22} />
           </div>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
-              {t('nav.sub.minhasfinancas.transactions')}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
+                {t('nav.sub.minhasfinancas.transactions')}
+              </h2>
+              {/* Estreito: contagem de itens no cabeçalho (como no mock) */}
+              {isNarrow && (
+                <span
+                  data-testid="mf-tx-count"
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    color: 'var(--primary)',
+                    background: 'color-mix(in srgb, var(--primary) 14%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--primary) 35%, transparent)',
+                    borderRadius: 999,
+                    padding: '0.15rem 0.6rem',
+                  }}
+                >
+                  {t('minhasfinancas.tx_count_badge', { count: filtered.length })}
+                </span>
+              )}
+            </div>
             <p style={{ margin: '0.15rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               {t('minhasfinancas.transactions_desc')}
             </p>
@@ -521,14 +915,17 @@ export default function MFTransacoes({
             }}
           />
           <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
-          <MFAddMenu
-            items={['expense', 'cardExpense', 'income', 'transfer']}
-            onSelect={handleAdd}
-            label={t('minhasfinancas.tx_new')}
-            triggerTestId="mf-new-tx"
-            testId="mf-new-tx-menu"
-            triggerStyle={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
-          />
+          {/* Estreito: o "+" do cabeçalho sai — o FAB fixo assume */}
+          {!isNarrow && (
+            <MFAddMenu
+              items={['expense', 'cardExpense', 'income', 'transfer']}
+              onSelect={handleAdd}
+              label={t('minhasfinancas.tx_new')}
+              triggerTestId="mf-new-tx"
+              testId="mf-new-tx-menu"
+              triggerStyle={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
+            />
+          )}
         </div>
       </div>
 
@@ -541,7 +938,13 @@ export default function MFTransacoes({
           alignItems: 'center',
         }}
       >
-        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
+        <div
+          style={{
+            position: 'relative',
+            flex: isNarrow ? '1 1 100%' : '1 1 220px',
+            maxWidth: isNarrow ? 'none' : 320,
+          }}
+        >
           <Search
             size={15}
             style={{
@@ -653,8 +1056,76 @@ export default function MFTransacoes({
         />
       </div>
 
-      {/* Barra de edição em lote */}
-      {selected.length > 0 && (
+      {/* Estreito: KPIs do filtro numa tira de 3 colunas (mock) */}
+      {isNarrow && !isLoading && !isError && filtered.length > 0 && (
+        <div
+          className="glass-card"
+          data-testid="mf-tx-kpis"
+          style={{ padding: '1rem 0.75rem', display: 'flex' }}
+        >
+          {[
+            {
+              key: 'receita',
+              label: t('minhasfinancas.tx_total_income'),
+              value: totals.receitas,
+              color: '#10b981',
+            },
+            {
+              key: 'despesa',
+              label: t('minhasfinancas.tx_total_expense'),
+              value: totals.despesas,
+              color: '#ef4444',
+            },
+            {
+              key: 'transfer',
+              label: t('minhasfinancas.tx_total_transfer'),
+              value: totals.transferencias,
+              color: 'var(--text-main)',
+            },
+          ].map((item, index) => (
+            <div
+              key={item.key}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                textAlign: 'center',
+                padding: '0 0.3rem',
+                borderLeft: index > 0 ? '1px solid var(--glass-border)' : undefined,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                {item.label}
+              </div>
+              <div
+                data-testid={`mf-tx-kpi-${item.key}`}
+                style={{
+                  marginTop: '0.3rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  color: item.color,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {item.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Barra de edição em lote (só no largo — no estreito cada dia tem
+          os seus botões Selecionar/Pagar/Excluir) */}
+      {selected.length > 0 && !isNarrow && (
         <div
           className="glass-card"
           data-testid="mf-tx-bulk-bar"
@@ -736,7 +1207,7 @@ export default function MFTransacoes({
       )}
 
       {/* Tabela */}
-      {(isLoading || filtered.length > 0) && (
+      {(isLoading || filtered.length > 0) && !isNarrow && (
         <div className="glass-card" style={{ padding: '0.5rem', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 940 }}>
             <thead>
@@ -1089,6 +1560,182 @@ export default function MFTransacoes({
             )}
           </table>
         </div>
+      )}
+
+      {/* Estreito: cartões agrupados por dia — sem tabela (o minWidth de
+          940px sobrava com rolagem lateral no mobile; mock de referência) */}
+      {(isLoading || filtered.length > 0) && isNarrow && (
+        <div
+          className="glass-card"
+          data-testid="mf-txs-list"
+          style={{
+            padding: '0.9rem 0.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.1rem',
+          }}
+        >
+          {isLoading && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                color: 'var(--text-muted)',
+                fontSize: '0.9rem',
+                padding: '1rem 0.25rem',
+              }}
+            >
+              <Loader2 size={18} className="animate-spin" />
+              {t('minhasfinancas.loading')}
+            </span>
+          )}
+          {!isLoading &&
+            dayGroups.map((group) => {
+              const dayIds = group.rows.map((tx) => tx.id);
+              const daySelected = dayIds.filter((id) => selected.includes(id));
+              const dayAllSelected =
+                dayIds.length > 0 && daySelected.length === dayIds.length;
+              return (
+                <div
+                  key={group.date}
+                  data-testid={`mf-tx-day-${group.date}`}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+                >
+                  {/* Cabeçalho do dia FIXO (sticky sob o header do app):
+                      os botões Selecionar/Pagar/Excluir continuam visíveis
+                      mesmo rolando até o último lançamento do dia. */}
+                  <div
+                    style={{
+                      position: 'sticky',
+                      top: 70,
+                      zIndex: 3,
+                      background: 'var(--bg-dark)',
+                      borderRadius: 10,
+                      padding: '0.35rem 0.2rem 0.3rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem',
+                      boxShadow: '0 6px 14px rgba(0, 0, 0, 0.25)',
+                    }}
+                  >
+                    {/* ● DATA POR EXTENSO · N transações */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0 0.2rem',
+                      }}
+                    >
+                      <span
+                        aria-hidden
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 999,
+                          background: 'var(--primary)',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: '0.76rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {dayLabel(group.date, i18n.language)}
+                      </span>
+                      <span
+                        style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}
+                      >
+                        {t('minhasfinancas.tx_day_count', { count: group.rows.length })}
+                      </span>
+                    </div>
+
+                    {/* Selecionar todos do dia + Pagar + Excluir */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0 0.2rem',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        data-testid={`mf-tx-day-select-${group.date}`}
+                        aria-label={t('minhasfinancas.tx_select_all')}
+                        checked={dayAllSelected}
+                        onChange={() => toggleDay(group.rows)}
+                      />
+                      <span
+                        style={{ fontSize: '0.78rem', fontWeight: 700, flex: 1, minWidth: 0 }}
+                      >
+                        {t('minhasfinancas.tx_select_all')}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        data-testid={`mf-tx-day-pay-${group.date}`}
+                        disabled={daySelected.length === 0}
+                        onClick={() => bulkPayIds(daySelected)}
+                        style={{
+                          padding: '0.35rem 0.7rem',
+                          fontSize: '0.75rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          color: '#10b981',
+                          opacity: daySelected.length ? 1 : 0.45,
+                        }}
+                      >
+                        <CheckCircle size={13} /> {t('minhasfinancas.tx_bulk_pay')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        data-testid={`mf-tx-day-delete-${group.date}`}
+                        disabled={daySelected.length === 0}
+                        onClick={() => bulkDeleteIds(daySelected)}
+                        style={{
+                          padding: '0.35rem 0.7rem',
+                          fontSize: '0.75rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          color: 'var(--danger)',
+                          opacity: daySelected.length ? 1 : 0.45,
+                        }}
+                      >
+                        <Trash2 size={13} /> {t('minhasfinancas.delete')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {group.rows.map((tx) => renderNarrowTx(tx))}
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {/* Estreito: FAB "+" fixo (mesmo do mock) no lugar do botão do cabeçalho */}
+      {isNarrow && (
+        <MFAddMenu
+          items={['expense', 'cardExpense', 'income', 'transfer']}
+          onSelect={handleAdd}
+          variant="fab"
+          triggerTestId="mf-new-tx-fab"
+          testId="mf-new-tx-fab-menu"
+        />
       )}
 
       {/* Detalhes do lançamento (resumo + menu ⋮; editar abre a tela) */}
