@@ -80,6 +80,7 @@ input, select, textarea {
   --input-bg: #10131a;
   --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
   --card-action-bg: #1a1e27;
+  --menu-popover-bg: #1a1e27;
   --map-bg: #0b0d12;
   --map-country: #1a1e27;
   --map-stroke: #262b36;
@@ -104,6 +105,7 @@ input, select, textarea {
   --input-bg: #ffffff;
   --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   --card-action-bg: rgba(0, 0, 0, 0.03);
+  --menu-popover-bg: #ffffff;
   --map-bg: #f1f5f9;
   --map-country: #ffffff;
   --map-stroke: #e2e8f0;
@@ -275,6 +277,21 @@ body {
   .mf-det-quick {
     display: none;
   }
+}
+/* Faixa do detalhe: navegação de mês estica à esquerda; Novo lançamento
+   e menu "⋯" à direita (padrão do app de referência). */
+.mf-det-subhead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mf-det-subhead-month {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.mf-det-subhead-month > [data-testid='mf-month-nav'] {
+  flex: 1;
 }
 .mf-det-grid {
   display: flex;

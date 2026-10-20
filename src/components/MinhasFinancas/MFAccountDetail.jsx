@@ -34,6 +34,7 @@ import { confirmToast } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
 import {
   useMFLancamentos,
+  useMFNarrowScreen,
   useMFAccounts,
   useMFCategories,
   useMFAccountTransactions,
@@ -160,6 +161,9 @@ export default function MFAccountDetail({
   // Olho do card-resumo rápido: esconde só o card (o resto segue o olho
   // global de showValues).
   const [quickHidden, setQuickHidden] = useState(false);
+  // Estreito (≤768px): o "+" da faixa vira só ícone (não cabe o rótulo
+  // junto da navegação de mês).
+  const isNarrow = useMFNarrowScreen();
 
   // FAB global do container: some enquanto o detalhe está aberto
   // (as entradas de criação são o botão local + menu contextual).
@@ -995,75 +999,86 @@ export default function MFAccountDetail({
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Ações centralizadas no menu ⋯ (padrão do app de referência):
-              editar, reajustar (só conta), arquivar e excluir — header
-              mais leve no mobile. */}
-          <MFManageMenu
-            title={t(
-              account.account_type === 'CARTAO'
-                ? 'minhasfinancas.manage_card'
-                : 'minhasfinancas.manage_account'
-            )}
-            triggerTestId="mf-acct-det-menu"
-            testId="mf-acct-det-menu-pop"
-            triggerLabel={t(
-              account.account_type === 'CARTAO'
-                ? 'minhasfinancas.manage_card'
-                : 'minhasfinancas.manage_account'
-            )}
-            items={[
-              ...(onEdit
-                ? [
-                    {
-                      key: 'edit',
-                      Icon: Pencil,
-                      label: t('minhasfinancas.edit'),
-                      testId: 'mf-acct-det-edit',
-                      onSelect: () => onEdit(account),
-                    },
-                  ]
-                : []),
-              ...(account.account_type !== 'CARTAO'
-                ? [
-                    {
-                      key: 'adjust',
-                      Icon: Scale,
-                      label: t('minhasfinancas.adjust_title'),
-                      testId: 'mf-acct-det-adjust-menu',
-                      onSelect: () => setAdjustOpen(true),
-                    },
-                  ]
-                : []),
-              {
-                key: 'archive',
-                Icon: account.archived_at ? ArchiveRestore : Archive,
-                label: t(
-                  account.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive'
-                ),
-                testId: 'mf-acct-det-archive',
-                onSelect: handleArchive,
-              },
-              {
-                key: 'delete',
-                Icon: Trash2,
-                label: t('minhasfinancas.delete'),
-                danger: true,
-                testId: 'mf-acct-det-delete',
-                onSelect: handleDelete,
-              },
-            ]}
-          />
-          <MFAddMenu
-            items={addItems}
-            onSelect={handleAdd}
-            label={t('minhasfinancas.tx_new')}
-            triggerTestId="mf-acct-det-new-tx"
-            testId="mf-acct-det-add-menu"
-            triggerStyle={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}
-          />
+      </div>
+
+      {/* Faixa: navegação de mês à esquerda (esticada) + Novo lançamento
+          e menu "⋯" à direita — leitura do print de referência; no estreito
+          (≤768px) o "+" vira só ícone (não cabe o rótulo junto da
+          navegação). */}
+      <div className="mf-det-subhead">
+        <div className="mf-det-subhead-month">
           <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
         </div>
+        <MFAddMenu
+          items={addItems}
+          onSelect={handleAdd}
+          label={isNarrow ? null : t('minhasfinancas.tx_new')}
+          triggerTestId="mf-acct-det-new-tx"
+          testId="mf-acct-det-add-menu"
+          triggerStyle={
+            isNarrow
+              ? { padding: '0.6rem', minWidth: 42, justifyContent: 'center' }
+              : { padding: '0.6rem 1rem', fontSize: '0.85rem' }
+          }
+        />
+        {/* Ações da conta/cartão no menu ⋯: editar, reajustar (só conta),
+            arquivar e excluir num único lugar (padrão do app de
+            referência). */}
+        <MFManageMenu
+          title={t(
+            account.account_type === 'CARTAO'
+              ? 'minhasfinancas.manage_card'
+              : 'minhasfinancas.manage_account'
+          )}
+          triggerTestId="mf-acct-det-menu"
+          testId="mf-acct-det-menu-pop"
+          triggerLabel={t(
+            account.account_type === 'CARTAO'
+              ? 'minhasfinancas.manage_card'
+              : 'minhasfinancas.manage_account'
+          )}
+          items={[
+            ...(onEdit
+              ? [
+                  {
+                    key: 'edit',
+                    Icon: Pencil,
+                    label: t('minhasfinancas.edit'),
+                    testId: 'mf-acct-det-edit',
+                    onSelect: () => onEdit(account),
+                  },
+                ]
+              : []),
+            ...(account.account_type !== 'CARTAO'
+              ? [
+                  {
+                    key: 'adjust',
+                    Icon: Scale,
+                    label: t('minhasfinancas.adjust_title'),
+                    testId: 'mf-acct-det-adjust-menu',
+                    onSelect: () => setAdjustOpen(true),
+                  },
+                ]
+              : []),
+            {
+              key: 'archive',
+              Icon: account.archived_at ? ArchiveRestore : Archive,
+              label: t(
+                account.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive'
+              ),
+              testId: 'mf-acct-det-archive',
+              onSelect: handleArchive,
+            },
+            {
+              key: 'delete',
+              Icon: Trash2,
+              label: t('minhasfinancas.delete'),
+              danger: true,
+              testId: 'mf-acct-det-delete',
+              onSelect: handleDelete,
+            },
+          ]}
+        />
       </div>
 
       {/* Abas mobile: Transações primeiro; no desktop ficam ocultas */}

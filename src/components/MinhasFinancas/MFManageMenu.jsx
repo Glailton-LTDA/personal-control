@@ -95,7 +95,7 @@ export default function MFManageMenu({
               display: 'flex',
               flexDirection: 'column',
               gap: '0.15rem',
-              background: 'var(--bg-card)',
+              background: 'var(--menu-popover-bg, var(--bg-card))',
               border: '1px solid var(--glass-border)',
               borderRadius: 14,
               boxShadow: '0 16px 40px rgba(0, 0, 0, 0.45)',
