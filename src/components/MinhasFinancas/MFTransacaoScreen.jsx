@@ -88,8 +88,11 @@ const emptyForm = {
   due_date: '',
   effective_date: '',
   // Efetivada por padrão (igual ao app original): a caixa já sai como
-  // PAGO; só as filhas futuras de série nascem PENDENTE.
+  // PAGO; só as filhas futuras de série nascem PENDENTE. A EFETIVAÇÃO
+  // AUTOMÁTICA (virar PAGO sozinho depois) é outra escolha, gravada em
+  // `auto_settle` e desligada por padrão.
   status: 'PAGO',
+  auto_settle: false,
   notes: '',
   installments: '1',
   recurrence: 'NONE',
@@ -231,6 +234,7 @@ export default function MFTransacaoScreen({
         due_date: tx.due_date ?? '',
         effective_date: tx.effective_date ?? '',
         status: tx.status ?? 'PENDENTE',
+        auto_settle: tx.auto_settle ?? false,
         notes: tx.notes ?? '',
         installments: '1',
         recurrence: 'NONE',
@@ -783,6 +787,11 @@ export default function MFTransacaoScreen({
       effective_date:
         form.effective_date || (form.status === 'PAGO' ? form.payment_date : null),
       status: isCardExpense || isEstorno ? 'PAGO' : form.status,
+      // Efetivação automática: escolha na criação, DEFAULT FALSE — com
+      // false o lançamento nunca vira PAGO sozinho (só efetivação
+      // manual); despesa de cartão e estorno nascem PAGO sempre, então
+      // a opção não se aplica e vai gravada como false.
+      auto_settle: isCardExpense || isEstorno ? false : Boolean(form.auto_settle),
       category_id: form.category_id || null,
       notes: form.notes.trim() || null,
       attachment_path: form.attachment_path || null,
@@ -1399,6 +1408,37 @@ export default function MFTransacaoScreen({
                   { value: 'PAGO', label: t('minhasfinancas.status_pago') },
                 ]}
               />
+              {/* Efetivação automática: desligada por padrão — desmarcado
+                  (default) o lançamento PENDENTE nunca vira PAGO sozinho;
+                  marcado, a rotina promove quando payment_date <= hoje. */}
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  marginTop: '0.6rem',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: form.auto_settle ? 'var(--primary)' : 'var(--text-main)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  data-testid="mf-tx-auto-settle"
+                  checked={form.auto_settle}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, auto_settle: event.target.checked }))
+                  }
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                {t('minhasfinancas.tx_auto_settle')}
+              </label>
+              <p
+                style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}
+              >
+                {t('minhasfinancas.tx_auto_settle_hint')}
+              </p>
             </div>
           )}
         </div>

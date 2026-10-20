@@ -110,9 +110,27 @@ describe('MFTransferModal — transferência recorrente (Fase D)', () => {
       type: 'TRANSFERENCIA',
       amount: 300,
       status: 'PAGO',
+      auto_settle: false, // default: nunca vira PAGO sozinha depois
     });
     expect(payload).not.toHaveProperty('installments_total');
     expect(payload).not.toHaveProperty('parent_transaction_id');
+  });
+
+  it('efetivação automática: desmarcada por padrão e vai no payload ao marcar', async () => {
+    renderModal();
+    expect(screen.getByTestId('mf-transfer-auto-settle')).not.toBeChecked();
+    fillAmount('300,00');
+    fireEvent.click(screen.getByTestId('mf-transfer-auto-settle'));
+    expect(screen.getByTestId('mf-transfer-auto-settle')).toBeChecked();
+    fireEvent.click(screen.getByTestId('mf-transfer-confirm'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert).toHaveBeenCalled();
+    });
+    const payload = chain.insert.mock.calls[0][0];
+    expect(payload).toMatchObject({ auto_settle: true, status: 'PAGO' });
   });
 
   it('mensal cria cabeça 1/3 + filhas pendentes vinculadas', async () => {

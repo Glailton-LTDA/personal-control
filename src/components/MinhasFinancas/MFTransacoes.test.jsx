@@ -949,6 +949,39 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.getByTestId('mf-tx-status')).toHaveTextContent('minhasfinancas.status_pago');
   });
 
+  it('efetivação automática: desmarcada por padrão e vai no payload ao marcar', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    // Default false: nasce efetivado (PAGO), mas NUNCA vira PAGO sozinho
+    // depois — a virada só acontece com a opção marcada na criação.
+    expect(screen.getByTestId('mf-tx-auto-settle')).not.toBeChecked();
+
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Conta de luz' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '89,90' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.click(screen.getByTestId('mf-tx-auto-settle'));
+    expect(screen.getByTestId('mf-tx-auto-settle')).toBeChecked();
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert).toHaveBeenCalled();
+    });
+    expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
+      description: 'Conta de luz',
+      status: 'PAGO', // nascimento efetivado continua (P2 da rodada)
+      auto_settle: true,
+    });
+  });
+
   it('edita um lançamento existente', async () => {
     renderScreen();
     await waitFor(() => {
@@ -1239,6 +1272,8 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.getByTestId('mf-tx-type-badge')).toHaveTextContent('minhasfinancas.add_card_expense');
     // Despesa de cartão entra sempre paga (sem status, como no original)...
     expect(screen.queryByTestId('mf-tx-status')).not.toBeInTheDocument();
+    // ...e sem efetivação automática (nasce PAGO — a opção não existe)
+    expect(screen.queryByTestId('mf-tx-auto-settle')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-tx-repeat')).toBeInTheDocument();
     // ...e escolhe a fatura no picker do app original (~2 anos)
     expect(screen.getByTestId('mf-tx-invoice')).toBeInTheDocument();

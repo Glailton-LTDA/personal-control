@@ -4,6 +4,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Adicionado
+- **Efetivação automática opcional na criação (MF)**: criar despesa/receita/transferência ganhou o checkbox **"Efetivação automática"** com **default DESMARCADO** (`mf_transactions.auto_settle`, migration `mf_transactions_auto_settle`) — desmarcado, o lançamento PENDENTE **nunca vira PAGO sozinho** (só efetivação manual, na mesma régua de antes); marcado, uma rotina ao abrir o MF promove `PENDENTE → PAGO` quando `payment_date <= hoje`, preservando `effective_date` já gravada (sem ela, contabiliza na própria data agendada). O nascimento continua PAGO por padrão (sem mudança) e a despesa de cartão segue nascendo PAGO sempre, sem o campo. O agendador de pagamento de fatura **não muda**: o espelho "Agendado automaticamente (fatura)" continua promovendo pelo marcador (invariante "não existe fatura vencida não paga"). Filhas de série fixa/parcelada/repetição e da transferência herdam a opção por `spread`.
+
 ## [1.9.0] - 2026-10-19
 
 ### Adicionado
