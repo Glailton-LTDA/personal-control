@@ -1153,3 +1153,94 @@ describe('MFResumo — pontos de "Ignorar nos totais"', () => {
     expect(within(brlRow).queryByTestId('mf-ignore-dots')).not.toBeInTheDocument();
   });
 });
+
+describe('MFResumo — KPI "Total gasto" desdobrado (gastos × pagamentos de fatura)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('separa pagamento de fatura (PENDENTE conta) dos gastos; compra de cartão vinculada não é pagamento', async () => {
+    // Pagamento de fatura NA CONTA (DESPESA + invoice_close), PENDENTE —
+    // a RPC não filtra status, então entra no total e no desdobramento.
+    mockData.transactions.push({
+      id: 'tx-pay-fatura',
+      account_id: 'acc-brl',
+      type: 'DESPESA',
+      status: 'PENDENTE',
+      amount: 100,
+      payment_date: '2026-10-06',
+      invoice_close: '2026-09-30',
+    });
+    // Débito comum da conta: só gasto do mês.
+    mockData.transactions.push({
+      id: 'tx-debito',
+      account_id: 'acc-brl',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 50,
+      payment_date: '2026-10-10',
+    });
+    // Compra de cartão COM invoice_close = compra vinculada à fatura —
+    // é gasto, não pagamento (o cartão fica de fora da régua despesasFatura).
+    mockData.accounts.push({
+      id: 'acc-card-kpi',
+      name: 'Cartão KPI',
+      account_type: 'CARTAO',
+      currency: 'BRL',
+      initial_balance: 0,
+      color: '#820AD1',
+      sort_order: 4,
+    });
+    mockData.transactions.push({
+      id: 'tx-compra-vinculada',
+      account_id: 'acc-card-kpi',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 30,
+      payment_date: '2026-10-15',
+      invoice_close: '2026-11-01',
+    });
+    renderScreen();
+    await waitForData();
+
+    // Total inalterado: toda DESPESA do mês (100 + 50 + 30).
+    expect(screen.getByTestId('mf-kpi-value-kpi_spent')).toHaveTextContent('180,00');
+    // Desdobramento: 100 de pagamento de fatura; 80 de gastos (50 + 30).
+    const breakdown = screen.getByTestId('mf-kpi-breakdown-kpi_spent');
+    expect(
+      screen.getByTestId('mf-kpi-breakdown-kpi_spent-gastos-value')
+    ).toHaveTextContent('80,00');
+    expect(
+      screen.getByTestId('mf-kpi-breakdown-kpi_spent-faturas-value')
+    ).toHaveTextContent('100,00');
+    // rótulos via i18n (o mock devolve a chave) — gastos em cima, faturas embaixo
+    expect(screen.getByText('minhasfinancas.kpi_spent_month')).toBeInTheDocument();
+    expect(screen.getByText('minhasfinancas.kpi_spent_faturas')).toBeInTheDocument();
+    const lines = within(breakdown).getAllByTestId(
+      /^mf-kpi-breakdown-kpi_spent-(gastos|faturas)$/
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveAttribute('data-testid', 'mf-kpi-breakdown-kpi_spent-gastos');
+    expect(lines[1]).toHaveAttribute('data-testid', 'mf-kpi-breakdown-kpi_spent-faturas');
+  });
+
+  it('sem pagamento de fatura no mês o desdobramento some (card fica como antes)', async () => {
+    mockData.transactions.push({
+      id: 'tx-debito-so',
+      account_id: 'acc-brl',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 40,
+      payment_date: '2026-10-10',
+    });
+    renderScreen();
+    await waitForData();
+
+    expect(screen.getByTestId('mf-kpi-value-kpi_spent')).toHaveTextContent('40,00');
+    expect(
+      screen.queryByTestId('mf-kpi-breakdown-kpi_spent')
+    ).not.toBeInTheDocument();
+  });
+});
