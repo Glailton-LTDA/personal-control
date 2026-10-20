@@ -4,6 +4,8 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-19
+
 ### Adicionado
 - **Ordem manual das contas no Resumo (MF)**: o seletor de ordenação ganhou o chip **"Manual"** (novo padrão = ordem do banco) e um botão **"Reordenar"** no cabeçalho da seção (mesmo estilo dos grupos) que liga/desliga as setas **↑/↓** nas linhas de conta (tabela larga e lista estreita) — as setas ficam visíveis só enquanto o modo está ativo; escolher outro critério desliga. A troca persiste o `sort_order` no banco e a mesma ordem vale na tela Contas (tudo ordena por `sort_order`). De quebra, o chip "Nome (A–Z)" passou a **ordenar de verdade** (antes ele só rotulava a ordem natural do banco, que já era o padrão).
 - **Bandeira da rede do cartão no Resumo (MF)**: a descrição dos cartões (tabela larga e lista estreita) passou a mostrar a bandeira **Visa/Mastercard/Elo/Amex/Hipercard** (`mf_accounts.card_brand`, mesma base da tela de Cartões) no lugar da bandeira da moeda — o valor já traz o símbolo (R$, US$), então a moeda era redundante. Quem ainda não cadastrou a bandeira continua sem o selo; dá para preencher no modal da conta (campo "Bandeira").
