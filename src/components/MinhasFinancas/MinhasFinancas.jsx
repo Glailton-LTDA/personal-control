@@ -24,6 +24,7 @@ import {
   useMFAccounts,
   useMFExtendFixedSeries,
   useMFScheduleCardPayments,
+  useMFEffectivateDue,
 } from '../../hooks/useMinhasFinancas';
 import { MFProfileContext } from '../../hooks/mfProfileContext';
 import { SyncEngine } from '../../lib/offline/SyncEngine';
@@ -63,6 +64,9 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
   // Séries fixas: mantém ~12 meses futuros (1x/dia, throttle local).
   useMFExtendFixedSeries(user);
   useMFScheduleCardPayments(user);
+  // Efetivação automática (`auto_settle`, default false): promove só o
+  // que foi criado com a opção marcada e já vencido (payment_date <= hoje).
+  useMFEffectivateDue(user);
   const queryClient = useQueryClient();
 
   // Menu "+": FAB fixo só do módulo. Some quando há uma 2ª tela aberta

@@ -404,6 +404,9 @@ i18n
             tx_no_categories: 'Crie categorias em Ajustes para classificar lançamentos.',
             tx_go_settings: 'Ir para Ajustes',
             tx_status_label: 'Status',
+            tx_auto_settle: 'Efetivação automática',
+            tx_auto_settle_hint:
+              'Se marcado, o lançamento agendado vira PAGO sozinho quando a data chegar; desmarcado, só vira PAGO se você efetivar.',
             tx_tags_label: 'Tags',
             tx_no_tags: 'Nenhuma tag cadastrada.',
             tx_new_tag_placeholder: 'Nova tag…',
@@ -2281,6 +2284,9 @@ i18n
             tx_no_categories: 'Create categories in Settings to classify transactions.',
             tx_go_settings: 'Go to Settings',
             tx_status_label: 'Status',
+            tx_auto_settle: 'Automatic settlement',
+            tx_auto_settle_hint:
+              'When checked, a scheduled transaction becomes PAID on its own once its date arrives; unchecked, it only settles when you mark it paid.',
             tx_tags_label: 'Tags',
             tx_no_tags: 'No tags yet.',
             tx_new_tag_placeholder: 'New tag…',
@@ -4101,6 +4107,9 @@ i18n
             tx_no_categories: 'Cree categorías en Ajustes para clasificar movimientos.',
             tx_go_settings: 'Ir a Ajustes',
             tx_status_label: 'Estado',
+            tx_auto_settle: 'Efectuación automática',
+            tx_auto_settle_hint:
+              'Si está marcado, la transacción programada pasa a PAGADA sola cuando llega la fecha; sin marcar, solo pasa a PAGADA si la efectúas tú.',
             tx_tags_label: 'Etiquetas',
             tx_no_tags: 'Aún no hay etiquetas.',
             tx_new_tag_placeholder: 'Nueva etiqueta…',

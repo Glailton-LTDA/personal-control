@@ -11,7 +11,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfMutate: vi.fn(),
 }));
 
-import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney } from './useMinhasFinancas';
+import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle } from './useMinhasFinancas';
 
 describe('formatMoney', () => {
   it('escopo "all" da tela não é moeda — cai no padrão BRL (não Lek albanês)', () => {
@@ -178,5 +178,66 @@ describe('computeStatement — extrato do cartão segue a fatura', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].date).toBe('2026-10-11');
     expect(groups[0].items.map((item) => item.tx.id)).toEqual(['nov']);
+  });
+});
+
+describe('planAutoSettle — efetivação automática (auto_settle, default false)', () => {
+  // Datas derivadas de hoje (componentes locais — sem UTC correndo o dia),
+  // nunca fixas: passado = hoje + offset negativo, futuro = offset positivo.
+  const iso = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate()
+    ).padStart(2, '0')}`;
+  };
+  const today = iso(0);
+  // Lançamento SEM invoice_close: despesa de cartão nasce PAGO e o
+  // agendador de fatura tem regra própria (marcador), não esta coluna.
+  const scheduled = (over = {}) => ({
+    id: 'tx-1',
+    status: 'PENDENTE',
+    auto_settle: false,
+    payment_date: iso(-3),
+    effective_date: null,
+    ...over,
+  });
+
+  it('default false (ou coluna ausente): vencida NUNCA vira PAGO sozinho', () => {
+    expect(planAutoSettle([scheduled()], today)).toEqual([]);
+    expect(planAutoSettle([scheduled({ auto_settle: undefined })], today)).toEqual([]);
+  });
+
+  it('marcada + vencida promove PENDENTE → PAGO na data agendada', () => {
+    const planned = planAutoSettle([scheduled({ auto_settle: true })], today);
+    expect(planned).toEqual([
+      { id: 'tx-1', patch: { status: 'PAGO', effective_date: iso(-3) } },
+    ]);
+  });
+
+  it('agendada futura não promove — só payment_date <= hoje', () => {
+    expect(
+      planAutoSettle([scheduled({ auto_settle: true, payment_date: iso(3) })], today)
+    ).toEqual([]);
+  });
+
+  it('vence hoje promove (<=); PAGO/CANCELADO ficam de fora', () => {
+    const planned = planAutoSettle(
+      [
+        scheduled({ id: 'hoje', auto_settle: true, payment_date: today }),
+        scheduled({ id: 'pago', auto_settle: true, status: 'PAGO' }),
+        scheduled({ id: 'cancel', auto_settle: true, status: 'CANCELADO' }),
+      ],
+      today
+    );
+    expect(planned.map((item) => item.id)).toEqual(['hoje']);
+  });
+
+  it('effective_date já gravada é preservada', () => {
+    const [item] = planAutoSettle(
+      [scheduled({ auto_settle: true, effective_date: iso(-5) })],
+      today
+    );
+    expect(item.patch.effective_date).toBe(iso(-5));
   });
 });

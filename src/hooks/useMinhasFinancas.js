@@ -1578,6 +1578,92 @@ let fixedExtendRunning = false;
  * localStorage): mantém ~12 meses de ocorrências futuras. Best-effort —
  * falhas de rede não quebram a tela.
  */
+/**
+ * Efetivação automática (coluna `auto_settle`, DEFAULT FALSE — escolha na
+ * criação de despesa/receita/transferência): promove PENDENTE → PAGO
+ * APENAS o que foi criado com a opção marcada. Desmarcado (default), o
+ * lançamento nunca vira PAGO sozinho — só efetivação manual (Efetivar).
+ *
+ * - régua: `payment_date <= hoje` (a data agendada chegou) — nada de
+ *   datas futuras;
+ * - `effective_date` já gravada é preservada; sem ela, contabiliza na
+ *   própria data agendada (mesma régua do nascimento PAGO);
+ * - linhas aqui são SEM invoice_close: a despesa de cartão nasce PAGO e
+ *   o agendador de fatura tem regra própria — o espelho "Agendado
+ *   automaticamente (fatura)" continua promovendo pelo marcador
+ *   (invariante "não existe fatura vencida não paga", decisão P3).
+ */
+export const planAutoSettle = (rows, todayISO) =>
+  rows
+    .filter(
+      (tx) =>
+        tx &&
+        tx.auto_settle === true &&
+        tx.status === 'PENDENTE' &&
+        typeof tx.payment_date === 'string' &&
+        tx.payment_date <= todayISO
+    )
+    .map((tx) => ({
+      id: tx.id,
+      patch: {
+        status: 'PAGO',
+        effective_date: tx.effective_date || tx.payment_date,
+      },
+    }));
+
+/**
+ * Aplica planAutoSettle ao abrir o MF (idempotente: o que promove sai do
+ * filtro da próxima consulta; falha é best-effort e não derruba o
+ * módulo). Usa mfMutate — mesmo caminho offline dos demais patches de
+ * status.
+ */
+export function useMFEffectivateDue(user) {
+  const invalidate = useInvalidateAll();
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const today = toISODate(new Date());
+        const { data, error } = await supabase
+          .from('mf_transactions')
+          .select('id,status,auto_settle,payment_date,effective_date')
+          .eq('status', 'PENDENTE')
+          .eq('auto_settle', true)
+          .lte('payment_date', today);
+        if (error || cancelled) return;
+        const planned = planAutoSettle(Array.isArray(data) ? data : [], today);
+        if (planned.length === 0 || cancelled) return;
+        for (const item of planned) {
+          await mfMutate({
+            table: 'mf_transactions',
+            action: 'update',
+            id: item.id,
+            payload: item.patch,
+            run: async () => {
+              const { error: patchError } = await supabase
+                .from('mf_transactions')
+                .update(item.patch)
+                .eq('id', item.id)
+                .select()
+                .single();
+              if (patchError) throw patchError;
+              return item.patch;
+            },
+          });
+        }
+        invalidate();
+      } catch {
+        // best-effort: rede fora não derruba o módulo.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+}
+
 export function useMFExtendFixedSeries(user) {
   const queryClient = useQueryClient();
   useEffect(() => {

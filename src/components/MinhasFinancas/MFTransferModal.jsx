@@ -31,6 +31,9 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
     amount: '',
     payment_date: toISODate(new Date()),
     description: '',
+    // Efetivação automática: default false — sem a opção, as filhas
+    // PENDENTE (fixa/parceladas) nunca viram PAGO sozinhas.
+    auto_settle: false,
   });
 
   useEffect(() => {
@@ -46,6 +49,7 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
       amount: '',
       payment_date: toISODate(new Date()),
       description: t('minhasfinancas.transfer_default'),
+      auto_settle: false,
     });
     setRepeat(null);
     setRepeatOpen(false);
@@ -106,6 +110,9 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
         amount,
         payment_date: form.payment_date,
         status: 'PAGO',
+        // Efetivação automática: default false; as filhas PENDENTE
+        // herdam por spread — marcado, viram PAGO sozinhas no vencimento.
+        auto_settle: Boolean(form.auto_settle),
       };
       if (fixedMonthly) {
         // Série fixa mensal: cabeça + 11 filhas pendentes vinculadas.
@@ -316,6 +323,35 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
               <label>{t('minhasfinancas.transfer_description')}</label>
               <input type="text" value={form.description} onChange={set('description')} />
             </div>
+
+            {/* Efetivação automática (default false): só interessa às
+                filhas PENDENTE de série fixa/parcelada/repetida. */}
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                marginTop: '1rem',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                color: form.auto_settle ? 'var(--primary)' : 'var(--text-main)',
+              }}
+            >
+              <input
+                type="checkbox"
+                data-testid="mf-transfer-auto-settle"
+                checked={form.auto_settle}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, auto_settle: event.target.checked }))
+                }
+                style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+              />
+              {t('minhasfinancas.tx_auto_settle')}
+            </label>
+            <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {t('minhasfinancas.tx_auto_settle_hint')}
+            </p>
 
             <div className="input-group" style={{ marginTop: '1rem' }}>
               <label>{t('minhasfinancas.tx_repeat_label')}</label>
