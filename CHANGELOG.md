@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-20
+
+### Adicionado
+- **Card-resumo no topo do detalhe no mobile (MF)**: a aba Transações do detalhe de conta/cartão ganhou um card-resumo no topo (só no mobile — some no desktop ≥1100px, onde a coluna Resumo já traz tudo): na conta, **Saldo em conta** (verde/vermelho conforme o sinal, com olho próprio que esconde só o card), **saldo inicial** do mês (fechamento anterior), mini-cards de **Entradas/Saídas** (mesmo cashflow do gráfico — receita/despesa + transferências, régua PAGO) e o rodapé **"Pendente no mês"** + **"Previsto"** (linha que só aparece quando difere do saldo); no cartão, **Fatura corrente** com chip de status, total, fechamento/vencimento, **Gastos no mês**, **Próxima fatura** (quando há despesa já vinculada) e link "Faturas do cartão". Quem cai direto na aba Transações enxerga o saldo sem trocar de aba (padrão do app de referência).
+- **Menu "⋯" de gerenciamento no detalhe (MF)**: os ícones de editar/arquivar/excluir do cabeçalho viraram um único menu "⋯" (novo componente `MFManageMenu`, popover em portal como o MFAddMenu) com título "Gerenciar conta"/"Gerenciar cartão" — e o **Reajustar saldo**, que só existia na aba Resumo, passou a estar também no menu da conta (no cartão não entra: cartão não tem saldo). Header mais leve no mobile; desktop mantém abas/colunas como estava.
+
 ## [1.12.0] - 2026-10-20
 
 ### Adicionado
