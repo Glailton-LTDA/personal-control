@@ -881,7 +881,7 @@ describe('MFAccountDetail', () => {
     );
   });
 
-  it('ações no cabeçalho: editar chama o callback, arquivar grava e exclui fecha', async () => {
+  it('ações no menu ⋯: editar chama o callback, arquivar grava e exclui fecha', async () => {
     const onEdit = vi.fn();
     const onClose = vi.fn();
     renderDetail({ onEdit, onClose });
@@ -891,6 +891,7 @@ describe('MFAccountDetail', () => {
     });
 
     // Editar entrega a conta ao contexto (pai abre o modal de edição)
+    fireEvent.click(screen.getByTestId('mf-acct-det-menu'));
     fireEvent.click(screen.getByTestId('mf-acct-det-edit'));
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onEdit.mock.calls[0][0]).toBe(account);
@@ -899,6 +900,7 @@ describe('MFAccountDetail', () => {
     const chain = supabase.from('mf_accounts');
 
     // Arquivar grava archived_at na conta (o id vai no .eq do filtro)
+    fireEvent.click(screen.getByTestId('mf-acct-det-menu'));
     fireEvent.click(screen.getByTestId('mf-acct-det-archive'));
     await waitFor(() => {
       expect(chain.update).toHaveBeenCalled();
@@ -906,9 +908,95 @@ describe('MFAccountDetail', () => {
     expect(chain.update.mock.calls[0][0].archived_at).toBeTruthy();
 
     // Excluir (confirmação pulada pelo setup) fecha o detalhe
+    fireEvent.click(screen.getByTestId('mf-acct-det-menu'));
     fireEvent.click(screen.getByTestId('mf-acct-det-delete'));
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
     });
+  });
+});
+
+describe('MFAccountDetail — card-resumo rápido + menu ⋯', () => {
+  const txt = (testId) => screen.getByTestId(testId).textContent.replace(/\u00a0/g, ' ');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('pc_skip_confirmations', 'true');
+    clearInvoiceSel();
+  });
+
+  it('conta: saldo colorido, saldo inicial, entradas/saídas, pendente e previsto', async () => {
+    renderDetail();
+    // Card-resumo pinta de cara (props), mas os valores do mês exigem o
+    // extrato completo — espera o timeline carregar
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-pending')).toBeInTheDocument();
+    });
+
+    // Saldo/previsto vêm do resumo (fixture: saldo 500, previsto 450)
+    expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 500,00');
+    // Cashflow do mês: transferência recebida 200; despesas pagas 100 − 20
+    expect(txt('mf-det-quick-in')).toBe('+R$ 200,00');
+    expect(txt('mf-det-quick-out')).toBe('-R$ 80,00');
+    // Saldo inicial = fechamento de setembro (receita de 1.000) e
+    // pendente = previsto − saldo (agendado que ainda mexe no saldo)
+    expect(screen.getByTestId('mf-det-quick')).toHaveTextContent('R$ 1.000,00');
+    expect(screen.getByTestId('mf-det-quick')).toHaveTextContent('-R$ 50,00');
+    // Pendente difere do saldo → a linha de Previsto aparece
+    expect(screen.getByTestId('mf-det-quick-forecast')).toHaveTextContent('R$ 450,00');
+  });
+
+  it('conta sem pendente: some a linha de Previsto (igual ao saldo)', async () => {
+    renderDetail({ account: { ...account, previsto: account.saldo } });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('mf-det-quick-forecast')).toBeNull();
+  });
+
+  it('olho do card esconde só o card (o resto segue o olho global)', async () => {
+    renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 500,00');
+    });
+    fireEvent.click(screen.getByTestId('mf-det-quick-eye'));
+    expect(screen.getByTestId('mf-det-quick-saldo').textContent).toBe('•••');
+    fireEvent.click(screen.getByTestId('mf-det-quick-eye'));
+    expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 500,00');
+  });
+
+  it('cartão: fatura corrente com total, gastos do mês e próxima fatura', async () => {
+    renderDetail({ account: cardAccount });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick-total')).toHaveTextContent('R$ 350,00');
+    });
+    // Fatura de outubro (fecha 10/10, vence 20/10) soma só a compra sem
+    // vínculo (350); a parcela vinculada a novembro vira a próxima (100)
+    expect(screen.getByTestId('mf-det-quick-next')).toHaveTextContent('R$ 100,00');
+    expect(screen.getByTestId('mf-det-quick-goto-invoices')).toBeInTheDocument();
+  });
+
+  it('menu ⋯ da conta: editar, reajustar, arquivar e excluir', async () => {
+    renderDetail({ onEdit: vi.fn() });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-acct-det-menu'));
+    expect(screen.getByTestId('mf-acct-det-edit')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-acct-det-adjust-menu')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-acct-det-archive')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-acct-det-delete')).toBeInTheDocument();
+  });
+
+  it('menu ⋯ do cartão: sem Reajustar (cartão não tem saldo)', async () => {
+    renderDetail({ account: cardAccount, onEdit: vi.fn() });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick-total')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-acct-det-menu'));
+    expect(screen.getByTestId('mf-acct-det-edit')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-acct-det-adjust-menu')).toBeNull();
+    expect(screen.getByTestId('mf-acct-det-archive')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-acct-det-delete')).toBeInTheDocument();
   });
 });

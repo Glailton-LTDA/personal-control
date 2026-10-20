@@ -259,6 +259,23 @@ body {
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
+/* Card-resumo rápido (só mobile, junto às abas): saldo da conta/fatura do
+   cartão logo no topo da aba Transações — some no desktop (≥1100px), onde a
+   coluna Resumo já traz movimentação, saldo e previsto. */
+.mf-det-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+@media (min-width: 1100px) {
+  .mf-det-quick {
+    display: none;
+  }
+}
 .mf-det-grid {
   display: flex;
   flex-direction: column;
