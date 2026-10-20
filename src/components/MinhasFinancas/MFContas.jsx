@@ -698,6 +698,16 @@ export default function MFContas({
           showValues={showValues}
           onClose={() => setSelectedId(null)}
           onEdit={(row) => setAccountModal(row)}
+          onOpenCard={(card) => {
+            // A aba Contas não guarda cartão no drill (lista só contas
+            // comuns) — salva o alvo e pula para a aba Cartões, que
+            // restaura o drill salvo ao montar.
+            writeDrill({ tab: 'cards', id: card.id });
+            window.dispatchEvent(
+              new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas-cards' } })
+            );
+          }}
+          onOpenAccount={(row) => setSelectedId(row.id)}
         />
       ) : (
         <>

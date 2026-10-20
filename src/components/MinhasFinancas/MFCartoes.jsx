@@ -262,6 +262,8 @@ export default function MFCartoes({ user, showValues = true }) {
           showValues={showValues}
           onClose={() => setSelectedId(null)}
           onEdit={(row) => setEditingId(row.id)}
+          onOpenCard={(card) => setSelectedId(card.id)}
+          onOpenAccount={(row) => setSelectedId(row.id)}
         />
       ) : (
         <>
@@ -529,17 +531,41 @@ export default function MFCartoes({ user, showValues = true }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.4rem' }}>
                     <div style={{ minWidth: 0 }}>
                       <span style={metricLabel}>{t('minhasfinancas.card_account')}</span>
-                      <div
-                        style={{
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {linked?.name ?? '—'}
-                      </div>
+                      {linked ? (
+                        // Conta vinculada clicável: abre o detalhe dela no
+                        // drill da aba (o guard do widget não deixa o clique
+                        // vazar pro drill do cartão).
+                        <button
+                          type="button"
+                          data-testid={`mf-card-open-account-${item.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedId(linked.id);
+                          }}
+                          title={linked.name}
+                          style={{
+                            display: 'block',
+                            maxWidth: '100%',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            margin: 0,
+                            font: 'inherit',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            color: 'inherit',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {linked.name}
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>—</div>
+                      )}
                     </div>
                     <div>
                       <span style={metricLabel}>{t('minhasfinancas.card_closing')}</span>

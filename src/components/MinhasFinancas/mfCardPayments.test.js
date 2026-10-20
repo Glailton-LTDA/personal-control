@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -875,8 +875,9 @@ describe('planCardAnticipation — antecipar parcelas de cartão', () => {
  * Item 30 — espelho do pagamento de fatura: o agendador cria/revaloriza/promove
  * a despesa que reflete a fatura na conta vinculada. O plano é puro e aqui
  * exercitamos cada decisão: cria futuro/vencido, não duplica pagamento seu,
- * sincroniza valor, promove vencido, respeita o Reabrir (sem marcador) e
- * apaga quando a fatura zera.
+ * sincroniza valor (pendente nas duas direções), promove vencido, respeita o
+ * Reabrir (sem marcador), apaga quando a fatura zera e — fatura já paga
+ * reajustada — joga a diferença em lançamento novo (nunca reescreve o pago).
  */
 describe('planInvoicePaymentSync — espelho de fatura (item 30)', () => {
   const cardPlan = {
@@ -1102,5 +1103,157 @@ describe('planInvoicePaymentSync — espelho de fatura (item 30)', () => {
     });
     expect(out.creates).toHaveLength(1);
     expect(out.creates[0].status).toBe('PENDENTE');
+  });
+
+  it('espelho PENDENTE + fatura desceu → revaloriza pra baixo (projeção)', () => {
+    const out = plan({
+      invoice: { total: 2400, openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.creates).toEqual([]);
+    expect(out.deletes).toEqual([]);
+    // O openAmount trava em 0 na queda — a régua nova usa o total da
+    // fatura e baixa o espelho (antes ficava preso no valor antigo).
+    expect(out.updates).toEqual([{ id: 'm1', patch: { amount: 2400 } }]);
+  });
+
+  it('espelho PAGO + fatura subiu → diferença vira lançamento novo (espelho intocado)', () => {
+    const out = plan({
+      today: '2026-10-20',
+      invoice: { total: 2453.8, openAmount: 0.16 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.updates).toEqual([]);
+    expect(out.deletes).toEqual([]);
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0]).toMatchObject({
+      user_id: 'user-1',
+      type: 'DESPESA',
+      account_id: 'acc-1',
+      amount: 0.16,
+      status: 'PAGO',
+      payment_date: '2026-10-20',
+      effective_date: '2026-10-20',
+      invoice_close: '2026-10-10',
+      notes: MF_INVOICE_DIFF_NOTE,
+    });
+    expect(out.creates[0].description).toContain('C6');
+  });
+
+  it('espelho PAGO + fatura desceu → diferença negativa (nunca reescreve o pago)', () => {
+    const out = plan({
+      today: '2026-10-20',
+      invoice: { total: 2400, openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.updates).toEqual([]);
+    expect(out.deletes).toEqual([]);
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0].amount).toBe(-53.64);
+    expect(out.creates[0].status).toBe('PAGO');
+    expect(out.creates[0].notes).toBe(MF_INVOICE_DIFF_NOTE);
+  });
+
+  it('fatura paga já com a diferença certa → idempotente (não duplica nem apaga o espelho)', () => {
+    const out = plan({
+      today: '2026-10-20',
+      invoice: { total: 2453.8, openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+        {
+          id: 'd1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 0.16,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_DIFF_NOTE,
+        },
+      ],
+    });
+    // A linha de diferença não dispara a corrida (não apaga o espelho)
+    // e a conta bate — nem cria nem atualiza nada.
+    expect(out).toEqual({ creates: [], updates: [], deletes: [] });
+  });
+
+  it('pagamento seu já quitou tudo e a fatura desceu → diferença negativa', () => {
+    const out = plan({
+      invoice: { total: 2400, openAmount: 0 },
+      transactions: [
+        {
+          id: 'user-full',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+        },
+      ],
+    });
+    expect(out.creates).toHaveLength(1);
+    expect(out.creates[0].amount).toBe(-53.64);
+    expect(out.creates[0].notes).toBe(MF_INVOICE_DIFF_NOTE);
+  });
+
+  it('pagamento seu PAGO parcial → fatura em aberto, não cria diferença', () => {
+    const out = plan({
+      invoice: { total: 2453.64, openAmount: 1953.64 },
+      transactions: [
+        {
+          id: 'user-partial',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 500,
+          payment_date: '2026-10-20',
+        },
+      ],
+    });
+    expect(out).toEqual({ creates: [], updates: [], deletes: [] });
   });
 });

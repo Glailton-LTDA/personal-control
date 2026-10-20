@@ -582,6 +582,40 @@ describe('MFAccountDetail', () => {
     expect(screen.queryByTestId('mf-linked-card-pay-acc-card2')).not.toBeInTheDocument();
   });
 
+  it('cartão vinculado: o nome abre o detalhe do cartão pelo callback do pai', async () => {
+    const onOpenCard = vi.fn();
+    renderDetail({ onOpenCard });
+
+    const open = await screen.findByTestId('mf-linked-card-open-acc-card');
+    fireEvent.click(open);
+
+    // A navegação é resolvida pelo pai (drill) — o detalhe só emite o card
+    expect(onOpenCard).toHaveBeenCalledTimes(1);
+    expect(onOpenCard.mock.calls[0][0]).toMatchObject({
+      id: 'acc-card',
+      account_type: 'CARTAO',
+    });
+  });
+
+  it('sem onOpenCard o nome do cartão segue como texto (contexto legado)', async () => {
+    renderDetail();
+
+    await screen.findByTestId('mf-linked-card-acc-card');
+    expect(screen.queryByTestId('mf-linked-card-open-acc-card')).not.toBeInTheDocument();
+  });
+
+  it('detalhe do cartão: chip da conta vinculada abre o detalhe da conta pelo callback', async () => {
+    const onOpenAccount = vi.fn();
+    renderDetail({ account: cardAccount, onOpenAccount });
+
+    const chip = await screen.findByTestId('mf-open-linked-account');
+    expect(chip).toHaveTextContent('Nubank');
+    fireEvent.click(chip);
+
+    expect(onOpenAccount).toHaveBeenCalledTimes(1);
+    expect(onOpenAccount.mock.calls[0][0]).toMatchObject({ id: 'acc-1', name: 'Nubank' });
+  });
+
 
 
 
