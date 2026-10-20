@@ -702,18 +702,31 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
   });
 
   /** Data local no formato YYYY-MM-DD (mesma semântica do app — usar UTC
-   *  aqui quebra após as 21:00 (UTC-3) e a compra cai fora da fatura). */
-  const localISO = () => {
-    const d = new Date();
+   *  aqui quebra após as 21:00 (UTC-3) e a compra cai fora da fatura).
+   *  `date` opcional: alimenta o relógio congelado do teste abaixo. */
+  const localISO = (date = new Date()) => {
+    const d = new Date(date);
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   };
 
   test('pagamento de fatura: modal parcial agenda sem abater — em aberto segue a fatura não paga', async ({ page }) => {
-    const today = localISO();
+    // Relógio congelado no dia 15 do mês vigente (mesma filosofia do
+    // vi.useFakeTimers dos unit): com o relógio real, o vencimento fixo
+    // (dia 20) cruza o mês — a partir do dia 20 a corrente vence e o
+    // agendador espelha o pagamento como PAGO ("já vencido"), zera o em
+    // aberto e esconde o botão de pagar (o cenário só existia até o dia
+    // 19). Dia 15 fica sempre antes do fechamento (16) e do vencimento
+    // (20); teste e página leem a MESMA data congelada.
+    const frozen = new Date();
+    frozen.setDate(15);
+    frozen.setHours(12, 0, 0, 0);
+    await page.clock.install({ time: frozen });
+
+    const today = localISO(frozen);
     // closing_day dinâmico (nunca hoje): no dia do fechamento a compra
     // "de hoje" cairia na fatura recém-fechada e a corrente zeraria.
-    const closingDay = (new Date().getDate() % 28) + 1;
+    const closingDay = (frozen.getDate() % 28) + 1;
     const card = {
       id: 'acc-e2e-card',
       name: 'Visa E2E',
@@ -766,11 +779,13 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(page.getByTestId('mf-card-open-acc-e2e-card')).toHaveText('R$ 300,00');
     await expect(page.getByTestId('mf-card-available-acc-e2e-card')).toHaveText('R$ 4.700,00');
     // a despesa de pagamento entrou no store (PENDENTE, no vencimento,
-    // na conta vinculada — sem transação no cartão)
+    // na conta vinculada — sem transação no cartão); valor 150 isola a
+    // parcial deste teste de qualquer espelho do agendador
     const paid = page.mfStore.mf_transactions.find(
       (tx) =>
         tx.type === 'DESPESA' &&
         tx.account_id === 'acc-e2e' &&
+        tx.amount === 150 &&
         tx.invoice_close
     );
     expect(paid).toBeTruthy();

@@ -525,37 +525,45 @@ describe('MFAccountDetail', () => {
   });
 
   it('conta exibe a fatura do cartao vinculado e paga por transferencia', async () => {
-    renderDetail();
+    // Relatório congelado na véspera do vencimento (20/10): com o relógio
+    // real no próprio vencimento, o modal cria PAGO (vencimento de hoje
+    // não é futuro) e o caso "agendada: efetivável no Extrato" não existe.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 19, 12, 0, 0) });
+    try {
+      renderDetail();
 
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-linked-card-acc-card')).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-linked-card-acc-card')).toBeInTheDocument();
+      });
 
-    expect(screen.getByTestId('mf-linked-card-amount-acc-card')).toHaveTextContent('R$ 350,00');
-    expect(screen.getByTestId('mf-linked-card-icon-acc-card')).toBeInTheDocument();
-    expect(screen.queryByTestId('mf-acct-det-invoices')).not.toBeInTheDocument();
+      expect(screen.getByTestId('mf-linked-card-amount-acc-card')).toHaveTextContent('R$ 350,00');
+      expect(screen.getByTestId('mf-linked-card-icon-acc-card')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-acct-det-invoices')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mf-linked-card-pay-acc-card'));
+      fireEvent.click(screen.getByTestId('mf-linked-card-pay-acc-card'));
 
-    // Modal "Quanto você quer pagar?" → Continuar agenda no vencimento
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-pay-modal')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('mf-pay-continue'));
+      // Modal "Quanto você quer pagar?" → Continuar agenda no vencimento
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-pay-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-pay-continue'));
 
-    const { supabase } = await import('../../lib/supabase');
-    await waitFor(() => {
-      expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
-    });
-    expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
-      user_id: 'test-user',
-      type: 'DESPESA',
-      account_id: 'acc-1', // origem: a própria conta (sem transação no cartão)
-      amount: 350,
-      status: 'PENDENTE', // agendada: efetivável no Extrato
-      payment_date: '2026-10-20', // vencimento da fatura
-      invoice_close: '2026-10-10', // vínculo com a fatura corrente
-    });
+      const { supabase } = await import('../../lib/supabase');
+      await waitFor(() => {
+        expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
+      });
+      expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+        user_id: 'test-user',
+        type: 'DESPESA',
+        account_id: 'acc-1', // origem: a própria conta (sem transação no cartão)
+        amount: 350,
+        status: 'PENDENTE', // agendada: efetivável no Extrato
+        payment_date: '2026-10-20', // vencimento da fatura
+        invoice_close: '2026-10-10', // vínculo com a fatura corrente
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('cartão vinculado quitado mostra o valor da última fatura com PAGA', async () => {
