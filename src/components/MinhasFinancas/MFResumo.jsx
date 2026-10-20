@@ -2913,6 +2913,8 @@ export default function MFResumo({
           showValues={showValues}
           onClose={() => setSelectedId(null)}
           onEdit={(row) => setAccountModalRow(row)}
+          onOpenCard={(card) => setSelectedId(card.id)}
+          onOpenAccount={(row) => setSelectedId(row.id)}
         />
       ) : groupPath.length > 0 &&
         groups.some((group) => group.id === groupPath[groupPath.length - 1]) ? (

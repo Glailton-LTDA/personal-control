@@ -184,6 +184,55 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(localStorage.getItem('mf_detail_drill')).toBeNull();
   });
 
+  it('chip da conta vinculada no widget abre o detalhe da conta', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-card-open-account-acc-card')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-card-open-account-acc-card'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+    });
+    // é o detalhe da CONTA (lista o cartão vinculado), não do cartão
+    expect(screen.getByTestId('mf-linked-card-acc-card')).toBeInTheDocument();
+    expect(
+      JSON.parse(localStorage.getItem('mf_detail_drill'))
+    ).toEqual({ tab: 'cards', id: 'acc-check' });
+  });
+
+  it('detalhe do cartão: chip da conta vinculada leva ao detalhe da conta', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-open-linked-account')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-open-linked-account'));
+
+    await waitFor(() => {
+      expect(
+        JSON.parse(localStorage.getItem('mf_detail_drill'))
+      ).toEqual({ tab: 'cards', id: 'acc-check' });
+    });
+    // detalhe da conta Nubank lista o cartão vinculado (era o cartão antes)
+    expect(screen.getByTestId('mf-linked-card-acc-card')).toBeInTheDocument();
+  });
+
+  it('cartão sem conta vinculada não mostra o chip (— no lugar)', async () => {
+    renderScreen();
+    // espera o widget do cartão vinculado renderizar (grid pronto)…
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-card-open-account-acc-card')).toBeInTheDocument();
+    });
+    // …e o cartão sem conta não ganha chip
+    expect(screen.queryByTestId('mf-card-open-account-acc-master')).not.toBeInTheDocument();
+  });
+
   it('fatura selecionada sobrevive ao F5 e volta à corrente ao trocar', async () => {
     localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'cards', id: 'acc-card' }));
     localStorage.setItem('mf_invoice_sel_acc-card', '2026-08-10');

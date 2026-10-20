@@ -69,6 +69,7 @@ vi.mock('../../lib/supabase', () => {
         credit_limit: 1000,
         closing_day: 10,
         due_day: 20,
+        linked_account_id: 'acc-1',
       },
     ],
     error: null,
@@ -433,6 +434,38 @@ describe('MFContas', () => {
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
     });
+  });
+
+  it('detalhe da conta: nome do cartão vinculado salta para a aba Cartões', async () => {
+    renderWithProviders(
+      <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
+    });
+    expandGroups();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
+    });
+    fireEvent.click(screen.getAllByTestId('mf-account-row')[0]); // acc-1 (Nubank)
+
+    const tabEvents = [];
+    const onTab = (event) => tabEvents.push(event.detail);
+    window.addEventListener('set-active-tab', onTab);
+    try {
+      fireEvent.click(await screen.findByTestId('mf-linked-card-open-acc-card'));
+      // salva o drill da aba Cartões com o cartão e pede a troca de aba
+      await waitFor(() => {
+        expect(JSON.parse(localStorage.getItem('mf_detail_drill'))).toEqual({
+          tab: 'cards',
+          id: 'acc-card',
+        });
+      });
+    } finally {
+      window.removeEventListener('set-active-tab', onTab);
+    }
+    expect(tabEvents).toEqual([{ tab: 'minhasfinancas-cards' }]);
   });
 
   it('tela estreita: cards em vez de tabela (sem quebrar o texto)', async () => {

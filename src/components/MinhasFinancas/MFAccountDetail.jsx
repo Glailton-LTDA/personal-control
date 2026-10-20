@@ -125,6 +125,11 @@ export default function MFAccountDetail({
   showValues = true,
   onClose = () => {},
   onEdit = null,
+  // Navegação para o cartão/conta vinculada — sempre resolvida pelo pai
+  // (drill local ou troca de aba). Só callback opcional, nunca import do
+  // componente irmão: nenhum ciclo no grafo de imports.
+  onOpenCard = null,
+  onOpenAccount = null,
 }) {
   const { t, i18n } = useTranslation();
   const { data: lanc } = useMFLancamentos(user, monthKey);
@@ -280,6 +285,13 @@ export default function MFAccountDetail({
   const typeKey = `minhasfinancas.type_${String(account.account_type ?? '').toLowerCase()}`;
   const translatedType = t(typeKey);
   const typeLabel = translatedType === typeKey ? account.account_type : translatedType;
+
+  // Detalhe do cartão: conta vinculada (chip clicável no cabeçalho que
+  // leva ao detalhe dela — navegação via callback do pai).
+  const linkedAccount =
+    account.account_type === 'CARTAO' && account.linked_account_id
+      ? accounts.find((row) => row.id === account.linked_account_id) ?? null
+      : null;
 
   // MOVIMENTAÇÃO do mês: efetivadas (PAGO) × pendentes por tipo/direção.
   const { start: monthStart, end: monthEnd } = monthBounds(monthKey);
@@ -583,6 +595,23 @@ export default function MFAccountDetail({
                 <span style={{ ...miniBadge, textTransform: 'none', letterSpacing: 0 }}>
                   {typeLabel}
                 </span>
+              )}
+              {linkedAccount && typeof onOpenAccount === 'function' && (
+                <button
+                  type="button"
+                  data-testid="mf-open-linked-account"
+                  onClick={() => onOpenAccount(linkedAccount)}
+                  title={linkedAccount.name}
+                  style={{
+                    ...miniBadge,
+                    textTransform: 'none',
+                    letterSpacing: 0,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {`${t('minhasfinancas.card_account')}: ${linkedAccount.name}`}
+                </button>
               )}
             </h3>
             <p style={{ margin: '0.15rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
@@ -901,17 +930,46 @@ export default function MFAccountDetail({
                     data-testid={`mf-linked-card-icon-${card.id}`}
                   />
                   <div style={{ flex: '1 1 130px', minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: '0.92rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {card.name}
-                    </div>
+                    {typeof onOpenCard === 'function' ? (
+                      // Nome clicável: abre o detalhe do cartão (drill do
+                      // pai). Sem callback (contexto legado), vira texto.
+                      <button
+                        type="button"
+                        data-testid={`mf-linked-card-open-${card.id}`}
+                        onClick={() => onOpenCard(card)}
+                        style={{
+                          display: 'block',
+                          maxWidth: '100%',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          margin: 0,
+                          fontFamily: 'inherit',
+                          fontSize: '0.92rem',
+                          fontWeight: 700,
+                          color: 'inherit',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {card.name}
+                      </button>
+                    ) : (
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: '0.92rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {card.name}
+                      </div>
+                    )}
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       {active.status === 'CORRENTE'
                         ? `${t('minhasfinancas.card_current')}${active.dueISO ? ` · ${formatMonthLabel(active.dueISO.slice(0, 7), i18n.language)} · ${t('minhasfinancas.card_due')} ${fmtShort(active.dueISO)}` : ''}`
