@@ -2272,7 +2272,19 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       -rows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
     );
     const paid = round(Math.max(0, billable - openAmount));
-    invoices.push({ ...cycle, transactions: rows, total, refunds, paid, openAmount, pendingBound, status });
+    invoices.push({
+      ...cycle,
+      transactions: rows,
+      total,
+      refunds,
+      paid,
+      openAmount,
+      pendingBound,
+      status,
+      // Crédito de FIFO já consumido por esta fatura — o planner precisa
+      // dele pra revalorizar/diferenciar sem contar o crédito duas vezes.
+      fifoCovered: round(fromFifo),
+    });
   });
   invoices.reverse(); // mais recente primeiro (UI)
 
@@ -2401,6 +2413,14 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
       paid: currentPaid,
       openAmount: currentOpen,
       pendingBound: currentPendingBound,
+      // Parte do pagamento vinculado que veio do FIFO histórico (sobra de
+      // ciclos anteriores) — mesmo papel do fromFifo das fechadas.
+      fifoCovered: round(
+        Math.max(
+          0,
+          currentPaid - (currentCloseISO ? boundByClose[currentCloseISO] || 0 : 0)
+        )
+      ),
       status:
         currentTotal > 0 && currentOpen < 0.005
           ? currentPendingBound > 0.005
@@ -2500,6 +2520,17 @@ export const buildCardPaymentTx = ({ userId, card, invoice, description, amount 
  */
 export const MF_INVOICE_PAYMENT_NOTE = 'Agendado automaticamente (fatura)';
 
+/**
+ * Marcador da diferença de fatura REAJUSTADA depois de paga: o pagamento já
+ * feito é evento histórico (nunca é reescrito) e a divergência vira um
+ * lançamento próprio (DESPESA com sinal, PAGO, datado de HOJE) na conta
+ * vinculada. Vive em `notes` (nota visível na UI) para o planner
+ * reconhecer: idempotência (só cria enquanto divergir) e a corrida
+ * "espelho × pagamento seu" não tratar a linha nossa como pagamento do
+ * usuário (não apaga o espelho por causa dela).
+ */
+export const MF_INVOICE_DIFF_NOTE = 'Ajuste de fatura (reajuste de valor)';
+
 const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 /**
@@ -2509,9 +2540,15 @@ const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
  * - fatura com valor e SEM nenhum pagamento vinculado não cancelado → cria o
  *   espelho: vencimento futuro = PENDENTE no vencimento; já vencido = PAGO
  *   na data do vencimento (entra no mês certo, sem fingir saldo "hoje");
- * - espelho existente → sincroniza o valor com o que falta cobrir
- *   (`openAmount` já desconta FIFO/parciais + o próprio espelho) e, se
- *   marcado automaticamente e vencido, promove PENDENTE → PAGO;
+ * - espelho PENDENTE (projeção, nada desembolsado) → revaloriza o valor nas
+ *   DUAS direções com o que falta cobrir (fatura subiu OU desceu — o
+ *   `openAmount` trava em 0 e não serve pra baixar; `fifoCovered` desconta
+ *   crédito histórico) e, se vencido, promove PENDENTE → PAGO;
+ * - fatura JÁ PAGA que mudou de valor (espelho PAGO, ou pagamento seu
+ *   quitando tudo) → o pagamento é evento histórico e não muda: a
+ *   DIFERENÇA vira lançamento novo (MF_INVOICE_DIFF_NOTE, PAGO, com sinal,
+ *   datado de hoje) na conta vinculada — idempotente (só cria enquanto a
+ *   conta divergir);
  * - pagamento criado por você (parcial/manual, sem marcador) → intocável:
  *   não duplica e não revaloriza;
  * - fatura zerada (só estornos) → apaga o espelho.
@@ -2521,6 +2558,19 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
   const updates = [];
   const deletes = [];
   const seen = new Set();
+  const diffTx = (invoice, delta) => ({
+    user_id: userId,
+    type: 'DESPESA',
+    account_id: card.linked_account_id,
+    description: `Ajuste de fatura — ${card.name}`,
+    amount: roundMoney(delta),
+    payment_date: today,
+    due_date: null,
+    effective_date: today,
+    status: 'PAGO',
+    invoice_close: invoice.closeISO,
+    notes: MF_INVOICE_DIFF_NOTE,
+  });
   (invoices || []).forEach((invoice) => {
     if (!invoice?.closeISO || !invoice?.dueISO) return;
     if (seen.has(invoice.closeISO)) return;
@@ -2540,17 +2590,39 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
       return;
     }
     const open = Number(invoice.openAmount) || 0;
+    const fifoCovered = roundMoney(invoice.fifoCovered || 0);
+    const boundTotal = roundMoney(
+      boundRows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+    );
+    const isDiff = (tx) => tx.notes === MF_INVOICE_DIFF_NOTE;
     if (mirror) {
       // Corrida agendador × usuário: um pagamento manual entrou junto do
       // espelho (parcial feita enquanto o agendamento era gravado). O
       // usuário assumiu a fatura — apaga o espelho e sai de cena (mesma
       // régua de "pagamento seu" logo abaixo), sem duplicar o em aberto.
-      if (boundRows.some((tx) => tx.id !== mirror.id)) {
+      // Linhas de DIFERENÇA (nossas) não contam como "pagamento seu".
+      if (boundRows.some((tx) => tx.id !== mirror.id && !isDiff(tx))) {
+        deletes.push(mirror.id);
+        return;
+      }
+      if (mirror.status === 'PAGO') {
+        // Fatura paga e reajustada depois: reescrever o pagamento mudaria
+        // o saldo do dia em que ele saiu. A divergência vira lançamento
+        // de diferença (com sinal, datado de hoje); zerado → não faz nada.
+        const delta = roundMoney(billable - fifoCovered - boundTotal);
+        if (Math.abs(delta) > 0.005) creates.push(diffTx(invoice, delta));
+        return;
+      }
+      // Espelho PENDENTE = projeção (nada desembolsado): o valor segue a
+      // fatura nas duas direções — subiu sobe, desceu desce.
+      const others = roundMoney(boundTotal - (Number(mirror.amount) || 0));
+      const target = roundMoney(Math.max(0, billable - fifoCovered - others));
+      if (!(target > 0.005)) {
+        // Fatura coberta sem ele (FIFO/diferença) — espelho sobrando some.
         deletes.push(mirror.id);
         return;
       }
       const patch = {};
-      const target = roundMoney(open + (Number(mirror.amount) || 0));
       if (Math.abs((Number(mirror.amount) || 0) - target) > 0.005) {
         patch.amount = target;
       }
@@ -2561,7 +2633,23 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
       if (Object.keys(patch).length > 0) updates.push({ id: mirror.id, patch });
       return;
     }
-    if (boundRows.length > 0) return; // pagamento seu (parcial/manual) — não mexe
+    if (boundRows.length > 0) {
+      // Pagamento seu (parcial/manual) — intocável. Se ele já QUITOU a
+      // fatura (PAGO + FIFO cobrem tudo) e ela mudou de valor depois, a
+      // diferença vira lançamento; parcial (fatura ainda em aberto) não
+      // mexe: cobrir o resto é decisão do usuário.
+      const paidTotal = roundMoney(
+        boundRows.reduce(
+          (sum, tx) => sum + (tx.status === 'PAGO' ? Number(tx.amount) || 0 : 0),
+          0
+        )
+      );
+      if (paidTotal + fifoCovered >= billable - 0.005) {
+        const delta = roundMoney(billable - fifoCovered - paidTotal);
+        if (Math.abs(delta) > 0.005) creates.push(diffTx(invoice, delta));
+      }
+      return;
+    }
     if (!(open > 0.005)) return; // coberto só por FIFO/transferência antiga
     const scheduled = invoice.dueISO > today;
     creates.push({
@@ -2660,22 +2748,35 @@ export function useMFScheduleCardPayments(user) {
         // Dedupe: uma remount reavalia o plano com o cache ainda sem o
         // espelho (o invalidar é adiado 750ms) e recriaria a mesma fatura.
         // O guard expira em 60s e libera quando os dados já mostram um
-        // pagamento vinculado ao ciclo.
+        // pagamento vinculado ao ciclo. Diferenças usam chave própria
+        // (`#diff`): o espelho já existe no cache e liberaria o guard na
+        // hora — a chave só solta quando a linha de diferença aparece.
         const nowMs = Date.now();
         const freshCreates = [];
         creates.forEach((row) => {
-          const last = mfScheduledCloses.get(row.invoice_close);
+          const key =
+            row.notes === MF_INVOICE_DIFF_NOTE
+              ? `${row.invoice_close}#diff`
+              : row.invoice_close;
+          const last = mfScheduledCloses.get(key);
           if (last && nowMs - last < 60000) return;
-          mfScheduledCloses.set(row.invoice_close, nowMs);
+          mfScheduledCloses.set(key, nowMs);
           freshCreates.push(row);
         });
         const releaseCloses = new Set();
+        const releaseDiffCloses = new Set();
         transactions.forEach((tx) => {
           if (tx.type === 'DESPESA' && tx.status !== 'CANCELADO' && tx.invoice_close) {
             releaseCloses.add(tx.invoice_close);
+            if (tx.notes === MF_INVOICE_DIFF_NOTE) {
+              releaseDiffCloses.add(tx.invoice_close);
+            }
           }
         });
         releaseCloses.forEach((closeISO) => mfScheduledCloses.delete(closeISO));
+        releaseDiffCloses.forEach((closeISO) =>
+          mfScheduledCloses.delete(`${closeISO}#diff`)
+        );
         if (freshCreates.length === 0 && updates.length === 0 && deletes.length === 0) {
           return;
         }
