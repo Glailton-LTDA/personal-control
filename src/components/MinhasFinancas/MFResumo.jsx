@@ -444,6 +444,29 @@ export default function MFResumo({
     // configuração não acompanha o movimento já ocorrido.
     initial: groupTotalsByCurrency(countedRows, 'saldoPrev'),
   };
+  // Desdobramento do "Total gasto": pagamentos de fatura (DESPESA com
+  // invoice_close em conta que não é cartão — régua do campo
+  // despesasFatura da RPC mf_month_summary, que inclui PENDENTE) vs o
+  // resto do mês (compras e débitos). Sem pagamento de fatura no mês:
+  // sem linhas — o card fica como antes.
+  const faturaPagamentosRaw = groupTotalsByCurrency(countedRows, 'despesasFatura');
+  const showSpentSplit = Object.values(faturaPagamentosRaw).some(
+    (value) => Math.abs(value) > 1e-9
+  );
+  // Só moedas com valor de verdade nas linhas (sem "US$ 0,00" de ruído).
+  const keepNonZero = (totals) =>
+    Object.fromEntries(
+      Object.entries(totals).filter(([, value]) => Math.abs(value) > 1e-9)
+    );
+  const faturaPagamentos = keepNonZero(faturaPagamentosRaw);
+  const gastoMes = keepNonZero(
+    Object.fromEntries(
+      Object.entries(kpis.gasto).map(([code, value]) => [
+        code,
+        Math.max(0, value - (faturaPagamentosRaw[code] || 0)),
+      ])
+    )
+  );
   const singleCurrency = new Set(activeRows.map((row) => row.currency)).size <= 1;
   const nativeMoney = (value, rowCurrency) =>
     showValues ? formatMoney(value, rowCurrency) : '•••';
@@ -615,6 +638,24 @@ export default function MFResumo({
       icon: TrendingDown,
       valueTotals: kpis.gasto,
       color: '#ef4444',
+      // Desdobramento: gastos do mês + pagamentos de fatura somam o
+      // total (Opção B do mockup). Some quando não há pagamento.
+      breakdown: showSpentSplit
+        ? [
+            {
+              key: 'gastos',
+              color: 'var(--danger)',
+              label: t('minhasfinancas.kpi_spent_month'),
+              totals: gastoMes,
+            },
+            {
+              key: 'faturas',
+              color: 'var(--pending)',
+              label: t('minhasfinancas.kpi_spent_faturas'),
+              totals: faturaPagamentos,
+            },
+          ]
+        : undefined,
       variation: singleCurrency
         ? variation(sumField(countedRows, 'despesas'), sumField(countedRows, 'despesasPrev'))
         : undefined,
@@ -671,6 +712,69 @@ export default function MFResumo({
                     />
                   )}
                 </div>
+                {card.breakdown?.length > 0 && (
+                  <div
+                    data-testid={`mf-kpi-breakdown-${card.key}`}
+                    style={{
+                      marginTop: '0.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.3rem',
+                    }}
+                  >
+                    {card.breakdown.map((line) => (
+                      <div
+                        key={line.key}
+                        data-testid={`mf-kpi-breakdown-${card.key}-${line.key}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '1rem',
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            fontSize: '0.78rem',
+                            color: 'var(--text-muted)',
+                            minWidth: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: line.color,
+                              flexShrink: 0,
+                            }}
+                          />
+                          {line.label}
+                        </span>
+                        <span
+                          data-testid={`mf-kpi-breakdown-${card.key}-${line.key}-value`}
+                          style={{
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            color: 'var(--text-main)',
+                            fontVariantNumeric: 'tabular-nums',
+                            textAlign: 'right',
+                          }}
+                        >
+                          <MFTotalsStack
+                            totals={line.totals}
+                            showValues={showValues}
+                            fontSize="inherit"
+                            align="right"
+                          />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {(card.subLabel || card.subTotals) && (
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>

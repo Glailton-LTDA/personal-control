@@ -428,6 +428,7 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
   accounts.map((acc) => {
     let receitas = 0;
     let despesas = 0;
+    let despesasFatura = 0;
     let receitasPrev = 0;
     let despesasPrev = 0;
     let transfCredito = 0;
@@ -462,7 +463,14 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
       const delta = tx.type === 'RECEITA' ? amount : -amount;
       if (inMonth) {
         if (tx.type === 'RECEITA') receitas += amount;
-        else despesas += amount;
+        else {
+          despesas += amount;
+          // Pagamento de fatura: DESPESA com invoice_close em conta que
+          // não é cartão (no cartão, invoice_close marca a compra
+          // vinculada — isso é gasto, não pagamento). Espelha o campo
+          // despesasFatura da RPC mf_month_summary e a emulação E2E.
+          if (tx.invoice_close && acc.account_type !== 'CARTAO') despesasFatura += amount;
+        }
       }
       if (inPrev) {
         if (tx.type === 'RECEITA') receitasPrev += amount;
@@ -479,6 +487,7 @@ const computeAccountRows = (accounts, transactions, start, end, prevStart, prevE
       currency: acc.currency || 'BRL',
       receitas,
       despesas,
+      despesasFatura,
       receitasPrev,
       despesasPrev,
       transfCredito,

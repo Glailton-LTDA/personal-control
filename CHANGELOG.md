@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-20
+
+### Adicionado
+- **KPI "Total gasto" desdobrado (MF)**: o card do Resumo passou a exibir embaixo do total as duas linhas que o compõem — **"Gastos do mês"** (compras e débitos) e **"Pagamentos de fatura"** — somando o valor principal (caso real de outubro/2026: **R$ 22.052,57 = R$ 14.038,53 + R$ 8.014,04**; o número parecia inflado porque a compra de meses anteriores já havia sido contada no mês em que foi feita e a liquidação — o pagamento da fatura — contava de novo). A régua usa o novo campo `despesasFatura` da RPC `mf_month_summary` (DESPESA com `invoice_close` em conta que **não** é cartão, **qualquer status** — pendentes entram; no cartão, `invoice_close` marca a compra vinculada = gasto), espelhada no fallback client (`computeAccountRows`) e na emulação E2E (migration `mf_month_summary_despesas_fatura`). Sem pagamento de fatura no mês as linhas somem; rótulos em pt/en/es.
+
 ## [1.11.0] - 2026-10-20
 
 ### Adicionado

@@ -53,6 +53,7 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     const rows = accounts.map((acc) => {
       let receitas = 0;
       let despesas = 0;
+      let despesasFatura = 0;
       let receitasPrev = 0;
       let despesasPrev = 0;
       let transfCredito = 0;
@@ -84,7 +85,13 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         const delta = tx.type === 'RECEITA' ? amount : -amount;
         if (inMonth) {
           if (tx.type === 'RECEITA') receitas += amount;
-          else despesas += amount;
+          else {
+            despesas += amount;
+            // Pagamento de fatura: DESPESA com invoice_close em conta
+            // não-cartão (paridade com a RPC/fallback — migração
+            // mf_month_summary_despesas_fatura).
+            if (tx.invoice_close && acc.account_type !== 'CARTAO') despesasFatura += amount;
+          }
         }
         if (inPrev) {
           if (tx.type === 'RECEITA') receitasPrev += amount;
@@ -100,6 +107,7 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         currency: acc.currency || 'BRL',
         receitas,
         despesas,
+        despesasFatura,
         receitasPrev,
         despesasPrev,
         transfCredito,
