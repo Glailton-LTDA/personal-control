@@ -36,6 +36,59 @@ const payment = (over) => ({
   ...over,
 });
 
+describe('buildCardInvoices — agregados do servidor (RPC mf_card_cycle_totals)', () => {
+  it('dá os mesmos números com o histórico inteiro ou só com os agregados + janela', () => {
+    const transactions = [
+      purchase({ id: 'c1', payment_date: '2026-10-02', amount: 500 }),
+      purchase({ id: 'c2', payment_date: '2026-09-05', amount: 300 }),
+      payment({
+        id: 'p1',
+        amount: 300,
+        payment_date: '2026-09-20',
+        status: 'PAGO',
+        invoice_close: '2026-09-10',
+      }),
+    ];
+    const completo = buildCardInvoices({ card, refISO: '2026-10-06', transactions });
+    // O que o cliente recebe com os agregados: só a janela de exibição.
+    const janela = transactions.filter((tx) => tx.payment_date >= '2026-09-01');
+    const aggregates = {
+      'acc-card': {
+        card_id: 'acc-card',
+        pool: 0,
+        firstDate: '2026-09-05',
+        // Despesas sem vínculo, por mês do vencimento.
+        months: {
+          '2026-09': { total: 300, refunds: 0 },
+          '2026-10': { total: 500, refunds: 0 },
+        },
+        // Despesas com vínculo, por fechamento.
+        closes: {},
+        // Pagamento vinculado, por fechamento.
+        payments: { '2026-09-10': { rawBound: 300, pendingBound: 0 } },
+      },
+    };
+    const comAgregados = buildCardInvoices({
+      card,
+      refISO: '2026-10-06',
+      transactions: janela,
+      aggregates,
+    });
+
+    expect(comAgregados.current.total).toBe(completo.current.total);
+    expect(comAgregados.current.openAmount).toBe(completo.current.openAmount);
+    expect(comAgregados.current.status).toBe(completo.current.status);
+    expect(comAgregados.current.fifoCovered).toBe(completo.current.fifoCovered);
+    expect(comAgregados.current.paid).toBe(completo.current.paid);
+    // A fatura fechada (ciclo 10/09) também bate.
+    const fechadaCompleta = completo.invoices.find((inv) => inv.closeISO === '2026-09-10');
+    const fechadaAgregados = comAgregados.invoices.find((inv) => inv.closeISO === '2026-09-10');
+    expect(fechadaAgregados.total).toBe(fechadaCompleta.total);
+    expect(fechadaAgregados.openAmount).toBe(fechadaCompleta.openAmount);
+    expect(fechadaAgregados.status).toBe(fechadaCompleta.status);
+  });
+});
+
 afterEach(() => {
   vi.useRealTimers();
 });

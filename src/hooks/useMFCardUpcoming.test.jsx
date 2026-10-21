@@ -15,6 +15,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfSelect: vi.fn(),
   mfSelectAll: vi.fn(),
   mfMutate: vi.fn(),
+  isOffline: vi.fn(() => false),
 }));
 
 import { mfSelectAll } from '../lib/offline/mfOffline';

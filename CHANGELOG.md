@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-10-21
+
+### Corrigido
+- **Fatura de cartão: o cálculo parava de baixar o histórico inteiro do cartão**: o item 30 ("caminho do FIFO") era re-derivado no cliente a cada montagem do módulo — para saber quanto crédito antigo abate a fatura, o app baixava **todo** o histórico do cartão (3.365 lançamentos do Nubank) e refazia um saldo corrente no browser. Agora o servidor entrega os **agregados por ciclo** (RPC nova `mf_card_cycle_totals`: total e estornos de cada ciclo, pagamento vinculado/pendente por fechamento, o pool de pagamentos históricos e a data inicial do histórico) e o cliente baixa **só a janela de exibição** (13 meses) + os espelhos. O caminho do FIFO continua no cliente — o mesmo código, alimentado por números em vez de milhares de linhas — então os valores não podem divergir. Validado com os dados reais: os 8 cartões devolvem **números idênticos** nos dois caminhos (Itaú 15/10 R$ 1.609,15 · AGENDADA · em aberto R$ 0,00; Nubank R$ 2.954,73 · PAGA; C6 R$ 2.453,80; Nomand R$ 582,71) e o agendador não tem nada a gravar em nenhum dos dois. Offline (sem RPC) ou com a RPC fora, o app cai no caminho antigo, que sabe fazer o FIFO sozinho.
+
 ## [1.13.1] - 2026-10-21
 
 ### Corrigido

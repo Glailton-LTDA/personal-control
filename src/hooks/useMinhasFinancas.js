@@ -2122,7 +2122,15 @@ export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
  * de época: no mês vivo o vínculo conta na hora; em mês passado só o que
  * já tinha acontecido até lá.
  */
-export const buildCardInvoices = ({ card, transactions, refISO, count = 6, monthKey, includeFutureBound = false }) => {
+export const buildCardInvoices = ({
+  card,
+  transactions,
+  refISO,
+  count = 6,
+  monthKey,
+  includeFutureBound = false,
+  aggregates = null,
+}) => {
   const refMonthKey = refISO.slice(0, 7);
   // Despesas até a data de referência — com fatura escolhida
   // (invoice_close) vale o MÊS: a compra entra quando o mês chega (ex.:
@@ -2183,6 +2191,37 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     }
   });
 
+  // Agregados do servidor (RPC mf_card_cycle_totals): quando chegam, são a
+  // fonte da verdade do caminho do FIFO — o cliente deixa de baixar o
+  // histórico inteiro do cartão e de refazer aqui um saldo corrente que
+  // o banco já sabe calcular. A matemática do FIFO NÃO muda: os agregados
+  // são exatamente o que o cliente somava (total e estornos por ciclo,
+  // pagamento vinculado/pendente por fechamento e o pool de pagamentos).
+  const agg = aggregates?.[card.id] ?? null;
+  const aggMonths = agg?.months ?? {};
+  const aggCloses = agg?.closes ?? {};
+  const aggPayments = agg?.payments ?? {};
+  if (agg) {
+    fifoPool = Number(agg.pool) || 0;
+    Object.entries(aggPayments).forEach(([closeISO, value]) => {
+      boundByClose[closeISO] = Number(value?.rawBound) || 0;
+      pendingByClose[closeISO] = Number(value?.pendingBound) || 0;
+    });
+  }
+  // Totais do ciclo: despesa com vínculo (pelo fechamento) + despesa sem
+  // vínculo (pelo mês do vencimento) — a mesma regra de `inCycle`.
+  const cycleTotals = (cycle) => {
+    if (!agg) return null;
+    const dueMonth = String(cycle.dueISO || '').slice(0, 7);
+    const bound = aggCloses[cycle.closeISO];
+    const month = aggMonths[dueMonth];
+    if (!bound && !month) return { total: 0, refunds: 0 };
+    return {
+      total: (Number(bound?.total) || 0) + (Number(month?.total) || 0),
+      refunds: (Number(bound?.refunds) || 0) + (Number(month?.refunds) || 0),
+    };
+  };
+
   // A janela `count` é só para exibição. O FIFO precisa enxergar TODO o
   // histórico do cartão; se calcular apenas as seis faturas exibidas,
   // pagamentos antigos sem vínculo "sobram" e quitam a fatura corrente
@@ -2197,21 +2236,28 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     .map((tx) => tx.payment_date)
     .filter(Boolean);
   const [refYear, refMonth] = refISO.split('-').map(Number);
-  const earliest = relevantDates.reduce((min, iso) => (iso < min ? iso : min), refISO);
+  // Com agregados, o começo do histórico vem do servidor (o cliente só
+  // tem a janela de exibição — sem isso, o FIFO pararia de percorrer os
+  // ciclos antigos e o crédito antigo mudaria de valor).
+  const earliest = agg?.firstDate
+    ? String(agg.firstDate).slice(0, 10)
+    : relevantDates.reduce((min, iso) => (iso < min ? iso : min), refISO);
   const [firstYear, firstMonth] = earliest.split('-').map(Number);
   // Fatura escolhida no lançamento (picker do app original, ~2 anos): a
   // janela cobre o menor e o maior invoice_close vinculados, senão a
   // despesa some até o ciclo chegar (futuro) ou some da lista (passado).
-  const linkedCloses = transactions
-    .filter(
-      (tx) =>
-        tx.account_id === card.id &&
-        tx.type === 'DESPESA' &&
-        tx.status !== 'CANCELADO' &&
-        tx.invoice_close
-    )
-    .map((tx) => tx.invoice_close)
-    .sort();
+  const linkedCloses = agg
+    ? Object.keys(aggCloses).sort()
+    : transactions
+        .filter(
+          (tx) =>
+            tx.account_id === card.id &&
+            tx.type === 'DESPESA' &&
+            tx.status !== 'CANCELADO' &&
+            tx.invoice_close
+        )
+        .map((tx) => tx.invoice_close)
+        .sort();
   const minLinkedClose = linkedCloses[0] ?? null;
   const maxLinkedClose = linkedCloses[linkedCloses.length - 1] ?? null;
   let monthsBack = Math.max(0, (refYear - firstYear) * 12 + refMonth - firstMonth);
@@ -2268,7 +2314,12 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
     const rows = expenses
       .filter((tx) => inCycle(tx, cycle))
       .sort((a, b) => b.payment_date.localeCompare(a.payment_date));
-    const total = round(rows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0));
+    // Com agregados, o total do ciclo vem do servidor (o cliente não tem
+    // o histórico inteiro); sem eles, vem das linhas locais.
+    const aggCycle = cycleTotals(cycle);
+    const total = aggCycle
+      ? round(aggCycle.total)
+      : round(rows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0));
     const billable = Math.max(0, total);
     const rawBound = boundByClose[cycle.closeISO] || 0;
     const bound = Math.min(rawBound, billable);
@@ -2292,9 +2343,9 @@ export const buildCardInvoices = ({ card, transactions, refISO, count = 6, month
           : 'EM_ABERTO';
     // Estornos (valores negativos na fatura) e o já pago (alocado) — bloco
     // "Fatura/Estornos/Pagamentos" do app original.
-    const refunds = round(
-      -rows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0)
-    );
+    const refunds = aggCycle
+      ? round(aggCycle.refunds)
+      : round(-rows.reduce((sum, tx) => sum + Math.min(0, Number(tx.amount) || 0), 0));
     const paid = round(Math.max(0, billable - openAmount));
     invoices.push({
       ...cycle,
@@ -2725,7 +2776,9 @@ export function useMFScheduleCardPayments(user) {
       (accounts ?? []).filter((row) => row.account_type === 'CARTAO' && !row.archived_at),
     [accounts]
   );
-  const { data: transactions } = useMFCardTransactions(user, cardAccounts);
+  const { data: cardData } = useMFCardTransactions(user, cardAccounts);
+  const transactions = cardData?.transactions;
+  const aggregates = cardData?.aggregates ?? null;
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
     if (mfScheduleRunning || !accounts || !transactions) return undefined;
@@ -2757,6 +2810,7 @@ export function useMFScheduleCardPayments(user) {
             // (parcelas de nov/dez têm data futura e ficam fora da janela
             // de exibição — sem a flag o agendador não as enxerga).
             includeFutureBound: true,
+            aggregates,
           });
           const plan = planInvoicePaymentSync({
             userId: user.id,
@@ -2865,7 +2919,7 @@ export function useMFScheduleCardPayments(user) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, accounts, transactions, queryClient]);
+  }, [user?.id, accounts, transactions, aggregates, queryClient]);
 }
 
 /**
@@ -3154,9 +3208,8 @@ export function useMFAccountTransactions(user, accountId, extraAccountIds = []) 
 }
 
 /**
- * Transações que o cálculo de faturas realmente lê: compras no cartão,
- * transferências com destino no cartão e os lançamentos com
- * `invoice_close` (pagamentos-espelho) na conta vinculada.
+ * Transações que o cálculo de faturas realmente lê + os agregados por
+ * ciclo que o servidor calcula.
  *
  * Antes, os três consumidores (agendador do pagamento-espelho, tela de
  * Cartões e Próxima fatura do Resumo) usavam `useMFAccountTransactions`
@@ -3165,11 +3218,18 @@ export function useMFAccountTransactions(user, accountId, extraAccountIds = []) 
  * inteira era paginada (15 × 1.000 linhas ≈ 11 MB) a cada montagem do
  * módulo — o maior consumidor de egress do app (~1,4 GB/dia).
  *
- * Aqui o recorte é o conjunto que o cálculo lê de fato: ~600 linhas em
- * 3 requisições. Mesmo conjunto usado pela investigação do agendador
- * (reproduz fatura, FIFO e pagamento-espelho idênticos).
+ * Agora o servidor calcula os agregados por ciclo (RPC
+ * `mf_card_cycle_totals`: total e estornos de cada ciclo, pagamento
+ * vinculado/pendente por fechamento e o pool de pagamentos históricos) e
+ * o cliente baixa só a janela de exibição. O caminho do FIFO continua
+ * aqui — o mesmo código, alimentado por números em vez de thousands de
+ * linhas — então os valores não podem divergir.
+ *
+ * Offline (sem RPC) ou com a RPC falhando: cai no caminho antigo, que
+ * lê o histórico inteiro do cache local. `monthKey` define a régua de
+ * época (mês navegado) — como nas faturas.
  */
-export function useMFCardTransactions(user, cards) {
+export function useMFCardTransactions(user, cards, monthKey = null) {
   const cardIds = useMemo(
     () => [...new Set((cards ?? []).map((card) => card?.id).filter(Boolean))].sort(),
     [cards]
@@ -3180,8 +3240,10 @@ export function useMFCardTransactions(user, cards) {
     [cards]
   );
   const scopeKey = `${cardIds.join(',')}|${linkedIds.join(',')}`;
+  const refISO = monthKey ? monthRefISO(monthKey) : toISODate(new Date());
+  const live = !monthKey || monthKey === currentMonthKey();
   return useQuery({
-    queryKey: ['mf-card-transactions', user?.id, scopeKey],
+    queryKey: ['mf-card-transactions', user?.id, scopeKey, refISO, live ? 'live' : 'epoch'],
     enabled: !!user?.id && cardIds.length > 0,
     // As faturas só mudam quando o usuário mexe em algo (aí as
     // mutations invalidam) — 10 min de staleTime evita refazer a
@@ -3195,35 +3257,64 @@ export function useMFCardTransactions(user, cards) {
       // `local.sort` no mfSelectAll é transform de lista (mesmo contrato
       // do `local.filter`) — não um comparador de Array.sort.
       const sortByPaymentDate = (rows) => [...rows].sort(byPaymentDate);
+
+      // 1) Agregados por ciclo no servidor (o que o FIFO consome).
+      let aggregates = null;
+      if (!isOffline()) {
+        try {
+          const { data, error } = await supabase.rpc('mf_card_cycle_totals', {
+            p_ref_date: refISO,
+            p_live: live,
+          });
+          if (error) throw error;
+          aggregates = Object.fromEntries(
+            (Array.isArray(data) ? data : []).map((row) => [row.card_id, row])
+          );
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn('[MF] RPC mf_card_cycle_totals falhou; leitura local', err);
+          }
+          aggregates = null;
+        }
+      }
+
+      // 2) Linhas: com agregados, só a janela de exibição (as faturas
+      // mostradas e as compras futuras); sem eles, o histórico inteiro
+      // (o caminho antigo, que sabe fazer o FIFO sozinho).
+      const windowStart = shiftMonth(refISO.slice(0, 7), -13) + '-01';
+      const hasWindow = !!aggregates;
       const [own, incoming, mirror] = await Promise.all([
         mfSelectAll(
           'mf_transactions',
-          () =>
-            supabase
+          () => {
+            let query = supabase
               .from('mf_transactions')
               .select('*')
-              .in('account_id', cardIds)
-              .order('payment_date')
-              .order('id'),
+              .in('account_id', cardIds);
+            if (hasWindow) query = query.gte('payment_date', windowStart);
+            return query.order('payment_date').order('id');
+          },
           {
             filter: (rows) => rows.filter((row) => cardIds.includes(row.account_id)),
             sort: sortByPaymentDate,
           }
         ),
-        mfSelectAll(
-          'mf_transactions',
-          () =>
-            supabase
-              .from('mf_transactions')
-              .select('*')
-              .in('transfer_account_id', cardIds)
-              .order('payment_date')
-              .order('id'),
-          {
-            filter: (rows) => rows.filter((row) => cardIds.includes(row.transfer_account_id)),
-            sort: sortByPaymentDate,
-          }
-        ),
+        hasWindow
+          ? Promise.resolve({ data: [], error: null })
+          : mfSelectAll(
+              'mf_transactions',
+              () =>
+                supabase
+                  .from('mf_transactions')
+                  .select('*')
+                  .in('transfer_account_id', cardIds)
+                  .order('payment_date')
+                  .order('id'),
+              {
+                filter: (rows) => rows.filter((row) => cardIds.includes(row.transfer_account_id)),
+                sort: sortByPaymentDate,
+              }
+            ),
         linkedIds.length
           ? mfSelectAll(
               'mf_transactions',
@@ -3246,13 +3337,13 @@ export function useMFCardTransactions(user, cards) {
       if (own.error) throw own.error;
       if (incoming.error) throw incoming.error;
       if (mirror.error) throw mirror.error;
-      // As três consultas podem devolver a mesma linha (ex.: transferência
+      // As consultas podem devolver a mesma linha (ex.: transferência
       // entre contas do mesmo cartão) — dedupe por id.
       const byId = new Map();
       [...(own.data ?? []), ...(incoming.data ?? []), ...(mirror.data ?? [])].forEach((row) => {
         byId.set(row.id, row);
       });
-      return [...byId.values()].sort(byPaymentDate);
+      return { transactions: [...byId.values()].sort(byPaymentDate), aggregates };
     },
   });
 }
@@ -4097,12 +4188,14 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
   // transferências para ele e os pagamentos-espelho na conta vinculada
   // (isPaymentTx exige invoice_close) — sem ela no recorte o Resumo nunca
   // via o pagamento e a fatura já paga ficava com o cadeado.
-  const { data } = useMFCardTransactions(user, cards);
+  const { data: cardData } = useMFCardTransactions(user, cards, monthKey);
+  const transactions = useMemo(() => cardData?.transactions ?? [], [cardData]);
+  const aggregates = cardData?.aggregates ?? null;
   return useMemo(() => {
     if (!cards || cards.length === 0) {
       return { items: [], openTotalByCurrency: {}, upcomingTotalByCurrency: {} };
     }
-    const allTxs = data ?? [];
+    const allTxs = transactions;
     const openTotalByCurrency = {};
     const upcomingTotalByCurrency = {};
     const refISO = monthRefISO(monthKey);
@@ -4115,6 +4208,7 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
         monthKey,
         count: 6,
         includeFutureBound: true,
+        aggregates,
       });
       // Próxima fatura = primeira futura com despesa vinculada, senão a corrente.
       const upcoming = upcomingInvoices.find(
@@ -4140,5 +4234,5 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
       return { card, current, upcoming: shown, next: upcoming ?? null, openAmount };
     });
     return { items, openTotalByCurrency, upcomingTotalByCurrency };
-  }, [cards, data, monthKey]);
+  }, [cards, transactions, aggregates, monthKey]);
 }

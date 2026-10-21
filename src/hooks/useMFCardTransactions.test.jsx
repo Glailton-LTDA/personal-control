@@ -4,15 +4,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('../lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+  supabase: { from: vi.fn(), rpc: vi.fn() },
 }));
 vi.mock('../lib/offline/mfOffline', () => ({
   mfSelect: vi.fn(),
   mfSelectAll: vi.fn(),
   mfMutate: vi.fn(),
+  isOffline: vi.fn(() => false),
 }));
 
 import { mfSelectAll } from '../lib/offline/mfOffline';
+import { supabase } from '../lib/supabase';
 import { useMFCardTransactions } from './useMinhasFinancas';
 
 const CARD = {
@@ -63,14 +65,28 @@ const other = {
   invoice_close: null,
 };
 
+const AGGREGATES = {
+  card_id: 'card-1',
+  name: 'Nubank',
+  pool: 250,
+  firstDate: '2022-03-01',
+  months: { '2026-10': { total: 100, refunds: 0, n: 1 } },
+  closes: {},
+  payments: { '2026-09-30': { rawBound: 100, pendingBound: 0, n: 1 } },
+};
+
 let rows = [];
 let filters = [];
+let queries = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
   rows = [];
   filters = [];
+  queries = [];
+  supabase.rpc.mockImplementation(async () => ({ data: [AGGREGATES], error: null }));
   mfSelectAll.mockImplementation(async (table, buildQuery, local = {}) => {
+    queries.push(buildQuery);
     if (typeof local.filter === 'function') filters.push(local.filter);
     let out = [...rows];
     if (typeof local.filter === 'function') out = local.filter(out);
@@ -87,30 +103,41 @@ const renderHookQuery = (cards = [CARD]) => {
   return renderHook(() => useMFCardTransactions({ id: 'u1' }, cards), { wrapper });
 };
 
-describe('useMFCardTransactions — recorte enxuto do cálculo de faturas', () => {
-  it('baixa compras do cartão, transferências para ele e os espelhos da vinculada', async () => {
+describe('useMFCardTransactions — agregados do servidor + janela de exibição', () => {
+  it('pede os agregados por ciclo ao servidor e devolve junto das transações', async () => {
+    rows = [purchase, mirror];
+    const { result } = renderHookQuery();
+
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(supabase.rpc).toHaveBeenCalledWith('mf_card_cycle_totals', {
+      p_ref_date: expect.any(String),
+      p_live: true,
+    });
+    expect(result.current.data.aggregates['card-1'].pool).toBe(250);
+    const ids = result.current.data.transactions.map((row) => row.id).sort();
+    expect(ids).toEqual(['tx-buy', 'tx-mirror']);
+  });
+
+  it('com agregados, não baixa as transferências (o pool vem do servidor)', async () => {
     rows = [purchase, transfer, mirror, other];
     const { result } = renderHookQuery();
 
     await waitFor(() => expect(result.current.data).toBeDefined());
-    const ids = result.current.data.map((row) => row.id).sort();
-    // A compra do cartão, a transferência para o cartão e o pagamento-espelho
-    // na conta vinculada entram; a conta sem relação fica de fora.
-    expect(ids).toEqual(['tx-buy', 'tx-mirror', 'tx-transfer']);
+    const ids = result.current.data.transactions.map((row) => row.id).sort();
+    expect(ids).toEqual(['tx-buy', 'tx-mirror']);
   });
 
-  it('consulta a tabela em três recortes (não a tabela inteira)', async () => {
-    rows = [];
-    renderHookQuery();
-    await waitFor(() => expect(mfSelectAll).toHaveBeenCalledTimes(3));
-    // Cada recorte tem seu próprio filtro de lista (o contrato do
-    // mfSelectAll) — nenhum deles abre a tabela sem filtro.
-    expect(filters).toHaveLength(3);
-    const kept = (row) => filters.some((filter) => filter([row]).length > 0);
-    expect(kept(purchase)).toBe(true);
-    expect(kept(transfer)).toBe(true);
-    expect(kept(mirror)).toBe(true);
-    expect(kept(other)).toBe(false);
+  it('sem os agregados (RPC fora), cai no caminho local com o histórico inteiro', async () => {
+    supabase.rpc.mockImplementation(async () => {
+      throw new Error('sem rede');
+    });
+    rows = [purchase, transfer, mirror, other];
+    const { result } = renderHookQuery();
+
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data.aggregates).toBeNull();
+    const ids = result.current.data.transactions.map((row) => row.id).sort();
+    expect(ids).toEqual(['tx-buy', 'tx-mirror', 'tx-transfer']);
   });
 
   it('dedupe por id quando a mesma linha aparece em dois recortes', async () => {
@@ -118,7 +145,9 @@ describe('useMFCardTransactions — recorte enxuto do cálculo de faturas', () =
     const { result } = renderHookQuery();
 
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data.filter((row) => row.id === 'tx-buy')).toHaveLength(1);
+    expect(
+      result.current.data.transactions.filter((row) => row.id === 'tx-buy')
+    ).toHaveLength(1);
   });
 
   it('sem cartão no escopo a query não busca nada', async () => {

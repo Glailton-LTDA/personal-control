@@ -53,14 +53,6 @@ const badgeChip = {
 export default function MFCartoes({ user, showValues = true }) {
   const { t, i18n } = useTranslation();
   const { data: accounts = [] } = useMFAccounts(user);
-  // Escopo enxuto: o hook de cartões traz compras do cartão,
-  // transferências para ele e os pagamentos-espelho na conta vinculada
-  // (o cálculo de fatura só lê esse conjunto).
-  const cardAccounts = useMemo(
-    () => (accounts ?? []).filter((row) => row.account_type === 'CARTAO'),
-    [accounts]
-  );
-  const { data: transactions = [] } = useMFCardTransactions(user, cardAccounts);
   const updateAccount = useUpdateAccount();
 
   const [currency, setCurrency] = useState('all');
@@ -73,6 +65,17 @@ export default function MFCartoes({ user, showValues = true }) {
   useEffect(() => {
     writeMonthKey(monthKey);
   }, [monthKey]);
+
+  // Escopo enxuto: o hook de cartões traz as compras do cartão e os
+  // pagamentos-espelho na conta vinculada (o cálculo de fatura só lê esse
+  // conjunto) — mais os agregados por ciclo calculados no servidor.
+  const cardAccounts = useMemo(
+    () => (accounts ?? []).filter((row) => row.account_type === 'CARTAO'),
+    [accounts]
+  );
+  const { data: cardData } = useMFCardTransactions(user, cardAccounts, monthKey);
+  const transactions = cardData?.transactions ?? [];
+  const aggregates = cardData?.aggregates ?? null;
 
   const { data: summary } = useMFMonthSummary(user, monthKey);
   const summaryRows = useMemo(() => summary?.rows ?? [], [summary]);
@@ -295,7 +298,7 @@ export default function MFCartoes({ user, showValues = true }) {
               // (ex.: fixas criadas 12 meses à frente) — sem a flag, só
               // entrava o que já tinha payment_date até o mês (Nubank com
               // despesas até 2027 mostrava R$ 0 em aberto).
-              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true });
+              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true, aggregates });
               // EM ABERTO e DISPONÍVEL seguem a mesma régua das faturas
               // (fechadas + corrente, incluindo parcelas/estornos), em vez
               // de recalcular um saldo paralelo que divergia do detalhe.
