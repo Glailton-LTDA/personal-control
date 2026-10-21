@@ -9,11 +9,20 @@
  * - `hiddenCharts`: gráficos ocultados dentro do widget "charts" (Fase D).
  * Ids desconhecidos são descartados e widgets novos entram logo APÓS o
  * vizinho da ordem padrão (ex.: "groups" aparece logo abaixo de "kpis",
- * ACIMA de "accounts"), visíveis por padrão (migração automática entre
- * versões).
+ * ACIMA de "accounts", e "pending" — o card de Pendentes — logo abaixo de
+ * "recent"), visíveis por padrão (migração automática entre versões).
  */
 
-export const MF_DASHBOARD_WIDGETS = ['kpis', 'groups', 'accounts', 'recent', 'charts', 'budgets', 'goals'];
+export const MF_DASHBOARD_WIDGETS = [
+  'kpis',
+  'groups',
+  'accounts',
+  'recent',
+  'pending',
+  'charts',
+  'budgets',
+  'goals',
+];
 
 /**
  * Gráficos do widget "charts" (Fase D) — cada um pode ser ocultado à parte.
