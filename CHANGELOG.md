@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-21
+
+### Adicionado
+- **Card "Pendentes" no Resumo (MF)**: novo widget ao lado do card "Lançamentos" (a posição é a que o usuário escolher no "Personalizar painel", como os outros widgets). Mostra **só o mês navegado** — cada mês abre com os seus próprios pendentes, sem grupo de atrasados, listando **todos** (sem limite). Tem os **mini-totais** (A pagar · A receber · Transferir) e as **pílulas** de filtro (Tudo · Pagar · Receber · Transferir) com as contagens; quando o total é zero, o valor fica em **cinza neutro** (sem cor de sinal). O **pagamento-espelho da fatura do cartão** aparece marcado com 🎴 (mostrando o fechamento e o vencimento) — fatura em aberto sem agendamento **não** entra. Clicar no item abre o **detalhe da transação** (o mesmo modal do Extrato, com o botão **Efetivar**). A consulta é filtrada no servidor pelo mês (`payment_date` dentro do mês), então o custo não cresce com o histórico. Rótulos em pt/en/es.
+
 ## [1.13.2] - 2026-10-21
 
 ### Corrigido

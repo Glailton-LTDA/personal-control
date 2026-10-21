@@ -96,7 +96,7 @@ const domOrder = () =>
     (el) => el.dataset.widget
   );
 
-const DEFAULT_ORDER = ['kpis', 'groups', 'accounts', 'recent', 'charts', 'budgets', 'goals'];
+const DEFAULT_ORDER = ['kpis', 'groups', 'accounts', 'recent', 'pending', 'charts', 'budgets', 'goals'];
 
 /** Abre o menu ⋮ do cabeçalho e escolhe "Personalizar painel". */
 const openCustomize = () => {
@@ -612,8 +612,9 @@ describe('MFResumo — painel personalizável (Fase 9)', () => {
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
     fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
+    fireEvent.click(screen.getByTestId('mf-widget-up-budgets'));
 
-    expect(domOrder()).toEqual(['budgets', 'kpis', 'groups', 'accounts', 'recent', 'charts', 'goals']);
+    expect(domOrder()).toEqual(['budgets', 'kpis', 'groups', 'accounts', 'recent', 'pending', 'charts', 'goals']);
     // topo da lista: botão "subir" desabilitado
     expect(screen.getByTestId('mf-widget-up-budgets')).toBeDisabled();
 

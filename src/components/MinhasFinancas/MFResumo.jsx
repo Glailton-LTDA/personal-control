@@ -77,6 +77,8 @@ import MFGroupDrill from './MFGroupDrill';
 import MFGroupModal from './MFGroupModal';
 import MFAccountModal from './MFAccountModal';
 import MFRemindersBell from './MFRemindersBell';
+import MFPendingCard from './MFPendingCard';
+import MFTxDetailModal from './MFTxDetailModal';
 import {
   MF_CHARTS,
   visibleWidgets,
@@ -392,6 +394,8 @@ export default function MFResumo({
   const [accountModalGroup, setAccountModalGroup] = useState(null);
   // Modal de EDIÇÃO de conta a partir do detalhe (drill ou widget)
   const [accountModalRow, setAccountModalRow] = useState(null);
+  // Detalhe do pendente aberto pelo card "Pendentes" (com Efetivar)
+  const [pendingTx, setPendingTx] = useState(null);
 
   /** Reordena grupos-raiz: sobe/desce reescrevendo o sort_order dos
    * irmãos (vale na Contas também — mesma ordenação). */
@@ -2230,6 +2234,20 @@ export default function MFResumo({
       );
     }
 
+    if (id === 'pending') {
+      // Pendentes do MÊS navegado: só o que está agendado dentro do mês
+      // (a pagar, a receber, transferências e o pagamento-espelho da
+      // fatura, marcado com 🎴). Clique abre o detalhe (com Efetivar).
+      return (
+        <MFPendingCard
+          user={user}
+          monthKey={monthKey}
+          onOpenTx={(tx) => setPendingTx(tx)}
+          onSeeAll={() => goTo('minhasfinancas-transactions')}
+        />
+      );
+    }
+
     if (id === 'budgets') {
       return (
         <div
@@ -3103,6 +3121,16 @@ export default function MFResumo({
           user={user}
           account={accountModalRow}
           onClose={() => setAccountModalRow(null)}
+        />
+      )}
+      {/* Detalhe do pendente (card "Pendentes") — mesmo modal do Extrato,
+          com o botão Efetivar. */}
+      {pendingTx && (
+        <MFTxDetailModal
+          tx={pendingTx}
+          tagIds={[]}
+          user={user}
+          onClose={() => setPendingTx(null)}
         />
       )}
     </div>

@@ -942,6 +942,44 @@ export function useMFLancamentos(user, monthKey) {
   });
 }
 
+/**
+ * Pendentes do MÊS (card "Pendentes" do Resumo).
+ *
+ * Janela estrita: só o mês navegado — cada mês mostra os seus próprios
+ * pendentes (sem grupo de atrasados). A consulta é filtrada no servidor
+ * por `payment_date` dentro do mês, então o custo não cresce com o
+ * histórico (o escopo antigo de "tudo" custava a tabela inteira).
+ *
+ * Entra tudo que está PENDENTE no mês: a pagar, a receber, transferências
+ * e o pagamento-espelho da fatura do cartão (que entra marcado com 🎴
+ * porque tem `invoice_close`).
+ */
+export function useMFPendingMonth(user, monthKey) {
+  const profileId = useMFProfileScope();
+  return useQuery({
+    queryKey: ['mf-pending-month', user?.id, monthKey, profileId ?? 'all'],
+    enabled: !!user?.id && !!monthKey,
+    queryFn: async () => {
+      const { start, end } = monthBounds(monthKey);
+      const scopeIds = await profileAccountIds(profileId);
+      if (scopeIds && scopeIds.length === 0) return [];
+      let query = supabase
+        .from('mf_transactions')
+        .select(
+          'id,type,amount,description,payment_date,due_date,effective_date,status,account_id,transfer_account_id,category_id,invoice_close,notes'
+        )
+        .eq('status', 'PENDENTE')
+        .gte('payment_date', start)
+        .lte('payment_date', end)
+        .order('payment_date');
+      if (scopeIds) query = query.in('account_id', scopeIds);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 /** Categorias (com subníveis via parent_id). */
 export function useMFCategories(user) {
   return useQuery({
