@@ -35,7 +35,10 @@ export function useOfflineTrips(userId) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const handleSync = () => {
+    const handleSync = (event) => {
+      // Sync do Minhas Finanças não muda as viagens — invalidar aqui só
+      // disparava um refetch desnecessário.
+      if (event?.detail?.source === 'mf') return;
       queryClient.invalidateQueries({ queryKey: ['offline_trips'] });
       queryClient.invalidateQueries({ queryKey: ['offline_expenses'] });
       queryClient.invalidateQueries({ queryKey: ['offline_itinerary'] });
@@ -97,7 +100,7 @@ export function useOfflineCreateTrip(userId) {
 
       await putTripInDexie(trip);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trips').insert([payload ? { ...payload, id } : trip]).select().single();
@@ -138,7 +141,7 @@ export function useOfflineUpdateTrip(userId) {
 
       await putTripInDexie(updated);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trips').update(payload).eq('id', id).select().single();
@@ -172,7 +175,7 @@ export function useOfflineDeleteTrip(userId) {
     mutationFn: async (id) => {
       await removeTripFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trips').delete().eq('id', id);
@@ -249,7 +252,7 @@ export function useOfflineCreateExpense(userId, tripId) {
 
       await putTripExpenseInDexie(expense);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_expenses').insert([{ ...payload, id, trip_id: tripId, user_id: userId }]).select().single();
@@ -290,7 +293,7 @@ export function useOfflineUpdateExpense(userId, tripId) {
 
       await putTripExpenseInDexie(updated);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_expenses').update(payload).eq('id', id).select().single();
@@ -324,7 +327,7 @@ export function useOfflineDeleteExpense(userId, tripId) {
     mutationFn: async (id) => {
       await removeTripExpenseFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trip_expenses').delete().eq('id', id);
@@ -403,7 +406,7 @@ export function useOfflineCreateItineraryItem(userId, tripId) {
 
       await putTripItineraryInDexie(item);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_itinerary').insert([{ ...payload, id, trip_id: tripId }]).select().single();
@@ -444,7 +447,7 @@ export function useOfflineUpdateItineraryItem(userId, tripId) {
 
       await putTripItineraryInDexie(updated);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_itinerary').update(payload).eq('id', id).select().single();
@@ -478,7 +481,7 @@ export function useOfflineDeleteItineraryItem(userId, tripId) {
     mutationFn: async (id) => {
       await removeTripItineraryFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trip_itinerary').delete().eq('id', id);
@@ -546,7 +549,7 @@ export function useOfflineCreateCategory(userId) {
 
       await putTripCategoryInDexie(category);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_categories').insert([{ id, user_id: userId, name }]).select().single();
@@ -581,7 +584,7 @@ export function useOfflineUpdateCategory(userId) {
       const category = { id, user_id: userId, name };
       await putTripCategoryInDexie(category);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_categories').update({ name }).eq('id', id).select().single();
@@ -615,7 +618,7 @@ export function useOfflineDeleteCategory(userId) {
     mutationFn: async (id) => {
       await removeTripCategoryFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trip_categories').delete().eq('id', id);
@@ -710,7 +713,7 @@ export function useOfflineCreateChecklist(userId, tripId) {
 
       await putTripChecklistInDexie(checklist);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_checklists').insert([{ ...payload, id, trip_id: tripId }]).select().single();
@@ -751,7 +754,7 @@ export function useOfflineUpdateChecklist(userId, tripId) {
 
       await putTripChecklistInDexie(updated);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_checklists').update(payload).eq('id', id).select().single();
@@ -785,7 +788,7 @@ export function useOfflineDeleteChecklist(userId, tripId) {
     mutationFn: async (id) => {
       await removeTripChecklistFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trip_checklists').delete().eq('id', id);
@@ -855,7 +858,7 @@ export function useOfflineCreateChecklistItem(userId, tripId) {
 
       await putTripChecklistItemInDexie(item);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_checklist_items').insert([{ ...payload, id }]).select().single();
@@ -896,7 +899,7 @@ export function useOfflineUpdateChecklistItem(userId, tripId) {
 
       await putTripChecklistItemInDexie(updated);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_checklist_items').update(payload).eq('id', id).select().single();
@@ -930,7 +933,7 @@ export function useOfflineDeleteChecklistItem(userId, tripId) {
     mutationFn: async (id) => {
       await removeTripChecklistItemFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trip_checklist_items').delete().eq('id', id);
@@ -998,7 +1001,7 @@ export function useOfflineCreateShare(userId, tripId) {
 
       await putTripShareInDexie(share);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('trip_shares').insert([{ ...payload, id, trip_id: tripId }]).select().single();
@@ -1032,7 +1035,7 @@ export function useOfflineDeleteShare(userId, tripId) {
     mutationFn: async (id) => {
       await removeTripShareFromDexie(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('trip_shares').delete().eq('id', id);

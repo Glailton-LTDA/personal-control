@@ -33,6 +33,16 @@ import { readMonthKey, writeMonthKey, requestNewAccount, clearNewAccountRequest 
 const PROFILE_STORAGE_KEY = 'mf_active_profile';
 
 /**
+ * Intervalo mínimo entre dois pulls completos das tabelas mf_* (o
+ * download que enche o cache offline do módulo). Entre um pull e outro,
+ * abrir o módulo só esvazia a fila de escritas offline — baixar tudo de
+ * novo a cada abertura custava uma segunda varredura da tabela de
+ * lançamentos por sessão.
+ */
+const MF_SYNC_INTERVAL_MS = 10 * 60 * 1000;
+let lastMfPullAt = 0;
+
+/**
  * Container do módulo "Minhas Finanças".
  * `mode` corresponde à sub-aba ativa (ex.: "minhasfinancas-accounts" -> "accounts").
  * O mês selecionado é compartilhado entre as telas do módulo.
@@ -120,9 +130,23 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
   // pulls em background disputando com os mocks das queries).
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
-    const engine = new SyncEngine(user.id);
-    engine.sync().catch(() => {});
-    const onSynced = () => queryClient.invalidateQueries();
+    const engine = new SyncEngine(user.id, { label: 'mf' });
+    // O pull completo baixa as tabelas mf_* (e a de lançamentos é grande):
+    // ele acontece no máximo uma vez a cada MF_SYNC_INTERVAL_MS por
+    // sessão. Entre um pull e outro, o sync só esvazia a fila de escritas
+    // offline — sem refazer o download inteiro a cada abertura do módulo.
+    const now = Date.now();
+    const shouldPull = now - lastMfPullAt >= MF_SYNC_INTERVAL_MS;
+    if (shouldPull) lastMfPullAt = now;
+    engine.sync({ pull: shouldPull }).catch(() => {});
+    // Invalida só as queries do MF (e só quando o pull foi deste módulo):
+    // um invalidateQueries() global refazia o fetch de todos os módulos
+    // (finance, viagens, música) a cada sincronização — mais uma onda de
+    // tráfego no quota de egress.
+    const onSynced = (event) => {
+      if (event?.detail?.source !== 'mf') return;
+      queryClient.invalidateQueries({ queryKey: ['mf'] });
+    };
     window.addEventListener('database-synced', onSynced);
     return () => {
       window.removeEventListener('database-synced', onSynced);

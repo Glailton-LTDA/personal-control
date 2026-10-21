@@ -132,7 +132,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
         savedSong = { ...existing, ...songPayload, updated_at: new Date().toISOString() };
         await putMusicSong(savedSong);
 
-        const engine = new SyncEngine(user.id);
+        const engine = new SyncEngine(user.id, { skipMf: true });
         if (engine.isOnline) {
           const { data, error } = await supabase
             .from('music_songs')
@@ -196,7 +196,7 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
         };
         await putMusicSong(savedSong);
 
-        const engine = new SyncEngine(user.id);
+        const engine = new SyncEngine(user.id, { skipMf: true });
         let finalSongId = tempId;
 
         if (engine.isOnline) {

@@ -154,6 +154,12 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
       expect(screen.getAllByTestId('mf-goal-card')).toHaveLength(3);
     });
 
+    // g2: vinculado à conta → saldo R$ 1.000 (automático)
+    // O saldo da conta atrelada chega depois dos objetivos (recorte
+    // menor) — a tela mostra "…" até o valor ficar pronto.
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-goal-current')[1]).toHaveTextContent('R$ 1.000,00');
+    });
     const currents = screen.getAllByTestId('mf-goal-current');
     const targets = screen.getAllByTestId('mf-goal-target');
     const pcts = screen.getAllByTestId('mf-goal-pct');
@@ -163,8 +169,6 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
     expect(targets[0]).toHaveTextContent('R$ 5.000,00');
     expect(pcts[0]).toHaveTextContent('minhasfinancas.bdg_pct:50');
 
-    // g2: vinculado à conta → saldo R$ 1.000 (automático)
-    expect(currents[1]).toHaveTextContent('R$ 1.000,00');
     // e não tem botões de aporte
     expect(screen.queryByTestId('mf-goal-deposit-g2')).not.toBeInTheDocument();
     expect(screen.getByText(/minhasfinancas.gl_linked_hint/)).toBeInTheDocument();

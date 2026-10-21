@@ -4,6 +4,20 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-10-21
+
+### Corrigido
+- **Egress do app: o módulo MF baixava a tabela de lançamentos INTEIRA a cada abertura (≈1,8 GB/dia)**: o agendador do pagamento-espelho, a tela de Cartões e a Próxima fatura do Resumo buscavam as transações pelo escopo "cartões + contas vinculadas" — e como as contas vinculadas guardam todo o histórico, esse filtro não recortava nada: a tabela (14.009 linhas ≈ 10,4 MB de JSON) era paginada em 15 blocos de 1.000 a cada montagem do módulo (≈133 varreduras/dia, ≈2.000 requisições). Agora existe o hook `useMFCardTransactions`, que baixa só o conjunto que o cálculo de faturas realmente lê — compras no cartão, transferências com destino no cartão e os lançamentos com `invoice_close` (pagamentos-espelho) na conta vinculada. O cálculo continua idêntico (mesmo conjunto usado na auditoria do agendador: fatura, FIFO e espelho reproduzidos exatamente — Itaú 1.609,15 / agendada / em aberto R$ 0,00).
+- **Saldos dos objetivos vinham da tabela inteira (MF)**: o Resumo e a tela de Objetivos somavam o saldo de todas as contas baixando **todos** os lançamentos (sem filtro de conta). Agora o hook `useMFAccountBalances` recebe as contas que interessam (as atreladas a objetivos) e busca só os lançamentos dessas contas, com as colunas mínimas. Como o saldo chega depois dos objetivos, o cartão do objetivo mostra "…" (em vez de um R$ 0,00 mentiroso) até o valor ficar pronto.
+- **Janela de orçamento do Resumo (6 meses)**: passou a pedir só as colunas que o cálculo de orçamento lê (`id,type,amount,payment_date,status,account_id,category_id`) e os vínculos de tag só com `transaction_id,tag_id` — o resto do lançamento (descrição, notas, anexos, datas auxiliares) pesa no payload sem uso.
+- **Drill-down da conta no modo offline (MF)**: o filtro de escopo do `mfSelectAll` era passado como predicado, mas o motor aplica transform de lista — no offline o resultado voltava `false` no lugar das linhas. Alinhado com o contrato das outras chamadas.
+
+### Alterado
+- **Sincronização offline por módulo**: abrir Música ou Viagens não baixa mais as 13 tabelas `mf_*` (cada abertura puxava ~1.000 linhas de `mf_transactions` ≈ 740 KB sem uso). O `SyncEngine` ganhou a opção `skipMf`; o módulo Minhas Finanças continua sincronizando sozinho quando é aberto, e a tela de Configurações (sync manual) segue sincronizando tudo.
+- **Pull do MF limitado a um por sessão curta**: o download completo das tabelas `mf_*` passou a acontecer no máximo uma vez a cada 10 minutos por sessão; entre um pull e outro, o sync só esvazia a fila de escritas offline (o cache local já é preenchido pelas próprias queries). Cada evento `database-synced` agora carrega a origem do sync, e o MF só invalida as queries quando o pull foi dele.
+- **Invalidação de queries escopada no MF**: cada sincronização invalidava **todas** as queries do app (finance, viagens, música, MF) e disparava uma nova onda de buscas; agora invalida só as chaves `mf*`.
+- **Faturas com dados frescos por mais tempo**: a leitura das transações de cartão passou a valer 10 minutos (antes 5) — ela só muda quando o usuário edita algo, e aí as mutations invalidam na hora.
+
 ## [1.13.0] - 2026-10-20
 
 ### Adicionado

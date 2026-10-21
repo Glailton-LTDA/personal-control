@@ -48,7 +48,13 @@ export default function MFObjetivos({ user, showValues = true }) {
   const { data: goals = [] } = useMFGoals(user);
   const { data: contributions = [] } = useMFGoalContributions(user);
   const { data: accounts = [] } = useMFAccounts(user);
-  const { data: balances = {} } = useMFAccountBalances(user);
+  // Saldos só das contas atreladas a objetivos — o resto não entra no
+  // progresso (e não vale baixar a tabela inteira de lançamentos).
+  const goalAccountIds = useMemo(
+    () => goals.map((goal) => goal?.account_id).filter(Boolean),
+    [goals]
+  );
+  const { data: balances = {} } = useMFAccountBalances(user, goalAccountIds);
   const addContribution = useAddMFGoalContribution();
   const deleteContribution = useDeleteMFGoalContribution();
   const updateGoal = useUpdateMFGoal();
@@ -226,13 +232,15 @@ export default function MFObjetivos({ user, showValues = true }) {
         }}
       >
         {goals.map((goal) => {
-          const current = goalCurrentAmount(
-            goal,
-            contributions,
-            balances[goal.account_id]
-          );
+          const balanceKnown = !goal.account_id || balances[goal.account_id] !== undefined;
+          // O saldo da conta atrelada chega depois dos objetivos (o
+          // recorte é menor) — enquanto isso, "…" em vez de um R$ 0,00
+          // mentiroso.
+          const current = balanceKnown
+            ? goalCurrentAmount(goal, contributions, balances[goal.account_id])
+            : null;
           const target = Number(goal.target_amount) || 0;
-          const pct = target > 0 ? (current / target) * 100 : 0;
+          const pct = current === null || target <= 0 ? 0 : (current / target) * 100;
           const reached = current >= target;
           const archived = goal.status === 'ARCHIVED';
           const barColor = archived
@@ -308,7 +316,7 @@ export default function MFObjetivos({ user, showValues = true }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: '1.2rem', fontWeight: 800, color: barColor }} data-testid="mf-goal-current">
-                  {money(current)}
+                  {current === null ? '…' : money(current)}
                 </span>
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                   {t('minhasfinancas.bdg_of')} <span data-testid="mf-goal-target">{money(target)}</span>
@@ -329,7 +337,7 @@ export default function MFObjetivos({ user, showValues = true }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 800, color: barColor }} data-testid="mf-goal-pct">
-                  {t('minhasfinancas.bdg_pct', { pct: Math.round(pct) })}
+                  {current === null ? '…' : t('minhasfinancas.bdg_pct', { pct: Math.round(pct) })}
                 </span>
                 <span>
                   {archived ? (

@@ -57,20 +57,24 @@ const payment = {
 };
 
 let rows = [];
-let scopeFilter = null;
+let scopeFilters = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
   rows = [];
-  scopeFilter = null;
+  scopeFilters = [];
   mfSelectAll.mockImplementation(async (table, buildQuery, local = {}) => {
-    scopeFilter = typeof local.filter === 'function' ? local.filter : null;
+    // O hook de cartões consulta o recorte em três pedaços (compras no
+    // cartão, transferências para ele e os pagamentos-espelho na conta
+    // vinculada) — o escopo efetivo é a união dos filtros.
+    if (typeof local.filter === 'function') scopeFilters.push(local.filter);
     let out = [...rows];
-    // Simula o servidor: `filter` = predicado por linha (inScope espelha o
-    // .or() da REST) e `sort` = transform das linhas (byDateDesc devolve
-    // (rows) => ordenadas — passar como comparador de .sort() estoura
-    // "rows is not iterable" quando há 2+ linhas).
-    if (typeof local.filter === 'function') out = out.filter(local.filter);
+    // Simula o servidor: `filter` = transform da lista (o mesmo contrato
+    // do mfSelectAll real, que aplica `local.filter(rows)`) e `sort` =
+    // transform das linhas (byDateDesc devolve (rows) => ordenadas —
+    // passar como comparador de .sort() estoura "rows is not iterable"
+    // quando há 2+ linhas).
+    if (typeof local.filter === 'function') out = local.filter(out);
     if (typeof local.sort === 'function') out = local.sort(out);
     return { data: out, error: null };
   });
@@ -94,12 +98,17 @@ describe('useMFCardUpcoming — escopo enxuto com conta vinculada', () => {
     const { result } = renderUpcoming();
 
     await waitFor(() => expect(result.current.items).toHaveLength(1));
+    // Escopo efetivo = união dos recortes (cartão, transferências para
+    // ele e pagamentos-espelho na conta vinculada).
+    const inScope = (row) => scopeFilters.some((filter) => filter([row]).length > 0);
     // Pagamento é DESPESA na conta vinculada (transfer_account_id nulo):
     // sem ela no recorte o Resumo nunca via o pagamento.
-    expect(scopeFilter({ id: 'tx-pay', account_id: 'acc-nu' })).toBe(true);
-    expect(scopeFilter({ id: 'tx-buy', account_id: 'card-nu' })).toBe(true);
+    expect(
+      inScope({ id: 'tx-pay', account_id: 'acc-nu', invoice_close: '2026-09-30' })
+    ).toBe(true);
+    expect(inScope({ id: 'tx-buy', account_id: 'card-nu' })).toBe(true);
     // Escopo segue enxuto: conta sem relação com cartão fica de fora.
-    expect(scopeFilter({ id: 'x', account_id: 'acc-outro' })).toBe(false);
+    expect(inScope({ id: 'x', account_id: 'acc-outro' })).toBe(false);
   });
 
   it('fatura quitada na conta vinculada zera e vira PAGA (check verde do Resumo)', async () => {

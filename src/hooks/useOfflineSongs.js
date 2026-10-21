@@ -20,7 +20,7 @@ async function enrichSongsWithGenres(result) {
 }
 
 function createSyncEngine(userId) {
-  return new SyncEngine(userId);
+  return new SyncEngine(userId, { skipMf: true });
 }
 
 export function useOfflineSongs(userId, filters = {}) {
@@ -37,7 +37,10 @@ export function useOfflineSongs(userId, filters = {}) {
   }, [userId]);
 
   useEffect(() => {
-    const handleSync = () => {
+    const handleSync = (event) => {
+      // Sync do Minhas Finanças não muda a música — invalidar aqui só
+      // disparava um refetch desnecessário.
+      if (event?.detail?.source === 'mf') return;
       queryClient.invalidateQueries({ queryKey: ['offline_songs'] });
       queryClient.invalidateQueries({ queryKey: ['offline_genres'] });
       queryClient.invalidateQueries({ queryKey: ['offline_chords'] });
@@ -147,7 +150,7 @@ export function useOfflineCreateSong(userId) {
 
       await putMusicSong(song);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('music_songs').insert({
@@ -199,7 +202,7 @@ export function useOfflineUpdateSong(userId) {
       };
       await putMusicSong(updated);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('music_songs')
@@ -237,7 +240,7 @@ export function useOfflineDeleteSong(userId) {
     mutationFn: async (id) => {
       await removeMusicSong(id);
 
-      const engine = new SyncEngine(userId);
+      const engine = new SyncEngine(userId, { skipMf: true });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('music_songs').delete().eq('id', id);
