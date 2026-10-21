@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Módulos com efeito colateral (cliente Supabase/Dexie) — não interessam
 // aqui: só testamos funções puras de cálculo.
@@ -11,7 +11,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfMutate: vi.fn(),
 }));
 
-import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle } from './useMinhasFinancas';
+import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle, formatMonthNavLabel } from './useMinhasFinancas';
 
 describe('formatMoney', () => {
   it('escopo "all" da tela não é moeda — cai no padrão BRL (não Lek albanês)', () => {
@@ -23,6 +23,30 @@ describe('formatMoney', () => {
     expect(formatMoney(15031.1, 'ALL')).toBe(brl);
     // moeda de verdade segue nativa
     expect(formatMoney(10, 'USD')).toContain('US$');
+  });
+});
+
+describe('formatMonthNavLabel — rótulo curto da faixa ‹ mês ›', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 20, 12, 0, 0) });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('ano corrente: só o nome do mês (sem ano)', () => {
+    expect(formatMonthNavLabel('2026-10')).toBe('Outubro');
+    expect(formatMonthNavLabel('2026-01')).toBe('Janeiro');
+  });
+
+  it('outro ano: mês curto + ano ("Nov./2025")', () => {
+    expect(formatMonthNavLabel('2025-11')).toBe('Nov./2025');
+    expect(formatMonthNavLabel('2020-03')).toBe('Mar./2020');
+  });
+
+  it('idioma: en/es usam o mês curto sem ponto final', () => {
+    expect(formatMonthNavLabel('2025-11', 'en-US')).toBe('Nov/2025');
+    expect(formatMonthNavLabel('2025-11', 'es')).toBe('Nov/2025');
   });
 });
 

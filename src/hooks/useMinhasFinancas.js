@@ -256,6 +256,21 @@ export const formatMonthLabel = (monthKey, language = 'pt-BR') => {
   return label.charAt(0).toUpperCase() + label.slice(1);
 };
 
+/**
+ * Rótulo curto da faixa ‹ mês › (navegação): sem ano quando o mês é do ano
+ * corrente ('Outubro'); fora dele, mês curto + ano ('Nov./2025'). `formatMonthLabel`
+ * continua para subtítulos e faturas ('Outubro de 2026').
+ */
+export const formatMonthNavLabel = (monthKey, language = 'pt-BR') => {
+  const [year, month] = (monthKey || currentMonthKey()).split('-').map(Number);
+  const isCurrentYear = year === new Date().getFullYear();
+  const label = new Intl.DateTimeFormat(language, {
+    month: isCurrentYear ? 'long' : 'short',
+  }).format(new Date(year, month - 1, 1));
+  const capitalized = label.charAt(0).toUpperCase() + label.slice(1);
+  return isCurrentYear ? capitalized : `${capitalized}/${year}`;
+};
+
 /** '2026-10-05' → Date local (sem deslocamento de fuso). */
 export const parseISODate = (iso) => {
   const [y, m, d] = iso.split('-').map(Number);

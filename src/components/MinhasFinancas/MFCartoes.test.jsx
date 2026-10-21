@@ -653,7 +653,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     // Mês anterior (set/2026, referência = fim do mês): fatura corrente =
     // setembro (só a compra de 05/09; a de outubro ainda não existe à época)
     fireEvent.click(screen.getByTestId('mf-month-prev'));
-    expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Setembro de 2026');
+    expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Setembro$/);
     await waitFor(() => {
       expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('R$ 800,00');
     });
@@ -686,7 +686,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
 
       // Set/2026 (época): o vínculo futuro não abate — só o do ciclo fechado
       fireEvent.click(screen.getByTestId('mf-month-prev'));
-      expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Setembro de 2026');
+      expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Setembro$/);
       await waitFor(() => {
         expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 500,00');
       });
@@ -929,7 +929,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
         fireEvent.click(screen.getByTestId('mf-month-prev'));
       }
       await waitFor(() => {
-        expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Fevereiro de 2023');
+        expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Fev\.\/2023$/);
       });
 
       // Fev/2023: a compra de março ainda não existia — nada em aberto.
@@ -939,7 +939,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       // Mar/2023: vínculo conta — em aberto zera e a fatura exibe Paga.
       fireEvent.click(screen.getByTestId('mf-month-next'));
       await waitFor(() => {
-        expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Março de 2023');
+        expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Mar\.\/2023$/);
       });
       expect(screen.getByTestId('mf-card-open-acc-card')).toHaveTextContent('R$ 0,00');
       expect(screen.getByTestId('mf-card-available-acc-card')).toHaveTextContent('R$ 3.000,00');

@@ -4,6 +4,20 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-20
+
+### Adicionado
+- **Card-resumo no topo do detalhe no mobile (MF)**: a aba Transações do detalhe de conta/cartão ganhou um card-resumo no topo (só no mobile — some no desktop ≥1100px, onde a coluna Resumo já traz tudo): na conta, **Saldo em conta** (verde/vermelho conforme o sinal, com olho próprio que esconde só o card), **saldo inicial** do mês (fechamento anterior), mini-cards de **Entradas/Saídas** (mesmo cashflow do gráfico — receita/despesa + transferências, régua PAGO) e o rodapé **"Pendente no mês"** + **"Previsto"** (linha que só aparece quando difere do saldo); no cartão, **Fatura corrente** com chip de status, total, fechamento/vencimento, **Gastos no mês**, **Próxima fatura** (quando há despesa já vinculada) e link "Faturas do cartão". Quem cai direto na aba Transações enxerga o saldo sem trocar de aba (padrão do app de referência).
+- **Menu "⋯" de gerenciamento no detalhe (MF)**: os ícones de editar/arquivar/excluir do cabeçalho viraram um único menu "⋯" (novo componente `MFManageMenu`, popover em portal como o MFAddMenu) com título "Gerenciar conta"/"Gerenciar cartão" — e o **Reajustar saldo**, que só existia na aba Resumo, passou a estar também no menu da conta (no cartão não entra: cartão não tem saldo). O cabeçalho seguiu o padrão do app de referência: **navegação de mês esticada à esquerda da faixa, com "+" e "⋯" à direita** (no estreito ≤768px o "+" vira só ícone) e o mês como contexto embaixo do nome. Os popovers dos menus "+" e "⋯" passaram a usar fundo **sólido** (`--menu-popover-bg`) — no tema claro o `--bg-card` 90% deixava o conteúdo de trás atrapalhar a leitura.
+- **Rótulo da navegação de mês sem ano (MF)**: a faixa ‹ mês › ganhou fonte menor (0.9 → 0.82rem) e passou a **omitir o ano quando o mês é do ano corrente** ("Novembro"); fora dele, mês curto + ano ("Nov./2025" — pt-BR "nov." → "Nov./2025"). Faturas e subtítulos seguem com o formato completo ("Novembro de 2025") — helper nova `formatMonthNavLabel`.
+
+### Alterado
+- **Consolidado da tela Contas (MF, estreita) em duas colunas e sem duplicata**: o card do topo ("Saldo nas contas" | "Previsão" — ex.: **R$ 154.409,62** com **€ 86,30 · £ 64,05 · US$ 899,70** embaixo × previsão **R$ 152.583,79**) virou o **único consolidado**: o card-total idêntico que aparecia no fim da lista foi removido. As **previsões** de toda a tela Contas (consolidado, cabeçalhos de grupo, rodapé e células da tabela desktop) passaram a seguir a mesma lógica de cor do app de referência — **na cor do rótulo (muted) quando positiva e vermelha quando negativa** — e os **saldos** ficam **bold, vermelhos só quando negativos** (props `mutedNegative`/`redNegative` do `MFTotalsStack`). A **previsão some quando repete o saldo** (tolerância 0,005, por moeda): nos cards de conta como linha inline "Saldo: R$ X | Previsão: Y", e no cabeçalho do grupo (e no "Sem grupo") numa linha só com o rótulo, sem quebrar.
+- **Cores por sinal no card-resumo do detalhe (MF)**: "Pendente no mês" passou a herdar a cor do rótulo (muted) e "Previsto" fica verde/vermelho pelo sinal — a mesma lógica do saldo grande, que agora vale também para os **chips Saldo/Previsão** do detalhe.
+
+### Corrigido
+- **Chevron `›` de avançar mês engolido pelo `+` no mobile (MF)**: no ≤768px o ícone `+` cobria o `›` de navegação na faixa do detalhe; o rótulo agora encolhe com reticências e as setinhas têm área mínima de 8px.
+
 ## [1.12.0] - 2026-10-20
 
 ### Adicionado

@@ -49,6 +49,24 @@ const badgeStyle = {
   whiteSpace: 'nowrap',
 };
 
+/**
+ * Totais por moeda com diferença relevante (>= 0.005) em alguma moeda?
+ * Usado pra esconder a previsão quando ela repete o saldo — mesma regra
+ * dos cards de conta, aplicada aos totais do grupo (mapa por moeda).
+ */
+const totalsDiffer = (a, b) => {
+  const codes = new Set([
+    ...Object.keys(a || {}),
+    ...Object.keys(b || {}),
+  ]);
+  for (const code of codes) {
+    if (Math.abs((Number(a?.[code]) || 0) - (Number(b?.[code]) || 0)) >= 0.005) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /** Aba de filtro por tipo (modo estreito): pílula ativa/inativa. */
 const narrowTypeTabStyle = (active) => ({
   display: 'inline-flex',
@@ -519,6 +537,8 @@ export default function MFContas({
   const renderNarrowAccount = (row, subtitle = null) => {
     const typeInfo = accountTypeInfo(row.account_type, customTypes);
     const typeLabel = typeInfo.builtin ? t(typeInfo.key) : typeInfo.label;
+    // Previsão some quando repete o saldo (mês sem pendência).
+    const forecastShown = Math.abs((Number(row.previsto) || 0) - (Number(row.saldo) || 0)) >= 0.005;
     return (
       <div
         key={row.id}
@@ -624,18 +644,33 @@ export default function MFContas({
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t('minhasfinancas.accounts_table_balance')}
-            </div>
-            <div style={{ fontWeight: 800, fontSize: '1.15rem', fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+          <span style={{ color: 'var(--text-muted)' }}>
+            {t('minhasfinancas.accounts_table_balance')}:{' '}
+            <b
+              data-testid={`mf-account-saldo-${row.id}`}
+              style={{
+                fontWeight: 800,
+                fontSize: '1.05rem',
+                fontVariantNumeric: 'tabular-nums',
+                color: row.saldo < 0 ? 'var(--danger)' : 'var(--text-main)',
+              }}
+            >
               {nativeMoney(row.saldo, row.currency)}
-            </div>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-            {t('minhasfinancas.accounts_table_forecast')}: {nativeMoney(row.previsto, row.currency)}
-          </div>
+            </b>
+          </span>
+          {forecastShown && (
+            <span
+              data-testid={`mf-account-forecast-${row.id}`}
+              style={{
+                marginLeft: 'auto',
+                fontVariantNumeric: 'tabular-nums',
+                color: row.previsto < 0 ? 'var(--danger)' : 'var(--text-muted)',
+              }}
+            >
+              {t('minhasfinancas.accounts_table_forecast')}: {nativeMoney(row.previsto, row.currency)}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <MFIgnoreDots show={row.ignore_in_totals} />
@@ -1092,6 +1127,7 @@ export default function MFContas({
                   testId="mf-contas-narrow-summary-saldo"
                   fontSize="inherit"
                   hero
+                  redNegative
                 />
               </div>
             </div>
@@ -1106,6 +1142,7 @@ export default function MFContas({
                   testId="mf-contas-narrow-summary-previsto"
                   align="right"
                   fontSize="inherit"
+                  mutedNegative
                 />
               </div>
             </div>
@@ -1158,6 +1195,10 @@ export default function MFContas({
             const foldId = isGroup ? group.id : UNGROUPED_ID;
             const collapsed = folded.has(foldId);
             const rail = isGroup && group.color ? group.color : 'var(--glass-border)';
+            const groupSaldoTotals = groupTotalsByCurrency(item.rows, 'saldo');
+            const groupPrevistoTotals = groupTotalsByCurrency(item.rows, 'previsto');
+            // Previsão some quando repete o saldo (mesma regra dos cards de conta)
+            const groupForecastShown = totalsDiffer(groupPrevistoTotals, groupSaldoTotals);
             return (
               <div
                 key={isGroup ? group.id : UNGROUPED_ID}
@@ -1249,24 +1290,41 @@ export default function MFContas({
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <MFTotalsStack
-                    totals={groupTotalsByCurrency(item.rows, 'saldo')}
-                    showValues={showValues}
-                    testId={isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'}
-                    align="right"
-                    fontSize="1rem"
-                    lineHeight={1.35}
-                  />
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                    {t('minhasfinancas.accounts_table_forecast')}:{' '}
+                  <div style={{ fontWeight: 800 }}>
                     <MFTotalsStack
-                      totals={groupTotalsByCurrency(item.rows, 'previsto')}
+                      totals={groupSaldoTotals}
                       showValues={showValues}
+                      testId={isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'}
                       align="right"
-                      fontSize="inherit"
+                      fontSize="1rem"
                       lineHeight={1.35}
+                      redNegative
                     />
                   </div>
+                  {groupForecastShown && (
+                    <div
+                      data-testid={isGroup ? `mf-group-forecast-${group.id}` : 'mf-ungrouped-forecast'}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        alignItems: 'baseline',
+                        gap: '0.35rem',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-muted)',
+                        marginTop: '0.15rem',
+                      }}
+                    >
+                      <span>{t('minhasfinancas.accounts_table_forecast')}:</span>
+                      <MFTotalsStack
+                        totals={groupPrevistoTotals}
+                        showValues={showValues}
+                        align="right"
+                        fontSize="inherit"
+                        lineHeight={1.35}
+                        mutedNegative
+                      />
+                    </div>
+                  )}
                 </div>
                 {!collapsed && isGroup && item.rows.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -1287,36 +1345,6 @@ export default function MFContas({
               </div>
             );
           })}
-          {!isLoading && accounts.length > 0 && (
-            <div
-              data-testid="mf-contas-narrow-total"
-              className="glass-card"
-              style={{ padding: '0.8rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}
-            >
-              <span style={{ fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                {t('minhasfinancas.total')}
-              </span>
-              <span style={{ textAlign: 'right' }}>
-                <MFTotalsStack
-                  totals={groupTotalsByCurrency(narrowAccounts, 'saldo')}
-                  showValues={showValues}
-                  align="right"
-                  fontSize="inherit"
-                  lineHeight={1.35}
-                />
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                  {t('minhasfinancas.accounts_table_forecast')}:{' '}
-                  <MFTotalsStack
-                    totals={groupTotalsByCurrency(narrowAccounts, 'previsto')}
-                    showValues={showValues}
-                    align="right"
-                    fontSize="inherit"
-                    lineHeight={1.35}
-                  />
-                </span>
-              </span>
-            </div>
-          )}
         </div>
       ) : (
         <div className="glass-card" style={{ padding: '0.5rem 0.75rem', overflowX: 'auto', width: '100%', maxWidth: '100%' }}>
@@ -1572,6 +1600,7 @@ export default function MFContas({
                             align="right"
                             fontSize="inherit"
                             lineHeight={1.3}
+                            redNegative
                           />
                         </td>
                         <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
@@ -1580,6 +1609,7 @@ export default function MFContas({
                             showValues={showValues}
                             align="right"
                             fontSize="inherit"
+                            mutedNegative
                           />
                         </td>
                         <td
@@ -1754,11 +1784,20 @@ export default function MFContas({
                         textAlign: 'right',
                         borderBottom: '1px solid var(--glass-border)',
                         fontWeight: 800,
+                        color: row.saldo < 0 ? 'var(--danger)' : undefined,
                       }}
                     >
                       {nativeMoney(row.saldo, row.currency)}
                     </td>
-                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                    <td
+                      style={{
+                        ...cellBase,
+                        textAlign: 'right',
+                        borderBottom: '1px solid var(--glass-border)',
+                        fontWeight: 700,
+                        color: row.previsto < 0 ? 'var(--danger)' : 'var(--text-muted)',
+                      }}
+                    >
                       {nativeMoney(row.previsto, row.currency)}
                     </td>
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)' }}>
@@ -1962,6 +2001,7 @@ export default function MFContas({
                       align="right"
                       fontSize="0.78rem"
                       lineHeight={1.25}
+                      redNegative
                     />
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)' }}>
@@ -1972,6 +2012,7 @@ export default function MFContas({
                       align="right"
                       fontSize="0.75rem"
                       lineHeight={1.25}
+                      mutedNegative
                     />
                   </td>
                   <td />

@@ -50,4 +50,16 @@ describe('MFTotalsStack — uma moeda por linha', () => {
     expect(usd.style.fontSize).toBe('0.66em');
     expect(usd.style.color).toBe('var(--text-muted)');
   });
+
+  it('mutedNegative: valores na cor do rótulo e vermelhos quando negativos', () => {
+    render(<MFTotalsStack totals={{ BRL: 150, USD: -20 }} mutedNegative testId="mf-muted" />);
+    expect(screen.getByTestId('mf-muted-line-BRL').style.color).toBe('var(--text-muted)');
+    expect(screen.getByTestId('mf-muted-line-USD').style.color).toBe('var(--danger)');
+  });
+
+  it('redNegative: mantém a cor herdada e pinta de vermelho só os negativos', () => {
+    render(<MFTotalsStack totals={{ BRL: 150, USD: -20 }} redNegative testId="mf-redneg" />);
+    expect(screen.getByTestId('mf-redneg-line-BRL').style.color).toBe('');
+    expect(screen.getByTestId('mf-redneg-line-USD').style.color).toBe('var(--danger)');
+  });
 });

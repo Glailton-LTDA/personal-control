@@ -17,11 +17,16 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ArrowUp,
+  Calendar,
   ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
   Wallet,
   Pencil,
   Archive,
   ArchiveRestore,
+  Scale,
   Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -29,6 +34,7 @@ import { confirmToast } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
 import {
   useMFLancamentos,
+  useMFNarrowScreen,
   useMFAccounts,
   useMFCategories,
   useMFAccountTransactions,
@@ -56,6 +62,7 @@ import MFAddMenu from './MFAddMenu';
 import MFTransferModal from './MFTransferModal';
 import MFAdjustBalanceModal from './MFAdjustBalanceModal';
 import MFStatementTimeline from './MFStatementTimeline';
+import MFManageMenu from './MFManageMenu';
 
 /** Status possíveis de fatura (chips de cartões vinculados). */
 const INVOICE_STATUS = {
@@ -114,8 +121,8 @@ const miniBadge = {
  * O saldo/previsão/receitas/despesas vêm do resumo do mês (mesma fonte
  * da tabela de Contas). Clique num lançamento abre MFTransacaoScreen e o
  * botão "Novo lançamento" cria um lançamento já com esta conta. No
- * cabeçalho, editar (quando o contexto oferece), arquivar e excluir
- * fazem as ações da própria conta.
+ * menu "⋯" do cabeçalho, editar (quando o contexto oferece), reajustar
+ * (só conta), arquivar e excluir fazem as ações da própria conta.
  */
 export default function MFAccountDetail({
   account,
@@ -151,6 +158,12 @@ export default function MFAccountDetail({
   // Abas mobile (Transações primeiro); no desktop as colunas aparecem juntas.
   const [mobileTab, setMobileTab] = useState('transacoes');
   const [movementOpen, setMovementOpen] = useState(true);
+  // Olho do card-resumo rápido: esconde só o card (o resto segue o olho
+  // global de showValues).
+  const [quickHidden, setQuickHidden] = useState(false);
+  // Estreito (≤768px): o "+" da faixa vira só ícone (não cabe o rótulo
+  // junto da navegação de mês).
+  const isNarrow = useMFNarrowScreen();
 
   // FAB global do container: some enquanto o detalhe está aberto
   // (as entradas de criação são o botão local + menu contextual).
@@ -513,6 +526,367 @@ export default function MFAccountDetail({
 
   const money = (value) => (showValues ? formatMoney(value, account.currency) : '•••');
 
+  // — Card-resumo rápido (mobile, aba Transações): saldo da conta/fatura —
+  //   do cartão + entradas/saídas e pendente/previsto, sem trocar de aba —
+  //   versão compacta do Resumo, padrão do app de referência. —
+  const qmoney = (value) =>
+    showValues && !quickHidden ? formatMoney(value, account.currency) : '•••';
+  const qmoneySigned = (value, positive) => {
+    if (!showValues || quickHidden) return '•••';
+    return `${positive ? '+' : '-'}${formatMoney(Math.abs(value), account.currency)}`;
+  };
+  const signColor = (value) => {
+    if (value > 0) return 'var(--success)';
+    if (value < 0) return 'var(--danger)';
+    return 'var(--text-main)';
+  };
+  const shortDate = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—');
+  // Pendente = quanto os agendados do mês ainda mexem no saldo; o
+  // "Previsto" só aparece quando difere do saldo (mês sem pendente não
+  // repete o valor).
+  const pendenteQuick = round2(shownPrevisto - shownSaldo);
+  const forecastDiffers = Math.abs(shownPrevisto - shownSaldo) >= 0.005;
+
+  // Cartão: fatura corrente do mês + próxima (mesmo buildCardInvoices dos
+  // chips de fatura) — sem fatura no mês, sem card.
+  const cardQuick = useMemo(() => {
+    if (account.account_type !== 'CARTAO') return null;
+    const { current, upcomingInvoices = [] } = buildCardInvoices({
+      card: account,
+      transactions: allTx ?? [],
+      refISO,
+      monthKey,
+    });
+    if (!current) return null;
+    const next = upcomingInvoices.find((row) => row.closeISO !== current.closeISO) ?? null;
+    return { current, next };
+  }, [account, allTx, refISO, monthKey]);
+  const quickStatus = cardQuick
+    ? INVOICE_STATUS[cardQuick.current.status] ?? INVOICE_STATUS.CORRENTE
+    : null;
+
+  /** Faturas do cartão (aba Resumo) — link do card-resumo do cartão. */
+  const gotoInvoices = () => {
+    setMobileTab('resumo');
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector('[data-testid="mf-acct-det-invoices"]')
+        ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const quickEye = (
+    <button
+      type="button"
+      className="icon-btn"
+      data-testid="mf-det-quick-eye"
+      aria-label={t(quickHidden ? 'minhasfinancas.show_values' : 'minhasfinancas.hide_values')}
+      title={t(quickHidden ? 'minhasfinancas.show_values' : 'minhasfinancas.hide_values')}
+      onClick={() => setQuickHidden((prev) => !prev)}
+      style={{ padding: '0.15rem' }}
+    >
+      {quickHidden ? <EyeOff size={15} /> : <Eye size={15} />}
+    </button>
+  );
+
+  const quickMiniCard = (row) => (
+    <div
+      key={row.id}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        border: '1px solid var(--glass-border)',
+        borderRadius: 12,
+        padding: '0.55rem 0.7rem',
+        background: 'rgba(255, 255, 255, 0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.3rem',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '0.64rem',
+          fontWeight: 800,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          color: 'var(--text-muted)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            background: `color-mix(in srgb, ${row.color} 14%, transparent)`,
+            color: row.color,
+          }}
+        >
+          <row.Icon size={12} />
+        </span>
+        {row.label}
+      </span>
+      <span
+        data-testid={row.testId}
+        style={{
+          fontSize: '0.95rem',
+          fontWeight: 800,
+          fontVariantNumeric: 'tabular-nums',
+          color: row.color,
+        }}
+      >
+        {row.value}
+        {row.sub && (
+          <small
+            style={{
+              display: 'block',
+              fontSize: '0.68rem',
+              fontWeight: 600,
+              color: 'var(--text-muted)',
+            }}
+          >
+            {row.sub}
+          </small>
+        )}
+      </span>
+    </div>
+  );
+
+  const quickCard =
+    account.account_type === 'CARTAO' ? (
+      cardQuick && (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 800,
+                fontSize: '0.95rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              {t('minhasfinancas.card_current')}
+              {quickEye}
+            </span>
+            <span
+              style={{
+                fontSize: '0.66rem',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.03em',
+                border: '1px solid var(--glass-border)',
+                borderRadius: 999,
+                padding: '0.12rem 0.55rem',
+                color: quickStatus.color,
+                background: `color-mix(in srgb, ${quickStatus.color} 12%, transparent)`,
+              }}
+            >
+              {t(quickStatus.key)}
+            </span>
+          </div>
+          <span
+            data-testid="mf-det-quick-total"
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+              lineHeight: 1.1,
+            }}
+          >
+            {qmoney(Number(cardQuick.current.total) || 0)}
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '-0.35rem' }}>
+            {t('minhasfinancas.det_quick_card_cycle', {
+              close: shortDate(cardQuick.current.closeISO),
+              due: shortDate(cardQuick.current.dueISO),
+            })}
+          </span>
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            {[
+              {
+                id: 'spent',
+                label: t('minhasfinancas.det_quick_month_spent'),
+                value: qmoney(cashflow[1].value),
+                Icon: ArrowUp,
+                color: '#ef4444',
+                testId: 'mf-det-quick-spent',
+              },
+              ...(cardQuick.next
+                ? [
+                    {
+                      id: 'next',
+                      label: t('minhasfinancas.det_quick_next_invoice'),
+                      value: qmoney(Number(cardQuick.next.total) || 0),
+                      sub: shortDate(cardQuick.next.dueISO),
+                      Icon: Calendar,
+                      color: 'var(--primary)',
+                      testId: 'mf-det-quick-next',
+                    },
+                  ]
+                : []),
+            ].map(quickMiniCard)}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+              fontSize: '0.78rem',
+              color: 'var(--text-muted)',
+              borderTop: '1px solid var(--glass-border)',
+              paddingTop: '0.55rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span>
+              {t('minhasfinancas.det_quick_pending')}:{' '}
+              <b style={{ color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>
+                {qmoney(pendenteQuick)}
+              </b>
+            </span>
+            <button
+              type="button"
+              data-testid="mf-det-quick-goto-invoices"
+              onClick={gotoInvoices}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                border: 'none',
+                background: 'none',
+                color: 'var(--primary)',
+                font: 'inherit',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              {t('minhasfinancas.acct_det_invoices')}
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        </>
+      )
+    ) : (
+      <>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+          }}
+        >
+          <span
+            style={{
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            {t('minhasfinancas.det_quick_balance')}
+            {quickEye}
+          </span>
+          <span
+            style={{
+              fontSize: '0.72rem',
+              color: 'var(--text-muted)',
+              textAlign: 'right',
+              lineHeight: 1.35,
+            }}
+          >
+            {t('minhasfinancas.accounts_table_initial')}
+            <br />
+            <b style={{ fontVariantNumeric: 'tabular-nums' }}>{qmoney(prevClose)}</b>
+          </span>
+        </div>
+        <span
+          data-testid="mf-det-quick-saldo"
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 800,
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1.1,
+            color: signColor(shownSaldo),
+          }}
+        >
+          {qmoney(shownSaldo)}
+        </span>
+        <div style={{ display: 'flex', gap: '0.6rem' }}>
+          {[
+            {
+              id: 'in',
+              label: cashflow[0].label,
+              value: qmoneySigned(cashflow[0].value, true),
+              Icon: ArrowDown,
+              color: '#10b981',
+              testId: 'mf-det-quick-in',
+            },
+            {
+              id: 'out',
+              label: cashflow[1].label,
+              value: qmoneySigned(cashflow[1].value, false),
+              Icon: ArrowUp,
+              color: '#ef4444',
+              testId: 'mf-det-quick-out',
+            },
+          ].map(quickMiniCard)}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            fontSize: '0.78rem',
+            color: 'var(--text-muted)',
+            borderTop: '1px solid var(--glass-border)',
+            paddingTop: '0.55rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>
+            {t('minhasfinancas.det_quick_pending')}:{' '}
+            <b
+              data-testid="mf-det-quick-pending"
+              style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
+            >
+              {qmoney(pendenteQuick)}
+            </b>
+          </span>
+          {forecastDiffers && (
+            <span data-testid="mf-det-quick-forecast">
+              {t('minhasfinancas.det_quick_forecast')}:{' '}
+              <b
+                style={{ color: signColor(shownPrevisto), fontVariantNumeric: 'tabular-nums' }}
+              >
+                {qmoney(shownPrevisto)}
+              </b>
+            </span>
+          )}
+        </div>
+      </>
+    );
 
   /**
    * Abre os Detalhes do lançamento (linhas do detalhe e da fatura do
@@ -630,57 +1004,86 @@ export default function MFAccountDetail({
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Ações da conta: editar (quando o contexto oferece), arquivar e excluir */}
-          <div style={{ display: 'flex', gap: '0.3rem' }}>
-            {onEdit && (
-              <button
-                type="button"
-                className="icon-btn"
-                data-testid="mf-acct-det-edit"
-                aria-label={t('minhasfinancas.edit')}
-                title={t('minhasfinancas.edit')}
-                onClick={() => onEdit(account)}
-              >
-                <Pencil size={16} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              data-testid="mf-acct-det-archive"
-              aria-label={t(
-                account.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive'
-              )}
-              title={t(
-                account.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive'
-              )}
-              onClick={handleArchive}
-            >
-              {account.archived_at ? <ArchiveRestore size={16} /> : <Archive size={16} />}
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              data-testid="mf-acct-det-delete"
-              aria-label={t('minhasfinancas.delete')}
-              title={t('minhasfinancas.delete')}
-              onClick={handleDelete}
-              style={{ color: 'var(--danger)' }}
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-          <MFAddMenu
-            items={addItems}
-            onSelect={handleAdd}
-            label={t('minhasfinancas.tx_new')}
-            triggerTestId="mf-acct-det-new-tx"
-            testId="mf-acct-det-add-menu"
-            triggerStyle={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}
-          />
+      </div>
+
+      {/* Faixa: navegação de mês à esquerda (esticada) + Novo lançamento
+          e menu "⋯" à direita — leitura do print de referência; no estreito
+          (≤768px) o "+" vira só ícone (não cabe o rótulo junto da
+          navegação). */}
+      <div className="mf-det-subhead">
+        <div className="mf-det-subhead-month">
           <MFMonthNav monthKey={monthKey} onChange={onChangeMonth} />
         </div>
+        <MFAddMenu
+          items={addItems}
+          onSelect={handleAdd}
+          label={isNarrow ? null : t('minhasfinancas.tx_new')}
+          triggerTestId="mf-acct-det-new-tx"
+          testId="mf-acct-det-add-menu"
+          triggerStyle={
+            isNarrow
+              ? { padding: '0.6rem', minWidth: 42, justifyContent: 'center' }
+              : { padding: '0.6rem 1rem', fontSize: '0.85rem' }
+          }
+        />
+        {/* Ações da conta/cartão no menu ⋯: editar, reajustar (só conta),
+            arquivar e excluir num único lugar (padrão do app de
+            referência). */}
+        <MFManageMenu
+          title={t(
+            account.account_type === 'CARTAO'
+              ? 'minhasfinancas.manage_card'
+              : 'minhasfinancas.manage_account'
+          )}
+          triggerTestId="mf-acct-det-menu"
+          testId="mf-acct-det-menu-pop"
+          triggerLabel={t(
+            account.account_type === 'CARTAO'
+              ? 'minhasfinancas.manage_card'
+              : 'minhasfinancas.manage_account'
+          )}
+          items={[
+            ...(onEdit
+              ? [
+                  {
+                    key: 'edit',
+                    Icon: Pencil,
+                    label: t('minhasfinancas.edit'),
+                    testId: 'mf-acct-det-edit',
+                    onSelect: () => onEdit(account),
+                  },
+                ]
+              : []),
+            ...(account.account_type !== 'CARTAO'
+              ? [
+                  {
+                    key: 'adjust',
+                    Icon: Scale,
+                    label: t('minhasfinancas.adjust_title'),
+                    testId: 'mf-acct-det-adjust-menu',
+                    onSelect: () => setAdjustOpen(true),
+                  },
+                ]
+              : []),
+            {
+              key: 'archive',
+              Icon: account.archived_at ? ArchiveRestore : Archive,
+              label: t(
+                account.archived_at ? 'minhasfinancas.unarchive' : 'minhasfinancas.archive'
+              ),
+              testId: 'mf-acct-det-archive',
+              onSelect: handleArchive,
+            },
+            {
+              key: 'delete',
+              Icon: Trash2,
+              label: t('minhasfinancas.delete'),
+              danger: true,
+              testId: 'mf-acct-det-delete',
+              onSelect: handleDelete,
+            },
+          ]}
+        />
       </div>
 
       {/* Abas mobile: Transações primeiro; no desktop ficam ocultas */}
@@ -853,13 +1256,19 @@ export default function MFAccountDetail({
           <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
               <span style={{ fontSize: '1.05rem', fontWeight: 800 }}>{t('minhasfinancas.accounts_table_balance')}</span>
-              <strong data-testid="mf-acct-det-chip-balance" style={{ fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums' }}>
+              <strong
+                data-testid="mf-acct-det-chip-balance"
+                style={{ fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums', color: signColor(shownSaldo) }}
+              >
                 {money(shownSaldo)}
               </strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
               <span>{t('minhasfinancas.accounts_table_forecast')}</span>
-              <span data-testid="mf-acct-det-chip-forecast" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+              <span
+                data-testid="mf-acct-det-chip-forecast"
+                style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: signColor(shownPrevisto) }}
+              >
                 {money(shownPrevisto)}
               </span>
             </div>
@@ -1303,6 +1712,13 @@ export default function MFAccountDetail({
           data-panel="transacoes"
           style={{ minWidth: 0 }}
         >
+          {/* Card-resumo rápido (mobile): some no desktop (≥1100px), onde a
+              coluna Resumo já traz movimentação, saldo e previsto. */}
+          {quickCard && (
+            <div className="mf-det-quick" data-testid="mf-det-quick">
+              {quickCard}
+            </div>
+          )}
           <MFStatementTimeline
             account={account}
             user={user}
