@@ -11,6 +11,10 @@ import { formatMoney } from '../../hooks/useMinhasFinancas';
  *   ficam menores e discretas — saldo real em grande, o resto embaixo
  *   (só a sigla, sem bandeira — padrão do mock de referência).
  * - `align`: 'left' | 'center' | 'right'.
+ * - `mutedNegative`: valores na cor do rótulo (muted) e vermelhos quando
+ *   negativos — lógica de cor da tela Contas (previsão).
+ * - `redNegative`: mantém a cor herdada e pinta de vermelho só quando
+ *   negativo — saldo na tela Contas.
  */
 export default function MFTotalsStack({
   totals = {},
@@ -21,6 +25,8 @@ export default function MFTotalsStack({
   align = 'left',
   lineHeight = 1.35,
   hero = false,
+  mutedNegative = false,
+  redNegative = false,
 }) {
   const codes = Object.keys(totals).sort((a, b) =>
     a === 'BRL' ? -1 : b === 'BRL' ? 1 : String(a).localeCompare(String(b))
@@ -44,17 +50,27 @@ export default function MFTotalsStack({
     >
       {codes.map((code, index) => {
         const isRest = hero && index > 0;
+        const baseStyle = isRest
+          ? { fontSize: '0.66em', color: 'var(--text-muted)', fontWeight: 600 }
+          : hero
+            ? { fontWeight: 800 }
+            : undefined;
+        const style =
+          mutedNegative || redNegative
+            ? {
+                ...baseStyle,
+                color: totals[code] < 0
+                  ? 'var(--danger)'
+                  : mutedNegative
+                    ? 'var(--text-muted)'
+                    : baseStyle?.color,
+              }
+            : baseStyle;
         return (
           <span
             key={code}
             data-testid={testId ? `${testId}-line-${code}` : undefined}
-            style={
-              isRest
-                ? { fontSize: '0.66em', color: 'var(--text-muted)', fontWeight: 600 }
-                : hero
-                  ? { fontWeight: 800 }
-                  : undefined
-            }
+            style={style}
           >
             {prefix}
             {formatMoney(totals[code], code)}

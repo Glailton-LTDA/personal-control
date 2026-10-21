@@ -867,14 +867,19 @@ export default function MFAccountDetail({
         >
           <span>
             {t('minhasfinancas.det_quick_pending')}:{' '}
-            <b style={{ color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>
+            <b
+              data-testid="mf-det-quick-pending"
+              style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
+            >
               {qmoney(pendenteQuick)}
             </b>
           </span>
           {forecastDiffers && (
             <span data-testid="mf-det-quick-forecast">
               {t('minhasfinancas.det_quick_forecast')}:{' '}
-              <b style={{ color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>
+              <b
+                style={{ color: signColor(shownPrevisto), fontVariantNumeric: 'tabular-nums' }}
+              >
                 {qmoney(shownPrevisto)}
               </b>
             </span>
@@ -1251,13 +1256,19 @@ export default function MFAccountDetail({
           <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
               <span style={{ fontSize: '1.05rem', fontWeight: 800 }}>{t('minhasfinancas.accounts_table_balance')}</span>
-              <strong data-testid="mf-acct-det-chip-balance" style={{ fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums' }}>
+              <strong
+                data-testid="mf-acct-det-chip-balance"
+                style={{ fontSize: '1.4rem', fontVariantNumeric: 'tabular-nums', color: signColor(shownSaldo) }}
+              >
                 {money(shownSaldo)}
               </strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
               <span>{t('minhasfinancas.accounts_table_forecast')}</span>
-              <span data-testid="mf-acct-det-chip-forecast" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+              <span
+                data-testid="mf-acct-det-chip-forecast"
+                style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: signColor(shownPrevisto) }}
+              >
                 {money(shownPrevisto)}
               </span>
             </div>

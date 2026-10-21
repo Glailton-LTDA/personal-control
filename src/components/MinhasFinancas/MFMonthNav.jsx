@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatMonthLabel, shiftMonth, currentMonthKey } from '../../hooks/useMinhasFinancas';
+import { formatMonthNavLabel, shiftMonth, currentMonthKey } from '../../hooks/useMinhasFinancas';
 import MFSelect from './MFSelect';
 
 const HOLD_MS = 500; // clique e segure → abre o filtro (padrão do app MF)
@@ -200,7 +200,7 @@ export default function MFMonthNav({ monthKey, onChange }) {
           minHeight: '32px',
           textAlign: 'center',
           fontWeight: 700,
-          fontSize: '0.9rem',
+          fontSize: '0.82rem',
           textTransform: 'capitalize',
           background: 'transparent',
           border: 'none',
@@ -212,7 +212,7 @@ export default function MFMonthNav({ monthKey, onChange }) {
           touchAction: 'manipulation',
         }}
       >
-        {formatMonthLabel(key, i18n.language)}
+        {formatMonthNavLabel(key, i18n.language)}
       </button>
       <button
         type="button"

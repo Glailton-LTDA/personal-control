@@ -292,6 +292,22 @@ body {
 }
 .mf-det-subhead-month > [data-testid='mf-month-nav'] {
   flex: 1;
+  min-width: 0;
+}
+/* O rótulo do mês tem min-width 150px inline (MFMonthNav); nesta faixa
+   ele precisa encolher — com reticências se faltar espaço — pra
+   navegação + "+" + "⋯" caberem na mesma linha no mobile estreito. */
+.mf-det-subhead-month
+  > [data-testid='mf-month-nav']
+  > [data-testid='mf-month-label'] {
+  min-width: 0 !important;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-det-subhead-month > [data-testid='mf-month-nav'] > .icon-btn {
+  padding: 8px;
 }
 .mf-det-grid {
   display: flex;

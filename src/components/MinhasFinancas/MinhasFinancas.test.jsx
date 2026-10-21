@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MinhasFinancas from './MinhasFinancas';
 import MFMonthNav from './MFMonthNav';
-import { currentMonthKey } from '../../hooks/useMinhasFinancas';
+import { currentMonthKey, formatMonthNavLabel } from '../../hooks/useMinhasFinancas';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -84,7 +84,9 @@ describe('MinhasFinancas', () => {
     renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="resumo" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('mf-month-label')).toHaveTextContent('Setembro de 2026');
+      expect(screen.getByTestId('mf-month-label')).toHaveTextContent(
+        formatMonthNavLabel('2026-09', 'pt-BR')
+      );
     });
   });
 
@@ -133,7 +135,8 @@ describe('MinhasFinancas', () => {
 
     const label = screen.getByTestId('mf-month-label');
     expect(label).toBeInTheDocument();
-    expect(label.textContent).toMatch(/\d{4}/); // ex.: "Outubro de 2026"
+    // rótulo curto do nav: mês sem ano no ano corrente ("Outubro")
+    expect(label.textContent).toBe(formatMonthNavLabel(currentMonthKey(), 'pt-BR'));
 
     // Navegar sem onChange não deve lançar erro
     fireEvent.click(screen.getByTestId('mf-month-prev'));
@@ -147,6 +150,16 @@ describe('MinhasFinancas', () => {
 
     fireEvent.click(screen.getByTestId('mf-month-label'));
     expect(onChange).toHaveBeenCalledWith(currentMonthKey());
+  });
+
+  it('MFMonthNav: rótulo sem ano no ano corrente; mês curto + ano fora dele', () => {
+    const year = new Date().getFullYear();
+    const { unmount } = renderWithProviders(<MFMonthNav monthKey={`${year}-11`} />);
+    expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Novembro$/);
+    unmount();
+
+    renderWithProviders(<MFMonthNav monthKey="2020-11" />);
+    expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Nov\.\/2020$/);
   });
 
   it('MFMonthNav: clique e segure abre o modal Filtrar e aplica mês/ano', async () => {

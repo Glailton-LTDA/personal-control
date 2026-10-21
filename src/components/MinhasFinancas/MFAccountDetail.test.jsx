@@ -946,6 +946,32 @@ describe('MFAccountDetail — card-resumo rápido + menu ⋯', () => {
     expect(screen.getByTestId('mf-det-quick-forecast')).toHaveTextContent('R$ 450,00');
   });
 
+  it('cores do card-resumo: pendente na cor do rótulo; saldo/previsto por sinal', async () => {
+    renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick-forecast')).toBeInTheDocument();
+    });
+    // Pendente herda a cor do rótulo (muted) — não destaca como saldo
+    expect(screen.getByTestId('mf-det-quick-pending').style.color).toBe('var(--text-muted)');
+    // Saldo/previsto positivos → verde (mesma lógica em todos os valores)
+    expect(screen.getByTestId('mf-det-quick-saldo').style.color).toBe('var(--success)');
+    expect(screen.getByTestId('mf-det-quick-forecast').querySelector('b').style.color)
+      .toBe('var(--success)');
+    // Chips Saldo/Previsão do detalhe seguem a mesma lógica de sinal
+    expect(screen.getByTestId('mf-acct-det-chip-balance').style.color).toBe('var(--success)');
+    expect(screen.getByTestId('mf-acct-det-chip-forecast').style.color).toBe('var(--success)');
+  });
+
+  it('previsto negativo fica vermelho (card-resumo e chip)', async () => {
+    renderDetail({ account: { ...account, previsto: -10 } });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-det-quick-forecast')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-det-quick-forecast').querySelector('b').style.color)
+      .toBe('var(--danger)');
+    expect(screen.getByTestId('mf-acct-det-chip-forecast').style.color).toBe('var(--danger)');
+  });
+
   it('conta sem pendente: some a linha de Previsto (igual ao saldo)', async () => {
     renderDetail({ account: { ...account, previsto: account.saldo } });
     await waitFor(() => {

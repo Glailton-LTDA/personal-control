@@ -492,7 +492,11 @@ describe('MFContas', () => {
       // mesmas linhas e ações essenciais do modo tabela
       expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
       expect(screen.getByTestId('mf-edit-account-acc-1')).toBeInTheDocument();
-      expect(screen.getByTestId('mf-contas-narrow-total')).toBeInTheDocument();
+      // consolidado único no topo (Saldo nas contas | Previsão); a duplicata
+      // de baixo (mf-contas-narrow-total) foi removida
+      expect(screen.getByTestId('mf-contas-narrow-summary-saldo')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas-narrow-summary-previsto')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-contas-narrow-total')).not.toBeInTheDocument();
 
       // sanfona do grupo funciona nos cards
       fireEvent.click(screen.getByTestId('mf-group-fold-grp-1'));
@@ -504,6 +508,12 @@ describe('MFContas', () => {
       await waitFor(() => {
         expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
       });
+
+      // card de conta: linha "Saldo: X"; previsão some quando igual ao saldo
+      expect(screen.getByTestId('mf-account-saldo-acc-1')).toHaveTextContent('R$ 100,00');
+      expect(screen.queryByTestId('mf-account-forecast-acc-1')).toBeNull();
+      // grupo segue a mesma regra: sem previsão quando igual ao saldo
+      expect(screen.queryByTestId('mf-group-forecast-grp-1')).toBeNull();
 
       // consolidado + chips por tipo no topo (valores empilhados por moeda)
       expect(screen.getByTestId('mf-contas-narrow-summary')).toBeInTheDocument();
@@ -527,6 +537,62 @@ describe('MFContas', () => {
       fireEvent.click(screen.getAllByTestId('mf-account-row')[0]);
       expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
     } finally {
+      restoreViewport();
+    }
+  });
+
+  it('cards narrow: previsão difere do saldo (muted) e negativa fica vermelha', async () => {
+    const { supabase } = await import('../../lib/supabase');
+    const realFrom = supabase.from.getMockImplementation();
+    const chainFor = (result) => {
+      const chain = {
+        select: () => chain,
+        order: () => chain,
+        eq: () => chain,
+        gte: () => chain,
+        lte: () => chain,
+        then: (onFulfilled, onRejected) => Promise.resolve(result).then(onFulfilled, onRejected),
+      };
+      return chain;
+    };
+    supabase.from.mockImplementation((table) =>
+      table === 'mf_transactions'
+        ? chainFor({
+            data: [
+              // acc-1: despesa pendente → previsto 70 (saldo segue 100)
+              { id: 'tx-1', account_id: 'acc-1', type: 'DESPESA', amount: 30, status: 'PENDENTE', payment_date: '2026-10-20' },
+              // acc-2: despesa paga (saldo −30) + pendente (previsto −50)
+              { id: 'tx-2', account_id: 'acc-2', type: 'DESPESA', amount: 80, status: 'PAGO', payment_date: '2026-10-05' },
+              { id: 'tx-3', account_id: 'acc-2', type: 'DESPESA', amount: 20, status: 'PENDENTE', payment_date: '2026-10-25' },
+            ],
+            error: null,
+          })
+        : realFrom(table)
+    );
+    mockNarrowViewport();
+    try {
+      renderWithProviders(
+        <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
+      );
+      // acc-2 (fora de grupo) visível de cara com previsão diferente do saldo
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-account-forecast-acc-2')).toBeInTheDocument();
+      });
+      // saldo negativo → vermelho; previsão negativa → vermelha
+      expect(screen.getByTestId('mf-account-saldo-acc-2').style.color).toBe('var(--danger)');
+      expect(screen.getByTestId('mf-account-forecast-acc-2').style.color).toBe('var(--danger)');
+
+      expandGroups();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-account-forecast-acc-1')).toBeInTheDocument();
+      });
+      // previsão positiva → na cor do rótulo (muted); saldo positivo → texto principal
+      expect(screen.getByTestId('mf-account-forecast-acc-1').style.color).toBe('var(--text-muted)');
+      expect(screen.getByTestId('mf-account-saldo-acc-1').style.color).toBe('var(--text-main)');
+      // grupo (saldo 100 × previsto 70) também mostra a previsão na cor do rótulo
+      expect(screen.getByTestId('mf-group-forecast-grp-1').style.color).toBe('var(--text-muted)');
+    } finally {
+      supabase.from.mockImplementation(realFrom);
       restoreViewport();
     }
   });
