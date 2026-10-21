@@ -155,11 +155,21 @@ export class MfSyncProvider {
 }
 
 export class SyncEngine {
-  constructor(userId) {
+  /**
+   * `options.skipMf` monta o engine sem o provider do Minhas Finanças.
+   * Sem isso, abrir Música ou Viagens baixava as 13 tabelas mf_* (e
+   * ~1.000 linhas de mf_transactions ≈ 740 KB) a cada montagem — o
+   * módulo MF sincroniza sozinho quando é aberto.
+   *
+   * `options.label` identifica o engine no evento `database-synced`
+   * (cada módulo só invalida as queries quando o pull foi dele).
+   */
+  constructor(userId, options = {}) {
     this.userId = userId;
     this.providers = [];
     this.onStatusChange = null;
     this._pullTimer = null;
+    this.label = options.label ?? 'app';
     this._isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     this._boundOnline = this._handleOnline.bind(this);
     this._boundOffline = this._handleOffline.bind(this);
@@ -172,7 +182,9 @@ export class SyncEngine {
     if (userId) {
       this.registerProvider(new MusicSyncProvider(userId));
       this.registerProvider(new TripsSyncProvider(userId));
-      this.registerProvider(new MfSyncProvider(userId));
+      if (!options.skipMf) {
+        this.registerProvider(new MfSyncProvider(userId));
+      }
     }
   }
 
@@ -318,14 +330,16 @@ export class SyncEngine {
     });
   }
 
-  async sync() {
+  async sync({ pull = true } = {}) {
     if (!this._isOnline) return { pulled: 0, pushed: 0 };
     const queueSize = await db.sync_queue.count();
     await this.drainQueue();
-    const pulled = await this.pullAll();
+    const pulled = pull ? await this.pullAll() : {};
     
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('database-synced', { detail: { pulled } }));
+    if (pull && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('database-synced', { detail: { pulled, source: this.label } })
+      );
     }
     
     return { pushed: queueSize, pulled: Object.values(pulled || {}).reduce((a, b) => a + (b?.length || 0), 0) };

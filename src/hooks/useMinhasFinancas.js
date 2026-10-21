@@ -2714,12 +2714,18 @@ const mfScheduledCloses = new Map();
 export function useMFScheduleCardPayments(user) {
   const queryClient = useQueryClient();
   const { data: accounts } = useMFAccounts(user);
-  // Escopo enxuto: só cartões + contas vinculadas (o planner só enxerga
-  // esse recorte) em vez das ~13 mil linhas de todas as contas.
-  const cardScopeIds = (accounts ?? []).flatMap((row) =>
-    row.account_type === 'CARTAO' ? [row.id, row.linked_account_id] : []
+  // Só o que o planner lê: compras no cartão, transferências para o
+  // cartão e os pagamentos-espelho na conta vinculada. Antes vinha o
+  // escopo "cartões + contas vinculadas" via useMFAccountTransactions —
+  // que não recortava nada (as vinculadas guardam todo o histórico) e
+  // paginava a tabela inteira a cada montagem do módulo. Cartões
+  // arquivados ficam de fora: o agendador os ignora.
+  const cardAccounts = useMemo(
+    () =>
+      (accounts ?? []).filter((row) => row.account_type === 'CARTAO' && !row.archived_at),
+    [accounts]
   );
-  const { data: transactions } = useMFAccountTransactions(user, null, cardScopeIds);
+  const { data: transactions } = useMFCardTransactions(user, cardAccounts);
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
     if (mfScheduleRunning || !accounts || !transactions) return undefined;
@@ -3133,10 +3139,120 @@ export function useMFAccountTransactions(user, accountId, extraAccountIds = []) 
             .order('payment_date', { ascending: false })
             .order('id', { ascending: false });
         },
-        { filter: inScope, sort: byDateDesc('payment_date') }
+        {
+          // `local.filter` no mfSelectAll é transform de lista (o mesmo
+          // contrato das outras chamadas) — como predicado, o caminho
+          // offline devolvia `false` no lugar das linhas.
+          filter: (rows) => rows.filter(inScope),
+          sort: byDateDesc('payment_date'),
+        }
       );
       if (error) throw error;
       return data ?? [];
+    },
+  });
+}
+
+/**
+ * Transações que o cálculo de faturas realmente lê: compras no cartão,
+ * transferências com destino no cartão e os lançamentos com
+ * `invoice_close` (pagamentos-espelho) na conta vinculada.
+ *
+ * Antes, os três consumidores (agendador do pagamento-espelho, tela de
+ * Cartões e Próxima fatura do Resumo) usavam `useMFAccountTransactions`
+ * com o escopo "cartões + contas vinculadas". Como as contas vinculadas
+ * guardam TODO o histórico, esse filtro não recortava nada e a tabela
+ * inteira era paginada (15 × 1.000 linhas ≈ 11 MB) a cada montagem do
+ * módulo — o maior consumidor de egress do app (~1,4 GB/dia).
+ *
+ * Aqui o recorte é o conjunto que o cálculo lê de fato: ~600 linhas em
+ * 3 requisições. Mesmo conjunto usado pela investigação do agendador
+ * (reproduz fatura, FIFO e pagamento-espelho idênticos).
+ */
+export function useMFCardTransactions(user, cards) {
+  const cardIds = useMemo(
+    () => [...new Set((cards ?? []).map((card) => card?.id).filter(Boolean))].sort(),
+    [cards]
+  );
+  const linkedIds = useMemo(
+    () =>
+      [...new Set((cards ?? []).map((card) => card?.linked_account_id).filter(Boolean))].sort(),
+    [cards]
+  );
+  const scopeKey = `${cardIds.join(',')}|${linkedIds.join(',')}`;
+  return useQuery({
+    queryKey: ['mf-card-transactions', user?.id, scopeKey],
+    enabled: !!user?.id && cardIds.length > 0,
+    // As faturas só mudam quando o usuário mexe em algo (aí as
+    // mutations invalidam) — 10 min de staleTime evita refazer a
+    // leitura a cada montagem do módulo.
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const byPaymentDate = (a, b) => {
+        const cmp = String(a.payment_date || '').localeCompare(String(b.payment_date || ''));
+        return cmp !== 0 ? cmp : String(a.id || '').localeCompare(String(b.id || ''));
+      };
+      // `local.sort` no mfSelectAll é transform de lista (mesmo contrato
+      // do `local.filter`) — não um comparador de Array.sort.
+      const sortByPaymentDate = (rows) => [...rows].sort(byPaymentDate);
+      const [own, incoming, mirror] = await Promise.all([
+        mfSelectAll(
+          'mf_transactions',
+          () =>
+            supabase
+              .from('mf_transactions')
+              .select('*')
+              .in('account_id', cardIds)
+              .order('payment_date')
+              .order('id'),
+          {
+            filter: (rows) => rows.filter((row) => cardIds.includes(row.account_id)),
+            sort: sortByPaymentDate,
+          }
+        ),
+        mfSelectAll(
+          'mf_transactions',
+          () =>
+            supabase
+              .from('mf_transactions')
+              .select('*')
+              .in('transfer_account_id', cardIds)
+              .order('payment_date')
+              .order('id'),
+          {
+            filter: (rows) => rows.filter((row) => cardIds.includes(row.transfer_account_id)),
+            sort: sortByPaymentDate,
+          }
+        ),
+        linkedIds.length
+          ? mfSelectAll(
+              'mf_transactions',
+              () =>
+                supabase
+                  .from('mf_transactions')
+                  .select('*')
+                  .in('account_id', linkedIds)
+                  .or('invoice_close.not.is.null')
+                  .order('payment_date')
+                  .order('id'),
+              {
+                filter: (rows) =>
+                  rows.filter((row) => linkedIds.includes(row.account_id) && row.invoice_close),
+                sort: sortByPaymentDate,
+              }
+            )
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (own.error) throw own.error;
+      if (incoming.error) throw incoming.error;
+      if (mirror.error) throw mirror.error;
+      // As três consultas podem devolver a mesma linha (ex.: transferência
+      // entre contas do mesmo cartão) — dedupe por id.
+      const byId = new Map();
+      [...(own.data ?? []), ...(incoming.data ?? []), ...(mirror.data ?? [])].forEach((row) => {
+        byId.set(row.id, row);
+      });
+      return [...byId.values()].sort(byPaymentDate);
     },
   });
 }
@@ -3350,17 +3466,24 @@ export function useRunMFImport() {
 /**
  * Saldo atual (PAGO até hoje) de cada conta — usado pelos objetivos
  * vinculados a conta ("progresso automático").
+ *
+ * `accountIds` limita o recorte às contas que interessam (no Resumo e
+ * na tela de Objetivos: as contas dos objetivos). Sem ele, usa as contas
+ * do perfil ativo. Antes a query trazia a tabela INTEIRA de lançamentos
+ * (sem filtro de conta) só para somar saldo — o maior volume do Resumo.
  */
-export function useMFAccountBalances(user) {
+export function useMFAccountBalances(user, accountIds = null) {
   const profileId = useMFProfileScope();
+  const scopeKey = accountIds === null ? 'profile' : [...accountIds].sort().join(',');
   return useQuery({
-    queryKey: ['mf-account-balances', user?.id, profileId ?? 'all'],
+    queryKey: ['mf-account-balances', user?.id, profileId ?? 'all', scopeKey],
     enabled: !!user?.id,
     queryFn: async () => {
-      // Perfil: só as contas do perfil entram no mapa de saldos
-      // (movimentações de outras contas não têm chave).
-      const [accounts, txs] = await Promise.all([
-        mfSelect(
+      // Contas cujo saldo interessa: quando informadas, só essas;
+      // senão, as do perfil ativo.
+      let scope = accountIds;
+      if (scope === null) {
+        const { data: profileAccounts, error: profileError } = await mfSelect(
           'mf_accounts',
           () => {
             let query = supabase.from('mf_accounts').select('*');
@@ -3368,17 +3491,49 @@ export function useMFAccountBalances(user) {
             return query;
           },
           { filter: byProfile(profileId) }
+        );
+        if (profileError) throw profileError;
+        scope = (profileAccounts ?? []).map((acc) => acc.id);
+      }
+      const scopeIds = [...new Set((scope ?? []).filter(Boolean))];
+      if (scopeIds.length === 0) return {};
+
+      const [accounts, ownTxs, transferTxs] = await Promise.all([
+        mfSelect(
+          'mf_accounts',
+          () => supabase.from('mf_accounts').select('*').in('id', scopeIds),
+          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.id)) }
         ),
-        mfSelectAll('mf_transactions', () =>
-          supabase
-            .from('mf_transactions')
-            .select('*')
-            .order('payment_date')
-            .order('id')
+        mfSelectAll(
+          'mf_transactions',
+          () =>
+            supabase
+              .from('mf_transactions')
+              .select('id,type,amount,payment_date,status,account_id,transfer_account_id')
+              .in('account_id', scopeIds)
+              .order('payment_date')
+              .order('id'),
+          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.account_id)) }
+        ),
+        mfSelectAll(
+          'mf_transactions',
+          () =>
+            supabase
+              .from('mf_transactions')
+              .select('id,type,amount,payment_date,status,account_id,transfer_account_id')
+              .in('transfer_account_id', scopeIds)
+              .order('payment_date')
+              .order('id'),
+          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.transfer_account_id)) }
         ),
       ]);
       if (accounts.error) throw accounts.error;
-      if (txs.error) throw txs.error;
+      if (ownTxs.error) throw ownTxs.error;
+      if (transferTxs.error) throw transferTxs.error;
+      // A mesma transferência aparece nos dois recortes (origem e destino).
+      const txById = new Map();
+      [...(ownTxs.data ?? []), ...(transferTxs.data ?? [])].forEach((tx) => txById.set(tx.id, tx));
+      const txs = { data: [...txById.values()] };
 
       const today = toISODate(new Date());
       const balances = {};
@@ -3485,7 +3640,9 @@ export function useMFBudgetWindow(user, months = 6) {
       const buildWindowQuery = () => {
         let query = supabase
           .from('mf_transactions')
-          .select('*')
+          // Só as colunas que o cálculo de orçamento lê (o resto do
+          // lançamento — descrição, notas, anexos — pesa no payload).
+          .select('id,type,amount,payment_date,status,account_id,category_id')
           .gte('payment_date', start)
           .lte('payment_date', end)
           .order('payment_date')
@@ -3504,8 +3661,9 @@ export function useMFBudgetWindow(user, months = 6) {
                 (!scopeIds || scopeIds.includes(row.account_id))
             ),
         }),
-        mfSelect('mf_transaction_tags', () =>
-          supabase.from('mf_transaction_tags').select('*')
+        mfSelect(
+          'mf_transaction_tags',
+          () => supabase.from('mf_transaction_tags').select('transaction_id,tag_id')
         ),
       ]);
       if (txs.error) throw txs.error;
@@ -3935,19 +4093,11 @@ export function useDeleteMFProfile() {
  * `monthRefISO` — navegar o mês troca os valores de verdade.
  */
 export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
-  // Escopo enxuto: cartões + contas vinculadas. A vinculada é obrigatória:
-  // o pagamento de fatura é DESPESA na conta vinculada (isPaymentTx exige
-  // invoice_close) — sem ela no recorte o Resumo nunca via o pagamento e a
-  // fatura já paga ficava com o cadeado (o dado certo só aparecia na tela
-  // de Cartões, que já inclui a vinculada).
-  const cardIds = useMemo(
-    () =>
-      (cards ?? []).flatMap((card) =>
-        card?.id ? [card.id, card.linked_account_id].filter(Boolean) : []
-      ),
-    [cards]
-  );
-  const { data } = useMFAccountTransactions(user, null, cardIds);
+  // Escopo enxuto: o próprio hook de cartões já traz compras do cartão,
+  // transferências para ele e os pagamentos-espelho na conta vinculada
+  // (isPaymentTx exige invoice_close) — sem ela no recorte o Resumo nunca
+  // via o pagamento e a fatura já paga ficava com o cadeado.
+  const { data } = useMFCardTransactions(user, cards);
   return useMemo(() => {
     if (!cards || cards.length === 0) {
       return { items: [], openTotalByCurrency: {}, upcomingTotalByCurrency: {} };

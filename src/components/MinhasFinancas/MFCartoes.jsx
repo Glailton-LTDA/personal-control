@@ -4,7 +4,7 @@ import { CreditCard, Plus, Wallet, Archive, ArchiveRestore, Pencil } from 'lucid
 import toast from 'react-hot-toast';
 import {
   useMFAccounts,
-  useMFAccountTransactions,
+  useMFCardTransactions,
   useMFMonthSummary,
   useUpdateAccount,
   buildCardInvoices,
@@ -53,11 +53,14 @@ const badgeChip = {
 export default function MFCartoes({ user, showValues = true }) {
   const { t, i18n } = useTranslation();
   const { data: accounts = [] } = useMFAccounts(user);
-  // Escopo enxuto: cartões + vinculadas (o que a tela calcula).
-  const cardScopeIds = (accounts ?? []).flatMap((row) =>
-    row.account_type === 'CARTAO' ? [row.id, row.linked_account_id] : []
+  // Escopo enxuto: o hook de cartões traz compras do cartão,
+  // transferências para ele e os pagamentos-espelho na conta vinculada
+  // (o cálculo de fatura só lê esse conjunto).
+  const cardAccounts = useMemo(
+    () => (accounts ?? []).filter((row) => row.account_type === 'CARTAO'),
+    [accounts]
   );
-  const { data: transactions = [] } = useMFAccountTransactions(user, null, cardScopeIds);
+  const { data: transactions = [] } = useMFCardTransactions(user, cardAccounts);
   const updateAccount = useUpdateAccount();
 
   const [currency, setCurrency] = useState('all');

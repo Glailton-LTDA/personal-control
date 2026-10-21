@@ -217,7 +217,13 @@ export default function MFResumo({
   const { data: budgetWindow } = useMFBudgetWindow(user, 6);
   const { data: allGoals = [] } = useMFGoals(user);
   const { data: allContributions = [] } = useMFGoalContributions(user);
-  const { data: goalBalances = {} } = useMFAccountBalances(user);
+  // Saldos só das contas atreladas a objetivos (o resto não é usado aqui)
+  // — evita baixar a tabela inteira de lançamentos a cada abertura.
+  const goalAccountIds = useMemo(
+    () => allGoals.map((goal) => goal?.account_id).filter(Boolean),
+    [allGoals]
+  );
+  const { data: goalBalances = {} } = useMFAccountBalances(user, goalAccountIds);
   const { data: categories = [] } = useMFCategories(user);
   const { data: groups = [] } = useMFGroups(user);
 
@@ -2345,13 +2351,17 @@ export default function MFResumo({
             <>
               {/* Lista com barra de progresso por objetivo (Fase E) */}
               {activeGoals.map((goal, index) => {
-                const current = goalCurrentAmount(
-                  goal,
-                  allContributions,
-                  goalBalances[goal.account_id]
-                );
+                const balanceKnown =
+                  !goal.account_id || goalBalances[goal.account_id] !== undefined;
+                // O saldo da conta atrelada chega depois dos objetivos (o
+                // recorte é menor) — enquanto isso, "…" em vez de um
+                // R$ 0,00 mentiroso.
+                const current = balanceKnown
+                  ? goalCurrentAmount(goal, allContributions, goalBalances[goal.account_id])
+                  : null;
                 const target = Number(goal.target_amount) || 0;
-                const pct = Math.min(100, Math.round((current / (target || 1)) * 100));
+                const pct =
+                  current === null ? 0 : Math.min(100, Math.round((current / (target || 1)) * 100));
                 return (
                   <div
                     key={goal.id ?? index}
@@ -2374,7 +2384,12 @@ export default function MFResumo({
                         {/* Objetivo sem moeda própria = padrão (BRL), como
                             na tela de Objetivos — o escopo da tela ('all')
                             não é moeda (vazava como "ALL", o Lek albanês). */}
-                        {showValues ? formatMoney(current, goal.currency) : '•••'} /{' '}
+                        {showValues
+                          ? current === null
+                            ? '…'
+                            : formatMoney(current, goal.currency)
+                          : '•••'}{' '}
+                        /{' '}
                         {showValues ? formatMoney(target, goal.currency) : '•••'}
                       </span>
                     </span>
@@ -2390,7 +2405,7 @@ export default function MFResumo({
                       />
                     </div>
                     <span style={{ fontSize: '0.74rem', fontWeight: 800, color: goal.color || 'var(--primary)' }}>
-                      {t('minhasfinancas.bdg_pct', { pct })}
+                      {current === null ? '…' : t('minhasfinancas.bdg_pct', { pct })}
                     </span>
                   </div>
                 );
