@@ -15,6 +15,8 @@ import { formatMoney } from '../../hooks/useMinhasFinancas';
  *   negativos — lógica de cor da tela Contas (previsão).
  * - `redNegative`: mantém a cor herdada e pinta de vermelho só quando
  *   negativo — saldo na tela Contas.
+ * - `signColors`: cada linha pela cor do SEU sinal (verde / vermelho /
+ *   cinza) — transferências líquidas, em que cada moeda tem o seu sinal.
  */
 export default function MFTotalsStack({
   totals = {},
@@ -27,6 +29,7 @@ export default function MFTotalsStack({
   hero = false,
   mutedNegative = false,
   redNegative = false,
+  signColors = false,
 }) {
   const codes = Object.keys(totals).sort((a, b) =>
     a === 'BRL' ? -1 : b === 'BRL' ? 1 : String(a).localeCompare(String(b))
@@ -56,16 +59,27 @@ export default function MFTotalsStack({
             ? { fontWeight: 800 }
             : undefined;
         const style =
-          mutedNegative || redNegative
+          signColors
             ? {
                 ...baseStyle,
-                color: totals[code] < 0
-                  ? 'var(--danger)'
-                  : mutedNegative
-                    ? 'var(--text-muted)'
-                    : baseStyle?.color,
+                color:
+                  totals[code] > 0
+                    ? 'var(--success)'
+                    : totals[code] < 0
+                      ? 'var(--danger)'
+                      : 'var(--text-muted)',
               }
-            : baseStyle;
+            : mutedNegative || redNegative
+              ? {
+                  ...baseStyle,
+                  color:
+                    totals[code] < 0
+                      ? 'var(--danger)'
+                      : mutedNegative
+                        ? 'var(--text-muted)'
+                        : baseStyle?.color,
+                }
+              : baseStyle;
         return (
           <span
             key={code}
