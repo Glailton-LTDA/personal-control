@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-10-21
+
+### Corrigido
+- **Tabela de Contas no tablet: o nome da conta quebrava letra por letra e invadia a linha de cima**: com a largura do tablet (~975px) as colunas fixas somavam mais que o espaço livre e, como a 1ª coluna ficava com "o que sobrasse" (tabela com `table-layout: fixed`), ela colapsava — o nome da conta ("Nuconta") saía em uma coluna de ~20px, uma letra por linha, e transbordava por cima da linha do grupo. Agora a coluna do nome tem **largura explícita** e, até 1100px, as colunas numéricas encolhem (a tabela cabe sem espremer; abaixo disso ela rola na horizontal em vez de quebrar o texto).
+- **"Saldo inicial" da tabela de Contas era o saldo de criação da conta, não o do mês anterior**: a coluna mostrava `initial_balance` (o saldo com que a conta nasceu) em vez da abertura do mês — por isso as colunas não fechavam (ex.: Nuconta em outubro/26: 20.052,28 + 989,02 − 2.954,73 + 1.996,93 ≠ 34,27). Agora mostra o **saldo do fim do mês anterior** (`saldoPrev` da RPC): 3,05 + 989,02 − 2.954,73 + 1.996,93 = **34,27** ✓.
+
+### Alterado
+- **Ordem das colunas da tabela de Contas**: Saldo inicial · Saldo · Previsão · Receitas · Despesas · Transferências · Ações (o saldo e a previsão ficam colados no saldo inicial, que é a base da conta no mês).
+- **RPC do Resumo (`mf_month_summary`) ~2,7× mais rápida**: o cálculo do painel era montado com um join `tx.account_id = acc.id OR tx.transfer_account_id = acc.id` — com o `OR` o Postgres varria 75 contas × 14 mil lançamentos (1.055.595 avaliações de join, 1.037.774 linhas descartadas) e a tela levava **~405 ms** por chamada (pico de 5,2 s). Agora o mesmo cálculo sai de duas agregações (uma por lado da movimentação) somadas por hash join, sem varredura quadrática. **Os números não mudaram**: a saída antiga e a nova foram comparadas byte a byte em 6 meses (2025-12 a 2026-11) e são idênticas.
+
 ## [1.14.0] - 2026-10-21
 
 ### Adicionado

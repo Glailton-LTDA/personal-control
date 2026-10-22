@@ -196,6 +196,22 @@ export default function MFContas({
     return () => query.removeEventListener?.('change', onChange);
   }, []);
 
+  // Tablet (~768–1100px): a tabela cabe, mas apertada. As colunas
+  // numéricas encolhem e a coluna do nome ganha largura EXPLÍCITA — sem
+  // isso o nome da conta quebrava letra por letra (e invadia a linha de
+  // cima) quando as colunas fixas somavam mais que a largura livre.
+  const [isCompact, setIsCompact] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 1100px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const query = window.matchMedia('(max-width: 1100px)');
+    const onChange = (event) => setIsCompact(event.matches);
+    query.addEventListener?.('change', onChange);
+    setIsCompact(query.matches);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
+
   // A tela Contas lista apenas contas: cartões moram na aba Cartões.
   const rows = useMemo(
     () => (data?.rows ?? []).filter((row) => row.account_type !== 'CARTAO'),
@@ -523,13 +539,15 @@ export default function MFContas({
     }
   };
 
+  // Ordem das colunas: Saldo inicial · Saldo · Previsão · Receitas ·
+  // Despesas · Transferências (Ações no fim).
   const headers = [
     'accounts_table_initial',
+    'accounts_table_balance',
+    'accounts_table_forecast',
     'accounts_table_income',
     'accounts_table_expense',
     'accounts_table_transf',
-    'accounts_table_balance',
-    'accounts_table_forecast',
   ];
 
   /** Card de conta no modo estreito (layout do mockup: ícone + nome +
@@ -1351,21 +1369,28 @@ export default function MFContas({
           <table
             style={{
               width: '100%',
-              maxWidth: '100%',
+              // Abaixo da soma das colunas a tabela rola na horizontal
+              // (o container tem overflowX: auto) em vez de espremer a
+              // coluna do nome até o texto quebrar letra por letra.
+              minWidth: isCompact ? 816 : 1078,
               borderCollapse: 'collapse',
               tableLayout: 'fixed',
             }}
           >
             <colgroup>
-              <col />
-              <col style={{ width: 102 }} />
-              <col style={{ width: 102 }} />
-              <col style={{ width: 102 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 102 }} />
-              <col style={{ width: 102 }} />
+              {/* Nome da conta: largura explícita (com table-layout
+                  fixo, a 1ª coluna fica com o que sobrar das demais —
+                  sem isso ela colapsava e o nome quebrava letra a
+                  letra). */}
+              <col style={{ width: isCompact ? 168 : 210 }} />
+              <col style={{ width: isCompact ? 86 : 102 }} />
+              <col style={{ width: isCompact ? 86 : 102 }} />
+              <col style={{ width: isCompact ? 86 : 102 }} />
+              <col style={{ width: isCompact ? 94 : 110 }} />
+              <col style={{ width: isCompact ? 86 : 102 }} />
+              <col style={{ width: isCompact ? 86 : 102 }} />
               {/* 4 botões (~28px) + gaps + padding da célula */}
-              <col style={{ width: 146 }} />
+              <col style={{ width: isCompact ? 124 : 146 }} />
             </colgroup>
             <thead>
               <tr>
@@ -1553,12 +1578,37 @@ export default function MFContas({
                             )}
                           </span>
                         </td>
+                        {/* Saldo inicial = saldo do FIM do mês anterior
+                            (a abertura deste mês) — não o saldo de
+                            criação da conta. */}
                         <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
                           <MFTotalsStack
-                            totals={groupTotalsByCurrency(item.rows, 'initial_balance')}
+                            totals={groupTotalsByCurrency(item.rows, 'saldoPrev')}
                             showValues={showValues}
                             align="right"
                             fontSize="inherit"
+                          />
+                        </td>
+                        <td style={{ ...groupCellStyle, fontWeight: 800 }}>
+                          <MFTotalsStack
+                            totals={groupTotalsByCurrency(item.rows, 'saldo')}
+                            showValues={showValues}
+                            testId={
+                              isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'
+                            }
+                            align="right"
+                            fontSize="inherit"
+                            lineHeight={1.3}
+                            redNegative
+                          />
+                        </td>
+                        <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
+                          <MFTotalsStack
+                            totals={groupTotalsByCurrency(item.rows, 'previsto')}
+                            showValues={showValues}
+                            align="right"
+                            fontSize="inherit"
+                            mutedNegative
                           />
                         </td>
                         <td style={{ ...groupCellStyle, color: 'var(--success, #10b981)' }}>
@@ -1589,28 +1639,6 @@ export default function MFContas({
                           }}
                         >
                           {netTotalsText(item.rows)}
-                        </td>
-                        <td style={{ ...groupCellStyle, fontWeight: 800 }}>
-                          <MFTotalsStack
-                            totals={groupTotalsByCurrency(item.rows, 'saldo')}
-                            showValues={showValues}
-                            testId={
-                              isGroup ? `mf-group-total-${group.id}` : 'mf-ungrouped-total'
-                            }
-                            align="right"
-                            fontSize="inherit"
-                            lineHeight={1.3}
-                            redNegative
-                          />
-                        </td>
-                        <td style={{ ...groupCellStyle, color: 'var(--text-muted)' }}>
-                          <MFTotalsStack
-                            totals={groupTotalsByCurrency(item.rows, 'previsto')}
-                            showValues={showValues}
-                            align="right"
-                            fontSize="inherit"
-                            mutedNegative
-                          />
                         </td>
                         <td
                           style={{
@@ -1754,29 +1782,11 @@ export default function MFContas({
                         </span>
                       </span>
                     </td>
+                    {/* Saldo inicial = saldo do FIM do mês anterior (a
+                        abertura deste mês) — não o saldo de criação da
+                        conta. */}
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)' }}>
-                      {nativeMoney(row.initial_balance ?? 0, row.currency)}
-                    </td>
-                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--success, #10b981)' }}>
-                      {nativeMoney(row.receitas, row.currency)}
-                    </td>
-                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--danger, #ef4444)' }}>
-                      {nativeMoney(row.despesas, row.currency)}
-                    </td>
-                    <td
-                      style={{
-                        ...cellBase,
-                        textAlign: 'right',
-                        borderBottom: '1px solid var(--glass-border)',
-                        color:
-                          rowNetTransfer > 0
-                            ? 'var(--success, #10b981)'
-                            : rowNetTransfer < 0
-                              ? 'var(--danger, #ef4444)'
-                              : 'var(--text-muted)',
-                      }}
-                    >
-                      {netCellText(rowNetTransfer, row.currency)}
+                      {nativeMoney(row.saldoPrev ?? row.initial_balance ?? 0, row.currency)}
                     </td>
                     <td
                       style={{
@@ -1799,6 +1809,27 @@ export default function MFContas({
                       }}
                     >
                       {nativeMoney(row.previsto, row.currency)}
+                    </td>
+                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--success, #10b981)' }}>
+                      {nativeMoney(row.receitas, row.currency)}
+                    </td>
+                    <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--danger, #ef4444)' }}>
+                      {nativeMoney(row.despesas, row.currency)}
+                    </td>
+                    <td
+                      style={{
+                        ...cellBase,
+                        textAlign: 'right',
+                        borderBottom: '1px solid var(--glass-border)',
+                        color:
+                          rowNetTransfer > 0
+                            ? 'var(--success, #10b981)'
+                            : rowNetTransfer < 0
+                              ? 'var(--danger, #ef4444)'
+                              : 'var(--text-muted)',
+                      }}
+                    >
+                      {netCellText(rowNetTransfer, row.currency)}
                     </td>
                     <td style={{ ...cellBase, textAlign: 'right', borderBottom: '1px solid var(--glass-border)' }}>
                       {reordering ? (
