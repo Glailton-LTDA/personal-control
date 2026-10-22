@@ -34,6 +34,22 @@ describe('MFTotalsStack — uma moeda por linha', () => {
     expect(screen.getByText('•••')).toBeInTheDocument();
   });
 
+  it('signColors: cada moeda pela cor do seu sinal (transferências líquidas)', () => {
+    render(
+      <MFTotalsStack
+        totals={{ BRL: 300, USD: -120, EUR: 0 }}
+        signColors
+        testId="mf-stack-sinal"
+      />
+    );
+    // jsdom não resolve var() no CSSOM — o atributo mantém o texto.
+    const cor = (code) =>
+      screen.getByTestId(`mf-stack-sinal-line-${code}`).getAttribute('style') ?? '';
+    expect(cor('BRL')).toContain('var(--success');
+    expect(cor('USD')).toContain('var(--danger');
+    expect(cor('EUR')).toContain('var(--text-muted)');
+  });
+
   it('não desenha bandeiras — só a sigla do formatMoney (pedido do usuário)', () => {
     render(<MFTotalsStack totals={{ BRL: 10, USD: 5 }} testId="mf-sigla" />);
     const usd = screen.getByTestId('mf-sigla-line-USD').textContent;
