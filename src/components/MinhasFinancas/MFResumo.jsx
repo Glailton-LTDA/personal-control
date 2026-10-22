@@ -48,6 +48,7 @@ import {
   useMFGroups,
   useMFCardUpcoming,
   useMFRecentTransactions,
+  useMFPrefs,
   useMFNarrowScreen,
   useMFReorder,
   MF_BUILTIN_ACCOUNT_TYPES,
@@ -88,8 +89,6 @@ import {
   moveWidget,
   toggleAccountVisible,
   setHiddenAccounts,
-  loadWidgetPref,
-  saveWidgetPref,
 } from './mfDashboard';
 
 const goTo = (tab) => window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab } }));
@@ -231,28 +230,26 @@ export default function MFResumo({
 
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
-  // Ordenação das contas no Resumo, a critério do usuário (persistida).
-  // Padrão = manual (ordem do banco, reordenável com ↑/↓); 'name' gravado
-  // em versões antigas virava "Nome (A–Z)" de fato — antes só rotulava.
-  const [accountsSort, setAccountsSort] = useState(
-    () => localStorage.getItem('mf_accounts_sort') || 'manual'
-  );
+  // Preferências de interface sincronizadas entre aparelhos (painel do
+  // Resumo + critério de ordenação das contas).
+  const { prefs, save: savePrefs } = useMFPrefs(user);
+  const accountsSort = prefs.accountsSort;
   const [sortOpen, setSortOpen] = useState(false);
   // Modo reordenar (setas ↑/↓ nas linhas): só no critério "Manual" e
   // enquanto o botão "Reordenar" estiver ligado — mesmos padrão dos
   // grupos e da tela Contas; escolher outro critério desliga.
   const [accountsReordering, setAccountsReordering] = useState(false);
   const changeAccountsSort = (value) => {
-    setAccountsSort(value);
     setAccountsReordering(false);
-    localStorage.setItem('mf_accounts_sort', value);
     setSortOpen(false);
+    savePrefs({ accountsSort: value });
   };
   // Estreito (tablet retrato/mobile): cabeçalho compacto sem gráficos.
   const isNarrow = useMFNarrowScreen();
 
   // Painel personalizável (Fase 9): widgets + contas visíveis
-  const [widgetPref, setWidgetPref] = useState(loadWidgetPref);
+  // (preferência sincronizada entre aparelhos — ver useMFPrefs).
+  const widgetPref = prefs.dashboard;
   const [customizing, setCustomizing] = useState(false);
   // Menu de três pontos do cabeçalho: moedas + personalizar (padrão do app
   // de referência; no estreito vira bottom-sheet, como o sino).
@@ -316,8 +313,7 @@ export default function MFResumo({
       };
   const [acctSearch, setAcctSearch] = useState('');
   const updateWidgetPref = (next) => {
-    setWidgetPref(next);
-    saveWidgetPref(next);
+    savePrefs({ dashboard: next });
   };
   const orderedWidgets = visibleWidgets(widgetPref);
   const widgetLabel = (id) => t(`minhasfinancas.dash_widget_${id}`);

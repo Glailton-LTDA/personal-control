@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-10-21
+
+### Adicionado
+- **Preferências de interface sincronizadas entre aparelhos (MF)**: o painel do Resumo (ordem dos widgets, widgets/ contas/ gráficos ocultos) e o critério de ordenação das contas passaram a ser salvos **na conta** (tabela nova `mf_user_prefs`), e não só no `localStorage` do navegador — até agora cada aparelho tinha o seu próprio painel (o mesmo usuário via um layout diferente no celular, no tablet e no desktop). O `localStorage` continua como cache instantâneo (e funciona offline); a conta é a fonte da verdade. O **perfil ativo** e o **mês navegado** seguem locais de propósito: cada aparelho pode estar num perfil/mês diferente ao mesmo tempo, sem se atropelar.
+
+### Alterado
+- **Camada de preferências movida para `src/lib/mfPrefs.js`** (o `mfDashboard.js` continua exportando os mesmos símbolos, sem quebrar imports).
+
 ## [1.14.0] - 2026-10-21
 
 ### Adicionado
