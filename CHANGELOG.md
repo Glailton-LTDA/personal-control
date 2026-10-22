@@ -7,6 +7,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ## [1.14.1] - 2026-10-21
 
 ### Corrigido
+- **Coluna "Transferências" da tabela de Contas não empilhava as moedas**: as demais colunas mostram uma moeda por linha, mas a de transferências juntava tudo numa linha só ("R$ 0,00 - US$ 0,00"), o que não alinhava com o resto e ainda invadia a coluna vizinha (Saldo). Agora cada moeda ocupa a sua linha, com a cor pelo seu sinal (verde/vermelho/cinza) — a célula segue o mesmo padrão de `MFTotalsStack` usado nas outras colunas.
 - **Tabela de Contas no tablet: o nome da conta quebrava letra por letra e invadia a linha de cima**: com a largura do tablet (~975px) as colunas fixas somavam mais que o espaço livre e, como a 1ª coluna ficava com "o que sobrasse" (tabela com `table-layout: fixed`), ela colapsava — o nome da conta ("Nuconta") saía em uma coluna de ~20px, uma letra por linha, e transbordava por cima da linha do grupo. Agora a coluna do nome tem **largura explícita** e, até 1100px, as colunas numéricas encolhem (a tabela cabe sem espremer; abaixo disso ela rola na horizontal em vez de quebrar o texto).
 - **"Saldo inicial" da tabela de Contas era o saldo de criação da conta, não o do mês anterior**: a coluna mostrava `initial_balance` (o saldo com que a conta nasceu) em vez da abertura do mês — por isso as colunas não fechavam (ex.: Nuconta em outubro/26: 20.052,28 + 989,02 − 2.954,73 + 1.996,93 ≠ 34,27). Agora mostra o **saldo do fim do mês anterior** (`saldoPrev` da RPC): 3,05 + 989,02 − 2.954,73 + 1.996,93 = **34,27** ✓.
 

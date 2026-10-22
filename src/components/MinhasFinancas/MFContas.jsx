@@ -13,7 +13,6 @@ import {
   formatMoney,
   groupTotalsByCurrency,
   countableRows,
-  formatTotals,
   currentMonthKey,
   accountTypeInfo,
   currencyFlag,
@@ -433,23 +432,20 @@ export default function MFContas({
     return formatMoney(0, rowCurrency);
   };
 
-  /** Total líquido de transferências de um conjunto de contas (por moeda). */
-  const netTotalsText = (list) => {
-    if (!showValues) return '•••';
+  /**
+   * Transferência líquida por moeda (crédito − débito). Cada moeda vai
+   * para a SUA linha — antes as moedas iam juntas numa linha só ("R$ 0,00
+   * - US$ 0,00"), o que não empilhava como as outras colunas e ainda
+   * invadia a coluna vizinha.
+   */
+  const netByCurrency = (list) => {
     const credit = groupTotalsByCurrency(list, 'transfCredito');
     const debit = groupTotalsByCurrency(list, 'transfDebito');
     const net = {};
     new Set([...Object.keys(credit), ...Object.keys(debit)]).forEach((cur) => {
       net[cur] = (credit[cur] ?? 0) - (debit[cur] ?? 0);
     });
-    const value = sumMap(net);
-    const magnitude = Object.fromEntries(
-      Object.entries(net).map(([cur, amount]) => [cur, Math.abs(amount)])
-    );
-    const body = formatTotals(magnitude, true);
-    if (value < 0) return `−${body}`;
-    if (value > 0) return `+${body}`;
-    return body;
+    return net;
   };
 
   /** "Novembro de 2026" no idioma ativo (rótulo do card de movimento). */
@@ -467,9 +463,6 @@ export default function MFContas({
   ).length;
 
   // Totais do rodapé da tabela (base: contas listadas, com a busca aplicada).
-  const listedNetTransfer =
-    sumMap(groupTotalsByCurrency(accounts, 'transfCredito')) -
-    sumMap(groupTotalsByCurrency(accounts, 'transfDebito'));
   const listedGroupCount = new Set(
     accounts.map((row) => row.group_id).filter(Boolean)
   ).size;
@@ -1465,9 +1458,6 @@ export default function MFContas({
                   if (item.kind === 'group' || item.kind === 'ungrouped') {
                     const isGroup = item.kind === 'group';
                     const group = item.group;
-                    const itemNet =
-                      sumMap(groupTotalsByCurrency(item.rows, 'transfCredito')) -
-                      sumMap(groupTotalsByCurrency(item.rows, 'transfDebito'));
                     return (
                       <tr
                         key={isGroup ? `group-${group.id}` : 'ungrouped'}
@@ -1630,15 +1620,15 @@ export default function MFContas({
                         <td
                           style={{
                             ...groupCellStyle,
-                            color:
-                              itemNet > 0
-                                ? 'var(--success, #10b981)'
-                                : itemNet < 0
-                                  ? 'var(--danger, #ef4444)'
-                                  : 'var(--text-muted)',
                           }}
                         >
-                          {netTotalsText(item.rows)}
+                          <MFTotalsStack
+                            totals={netByCurrency(item.rows)}
+                            showValues={showValues}
+                            align="right"
+                            fontSize="inherit"
+                            signColors
+                          />
                         </td>
                         <td
                           style={{
@@ -2014,15 +2004,17 @@ export default function MFContas({
                       ...cellBase,
                       textAlign: 'right',
                       fontWeight: 700,
-                      color:
-                        listedNetTransfer > 0
-                          ? 'var(--success, #10b981)'
-                          : listedNetTransfer < 0
-                            ? 'var(--danger, #ef4444)'
-                            : 'var(--text-muted)',
                     }}
                   >
-                    {netTotalsText(accounts)}
+                    <MFTotalsStack
+                      totals={netByCurrency(accounts)}
+                      showValues={showValues}
+                      testId="mf-contas-foot-transf"
+                      align="right"
+                      fontSize="0.75rem"
+                      lineHeight={1.25}
+                      signColors
+                    />
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800 }}>
                     <MFTotalsStack
