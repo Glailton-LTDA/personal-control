@@ -8,7 +8,7 @@ import { confirmToast } from '../../lib/toast';
 import { supabase, getSignedUrl } from '../../lib/supabase';
 import { mfMutate } from '../../lib/offline/mfOffline';
 import {
-  useMFAllTransactions,
+  useMFSuggestionRows,
   useMFAccounts,
   useMFCategories,
   useMFTags,
@@ -153,7 +153,7 @@ export default function MFTransacaoScreen({
   const { data: tags = [] } = useMFTags(user);
   // Histórico para o autocomplete da descrição (criação): já vem do cache
   // (o agendador usa a mesma query), sem custo extra ao abrir a tela.
-  const { data: allTxs = [] } = useMFAllTransactions(user);
+  const { data: allTxs = [] } = useMFSuggestionRows(user);
   const createMutation = useCreateMFTransaction();
   const updateMutation = useUpdateMFTransaction();
   const deleteMutation = useDeleteMFTransaction();

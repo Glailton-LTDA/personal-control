@@ -41,6 +41,7 @@ vi.mock('../../lib/supabase', () => {
       update: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
       lte: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -181,6 +182,9 @@ vi.mock('../../hooks/useMinhasFinancas', async (importOriginal) => {
   return {
     ...actual,
     useMFAllTransactions: (...args) => allTxMock(...args),
+    // As sugestões do autocomplete vêm de um hook próprio (só as linhas
+    // recentes, com colunas mínimas).
+    useMFSuggestionRows: (...args) => allTxMock(...args),
   };
 });
 

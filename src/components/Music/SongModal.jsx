@@ -131,7 +131,7 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
         const updated = { ...existing, ...songPayload, updated_at: new Date().toISOString() };
         await putMusicSong(updated);
 
-        const engine = new SyncEngine(user.id, { skipMf: true });
+        const engine = new SyncEngine(user.id, { providers: ['music'] });
         if (engine.isOnline) {
           const { data, error } = await supabase
             .from('music_songs')
@@ -172,7 +172,7 @@ export default function SongModal({ isOpen, onClose, onRefresh, user, initialDat
         };
         await putMusicSong(newSong);
 
-        const engine = new SyncEngine(user.id, { skipMf: true });
+        const engine = new SyncEngine(user.id, { providers: ['music'] });
         if (engine.isOnline) {
           const { data, error } = await supabase
             .from('music_songs')

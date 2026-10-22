@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, FastForward } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  useMFAllTransactions,
+  useMFSeriesRows,
   useCreateMFTransaction,
   useUpdateMFTransaction,
   planCardAnticipation,
@@ -25,7 +25,6 @@ import MFSelect from './MFSelect';
  */
 export default function MFCardAnticipateModal({ tx, card, user, onClose }) {
   const { t, i18n } = useTranslation();
-  const { data: allTx = [], isLoading } = useMFAllTransactions(user);
   const createMutation = useCreateMFTransaction();
   const updateMutation = useUpdateMFTransaction();
   const [count, setCount] = useState('');
@@ -34,6 +33,8 @@ export default function MFCardAnticipateModal({ tx, card, user, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const rootId = tx ? (tx.parent_transaction_id ?? tx.id) : null;
+  // Só a série (raiz + irmãs) — antes a tela baixava a tabela inteira.
+  const { data: allTx = [], isLoading } = useMFSeriesRows(user, rootId);
 
   /** Série completa em ordem de parcela. */
   const series = useMemo(

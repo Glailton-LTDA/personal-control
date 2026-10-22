@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, FastForward } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  useMFAllTransactions,
+  useMFSeriesRows,
   useCreateMFTransaction,
   useUpdateMFTransaction,
   buildAnticipateTx,
@@ -22,7 +22,6 @@ import {
  */
 export default function MFAnticipateModal({ tx, user, currency = 'BRL', onClose }) {
   const { t } = useTranslation();
-  const { data: allTx = [], isLoading } = useMFAllTransactions(user);
   const createMutation = useCreateMFTransaction();
   const updateMutation = useUpdateMFTransaction();
   const [count, setCount] = useState('');
@@ -30,6 +29,8 @@ export default function MFAnticipateModal({ tx, user, currency = 'BRL', onClose 
   const [saving, setSaving] = useState(false);
 
   const rootId = tx ? (tx.parent_transaction_id ?? tx.id) : null;
+  // Só a série (raiz + irmãs) — antes a tela baixava a tabela inteira.
+  const { data: allTx = [], isLoading } = useMFSeriesRows(user, rootId);
 
   /** Série completa da parcela (raiz + filhas), em ordem de parcela. */
   const series = useMemo(

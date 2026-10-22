@@ -20,7 +20,7 @@ async function enrichSongsWithGenres(result) {
 }
 
 function createSyncEngine(userId) {
-  return new SyncEngine(userId, { skipMf: true });
+  return new SyncEngine(userId, { providers: ['music'] });
 }
 
 export function useOfflineSongs(userId, filters = {}) {
@@ -150,7 +150,7 @@ export function useOfflineCreateSong(userId) {
 
       await putMusicSong(song);
 
-      const engine = new SyncEngine(userId, { skipMf: true });
+      const engine = new SyncEngine(userId, { providers: ['music'] });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('music_songs').insert({
@@ -202,7 +202,7 @@ export function useOfflineUpdateSong(userId) {
       };
       await putMusicSong(updated);
 
-      const engine = new SyncEngine(userId, { skipMf: true });
+      const engine = new SyncEngine(userId, { providers: ['music'] });
       if (engine.isOnline) {
         try {
           const { data, error } = await supabase.from('music_songs')
@@ -240,7 +240,7 @@ export function useOfflineDeleteSong(userId) {
     mutationFn: async (id) => {
       await removeMusicSong(id);
 
-      const engine = new SyncEngine(userId, { skipMf: true });
+      const engine = new SyncEngine(userId, { providers: ['music'] });
       if (engine.isOnline) {
         try {
           const { error } = await supabase.from('music_songs').delete().eq('id', id);

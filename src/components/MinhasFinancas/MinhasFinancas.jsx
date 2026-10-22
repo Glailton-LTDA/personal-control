@@ -130,7 +130,10 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
   // pulls em background disputando com os mocks das queries).
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
-    const engine = new SyncEngine(user.id, { label: 'mf' });
+    // Só o provider do MF: antes o engine do módulo também baixava as
+    // 38 mil músicas (143 MB na tabela) — e o pull de música, sem índice
+    // em updated_at, estourava o tempo da requisição.
+    const engine = new SyncEngine(user.id, { label: 'mf', providers: ['mf'] });
     // O pull completo baixa as tabelas mf_* (e a de lançamentos é grande):
     // ele acontece no máximo uma vez a cada MF_SYNC_INTERVAL_MS por
     // sessão. Entre um pull e outro, o sync só esvazia a fila de escritas

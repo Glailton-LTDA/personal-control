@@ -4,6 +4,17 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-10-21
+
+### Corrigido
+- **Cada módulo puxava também os dados dos outros**: o `SyncEngine` registrava os três providers (música + viagens + MF) — abrir o Minhas Finanças baixava as **38 mil músicas** (143 MB na tabela) e o pull de música, sem índice em `updated_at`, ordenava tudo a cada página: **~7 s por requisição, voltando 500**. Agora cada módulo registra só o provider dele (`providers: ['mf' | 'music' | 'trips']`) e o índice `(user_id, updated_at)` derruba a query de **6.965 ms → 2,7 ms**.
+- **Rodapé (TOTAL) da tabela de Contas não batia com o cabeçalho**: ficou na ordem antiga depois da reordenação das colunas e ainda mostrava o saldo de criação da conta em vez do saldo do fim do mês anterior. Agora segue a mesma ordem e o mesmo critério das linhas.
+- **Telas do MF que baixavam a tabela INTEIRA de lançamentos (≈10 MB por abertura)**: o **sino de lembretes** (montado o tempo todo no cabeçalho) buscava as ~14 mil linhas só para contar lembretes — agora busca **só os pendentes**, com as colunas do planeador; o **autocomplete de descrições** (tela de edição) buscava a tabela inteira — agora só as **300 linhas mais recentes**, colunas mínimas; os **modais de antecipação de parcelas** buscavam a tabela inteira para achar meia dúzia de linhas da série — agora pegam **só a raiz e as irmãs**; a **importação** comparava contra a tabela inteira — agora compara **só a conta de destino**; e o **drill-down do cartão** pegava o histórico inteiro da conta vinculada — agora usa o mesmo recorte enxuto do cálculo de fatura (transações do cartão + transferências para ele + espelhos vinculados).
+
+### Alterado
+- **`useMFAllTransactions` aceita a conta de destino** (`accountId`) — sem ela, ela segue sendo a tabela inteira (use com cuidado).
+- **As consultas novas são filtradas no servidor** (`status = PENDENTE`, `invoice_close` do cartão, conta de destino), então o custo não cresce com o histórico.
+
 ## [1.15.0] - 2026-10-21
 
 ### Adicionado

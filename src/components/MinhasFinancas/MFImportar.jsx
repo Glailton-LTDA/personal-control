@@ -35,7 +35,6 @@ const fmtDate = (iso) => {
 export default function MFImportar({ user, showValues = true }) {
   const { t } = useTranslation();
   const { data: accounts = [] } = useMFAccounts(user);
-  const { data: allTransactions = [] } = useMFAllTransactions(user);
   const { data: batches = [] } = useMFImportBatches(user);
   const runImport = useRunMFImport();
 
@@ -49,6 +48,10 @@ export default function MFImportar({ user, showValues = true }) {
   const [invert, setInvert] = useState(false);
   const [fileError, setFileError] = useState(null);
   const [decisions, setDecisions] = useState({});
+
+  // Só a conta de destino entra na comparação de duplicidade — antes a
+  // tela baixava a tabela inteira de lançamentos.
+  const { data: allTransactions = [] } = useMFAllTransactions(user, accountId || null);
 
   // conta de destino: primeira por padrão
   useEffect(() => {

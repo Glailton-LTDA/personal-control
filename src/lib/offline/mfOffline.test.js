@@ -397,6 +397,19 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
     expect(await db.sync_queue.count()).toBe(0);
   });
 
+  it('cada módulo registra só o provider dele (o MF não baixa as 38 mil músicas)', () => {
+    const soMf = new SyncEngine('u1', { providers: ['mf'] });
+    const soMusica = new SyncEngine('u1', { providers: ['music'] });
+    const soViagens = new SyncEngine('u1', { providers: ['trips'] });
+    const todos = new SyncEngine('u1');
+
+    const nomes = (engine) => engine.providers.map((p) => p.constructor.name);
+    expect(nomes(soMf)).toEqual(['MfSyncProvider']);
+    expect(nomes(soMusica)).toEqual(['MusicSyncProvider']);
+    expect(nomes(soViagens)).toEqual(['TripsSyncProvider']);
+    expect(nomes(todos)).toHaveLength(3);
+  });
+
   it('drain da fila: junção upserta só colunas reais e apaga por transaction_id', async () => {
     const { supabase } = await import('../supabase');
     const engine = new SyncEngine(null);
