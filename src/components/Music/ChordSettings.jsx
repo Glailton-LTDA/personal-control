@@ -410,7 +410,7 @@ export default function ChordSettings({ user }) {
       // Sincroniza o banco de dados offline
       try {
         const { SyncEngine } = await import('../../lib/offline/SyncEngine');
-        const engine = new SyncEngine(user.id, { skipMf: true });
+        const engine = new SyncEngine(user.id, { providers: ['music'] });
         await engine.sync();
       } catch (syncErr) {
         console.warn('Erro ao sincronizar acordes offline:', syncErr);
@@ -462,7 +462,7 @@ export default function ChordSettings({ user }) {
       // Sincroniza o banco de dados offline
       try {
         const { SyncEngine } = await import('../../lib/offline/SyncEngine');
-        const engine = new SyncEngine(user.id, { skipMf: true });
+        const engine = new SyncEngine(user.id, { providers: ['music'] });
         await engine.sync();
       } catch (syncErr) {
         console.warn('Erro ao sincronizar exclusão de acordes offline:', syncErr);

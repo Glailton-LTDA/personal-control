@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import {
   useMFAccounts,
-  useMFAllTransactions,
+  useMFReminderRows,
   useMFNarrowScreen,
   formatMoney,
   mfInstallmentSuffix,
@@ -44,7 +44,9 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
   // breakpoint do Resumo, ≤768px).
   const isNarrow = useMFNarrowScreen();
   const { data: accounts = [] } = useMFAccounts(user);
-  const { data: allTx = [], isLoading } = useMFAllTransactions(user);
+  // Só os pendentes (e as colunas do planeador) — antes o sino baixava a
+  // tabela inteira de lançamentos a cada montagem do módulo.
+  const { data: allTx = [], isLoading } = useMFReminderRows(user);
   const [pushState, setPushState] = useState('unknown'); // on | off | unsupported | unknown
   const [pushBusy, setPushBusy] = useState(false);
 

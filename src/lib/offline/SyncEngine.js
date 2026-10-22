@@ -156,13 +156,12 @@ export class MfSyncProvider {
 
 export class SyncEngine {
   /**
-   * `options.skipMf` monta o engine sem o provider do Minhas Finanças.
-   * Sem isso, abrir Música ou Viagens baixava as 13 tabelas mf_* (e
-   * ~1.000 linhas de mf_transactions ≈ 740 KB) a cada montagem — o
-   * módulo MF sincroniza sozinho quando é aberto.
-   *
-   * `options.label` identifica o engine no evento `database-synced`
-   * (cada módulo só invalida as queries quando o pull foi dele).
+   * `options.providers` = quais providers registrar: 'music' | 'trips' |
+   * 'mf' (padrão: todos). Cada módulo registra só o que é dele — antes,
+   * abrir o Minhas Finanças baixava também as 38 mil músicas (143 MB na
+   * tabela) e o vice-versa. `label` identifica o engine no evento
+   * `database-synced` (cada módulo só invalida as queries quando o pull
+   * foi dele).
    */
   constructor(userId, options = {}) {
     this.userId = userId;
@@ -180,11 +179,10 @@ export class SyncEngine {
     }
 
     if (userId) {
-      this.registerProvider(new MusicSyncProvider(userId));
-      this.registerProvider(new TripsSyncProvider(userId));
-      if (!options.skipMf) {
-        this.registerProvider(new MfSyncProvider(userId));
-      }
+      const wanted = options.providers ?? ['music', 'trips', 'mf'];
+      if (wanted.includes('music')) this.registerProvider(new MusicSyncProvider(userId));
+      if (wanted.includes('trips')) this.registerProvider(new TripsSyncProvider(userId));
+      if (wanted.includes('mf')) this.registerProvider(new MfSyncProvider(userId));
     }
   }
 

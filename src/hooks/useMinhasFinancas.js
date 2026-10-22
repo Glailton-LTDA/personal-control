@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { readPrefsLocal, writePrefsLocal } from '../lib/mfPrefs';
 import { useMFProfileScope } from './mfProfileContext';
 import { useNotificationSettings } from './useFinance';
 import { mfSelect, mfSelectAll, mfMutate, isOffline } from '../lib/offline/mfOffline';
@@ -940,6 +941,93 @@ export function useMFLancamentos(user, monthKey) {
       return { transactions, tagIdsByTx };
     },
   });
+}
+
+/**
+ * Preferências de interface (painel do Resumo + critério de ordenação das
+ * contas) sincronizadas entre aparelhos.
+ *
+ * O localStorage é o cache instantâneo (e funciona offline); a conta do
+ * usuário (tabela `mf_user_prefs`) é a fonte da verdade — sem isso cada
+ * aparelho tinha o seu próprio painel (o mesmo usuário via um layout
+ * diferente no celular, no tablet e no desktop).
+ *
+ * O perfil ativo e o mês navegado NÃO sincronizam: cada aparelho pode
+ * estar num perfil/mês diferente ao mesmo tempo, sem se atropelar.
+ */
+export function useMFPrefs(user) {
+  const [prefs, setPrefs] = useState(() => readPrefsLocal());
+  const dirtyRef = useRef(false);
+  const timerRef = useRef(null);
+
+  // Servidor → local: se houver preferência salva na conta, ela vale.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('mf_user_prefs')
+          .select('data')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (cancelled || error || !data?.data) return;
+        // Mexeu localmente enquanto carregava: a conta não sobrescreve.
+        if (dirtyRef.current) return;
+        const remote = data.data;
+        if (JSON.stringify(remote) === JSON.stringify(readPrefsLocal())) return;
+        writePrefsLocal(remote);
+        setPrefs(remote);
+      } catch {
+        // Sem servidor (offline, mock ou tabela ainda não criada): o
+        // cache local manda — a preferência é a mesma de sempre.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Local → servidor: grava na hora no cache e envia (com folga) para a
+  // conta, para os outros aparelhos pegarem.
+  const save = useCallback(
+    (patch) => {
+      dirtyRef.current = true;
+      setPrefs((current) => {
+        const next = { ...current, ...patch };
+        writePrefsLocal(next);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          if (!user?.id) return;
+          try {
+            supabase
+              .from('mf_user_prefs')
+              .upsert(
+                { user_id: user.id, data: next, updated_at: new Date().toISOString() },
+                { onConflict: 'user_id' }
+              )
+              .then(
+                () => {},
+                () => {}
+              );
+          } catch {
+            // Sem servidor: a preferência fica só no cache local.
+          }
+        }, 700);
+        return next;
+      });
+    },
+    [user?.id]
+  );
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    []
+  );
+
+  return { prefs, save };
 }
 
 /**
@@ -3124,11 +3212,90 @@ export function planCardAnticipation({ series, anchorId, count, targetClose }) {
   return { moves, moved, shifted: rest };
 }
 
-/** Todos os lançamentos do usuário (janela livre — cartões e relatórios). */
-export function useMFAllTransactions(user) {
+/**
+ * Lembretes do dia (sino do Resumo).
+ *
+ * Só os lançamentos PENDENTE (o planeador ignora PAGO/CANCELADO) e só
+ * as colunas que ele lê. Antes o sino baixava a tabela INTEIRA (~14 mil
+ * linhas ≈ 10 MB) a cada montagem do módulo — e ele fica montado o
+ * tempo todo no cabeçalho.
+ */
+export function useMFReminderRows(user) {
+  return useQuery({
+    queryKey: ['mf-reminder-rows', user?.id],
+    enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mf_transactions')
+        .select(
+          'id,type,amount,description,payment_date,due_date,effective_date,status,account_id,invoice_close,installments_current,installments_total'
+        )
+        .eq('status', 'PENDENTE');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Sugestões de descrição (tela de edição de lançamento): as recentes,
+ * com as colunas mínimas. Antes eram as ~14 mil linhas da tabela
+ * inteira só para sugerir nomes já usados.
+ */
+export function useMFSuggestionRows(user, limit = 300) {
+  return useQuery({
+    queryKey: ['mf-suggestion-rows', user?.id, limit],
+    enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mf_transactions')
+        .select('id,type,description,payment_date,category_id,amount')
+        .order('payment_date', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Série de parcelas (antecipação): a raiz da série + as irmãs. Antes os
+ * modais de antecipação baixavam a tabela inteira para achar meia
+ * dúzia de linhas.
+ */
+export function useMFSeriesRows(user, rootId) {
+  return useQuery({
+    queryKey: ['mf-series-rows', user?.id, rootId ?? 'none'],
+    enabled: !!user?.id && !!rootId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mf_transactions')
+        .select(
+          'id,type,amount,description,payment_date,due_date,effective_date,status,account_id,transfer_account_id,category_id,notes,invoice_close,installments_current,installments_total,parent_transaction_id,auto_settle'
+        )
+        .or(`id.eq.${rootId},parent_transaction_id.eq.${rootId}`)
+        .order('installments_current', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Todos os lançamentos do usuário (janela livre — cartões e relatórios).
+ *
+ * `accountId` estreita o recorte (a importação só compara com a conta
+ * escolhida ✓); sem ele, é a tabela inteira — use com cuidado: são ~14 mil
+ * linhas. Para quem só precisa de um pedaço, prefira os hooks
+ * específicos (lembretes, sugestões, série de parcelas).
+ */
+export function useMFAllTransactions(user, accountId = null) {
   const profileId = useMFProfileScope();
   return useQuery({
-    queryKey: ['mf-all-transactions', user?.id, profileId ?? 'all'],
+    queryKey: ['mf-all-transactions', user?.id, profileId ?? 'all', accountId ?? 'all'],
     enabled: !!user?.id,
     queryFn: async () => {
       const scopeIds = await profileAccountIds(profileId);
@@ -3141,7 +3308,8 @@ export function useMFAllTransactions(user) {
             .select('*')
             .order('payment_date', { ascending: false })
             .order('id', { ascending: false });
-          if (scopeIds) query = query.in('account_id', scopeIds);
+          if (accountId) query = query.eq('account_id', accountId);
+          else if (scopeIds) query = query.in('account_id', scopeIds);
           return query;
         },
         {

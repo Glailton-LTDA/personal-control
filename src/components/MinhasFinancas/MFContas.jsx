@@ -1971,12 +1971,34 @@ export default function MFContas({
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', color: 'var(--text-muted)' }}>
                     <MFTotalsStack
-                      totals={groupTotalsByCurrency(accounts, 'initial_balance')}
+                      totals={groupTotalsByCurrency(accounts, 'saldoPrev')}
                       showValues={showValues}
                       testId="mf-contas-foot-initial"
                       align="right"
                       fontSize="0.75rem"
                       lineHeight={1.25}
+                    />
+                  </td>
+                  <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800 }}>
+                    <MFTotalsStack
+                      totals={groupTotalsByCurrency(accounts, 'saldo')}
+                      showValues={showValues}
+                      testId="mf-contas-foot-saldo"
+                      align="right"
+                      fontSize="0.78rem"
+                      lineHeight={1.25}
+                      redNegative
+                    />
+                  </td>
+                  <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)' }}>
+                    <MFTotalsStack
+                      totals={groupTotalsByCurrency(accounts, 'previsto')}
+                      showValues={showValues}
+                      testId="mf-contas-foot-previsto"
+                      align="right"
+                      fontSize="0.75rem"
+                      lineHeight={1.25}
+                      mutedNegative
                     />
                   </td>
                   <td style={{ ...cellBase, textAlign: 'right', color: 'var(--success, #10b981)', fontWeight: 700 }}>
@@ -2014,28 +2036,6 @@ export default function MFContas({
                       fontSize="0.75rem"
                       lineHeight={1.25}
                       signColors
-                    />
-                  </td>
-                  <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800 }}>
-                    <MFTotalsStack
-                      totals={groupTotalsByCurrency(accounts, 'saldo')}
-                      showValues={showValues}
-                      testId="mf-contas-foot-saldo"
-                      align="right"
-                      fontSize="0.78rem"
-                      lineHeight={1.25}
-                      redNegative
-                    />
-                  </td>
-                  <td style={{ ...cellBase, textAlign: 'right', fontWeight: 800, color: 'var(--text-muted)' }}>
-                    <MFTotalsStack
-                      totals={groupTotalsByCurrency(accounts, 'previsto')}
-                      showValues={showValues}
-                      testId="mf-contas-foot-previsto"
-                      align="right"
-                      fontSize="0.75rem"
-                      lineHeight={1.25}
-                      mutedNegative
                     />
                   </td>
                   <td />

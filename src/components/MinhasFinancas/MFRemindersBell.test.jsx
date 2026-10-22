@@ -34,7 +34,7 @@ vi.mock('../../hooks/useMinhasFinancas', () => ({
   useMFAccounts: () => ({
     data: [{ id: 'acc-1', name: 'Nuconta', account_type: 'CORRENTE', currency: 'BRL' }],
   }),
-  useMFAllTransactions: () => ({
+  useMFReminderRows: () => ({
     data: [
       {
         id: 'tx-rem',

@@ -4,7 +4,7 @@ import { Wallet, Check, Clock, Lock, LockOpen, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
-  useMFAccountTransactions,
+  useMFCardTransactions,
   useMFCategories,
   useUpdateMFTransaction,
   MF_INVOICE_PAYMENT_NOTE,
@@ -51,11 +51,15 @@ const chipStyle = (active, color) => ({
  */
 export default function MFCardInvoices({ card, user, showValues = true, monthKey = currentMonthKey(), onEditTx = null, onManualTx = null, onOpenTransfer = null }) {
   const { t, i18n } = useTranslation();
-  // Escopo enxuto: o cartão + a conta vinculada (faturas, pagamentos
-  // e vinculados) em vez das ~13 mil linhas de todas as contas.
-  const { data: transactions = [], isLoading: txLoading } = useMFAccountTransactions(user, card.id, [
-    card.linked_account_id,
-  ]);
+  // Escopo enxuto: as transações do cartão, as transferências para ele e
+  // os espelhos/linked da conta vinculada (o que o cálculo de fatura lê) —
+  // em vez do histórico inteiro da conta vinculada.
+  const { data: cardData, isLoading: txLoading } = useMFCardTransactions(
+    user,
+    [card],
+    monthKey
+  );
+  const transactions = useMemo(() => cardData?.transactions ?? [], [cardData]);
   const { data: categories = [] } = useMFCategories(user);
   // Fatura selecionada sobrevive ao F5 (por cartão, em qualquer
   // superfície); inválida ou sumida → corrente.
