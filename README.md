@@ -117,6 +117,36 @@ Os containers sobem sozinhos, mas o `auth` pode entrar em *crash-loop* até o ba
 
 Com o app aberto: DevTools → **Network** → filtre por `rest`. Todas as chamadas devem ir para `127.0.0.1:54421`; nenhuma para `*.supabase.co`.
 
+### 🚀 Migrations em produção (GitHub Actions)
+
+Migrations **não** são executadas pelo Vercel. O workflow [`.github/workflows/supabase-migrations.yml`](.github/workflows/supabase-migrations.yml) executa `supabase db push` automaticamente quando uma migration é mergeada na `main`. Ele serializa os deploys para que duas migrations nunca rodem ao mesmo tempo e confirma o histórico ao final.
+
+#### Configuração única no GitHub
+
+Em **Settings → Secrets and variables → Actions**, crie estes **repository secrets** (nunca adicione valores em `.env`, commits ou PRs):
+
+| Secret | Valor |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | Personal Access Token em [Supabase Account Tokens](https://supabase.com/dashboard/account/tokens) |
+| `SUPABASE_DB_PASSWORD` | Senha do banco do projeto, em **Supabase Dashboard → Connect** |
+
+O projeto alvo fica explicitamente fixado no workflow. O token e a senha só ficam disponíveis no runner durante a execução e não são mostrados nos logs.
+
+#### Fluxo para cada alteração de schema
+
+1. Crie uma migration em uma branch: `npx supabase migration new descricao_da_mudanca`.
+2. Escreva/revise o SQL e valide localmente: `npx supabase db reset`.
+3. Abra e faça merge do PR na `main`.
+4. O Actions **Apply Supabase production migrations** aplica somente as migrations pendentes e valida o histórico.
+
+O Vercel continua sendo disparado pela integração Git no mesmo push, portanto pode executar **em paralelo** ao Actions. Migrations devem ser retrocompatíveis (por exemplo: adicionar uma coluna nullable antes de o frontend passar a exigi-la). Para garantir migration antes do deploy do frontend, o deploy do Vercel deverá migrar para um workflow do Actions; não desative a integração atual sem preparar essa troca.
+
+Não use `npx supabase db reset --linked` nem `--include-seed` em produção: ambos são inadequados para o banco com dados reais. Para uma verificação manual sem alterar nada, use:
+
+```bash
+npx supabase db push --dry-run --project-ref xfcehxyhhmuscodilfha
+```
+
 
 ## 🧪 Test Suite
 

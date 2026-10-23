@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.16.1] - 2026-10-23
+
+### Adicionado
+- **Deploy automático de migrations em produção**: o GitHub Actions `Apply Supabase production migrations` executa `supabase db push` quando `supabase/migrations/**` é mergeado na `main`, serializa execuções para impedir concorrência e confirma o histórico ao final. O README documenta os dois secrets necessários (`SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD`) e o fluxo local → PR → produção.
+
 ## [1.16.0] - 2026-10-22
 
 ### Adicionado
