@@ -85,16 +85,18 @@ test.describe('Autenticação - Senha', () => {
   });
 
   test('deve exibir formulário de nova senha ao acessar pelo link de recuperação', async ({ page }) => {
-    // Mock da sessão inicial para recuperação
-    await page.addInitScript(() => {
-      const token = JSON.stringify({
-        access_token: 'mock-token',
-        refresh_token: 'mock-refresh',
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        user: { id: 'user-123', email: 'test@example.com' }
-      });
-      window.localStorage.setItem('sb-xfcehxyhhmuscodilfha-auth-token', token);
-    });
+    // Este teste faz login real (mockado) antes de simular o link de recuperação,
+    // então precisa de mais tempo que o padrão de 30 s.
+    test.setTimeout(90000);
+
+    // Faz o login mockado: o supabase-js grava a sessão na chave de storage
+    // derivada da URL do projeto em uso (não dá para hardcodar o ref, que muda
+    // entre produção e o Supabase local em Docker).
+    await page.goto('/');
+    await page.fill('input[type="email"]', 'test@example.com');
+    await page.fill('input[type="password"]', 'password123');
+    await page.getByTestId('login-btn').click();
+    await expect(page.getByText('Personal Control').first()).toBeVisible({ timeout: 15000 });
 
     // Simula o acesso via link de recuperação
     await page.goto('/#type=recovery');
