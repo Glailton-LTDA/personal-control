@@ -4,6 +4,21 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-10-22
+
+### Adicionado
+- **Ambiente de desenvolvimento local (Supabase em Docker)**: o repositório passa a ter `supabase/config.toml` + `supabase/seed.sql`, então `npx supabase start` sobe banco/API/Studio na máquina e `npm run dev` aponta para ele. O objetivo é **parar de desenvolver contra produção** — o dev server em `localhost:5173` era a maior fonte de egress do projeto (~148 MB em 24 h, medidos nos logs). As portas ficam em **544xx** (API 54421, banco 54422, Studio 54423, e-mail 54424, analytics 54427) para conviver com outro projeto Supabase local nas portas padrão.
+- **`supabase/seed.sql` (mínimo, não é dump de produção)**: usuário local de desenvolvimento e 4 contas (corrente, cartão, poupança e uma carteira em **USD**), 7 categorias com uma subcategoria, e lançamentos que cobrem os cenários das telas: **fatura fechada em aberto**, **fatura fechada e paga** (com o pagamento vinculado por `invoice_close`), **fatura corrente**, **parcela 3/10**, **gasto fixo mensal**, **transferência entre contas**, **receita**, viagem passada e futura (com despesa e itinerário) e investimento **Rendimentos / Mercado Pago** com 2 registros.
+- **Migration baseline (`20200101000000_baseline_schema.sql`)**: 38 tabelas, 2 views e 2 funções (`get_artists_by_letter`, `get_public_key_by_email`) que só existiam porque foram criadas direto no painel do Supabase. O arquivo foi gerado a partir do catálogo de produção (`pg_catalog`), com 115 constraints, 28 índices e 77 policies.
+
+### Corrigido
+- **A cadeia de migrations não aplicava do zero**: a primeira (`20260620143000_add_order_index_to_custom_list_items.sql`) quebrava com `relation "public.custom_list_items" does not exist`, porque 38 tabelas nunca tiveram migration. Com o baseline, `supabase db reset` aplica as 26 migrations e deixa o schema igual ao de produção — conferido fato a fato (colunas, defaults, constraints, índices, policies, views, funções **e grants**): **1.020 fatos + 160 grants idênticos**, sobrando só 1 índice que existe apenas no local (`idx_mf_import_batches_user`, criado por migration e ausente em produção) e diferenças de encoding nos nomes de policy. Os grants foram gerados do ACL real (não são uniformes: `cars`, `trips` e outras 15 tabelas não têm `anon` em produção), e o baseline revoga o `anon` que o stack local concede por *default privileges*.
+- **Colunas de `mf_accounts` que existiam só em produção**: `linked_account_id` (usada por `mf_card_cycle_totals`) e `card_brand` foram criadas fora de migration — o `mf_card_cycle_totals` nem aplicava do zero. Nova migration `20261021000000_mf_accounts_linked_account_and_brand.sql` repõe as duas.
+
+### Alterado
+- **`.env.local` passa a apontar para o banco local** (`http://127.0.0.1:54421`), com a chave anon do stack de desenvolvimento. O arquivo é ignorado pelo git; `.env.local.example` (commitado) traz os mesmos valores para copiar.
+- **Teste E2E de recuperação de senha** deixou de injetar a sessão com a chave de storage da produção (`sb-xfcehxyhhmuscodilfha-auth-token`) e passou a fazer o login mockado, então funciona com qualquer URL de projeto (produção ou local).
+
 ## [1.15.1] - 2026-10-21
 
 ### Corrigido
