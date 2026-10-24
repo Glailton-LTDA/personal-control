@@ -216,7 +216,12 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
 
       const offline = typeof navigator !== 'undefined' && !navigator.onLine;
       if (offline) {
-        // Só há metadados no cache (a cifra nunca foi aberta neste aparelho).
+        // Sem conexão não dá para baixar a cifra: abre o que estiver no cache.
+        // A música pode simplesmente ainda não ter cifra cadastrada.
+        if (localSong) {
+          setSelectedSong(localSong);
+          return;
+        }
         toast.error(t('music.song_not_found'));
         if (navigate) navigate('music/repertoire');
         return;
@@ -314,28 +319,31 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
     let fullSong = song;
 
     // A listagem traz só metadados; o editor precisa do texto da cifra para
-    // não salvar `content` vazio por cima do original.
+    // não salvar `content` vazio por cima do original. Só bloqueia quando a
+    // busca falha: música sem cifra é válida e pode receber o texto agora.
     if (song?.id && song.type !== 'partitura' && !song.content) {
-      try {
-        const { getMusicSong } = await import('../../lib/offline/db');
-        const cached = await getMusicSong(song.id);
-        if (cached?.content) {
-          fullSong = { ...song, ...cached };
-        } else {
-          const { data } = await supabase
+      const { getMusicSong } = await import('../../lib/offline/db');
+      const cached = await getMusicSong(song.id);
+      if (cached?.content) {
+        fullSong = { ...song, ...cached };
+      } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        // Offline e sem a cifra original: salvar sobrescreveria o conteúdo.
+        toast.error(t('music.song_not_found'));
+        return;
+      } else {
+        try {
+          const { data, error } = await supabase
             .from('music_songs')
             .select('*')
             .eq('id', song.id)
             .single();
+          if (error) throw error;
           if (data) fullSong = { ...song, ...data };
+        } catch (err) {
+          console.warn('Erro ao carregar a cifra para edição:', err);
+          toast.error(t('music.song_not_found'));
+          return;
         }
-      } catch (err) {
-        console.warn('Erro ao carregar a cifra para edição:', err);
-      }
-      if (!fullSong.content) {
-        // Sem o texto original, abrir o editor salvaria `content` vazio.
-        toast.error(t('music.song_not_found'));
-        return;
       }
     }
 

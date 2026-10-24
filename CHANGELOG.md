@@ -14,6 +14,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Corrigido
 - **Criação de música com gênero no ambiente local**: o `supabase/seed.sql` agora cria os 36 gêneros padrão com os mesmos UUIDs e o mesmo dono da produção (`9659a65c-…`). Sem eles, o insert falhava com 409 por violação de `music_songs_genre_id_fkey` e a policy `auth.uid() = user_id` escondia os gêneros do app.
 - **Falha silenciosa ao criar música**: quando o servidor recusa o insert, o editor remove a cópia temporária do cache e mostra o toast de erro. Antes ele exibia "Música criada" e deixava uma música fantasma que nunca chegava ao servidor.
+- **Música ainda sem cifra**: abrir o editor de uma música cadastrada sem texto falhava com "Música não encontrada". Agora só bloqueia quando a busca da cifra falha de verdade; a música sem cifra abre normalmente para receber o texto. Offline, sem a cifra no cache, a edição continua bloqueada para não sobrescrever o conteúdo do servidor, mas a música já cacheada pode ser visualizada.
 
 ## [1.17.0] - 2026-10-24
 

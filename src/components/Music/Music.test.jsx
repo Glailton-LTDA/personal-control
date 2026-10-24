@@ -40,6 +40,9 @@ vi.mock('./SheetViewer', () => ({ default: () => <div data-testid="sheet-viewer"
 vi.mock('./SongModal', () => ({ default: () => <div data-testid="song-modal" /> }));
 vi.mock('./ChordSettings', () => ({ default: () => <div data-testid="chord-settings" /> }));
 vi.mock('./Setlists', () => ({ default: () => <div data-testid="setlists-comp" /> }));
+vi.mock('./SongEditor', () => ({
+  default: ({ initialData }) => <div data-testid="song-editor">{initialData?.title}</div>,
+}));
 
 // Mock offline hooks
 const mockUseOfflineSongs = vi.fn();
@@ -118,6 +121,7 @@ describe('Music Component', () => {
   beforeEach(() => {
     sessionStorage.removeItem('music-session-state');
     vi.clearAllMocks();
+    mockSongsQuery.single.mockReset();
     
     // Default mocks
     mockSongsQuery.range.mockResolvedValue({
@@ -392,5 +396,42 @@ describe('Music Component', () => {
     });
 
     await db.music_songs.delete('song-meta-1');
+  });
+
+  it('abre o editor de uma música que ainda não tem cifra', async () => {
+    const toast = (await import('react-hot-toast')).default;
+    mockSongsQuery.single.mockResolvedValue({
+      data: {
+        id: 's1',
+        user_id: mockUser.id,
+        title: 'Detalhes',
+        artist: 'Roberto Carlos',
+        type: 'cifra',
+        content: null,
+      },
+      error: null,
+    });
+
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getAllByTitle('music.edit_song_action')[0]);
+
+    expect(await screen.findByTestId('song-editor')).toBeDefined();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('não abre o editor quando a busca da cifra falha', async () => {
+    const toast = (await import('react-hot-toast')).default;
+    mockSongsQuery.single.mockResolvedValue({
+      data: null,
+      error: { message: 'network error' },
+    });
+
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getAllByTitle('music.edit_song_action')[0]);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('music.song_not_found'));
+    expect(screen.queryByTestId('song-editor')).toBeNull();
   });
 });
