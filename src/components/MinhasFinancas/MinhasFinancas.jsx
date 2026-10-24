@@ -18,6 +18,7 @@ import MFAddMenu from './MFAddMenu';
 import { MF_ADD_FAB } from './mfAddMenuData';
 import MFTransacaoScreen from './MFTransacaoScreen';
 import MFTransferModal from './MFTransferModal';
+import MFAccountDetail from './MFAccountDetail';
 import {
   currentMonthKey,
   useMFProfiles,
@@ -28,7 +29,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import { MFProfileContext } from '../../hooks/mfProfileContext';
 import { SyncEngine } from '../../lib/offline/SyncEngine';
-import { readMonthKey, writeMonthKey, requestNewAccount, clearNewAccountRequest } from './mfViewState';
+import { readMonthKey, writeMonthKey, requestNewAccount, clearNewAccountRequest, writeDrill } from './mfViewState';
 
 const PROFILE_STORAGE_KEY = 'mf_active_profile';
 
@@ -44,12 +45,14 @@ let lastMfPullAt = 0;
 
 /**
  * Container do módulo "Minhas Finanças".
- * `mode` corresponde à sub-aba ativa (ex.: "minhasfinancas-accounts" -> "accounts").
+ * `screen` corresponde à sub-aba ativa (ex.: "accounts", "cards", "resumo").
+ * `detailId` é o id da conta/cartão em detalhe (quando a URL é
+ * minhasfinancas/accounts/{id} ou minhasfinancas/cards/{id}).
  * O mês selecionado é compartilhado entre as telas do módulo.
  * Fase 9: perfil ativo (id | null = todos) fica em localStorage e alimenta
  * o `MFProfileContext` consumido pelos hooks de dados.
  */
-export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', showValues = true }) {
+export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', detailId = null, showValues = true }) {
   const { t } = useTranslation();
   const [key, setKey] = useState(0);
   // Mês sobrevive ao F5 (validado na leitura; drill-down idem, por tela).
@@ -60,8 +63,8 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
   // Saiu da aba Contas: descarta pedido pendente de "nova conta" do FAB
   // (senão o modal abriria sozinho numa próxima visita à tela).
   useEffect(() => {
-    if (mode !== 'accounts') clearNewAccountRequest();
-  }, [mode]);
+    if (screen !== 'accounts') clearNewAccountRequest();
+  }, [screen]);
   const [activeProfile, setActiveProfile] = useState(() => {
     try {
       return localStorage.getItem(PROFILE_STORAGE_KEY) || null;
@@ -102,7 +105,7 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
   const openNewAccount = () => {
     requestNewAccount();
     window.dispatchEvent(
-      new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas-accounts' } })
+      new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas/accounts' } })
     );
     // Evento para quem JÁ está na aba Contas; se a aba ainda vai montar,
     // o pedido fica pendente e é consumido no mount da tela.
@@ -181,9 +184,41 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
 
   useEffect(() => {
     setKey(prev => prev + 1);
-  }, [refreshKey, mode]);
+  }, [refreshKey, screen]);
 
   const screenProps = { user, monthKey, onChangeMonth: setMonthKey, showValues };
+  const navigateMf = (path) => {
+    window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: path } }));
+  };
+
+  // Conta ou cartão em detalhe (URL minhasfinancas/accounts/{id} ou /cards/{id}).
+  if (detailId && (screen === 'accounts' || screen === 'cards')) {
+    const target = accounts.find((row) => row.id === detailId) ?? null;
+    if (!target) {
+      return (
+        <MFProfileContext.Provider value={activeProfile}>
+          <MFPlaceholder mode={screen} />
+        </MFProfileContext.Provider>
+      );
+    }
+    return (
+      <MFProfileContext.Provider value={activeProfile}>
+        <MFAccountDetail
+          account={target}
+          user={user}
+          monthKey={monthKey}
+          onChangeMonth={setMonthKey}
+          showValues={showValues}
+          onClose={() => {
+            writeDrill(null);
+            navigateMf(`minhasfinancas/${screen}`);
+          }}
+          onOpenAccount={(row) => navigateMf(`minhasfinancas/accounts/${row.id}`)}
+          onOpenCard={(row) => navigateMf(`minhasfinancas/cards/${row.id}`)}
+        />
+      </MFProfileContext.Provider>
+    );
+  }
 
   return (
     <MFProfileContext.Provider value={activeProfile}>
@@ -252,20 +287,20 @@ export default function MinhasFinancas({ user, refreshKey, mode = 'resumo', show
           onClose={() => setTransferOpen(false)}
         />
 
-        {mode === 'resumo' && <MFResumo {...screenProps} />}
-        {mode === 'transactions' && <MFTransacoes {...screenProps} />}
-        {mode === 'accounts' && <MFContas {...screenProps} />}
-        {mode === 'statement' && <MFExtrato {...screenProps} />}
-        {mode === 'cards' && <MFCartoes {...screenProps} />}
-        {mode === 'reports' && <MFRelatorios {...screenProps} />}
-        {mode === 'import' && <MFImportar {...screenProps} />}
-        {mode === 'felix' && <MFFelix {...screenProps} />}
-        {mode === 'budgets' && <MFOrcamentos {...screenProps} />}
-        {mode === 'goals' && <MFObjetivos {...screenProps} />}
-        {mode === 'settings' && <MFConfig {...screenProps} />}
+        {screen === 'resumo' && <MFResumo {...screenProps} />}
+        {screen === 'transactions' && <MFTransacoes {...screenProps} />}
+        {screen === 'accounts' && <MFContas {...screenProps} />}
+        {screen === 'statement' && <MFExtrato {...screenProps} />}
+        {screen === 'cards' && <MFCartoes {...screenProps} />}
+        {screen === 'reports' && <MFRelatorios {...screenProps} />}
+        {screen === 'import' && <MFImportar {...screenProps} />}
+        {screen === 'felix' && <MFFelix {...screenProps} />}
+        {screen === 'budgets' && <MFOrcamentos {...screenProps} />}
+        {screen === 'goals' && <MFObjetivos {...screenProps} />}
+        {screen === 'settings' && <MFConfig {...screenProps} />}
         {!['resumo', 'transactions', 'accounts', 'statement', 'cards', 'reports', 'import', 'felix', 'budgets', 'goals', 'settings'].includes(
-          mode
-        ) && <MFPlaceholder mode={mode} />}
+          screen
+        ) && <MFPlaceholder mode={screen} />}
       </div>
     </MFProfileContext.Provider>
   );

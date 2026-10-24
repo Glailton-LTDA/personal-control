@@ -27,7 +27,7 @@ import MFTransferModal from './MFTransferModal';
 import MFGroupModal from './MFGroupModal';
 import MFGroupIcon from './MFGroupIcon';
 import MFAccountDetail from './MFAccountDetail';
-import { readDrill, writeDrill, hasNewAccountRequest, clearNewAccountRequest } from './mfViewState';
+import { hasNewAccountRequest, clearNewAccountRequest } from './mfViewState';
 
 const cellBase = {
   padding: '0.65rem 0.55rem',
@@ -180,6 +180,14 @@ export default function MFContas({
   // vizinho (a mesma ordem vale no Resumo — tudo ordena por sort_order).
   const [reordering, setReordering] = useState(false);
   const [selectedId, setSelectedId] = useState(null); // drill-down da conta
+  useEffect(() => {
+    if (!selectedId) return;
+    window.dispatchEvent(
+      new CustomEvent('set-active-tab', {
+        detail: { tab: `minhasfinancas/accounts/${selectedId}` },
+      })
+    );
+  }, [selectedId]);
   // Telas estreitas (tablet retrato/mobile): a tabela de 8 colunas quebra
   // letra por letra — troca por cards compactos (mesmos dados e ações
   // essenciais; o detalhe completo abre no toque).
@@ -381,26 +389,6 @@ export default function MFContas({
   const foundSelected = selectedId ? rows.find((row) => row.id === selectedId) : null;
   if (foundSelected) lastSelectedRef.current = foundSelected;
   const selectedRow = selectedId ? foundSelected || lastSelectedRef.current : null;
-
-  // Drill-down sobrevive ao F5: grava ao abrir, limpa ao fechar e
-  // restaura uma vez (quando as linhas chegam) se a conta existir.
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (selectedId) {
-      writeDrill({ tab: 'accounts', id: selectedId });
-      return;
-    }
-    if (restoredRef.current) {
-      writeDrill(null);
-      return;
-    }
-    if (rows.length === 0) return;
-    restoredRef.current = true;
-    const saved = readDrill();
-    if (saved?.tab === 'accounts' && saved?.id && rows.some((row) => row.id === saved.id)) {
-      setSelectedId(saved.id);
-    }
-  }, [selectedId, rows]);
 
   // Pedido de "nova conta" vindo do FAB global: abre o modal no mount ou
   // pelo evento. O pedido só é limpo quando o modal fecha — assim ele
@@ -745,13 +733,10 @@ export default function MFContas({
           onClose={() => setSelectedId(null)}
           onEdit={(row) => setAccountModal(row)}
           onOpenCard={(card) => {
-            // A aba Contas não guarda cartão no drill (lista só contas
-            // comuns) — salva o alvo e pula para a aba Cartões, que
-            // restaura o drill salvo ao montar.
-            writeDrill({ tab: 'cards', id: card.id });
-            window.dispatchEvent(
-              new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas-cards' } })
-            );
+            // Cartão abre sua própria rota de detalhe, mesmo vindo da conta.
+            window.dispatchEvent(new CustomEvent('set-active-tab', {
+              detail: { tab: `minhasfinancas/cards/${card.id}` },
+            }));
           }}
           onOpenAccount={(row) => setSelectedId(row.id)}
         />

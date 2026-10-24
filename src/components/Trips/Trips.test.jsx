@@ -118,7 +118,7 @@ describe('Trips Component', () => {
       expect(dispatchSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'set-active-tab',
-          detail: { tab: 'trips-list' }
+          detail: { tab: 'trips/list' }
         })
       );
     });

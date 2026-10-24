@@ -130,10 +130,10 @@ describe('Dashboard Navigation', () => {
     });
 
     await act(async () => {
-      window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-itinerary' } }));
+      window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips/itinerary' } }));
     });
 
-    expect(localStorage.getItem('personal-control-active-tab')).toBe('trips-itinerary');
+    expect(localStorage.getItem('personal-control-active-tab')).toBe('trips/itinerary');
   });
 
   it('handles navigate-to-itinerary event and sets tripId in localStorage', async () => {
@@ -146,7 +146,7 @@ describe('Dashboard Navigation', () => {
     });
 
     expect(localStorage.getItem('pc_selected_trip_v1')).toBe('trip-abc');
-    expect(localStorage.getItem('personal-control-active-tab')).toBe('trips-itinerary');
+    expect(localStorage.getItem('personal-control-active-tab')).toBe('trips/itinerary');
   });
 
   it('filters navigation items based on visible modules stored in localStorage', async () => {

@@ -490,8 +490,44 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
 
     for (const [tab, testid] of screens) {
       await page.getByTestId(`sidebar-sub-item-minhasfinancas-${tab}`).click();
+      await expect(page).toHaveURL(new RegExp(`/minhasfinancas/${tab}$`));
       await expect(page.getByTestId(testid)).toBeVisible();
     }
+  });
+
+  test('detalhe de conta e cartão abre por URL e sobrevive ao refresh', async ({ page }) => {
+    await login(page);
+    page.mfStore.mf_accounts.push({
+      id: 'card-route-e2e',
+      user_id: 'user-e2e',
+      name: 'Cartão rota',
+      account_type: 'CARTAO',
+      initial_balance: 0,
+      currency: 'BRL',
+      closing_day: 20,
+      due_day: 27,
+      sort_order: 1,
+      is_active: true,
+    });
+
+    for (const [path, name] of [
+      ['/minhasfinancas/accounts/acc-e2e', 'Nubank'],
+      ['/minhasfinancas/cards/card-route-e2e', 'Cartão rota'],
+    ]) {
+      await page.goto(path);
+      await expect(page.getByTestId('mf-account-detail')).toBeVisible();
+      await expect(page.getByRole('heading', { name: new RegExp(name) })).toBeVisible();
+      await page.reload();
+      await expect(page.getByTestId('mf-account-detail')).toBeVisible();
+      await expect(page.getByRole('heading', { name: new RegExp(name) })).toBeVisible();
+    }
+
+    await page.goto('/minhasfinancas/accounts');
+    await page.getByTestId('mf-open-account-acc-e2e').click();
+    await expect(page).toHaveURL('/minhasfinancas/accounts/acc-e2e');
+    await page.goBack();
+    await expect(page).toHaveURL('/minhasfinancas/accounts');
+    await expect(page.getByTestId('mf-contas')).toBeVisible();
   });
 
   test('cria um lançamento pela tela de edição', async ({ page }) => {

@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-10-24
+
+### Adicionado
+- **Rotas aninhadas em todos os menus**: URLs passam a seguir o padrão `/modulo/tela` (por exemplo, `/minhasfinancas/accounts`, `/trips/itinerary` e `/music/setlists`). Contas e cartões do Minhas Finanças também têm rotas por ID (`/minhasfinancas/accounts/{id}` e `/minhasfinancas/cards/{id}`), que preservam o detalhe ao atualizar e permitem voltar pelo histórico do navegador.
+- **Deep links do repertório**: música, artista e filtro alfabético usam segmentos próprios na URL.
+
+### Alterado
+- **Compatibilidade de rotas antigas**: URLs com hífens são redirecionadas para o novo padrão sem adicionar uma entrada extra ao histórico.
+- **Estado de detalhe de conta/cartão**: a URL passa a ser a fonte da verdade; o drill legado em `localStorage` não reabre detalhes ao navegar para trás.
+
 ## [1.16.1] - 2026-10-23
 
 ### Adicionado

@@ -28,14 +28,14 @@ const moduleData = {
 
 const getModuleInitialTab = (id) => {
   if (id === 'launchpad') return 'launchpad';
-  if (id === 'finances') return 'finances-dashboard';
-  if (id === 'minhasfinancas') return 'minhasfinancas-resumo';
-  if (id === 'cars') return 'cars-list';
-  if (id === 'investments') return 'investments-dashboard';
-  if (id === 'trips') return 'trips-list';
-  if (id === 'lists') return 'lists-manager';
-  if (id === 'music') return 'music-repertoire';
-  if (id === 'settings') return 'settings-general';
+  if (id === 'finances') return 'finances/dashboard';
+  if (id === 'minhasfinancas') return 'minhasfinancas';
+  if (id === 'cars') return 'cars/list';
+  if (id === 'investments') return 'investments/dashboard';
+  if (id === 'trips') return 'trips/list';
+  if (id === 'lists') return 'lists/manager';
+  if (id === 'music') return 'music/repertoire';
+  if (id === 'settings') return 'settings/general';
   return id;
 };
 

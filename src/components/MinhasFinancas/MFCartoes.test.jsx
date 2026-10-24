@@ -170,18 +170,12 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     localStorage.removeItem('pc_skip_confirmations');
   });
 
-  it('drill do cartão sobrevive ao F5 e limpa ao fechar', async () => {
+  it('ignora drill legado no localStorage: a rota é a fonte da verdade', async () => {
     localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'cards', id: 'acc-card' }));
     renderScreen();
     await waitFor(() => {
-      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-cards-grid')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTestId('mf-acct-det-back'));
-    await waitFor(() => {
-      expect(screen.queryByTestId('mf-account-detail')).not.toBeInTheDocument();
-    });
-    expect(localStorage.getItem('mf_detail_drill')).toBeNull();
   });
 
   it('chip da conta vinculada no widget abre o detalhe da conta', async () => {
@@ -190,6 +184,9 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(screen.getByTestId('mf-card-open-account-acc-card')).toBeInTheDocument();
     });
 
+    const routeEvents = [];
+    const onRoute = (event) => routeEvents.push(event.detail);
+    window.addEventListener('set-active-tab', onRoute);
     fireEvent.click(screen.getByTestId('mf-card-open-account-acc-card'));
 
     await waitFor(() => {
@@ -197,9 +194,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
     // é o detalhe da CONTA (lista o cartão vinculado), não do cartão
     expect(screen.getByTestId('mf-linked-card-acc-card')).toBeInTheDocument();
-    expect(
-      JSON.parse(localStorage.getItem('mf_detail_drill'))
-    ).toEqual({ tab: 'cards', id: 'acc-check' });
+    expect(routeEvents).toContainEqual({ tab: 'minhasfinancas/accounts/acc-check' });
+    window.removeEventListener('set-active-tab', onRoute);
   });
 
   it('detalhe do cartão: chip da conta vinculada leva ao detalhe da conta', async () => {
@@ -212,13 +208,15 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(screen.getByTestId('mf-open-linked-account')).toBeInTheDocument();
     });
 
+    const routeEvents = [];
+    const onRoute = (event) => routeEvents.push(event.detail);
+    window.addEventListener('set-active-tab', onRoute);
     fireEvent.click(screen.getByTestId('mf-open-linked-account'));
 
     await waitFor(() => {
-      expect(
-        JSON.parse(localStorage.getItem('mf_detail_drill'))
-      ).toEqual({ tab: 'cards', id: 'acc-check' });
+      expect(routeEvents).toContainEqual({ tab: 'minhasfinancas/accounts/acc-check' });
     });
+    window.removeEventListener('set-active-tab', onRoute);
     // detalhe da conta Nubank lista o cartão vinculado (era o cartão antes)
     expect(screen.getByTestId('mf-linked-card-acc-card')).toBeInTheDocument();
   });
@@ -234,9 +232,9 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   });
 
   it('fatura selecionada sobrevive ao F5 e volta à corrente ao trocar', async () => {
-    localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'cards', id: 'acc-card' }));
     localStorage.setItem('mf_invoice_sel_acc-card', '2026-08-10');
     renderScreen();
+    fireEvent.click(await screen.findByTestId('mf-open-card-acc-card'));
     // abre direto na fatura salva (paga), não na corrente
     await waitFor(() => {
       expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(

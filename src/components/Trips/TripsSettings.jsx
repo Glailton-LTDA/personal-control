@@ -269,7 +269,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                             onClick={() => {
                               localStorage.setItem('pc_selected_trip_v1', trip.id);
                               if (onSelectTrip) onSelectTrip(trip);
-                              window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+                              window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips/list' } }));
                             }} 
                             title={t('trips.dashboard_tooltip')}
                           >
@@ -287,7 +287,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
                             onClick={() => {
                               localStorage.setItem('pc_selected_trip_v1', trip.id);
                               if (onSelectTrip) onSelectTrip(trip);
-                              window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+                              window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips/list' } }));
                             }} 
                             title={t('trips.dashboard_tooltip')}
                           >

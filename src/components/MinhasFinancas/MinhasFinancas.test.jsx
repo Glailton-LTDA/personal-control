@@ -81,7 +81,7 @@ describe('MinhasFinancas', () => {
 
   it('mês selecionado sobrevive ao F5', async () => {
     localStorage.setItem('mf_month_key', '2026-09');
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="resumo" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="resumo" />);
 
     await waitFor(() => {
       expect(screen.getByTestId('mf-month-label')).toHaveTextContent(
@@ -91,7 +91,7 @@ describe('MinhasFinancas', () => {
   });
 
   it('renderiza o Resumo com navegação de mês, KPIs e tabela de contas', async () => {
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="resumo" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="resumo" />);
 
     expect(screen.getByTestId('mf-resumo')).toBeInTheDocument();
     expect(screen.getByTestId('mf-month-nav')).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe('MinhasFinancas', () => {
   });
 
   it('renderiza o Extrato com estado vazio quando não há movimentações', async () => {
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="statement" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="statement" />);
 
     expect(screen.getByTestId('mf-extrato')).toBeInTheDocument();
     await waitFor(() => {
@@ -123,7 +123,7 @@ describe('MinhasFinancas', () => {
   });
 
   it('renderiza o placeholder para abas não implementadas', () => {
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="openfinance" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="openfinance" />);
 
     expect(screen.getByTestId('mf-placeholder-openfinance')).toBeInTheDocument();
     expect(screen.getByText('minhasfinancas.coming_soon')).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('MinhasFinancas', () => {
   });
 
   it('FAB "+" abre o menu com as 4 opções e cria pela sobreposição', async () => {
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="transactions" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="transactions" />);
 
     const fab = screen.getByTestId('mf-fab-add');
     fireEvent.click(fab);
@@ -244,7 +244,7 @@ describe('MinhasFinancas', () => {
   });
 
   it('FAB "+" do menu abre o modal de transferência direto', async () => {
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="resumo" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="resumo" />);
 
     fireEvent.click(screen.getByTestId('mf-fab-add'));
     fireEvent.click(screen.getByTestId('mf-add-opt-transfer'));
@@ -255,7 +255,7 @@ describe('MinhasFinancas', () => {
   });
 
   it('FAB esconde em detalhe de conta/cartão e em 2ª tela (eventos do módulo)', async () => {
-    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} mode="accounts" />);
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="accounts" />);
     expect(screen.getByTestId('mf-fab-add')).toBeInTheDocument();
 
     // Detalhe de conta/cartão aberto (MFAccountDetail dispara o contexto)
