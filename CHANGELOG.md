@@ -4,6 +4,13 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.17.1] - 2026-10-24
+
+### Alterado
+- **Músicas: cifras saem da listagem e da sincronização em bloco**: `music_songs` passa a ser consultada só com metadados (título, artista, tipo, gênero, links). No banco de produção, o texto das cifras ocupa ~8,8 MB contra ~0,2 MB de metadados para as 4.812 músicas; o `content` agora é baixado por ID apenas quando a música é aberta ou editada e fica no cache local.
+- **Abertura/edição de música**: o visualizador e o editor completam a cifra a partir do cache ou do servidor antes de exibir/salvar, evitando gravar `content` vazio por cima do original.
+- **Lista de artistas**: consultas de artistas (geral e por letra) ficam 5 minutos em cache, reduzindo rebaixamentos repetidos ao abrir o dropdown e trocar de letra.
+
 ## [1.17.0] - 2026-10-24
 
 ### Adicionado

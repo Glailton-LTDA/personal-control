@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getMusicSong, putMusicSong, removeMusicSong, generateUUID, fetchSongsFromDexie, db } from '../lib/offline/db';
 import { SyncEngine } from '../lib/offline/SyncEngine';
+import { MUSIC_SONG_LIST_COLUMNS, mergeSongCache } from '../lib/offline/musicQueries';
 
 async function enrichSongsWithGenres(result) {
   try {
@@ -66,7 +67,7 @@ export function useOfflineSongs(userId, filters = {}) {
       try {
         let query = supabase
           .from('music_songs')
-          .select('*', { count: 'exact' })
+          .select(MUSIC_SONG_LIST_COLUMNS, { count: 'exact' })
           .eq('user_id', userId)
           .order('is_favorite', { ascending: false })
           .order('title', { ascending: true });
@@ -94,9 +95,14 @@ export function useOfflineSongs(userId, filters = {}) {
         if (error) throw error;
 
         if (data) {
-          Promise.all(data.map(s => putMusicSong(s))).catch(e =>
-            console.error('Erro ao salvar músicas no Dexie:', e)
-          );
+          // A listagem não traz `content`; mescla com o cache para não apagar
+          // a cifra que já foi baixada quando a música foi aberta.
+          Promise.all(
+            data.map(async (song) => {
+              const cached = await getMusicSong(song.id);
+              return putMusicSong(mergeSongCache(cached, song));
+            })
+          ).catch((e) => console.error('Erro ao salvar músicas no Dexie:', e));
         }
         const result = { data: data || [], totalCount: count ?? 0 };
         return enrichSongsWithGenres(result);
@@ -208,13 +214,14 @@ export function useOfflineUpdateSong(userId) {
           const { data, error } = await supabase.from('music_songs')
             .update({ ...payload, updated_at: updated.updated_at })
             .eq('id', id)
-            .select()
+            .select(MUSIC_SONG_LIST_COLUMNS)
             .single();
           if (error) {
             console.warn('Erro ao atualizar no Supabase, enfileirando update:', error);
             await engine.enqueue('music_songs', id, 'update', { id, ...payload });
           } else if (data) {
-            await putMusicSong({ ...data, updated_at: new Date().toISOString() });
+            // Resposta estreita: mantém no cache a cifra que já estava salva.
+            await putMusicSong(mergeSongCache(updated, { ...data, updated_at: new Date().toISOString() }));
           }
         } catch (err) {
           console.warn('Falha de rede ao atualizar no Supabase, enfileirando update:', err);

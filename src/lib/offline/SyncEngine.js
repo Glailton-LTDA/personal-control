@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { db, MF_SYNC_TABLES } from './db';
+import { MUSIC_SONG_LIST_COLUMNS } from './musicQueries';
 
 export class MusicSyncProvider {
   constructor(userId) {
@@ -35,7 +36,7 @@ export class MusicSyncProvider {
     while (hasMore) {
       let query = supabase
         .from('music_songs')
-        .select('*')
+        .select(MUSIC_SONG_LIST_COLUMNS)
         .eq('user_id', this.userId)
         .order('updated_at', { ascending: true })
         .range(offset, offset + limit - 1);
@@ -48,7 +49,9 @@ export class MusicSyncProvider {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        await syncEngine.saveBatch('music_songs', data);
+        // Metadados apenas: `merge` mantém no Dexie o `content` das músicas
+        // que já foram abertas/editadas neste aparelho.
+        await syncEngine.saveBatch('music_songs', data, null, { merge: true });
         allPulledSongs.push(...data);
         offset += limit;
         if (data.length < limit) {
@@ -228,15 +231,27 @@ export class SyncEngine {
     return items;
   }
 
-  async saveBatch(table, items, mapper = null) {
+  async saveBatch(table, items, mapper = null, { merge = false } = {}) {
     const tableDb = db[table];
     if (!tableDb) throw new Error(`Unknown table: ${table}`);
+    const mapped = items.map((raw) => (mapper ? mapper(raw) : raw));
     await db.transaction('rw', tableDb, async () => {
-      for (const raw of items) {
-        const item = mapper ? mapper(raw) : raw;
-        await tableDb.put({ ...item, updated_at: item.updated_at || item.created_at || new Date().toISOString() });
+      // `merge` preserva campos que já existem no cache e não vieram no lote
+      // (ex.: o texto da cifra, baixado só quando a música é aberta).
+      const cached = merge
+        ? await tableDb.bulkGet(mapped.map((item) => item.id))
+        : [];
+      for (let index = 0; index < mapped.length; index += 1) {
+        const base = merge && cached[index]
+          ? { ...cached[index], ...mapped[index] }
+          : mapped[index];
+        await tableDb.put({
+          ...base,
+          updated_at: base.updated_at || base.created_at || new Date().toISOString(),
+        });
       }
     });
+    return items;
   }
 
   async pullAll() {

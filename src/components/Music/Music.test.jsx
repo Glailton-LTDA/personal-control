@@ -77,6 +77,7 @@ const mockSongsQuery = {
   eq: vi.fn().mockReturnThis(),
   order: vi.fn().mockReturnThis(),
   range: vi.fn().mockReturnThis(),
+  single: vi.fn(),
 };
 
 const mockUniqueArtistsQuery = {
@@ -337,5 +338,59 @@ describe('Music Component', () => {
         search: 'Amor',
       }));
     });
+  });
+
+  it('abre a música da rota pelo cache local quando a cifra já foi baixada', async () => {
+    const { db } = await import('../../lib/offline/db');
+    await db.music_songs.put({
+      id: 'song-cache-1',
+      user_id: mockUser.id,
+      title: 'Cache',
+      artist: 'Artista',
+      type: 'cifra',
+      content: 'C G Am F',
+    });
+
+    render(<Music user={mockUser} mode="song-song-cache-1" />, { wrapper: Wrapper });
+
+    expect(await screen.findByTestId('cifra-viewer')).toBeDefined();
+    expect(mockSongsQuery.select).not.toHaveBeenCalled();
+
+    await db.music_songs.delete('song-cache-1');
+  });
+
+  it('busca a cifra por id quando o cache só tem metadados', async () => {
+    const { db } = await import('../../lib/offline/db');
+    await db.music_songs.put({
+      id: 'song-meta-1',
+      user_id: mockUser.id,
+      title: 'Só metadados',
+      artist: 'Artista',
+      type: 'cifra',
+    });
+    mockSongsQuery.single.mockResolvedValue({
+      data: {
+        id: 'song-meta-1',
+        user_id: mockUser.id,
+        title: 'Só metadados',
+        artist: 'Artista',
+        type: 'cifra',
+        content: 'D A Bm G',
+      },
+      error: null,
+    });
+
+    render(<Music user={mockUser} mode="song-song-meta-1" />, { wrapper: Wrapper });
+
+    expect(await screen.findByTestId('cifra-viewer')).toBeDefined();
+    await waitFor(() => expect(mockSongsQuery.single).toHaveBeenCalled());
+    expect(mockSongsQuery.select).toHaveBeenCalledWith('*');
+
+    await waitFor(async () => {
+      const cached = await db.music_songs.get('song-meta-1');
+      expect(cached.content).toBe('D A Bm G');
+    });
+
+    await db.music_songs.delete('song-meta-1');
   });
 });
