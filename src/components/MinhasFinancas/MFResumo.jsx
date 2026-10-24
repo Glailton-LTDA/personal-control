@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -367,6 +367,16 @@ export default function MFResumo({
 
   // Drill-down: clicar numa conta abre o detalhe (padrão da tela Contas).
   const [selectedId, setSelectedId] = useState(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const target = rows.find((row) => row.id === selectedId);
+    const screen = target?.account_type === 'CARTAO' ? 'cards' : 'accounts';
+    window.dispatchEvent(
+      new CustomEvent('set-active-tab', {
+        detail: { tab: `minhasfinancas/${screen}/${selectedId}` },
+      })
+    );
+  }, [selectedId, rows]);
   const lastSelectedRef = useRef(null);
   const foundSelected = selectedId ? rows.find((row) => row.id === selectedId) : null;
   if (foundSelected) lastSelectedRef.current = foundSelected;
@@ -1268,7 +1278,7 @@ export default function MFResumo({
           testid: 'mf-resumo-account-row',
           sectionTestId: 'mf-resumo-accounts-section',
           actionTestId: 'mf-resumo-all-accounts',
-          tab: 'minhasfinancas-accounts',
+          tab: 'minhasfinancas/accounts',
         },
         {
           title: 'cards_title',
@@ -1276,7 +1286,7 @@ export default function MFResumo({
           testid: 'mf-resumo-card-row',
           sectionTestId: 'mf-resumo-cards-section',
           actionTestId: 'mf-resumo-all-cards',
-          tab: 'minhasfinancas-cards',
+          tab: 'minhasfinancas/cards',
         },
       ].filter((section) => section.rows.length > 0);
 
@@ -1292,7 +1302,7 @@ export default function MFResumo({
                 type="button"
                 className="btn-primary"
                 data-testid="mf-resumo-create-account"
-                onClick={() => goTo('minhasfinancas-accounts')}
+                onClick={() => goTo('minhasfinancas/accounts')}
                 style={{ display: 'inline-flex' }}
               >
                 <Plus size={16} />
@@ -2149,7 +2159,7 @@ export default function MFResumo({
               className="icon-btn"
               data-testid="mf-resumo-go-recent"
               aria-label={t('minhasfinancas.see_all')}
-              onClick={() => goTo('minhasfinancas-transactions')}
+              onClick={() => goTo('minhasfinancas/transactions')}
             >
               <ArrowRight size={15} />
             </button>
@@ -2171,7 +2181,7 @@ export default function MFResumo({
                   key={tx.id}
                   type="button"
                   data-testid={`mf-resumo-recent-row-${tx.id}`}
-                  onClick={() => goTo('minhasfinancas-transactions')}
+                  onClick={() => goTo('minhasfinancas/transactions')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2239,7 +2249,7 @@ export default function MFResumo({
           user={user}
           monthKey={monthKey}
           onOpenTx={(tx) => setPendingTx(tx)}
-          onSeeAll={() => goTo('minhasfinancas-transactions')}
+          onSeeAll={() => goTo('minhasfinancas/transactions')}
         />
       );
     }
@@ -2258,7 +2268,7 @@ export default function MFResumo({
               className="icon-btn"
               data-testid="mf-resumo-go-budgets"
               aria-label={t('minhasfinancas.see_all')}
-              onClick={() => goTo('minhasfinancas-budgets')}
+              onClick={() => goTo('minhasfinancas/budgets')}
             >
               <ArrowRight size={15} />
             </button>
@@ -2349,7 +2359,7 @@ export default function MFResumo({
               className="icon-btn"
               data-testid="mf-resumo-go-goals"
               aria-label={t('minhasfinancas.see_all')}
-              onClick={() => goTo('minhasfinancas-goals')}
+              onClick={() => goTo('minhasfinancas/goals')}
             >
               <ArrowRight size={15} />
             </button>

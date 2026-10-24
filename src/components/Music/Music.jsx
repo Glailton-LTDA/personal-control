@@ -144,7 +144,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
   const handleLetterClick = (letter) => {
     const charCode = letter === '#' ? 'num' : letter.toLowerCase();
     if (navigate) {
-      navigate(`music-repertoire-letter-${charCode}`);
+      navigate(`music/repertoire/letter/${charCode}`);
     } else {
       setActiveLetter(letter);
       setSelectedArtist('all');
@@ -155,7 +155,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
 
   const handleArtistClick = (artist) => {
     if (navigate) {
-      navigate(`music-repertoire-artist-${encodeURIComponent(artist)}`);
+      navigate(`music/repertoire/artist/${encodeURIComponent(artist)}`);
     } else {
       setSelectedArtist(artist);
       setPage(0);
@@ -164,7 +164,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
 
   const clearLetterFilter = () => {
     if (navigate) {
-      navigate('music-repertoire');
+      navigate('music/repertoire');
     } else {
       setActiveLetter(null);
       setSelectedArtist('all');
@@ -176,9 +176,9 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
     if (navigate) {
       if (activeLetter) {
         const charCode = activeLetter === '#' ? 'num' : activeLetter.toLowerCase();
-        navigate(`music-repertoire-letter-${charCode}`);
+        navigate(`music/repertoire/letter/${charCode}`);
       } else {
-        navigate('music-repertoire');
+        navigate('music/repertoire');
       }
     } else {
       setSelectedArtist('all');
@@ -188,7 +188,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
 
   const resetNavigation = () => {
     if (navigate) {
-      navigate('music-repertoire');
+      navigate('music/repertoire');
     } else {
       setActiveLetter(null);
       setSelectedArtist('all');
@@ -231,7 +231,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
       } catch (err) {
         console.error('Erro ao carregar música:', err);
         toast.error(t('music.song_not_found'));
-        if (navigate) navigate('music-repertoire');
+        if (navigate) navigate('music/repertoire');
       }
     };
 
@@ -376,12 +376,12 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
         {/* Back header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <a
-            href={subTab === 'setlists' ? "/music-setlists" : "/music-repertoire"}
+            href={subTab === 'setlists' ? "/music/setlists" : "/music/repertoire"}
             className="icon-btn"
             onClick={(e) => {
               e.preventDefault();
               if (navigate) {
-                navigate(subTab === 'setlists' ? 'music-setlists' : 'music-repertoire');
+                navigate(subTab === 'setlists' ? 'music/setlists' : 'music/repertoire');
               } else {
                 setSelectedSong(null);
               }
@@ -418,11 +418,11 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
       {/* ── Sub-Tab Switcher — Bug 5: links semânticos para suportar abertura em nova aba ── */}
       <div style={{ display: 'flex', gap: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem' }}>
         <a
-          href="/music-repertoire"
+          href="/music/repertoire"
           onClick={(e) => {
             if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
               e.preventDefault();
-              if (navigate) navigate('music-repertoire');
+              if (navigate) navigate('music/repertoire');
               else setSubTab('repertoire');
             }
           }}
@@ -442,11 +442,11 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
           {t('music.repertoire')}
         </a>
         <a
-          href="/music-setlists"
+          href="/music/setlists"
           onClick={(e) => {
             if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
               e.preventDefault();
-              if (navigate) navigate('music-setlists');
+              if (navigate) navigate('music/setlists');
               else setSubTab('setlists');
             }
           }}
@@ -471,7 +471,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
         <Setlists
           user={user}
           onSelectSong={(song) => {
-            if (navigate) navigate(`music-song-${song.id}`);
+            if (navigate) navigate(`music/songs/${song.id}`);
             else setSelectedSong(song);
           }}
         />
@@ -536,7 +536,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
           {/* Barra de Filtro Alfabético */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', background: 'rgba(255, 255, 255, 0.01)', padding: '0.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
             {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '#'].map((char) => {
-              const targetPath = `music-repertoire-letter-${char === '#' ? 'num' : char.toLowerCase()}`;
+              const targetPath = `music/repertoire/letter/${char === '#' ? 'num' : char.toLowerCase()}`;
               return (
                 <a
                   key={char}
@@ -816,7 +816,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
                 {artistsList.map(({ artist, song_count }) => (
                   <a
                     key={artist}
-                    href={`/music-repertoire-artist-${encodeURIComponent(artist)}`}
+                    href={`/music/repertoire/artist/${encodeURIComponent(artist)}`}
                     onClick={(e) => {
                       if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
                         e.preventDefault();
@@ -929,7 +929,7 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
                                 return;
                               }
                               e.preventDefault();
-                              if (navigate) navigate(`music-song-${song.id}`);
+                              if (navigate) navigate(`music/songs/${song.id}`);
                               else setSelectedSong(song);
                             }}
                             className="table-row-hover"
@@ -959,11 +959,11 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
                                   {isSheet ? <FileText size={16} /> : <MusicIcon size={16} />}
                                 </span>
                                 <a
-                                  href={`/music-song-${song.id}`}
+                                  href={`/music/songs/${song.id}`}
                                   onClick={(e) => {
                                     if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
                                       e.preventDefault();
-                                      if (navigate) navigate(`music-song-${song.id}`);
+                                      if (navigate) navigate(`music/songs/${song.id}`);
                                       else setSelectedSong(song);
                                     }
                                   }}

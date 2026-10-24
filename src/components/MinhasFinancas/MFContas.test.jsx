@@ -455,17 +455,14 @@ describe('MFContas', () => {
     window.addEventListener('set-active-tab', onTab);
     try {
       fireEvent.click(await screen.findByTestId('mf-linked-card-open-acc-card'));
-      // salva o drill da aba Cartões com o cartão e pede a troca de aba
+      // Pede a rota de detalhe do cartão com o id no path.
       await waitFor(() => {
-        expect(JSON.parse(localStorage.getItem('mf_detail_drill'))).toEqual({
-          tab: 'cards',
-          id: 'acc-card',
-        });
+        expect(tabEvents).toContainEqual({ tab: 'minhasfinancas/cards/acc-card' });
       });
     } finally {
       window.removeEventListener('set-active-tab', onTab);
     }
-    expect(tabEvents).toEqual([{ tab: 'minhasfinancas-cards' }]);
+    expect(tabEvents).toContainEqual({ tab: 'minhasfinancas/cards/acc-card' });
   });
 
   it('tela estreita: cards em vez de tabela (sem quebrar o texto)', async () => {
@@ -597,26 +594,14 @@ describe('MFContas', () => {
     }
   });
 
-  it('drill sobrevive ao F5: restaura, ignora id inválido e limpa ao fechar', async () => {
-    // restaura a conta salva
+  it('ignora drill legado no localStorage: a rota é a fonte da verdade', async () => {
     localStorage.setItem('mf_detail_drill', JSON.stringify({ tab: 'accounts', id: 'acc-1' }));
     renderWithProviders(
       <MFContas user={mockUser} monthKey="2026-10" onChangeMonth={() => {}} />
     );
     await waitFor(() => {
-      expect(screen.getByTestId('mf-account-detail')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-contas')).toBeInTheDocument();
     });
-
-    // fechar limpa o salvo
-    fireEvent.click(screen.getByTestId('mf-acct-det-back'));
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-group-header-grp-1')).toBeInTheDocument();
-    });
-    expandGroups();
-    await waitFor(() => {
-      expect(screen.getAllByTestId('mf-account-row')).toHaveLength(2);
-    });
-    expect(localStorage.getItem('mf_detail_drill')).toBeNull();
   });
 
   it('drill com id inexistente abre a lista normalmente', async () => {

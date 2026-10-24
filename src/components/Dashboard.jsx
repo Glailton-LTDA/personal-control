@@ -60,7 +60,7 @@ import Music from './Music/Music';
 import MinhasFinancas from './MinhasFinancas/MinhasFinancas';
 import Launchpad from './Launchpad';
 import Footer from './Footer';
-import { useRouter } from '../hooks/useRouter';
+import { useRouter, parsePath } from '../hooks/useRouter';
 
 const defaultMenuItems = [
   { id: 'launchpad', icon: LayoutGrid, key: 'launchpad' },
@@ -76,70 +76,75 @@ const defaultMenuItems = [
 
 const moduleSubItems = {
   finances: [
-    { tab: 'finances-dashboard', icon: BarChart2, key: 'dashboard' },
-    { tab: 'finances-transactions', icon: DollarSign, key: 'transactions' },
-    { tab: 'finances-settings', icon: Settings, key: 'settings' },
+    { tab: 'finances/dashboard', icon: BarChart2, key: 'dashboard' },
+    { tab: 'finances/transactions', icon: DollarSign, key: 'transactions' },
+    { tab: 'finances/settings', icon: Settings, key: 'settings' },
   ],
   minhasfinancas: [
-    { tab: 'minhasfinancas-resumo', icon: BarChart2, key: 'resumo' },
-    { tab: 'minhasfinancas-transactions', icon: DollarSign, key: 'transactions' },
-    { tab: 'minhasfinancas-accounts', icon: Wallet, key: 'accounts' },
-    { tab: 'minhasfinancas-statement', icon: Receipt, key: 'statement' },
-    { tab: 'minhasfinancas-import', icon: Upload, key: 'import' },
-    { tab: 'minhasfinancas-cards', icon: CreditCard, key: 'cards' },
-    { tab: 'minhasfinancas-budgets', icon: PieChart, key: 'budgets' },
-    { tab: 'minhasfinancas-goals', icon: Target, key: 'goals' },
-    { tab: 'minhasfinancas-reports', icon: FileText, key: 'reports' },
-    { tab: 'minhasfinancas-felix', icon: MessageCircle, key: 'felix' },
-    { tab: 'minhasfinancas-settings', icon: Settings, key: 'settings' },
+    { tab: 'minhasfinancas', icon: BarChart2, key: 'resumo' },
+    { tab: 'minhasfinancas/transactions', icon: DollarSign, key: 'transactions' },
+    { tab: 'minhasfinancas/accounts', icon: Wallet, key: 'accounts' },
+    { tab: 'minhasfinancas/statement', icon: Receipt, key: 'statement' },
+    { tab: 'minhasfinancas/import', icon: Upload, key: 'import' },
+    { tab: 'minhasfinancas/cards', icon: CreditCard, key: 'cards' },
+    { tab: 'minhasfinancas/budgets', icon: PieChart, key: 'budgets' },
+    { tab: 'minhasfinancas/goals', icon: Target, key: 'goals' },
+    { tab: 'minhasfinancas/reports', icon: FileText, key: 'reports' },
+    { tab: 'minhasfinancas/felix', icon: MessageCircle, key: 'felix' },
+    { tab: 'minhasfinancas/settings', icon: Settings, key: 'settings' },
   ],
   cars: [
-    { tab: 'cars-list', icon: Car, key: 'my_cars' },
-    { tab: 'cars-settings', icon: Settings, key: 'settings' }
+    { tab: 'cars/list', icon: Car, key: 'my_cars' },
+    { tab: 'cars/settings', icon: Settings, key: 'settings' }
   ],
   investments: [
-    { tab: 'investments-dashboard', icon: BarChart2, key: 'dashboard' },
-    { tab: 'investments-list', icon: DollarSign, key: 'investment_sheet' },
-    { tab: 'investments-settings', icon: Settings, key: 'settings' }
+    { tab: 'investments/dashboard', icon: BarChart2, key: 'dashboard' },
+    { tab: 'investments/list', icon: DollarSign, key: 'investment_sheet' },
+    { tab: 'investments/settings', icon: Settings, key: 'settings' }
   ],
   trips: [
-    { tab: 'trips-list', icon: Globe, key: 'list' },
-    { tab: 'trips-itinerary', icon: Calendar, key: 'itineraries' },
-    { tab: 'trips-stats', icon: PieChart, key: 'my_journey' },
-    { tab: 'trips-settings', icon: Settings, key: 'trip_settings' }
+    { tab: 'trips/list', icon: Globe, key: 'list' },
+    { tab: 'trips/itinerary', icon: Calendar, key: 'itineraries' },
+    { tab: 'trips/stats', icon: PieChart, key: 'my_journey' },
+    { tab: 'trips/settings', icon: Settings, key: 'trip_settings' }
   ],
   lists: [
-    { tab: 'lists-manager', icon: List, key: 'manage_lists' },
-    { tab: 'lists-notes', icon: FileText, key: 'notes' },
-    { tab: 'lists-settings', icon: Settings, key: 'settings' }
+    { tab: 'lists/manager', icon: List, key: 'manage_lists' },
+    { tab: 'lists/notes', icon: FileText, key: 'notes' },
+    { tab: 'lists/settings', icon: Settings, key: 'settings' }
   ],
   music: [
-    { tab: 'music-repertoire', icon: MusicIcon, key: 'repertoire' },
-    { tab: 'music-setlists', icon: List, key: 'setlists' },
-    { tab: 'music-settings', icon: Settings, key: 'settings' }
+    { tab: 'music/repertoire', icon: MusicIcon, key: 'repertoire' },
+    { tab: 'music/setlists', icon: List, key: 'setlists' },
+    { tab: 'music/settings', icon: Settings, key: 'settings' }
   ],
   settings: [
-    { tab: 'settings-general', icon: Settings, key: 'general' },
-    { tab: 'settings-security', icon: ShieldCheck, key: 'security' }
+    { tab: 'settings/general', icon: Settings, key: 'general' },
+    { tab: 'settings/security', icon: ShieldCheck, key: 'security' }
   ]
 };
 
 const getModuleInitialTab = (id) => {
   if (id === 'launchpad') return 'launchpad';
-  if (id === 'finances') return 'finances-dashboard';
-  if (id === 'minhasfinancas') return 'minhasfinancas-resumo';
-  if (id === 'cars') return 'cars-list';
-  if (id === 'investments') return 'investments-dashboard';
-  if (id === 'trips') return 'trips-list';
-  if (id === 'lists') return 'lists-manager';
-  if (id === 'music') return 'music-repertoire';
-  if (id === 'settings') return 'settings-general';
+  if (id === 'finances') return 'finances/dashboard';
+  if (id === 'minhasfinancas') return 'minhasfinancas';
+  if (id === 'cars') return 'cars/list';
+  if (id === 'investments') return 'investments/dashboard';
+  if (id === 'trips') return 'trips/list';
+  if (id === 'lists') return 'lists/manager';
+  if (id === 'music') return 'music/repertoire';
+  if (id === 'settings') return 'settings/general';
   return id;
 };
 
 export default function Dashboard({ user }) {
   const { t } = useTranslation();
   const { currentPath: activeTab, navigate: routerNavigate } = useRouter('launchpad');
+  const activeRoute = parsePath(activeTab);
+  const { screen: mfScreen, params: mfParams } = activeRoute.module === 'minhasfinancas'
+    ? activeRoute
+    : { screen: null, params: {} };
+  const mfDetailId = mfParams.id ?? null;
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -308,7 +313,7 @@ export default function Dashboard({ user }) {
       // Força o refresh para garantir que o componente Trips remonte 
       // mesmo que já estejamos em uma aba de trips, evitando de-sync do currentView
       triggerRefresh();
-      navigate('trips-itinerary');
+      navigate('trips/itinerary');
     };
 
     const handleSetTab = (e) => {
@@ -363,7 +368,7 @@ export default function Dashboard({ user }) {
         {!isMobile && !isTablet && (
           <nav style={{ display: 'flex', gap: '0.5rem', flex: 1, justifyContent: 'safe center', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 1rem' }}>
             {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
-              const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+              const isActive = parsePath(activeTab).module === item.id;
               const targetTab = getModuleInitialTab(item.id);
               return (
                 <a
@@ -425,7 +430,7 @@ export default function Dashboard({ user }) {
       {isTablet && (
         <aside className={`tablet-sidebar ${isSidebarExpanded ? 'expanded' : ''}`} onClick={() => setSidebarExpanded(!isSidebarExpanded)}>
           {menuItems.filter(item => visibleModules.includes(item.id)).map(item => {
-            const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+            const isActive = parsePath(activeTab).module === item.id;
             const targetTab = getModuleInitialTab(item.id);
             return (
               <a
@@ -455,7 +460,7 @@ export default function Dashboard({ user }) {
             return (
               <>
                 {directItems.map(item => {
-                  const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+                  const isActive = parsePath(activeTab).module === item.id;
                   const targetTab = getModuleInitialTab(item.id);
                   return (
                     <a
@@ -513,7 +518,7 @@ export default function Dashboard({ user }) {
               </div>
               <div className="bottom-sheet-grid">
                 {menuItems.filter(item => visibleModules.includes(item.id)).slice(4).map(item => {
-                  const isActive = activeTab === item.id || activeTab.startsWith(item.id);
+                  const isActive = parsePath(activeTab).module === item.id;
                   const targetTab = getModuleInitialTab(item.id);
                   return (
                     <a
@@ -573,25 +578,29 @@ export default function Dashboard({ user }) {
             </span>
           </div>
           {(() => {
-            const currentModule = activeTab.split('-')[0];
+            const { module: currentModule } = parsePath(activeTab);
             const subItems = moduleSubItems[currentModule] || [];
             return (
               <div style={{ display: 'flex', gap: '2rem' }}>
-                {subItems.map(item => (
+                {subItems.map(item => {
+                  const isSubActive =
+                    activeTab === item.tab ||
+                    (item.tab.includes('/') && activeTab.startsWith(`${item.tab}/`));
+                  return (
                   <a
                     key={item.tab}
                     href={`/${item.tab}`}
-                    data-testid={`sidebar-sub-item-${item.tab}`}
+                    data-testid={`sidebar-sub-item-${item.tab.replace('/', '-')}`}
                     onClick={(e) => handleNavClick(e, item.tab)}
                     style={{
                       background: 'none',
                       border: 'none',
                       padding: '0.5rem 0',
-                      color: activeTab === item.tab ? 'var(--primary)' : 'var(--text-muted)',
+                      color: isSubActive ? 'var(--primary)' : 'var(--text-muted)',
                       fontSize: '0.85rem',
-                      fontWeight: activeTab === item.tab ? 700 : 500,
+                      fontWeight: isSubActive ? 700 : 500,
                       cursor: 'pointer',
-                      borderBottom: activeTab === item.tab ? '2px solid var(--primary)' : '2px solid transparent',
+                      borderBottom: isSubActive ? '2px solid var(--primary)' : '2px solid transparent',
                       transition: 'all 0.2s',
                       display: 'flex',
                       alignItems: 'center',
@@ -600,10 +609,11 @@ export default function Dashboard({ user }) {
                       textDecoration: 'none'
                     }}
                   >
-                    <item.icon size={16} strokeWidth={activeTab === item.tab ? 2.5 : 2} />
+                    <item.icon size={16} strokeWidth={isSubActive ? 2.5 : 2} />
                     {t(`nav.sub.${currentModule}.${item.key}`)}
                   </a>
-                ))}
+                  );
+                })}
               </div>
             );
           })()}
@@ -612,7 +622,7 @@ export default function Dashboard({ user }) {
 
       {/* ── Main Content Area ── */}
       {(() => {
-        const isScrollLockedTab = ['investments-list', 'trips-list', 'trips-itinerary', 'music-repertoire', 'music-setlists'].includes(activeTab);
+        const isScrollLockedTab = ['investments/list', 'trips/list', 'trips/itinerary', 'music/repertoire', 'music/setlists'].includes(activeTab);
         return (
           <main style={{ 
             flex: 1, 
@@ -631,8 +641,8 @@ export default function Dashboard({ user }) {
                 transition={{ duration: 0.1 }}
                 style={isScrollLockedTab ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' } : undefined}
               >
-                {activeTab === 'finances-dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
-                {activeTab === 'finances-transactions' && (
+                {activeRoute.module === 'finances' && activeRoute.screen === 'dashboard' && <SummaryDashboard user={user} refreshKey={refreshKey} isGeneral={true} showValues={showValues} onToggleValues={() => setShowValues(!showValues)} />}
+                {activeRoute.module === 'finances' && activeRoute.screen === 'transactions' && (
                   <FinanceList
                     user={user}
                     refreshKey={refreshKey}
@@ -641,7 +651,7 @@ export default function Dashboard({ user }) {
                     onToggleValues={() => setShowValues(!showValues)}
                   />
                 )}
-                {activeTab === 'finances-settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
+                {activeRoute.module === 'finances' && activeRoute.screen === 'settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
                 {activeTab === 'launchpad' && (
                   <Launchpad
                     user={user}
@@ -650,54 +660,81 @@ export default function Dashboard({ user }) {
                     onLogout={() => supabase.auth.signOut()}
                   />
                 )}
-                {activeTab.startsWith('settings') && (
+                {activeRoute.module === 'settings' && (
                   <SettingsView 
                     user={user} 
                     menuOrder={menuOrder} 
                     setMenuOrder={setMenuOrder} 
                     menuItems={defaultMenuItems.map(i => ({ ...i, label: t(`nav.${i.key}`) }))} 
-                    activeTab={activeTab} 
+                    activeTab={`settings-${activeRoute.screen}`}
                     theme={theme}
                     setTheme={setTheme}
                     visibleModules={visibleModules}
                     setVisibleModules={setVisibleModules}
                   />
                 )}
-                {activeTab.startsWith('cars') && (
-                  <MyCars user={user} refreshKey={refreshKey} mode={activeTab === 'cars-settings' ? 'admin' : 'list'} />
+                {activeRoute.module === 'cars' && (
+                  <MyCars
+                    user={user}
+                    refreshKey={refreshKey}
+                    mode={parsePath(activeTab).screen === 'settings' ? 'admin' : 'list'}
+                  />
                 )}
-                {activeTab.startsWith('investments') && (
-                  <Investments user={user} refreshKey={refreshKey} mode={activeTab.replace('investments-', '')} showValues={showValues} />
+                {activeRoute.module === 'investments' && (
+                  <Investments
+                    user={user}
+                    refreshKey={refreshKey}
+                    mode={parsePath(activeTab).screen ?? 'dashboard'}
+                    showValues={showValues}
+                  />
                 )}
-                {activeTab.startsWith('trips') && (
-                  <Trips user={user} refreshKey={refreshKey} mode={activeTab.replace('trips-', '')} showValues={showValues} />
+                {activeRoute.module === 'trips' && (
+                  <Trips
+                    user={user}
+                    refreshKey={refreshKey}
+                    mode={parsePath(activeTab).screen ?? 'list'}
+                    showValues={showValues}
+                  />
                 )}
-                {activeTab.startsWith('lists') && (
-                  activeTab === 'lists-notes' ? (
+                {activeRoute.module === 'lists' && (
+                  parsePath(activeTab).screen === 'notes' ? (
                     <MarkdownNotes user={user} refreshKey={refreshKey} />
                   ) : (
-                    <CustomLists user={user} refreshKey={refreshKey} mode={activeTab.replace('lists-', '')} />
+                    <CustomLists
+                      user={user}
+                      refreshKey={refreshKey}
+                      mode={parsePath(activeTab).screen ?? 'manager'}
+                    />
                   )
                 )}
-                {activeTab.startsWith('music') && (
-                  <Music user={user} refreshKey={refreshKey} mode={activeTab.replace('music-', '')} navigate={navigate} />
+                {activeRoute.module === 'music' && (
+                  <Music
+                    user={user}
+                    refreshKey={refreshKey}
+                    mode={parsePath(activeTab).screen ?? 'repertoire'}
+                    navigate={navigate}
+                  />
                 )}
-                {activeTab.startsWith('minhasfinancas') && (
-                  <MinhasFinancas user={user} refreshKey={refreshKey} mode={activeTab.replace('minhasfinancas-', '')} showValues={showValues} />
+                {activeRoute.module === 'minhasfinancas' && (
+                  <MinhasFinancas
+                    user={user}
+                    refreshKey={refreshKey}
+                    screen={mfScreen}
+                    detailId={mfDetailId}
+                    showValues={showValues}
+                  />
                 )}
 
                 {/* Fallback for development */}
-                {activeTab !== 'finances-transactions' &&
-                  activeTab !== 'finances-dashboard' &&
-                  activeTab !== 'finances-settings' &&
-                  !activeTab.startsWith('settings') &&
+                {activeRoute.module !== 'finances' &&
+                  activeRoute.module !== 'settings' &&
                   activeTab !== 'launchpad' &&
-                  !activeTab.startsWith('cars') &&
-                  !activeTab.startsWith('trips') &&
-                  !activeTab.startsWith('lists') &&
-                  !activeTab.startsWith('music') &&
-                  !activeTab.startsWith('investments') &&
-                  !activeTab.startsWith('minhasfinancas') && (
+                  activeRoute.module !== 'cars' &&
+                  activeRoute.module !== 'trips' &&
+                  activeRoute.module !== 'lists' &&
+                  activeRoute.module !== 'music' &&
+                  activeRoute.module !== 'investments' &&
+                  activeRoute.module !== 'minhasfinancas' && (
                     <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
                       <p style={{ color: 'var(--text-muted)' }}>{t('dashboard.module_development', { module: activeTab })}</p>
                     </div>
@@ -711,21 +748,21 @@ export default function Dashboard({ user }) {
 
       {/* ── Contextual FAB ── */}
       <AnimatePresence>
-        {(activeTab.includes('finance') || activeTab === 'cars-list') && (
+        {(activeRoute.module === 'finances' || (activeRoute.module === 'cars' && activeRoute.screen === 'list')) && (
           <Motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             className="contextual-fab"
             onClick={() => {
-              if (activeTab.includes('finance')) {
+              if (activeRoute.module === 'finances') {
                 setEditingTransaction(null);
                 setModalOpen(true);
-              } else if (activeTab === 'cars-list') {
+              } else if (activeRoute.module === 'cars' && activeRoute.screen === 'list') {
                 window.dispatchEvent(new CustomEvent('open-add-car-modal'));
               }
             }}
-            title={activeTab.includes('finance') ? t('dashboard.new_transaction') : t('dashboard.new_car')}
+            title={activeRoute.module === 'finances' ? t('dashboard.new_transaction') : t('dashboard.new_car')}
           >
             <Plus size={32} />
           </Motion.button>

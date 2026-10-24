@@ -149,7 +149,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
         user={user} 
         initialTripId={selectedTrip?.id} 
         onBack={() => {
-          window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+          window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips/list' } }));
           setCurrentView('main');
         }} 
       />
@@ -172,7 +172,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
       <TripsStats 
         trips={trips} 
         onBack={() => {
-          window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips-list' } }));
+          window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips/list' } }));
           setCurrentView('main');
         }} 
       />

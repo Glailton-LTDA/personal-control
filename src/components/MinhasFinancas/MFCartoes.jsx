@@ -21,7 +21,7 @@ import MFPaymentModal from './MFPaymentModal';
 import MFAccountDetail from './MFAccountDetail';
 import MFMonthNav from './MFMonthNav';
 import MFCardBrandIcon from './MFCardBrandIcon';
-import { readMonthKey, writeMonthKey, readDrill, writeDrill } from './mfViewState';
+import { readMonthKey, writeMonthKey } from './mfViewState';
 import { mfCardUsagePct, mfCardBarColor } from './mfCardUsage';
 
 const metricLabel = {
@@ -58,6 +58,16 @@ export default function MFCartoes({ user, showValues = true }) {
   const [currency, setCurrency] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const target = accounts.find((row) => row.id === selectedId);
+    const screen = target?.account_type === 'CARTAO' ? 'cards' : 'accounts';
+    window.dispatchEvent(
+      new CustomEvent('set-active-tab', {
+        detail: { tab: `minhasfinancas/${screen}/${selectedId}` },
+      })
+    );
+  }, [selectedId, accounts]);
   const [editingId, setEditingId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [paying, setPaying] = useState(null); // { card, invoice } — modal de pagamento
@@ -106,26 +116,6 @@ export default function MFCartoes({ user, showValues = true }) {
   const selectedRow = selectedId
     ? foundSelected || lastSelectedRef.current || null
     : null;
-
-  // Drill-down sobrevive ao F5: grava ao abrir, limpa ao fechar e
-  // restaura uma vez (quando as linhas chegam) se a conta existir.
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (selectedId) {
-      writeDrill({ tab: 'cards', id: selectedId });
-      return;
-    }
-    if (restoredRef.current) {
-      writeDrill(null);
-      return;
-    }
-    if (summaryRows.length === 0) return;
-    restoredRef.current = true;
-    const saved = readDrill();
-    if (saved?.tab === 'cards' && saved?.id && summaryRows.some((row) => row.id === saved.id)) {
-      setSelectedId(saved.id);
-    }
-  }, [selectedId, summaryRows]);
 
   const editingCard = editingId ? accountById[editingId] || null : null;
 

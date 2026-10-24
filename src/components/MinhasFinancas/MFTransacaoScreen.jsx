@@ -1379,7 +1379,7 @@ export default function MFTransacaoScreen({
                 {t('minhasfinancas.tx_no_categories')}{' '}
                 <button
                   type="button"
-                  onClick={() => goTo('minhasfinancas-settings')}
+                  onClick={() => goTo('minhasfinancas/settings')}
                   style={{
                     background: 'none',
                     border: 'none',

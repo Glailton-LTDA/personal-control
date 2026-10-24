@@ -147,7 +147,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
     setOpen(false);
     onChangeMonth?.(reminder.dueISO.slice(0, 7));
     window.dispatchEvent(
-      new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas-transactions' } })
+      new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas/transactions' } })
     );
   };
 
