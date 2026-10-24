@@ -165,3 +165,52 @@ on conflict (id) do nothing;
 insert into public.notification_settings (id, user_id)
 values ('d6000000-0000-4000-8000-000000000001', '9659a65c-7a82-4b08-a9d4-64fd2346cbb1')
 on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Musicas: generos padrao
+-- ---------------------------------------------------------------------------
+-- Mesmos UUIDs (e dono) da producao: sem isso, uma musica criada no ambiente
+-- local com um genero vindo do cache do navegador viola
+-- music_songs_genre_id_fkey, e a policy `auth.uid() = user_id` esconde os
+-- generos do app.
+insert into public.music_genres (id, user_id, name)
+select id::uuid, '9659a65c-7a82-4b08-a9d4-64fd2346cbb1', name
+from (values
+  ('ff09aee7-7683-4f3c-8364-7bbdbe6831d5', 'Axé'),
+  ('7d3cca1a-0560-4d8e-9064-c881bbda574f', 'Balada'),
+  ('dd5d5cab-a93c-42ad-b7c5-4a9c29a0ca14', 'Blues'),
+  ('1a574313-2c9b-4939-802d-9403be66ebb6', 'Bolero'),
+  ('be95fd45-ee4c-4dbb-be18-aa42e90a56cd', 'Bossa Nova'),
+  ('1b17ee6f-388c-4b01-973f-3195555ee90a', 'Brega'),
+  ('d04d445d-6a41-475e-8de9-d218879ef20f', 'Chorinho'),
+  ('7937ddcd-fea0-40df-83eb-a74de2c43ffb', 'Country'),
+  ('30d1559c-ab62-460f-85fe-887964ae628a', 'Emo'),
+  ('78cefa83-0b4b-4a60-846e-7b775130ae23', 'Folcrore'),
+  ('233b843e-a853-4969-a589-45fdfc0e0d90', 'Folk'),
+  ('22af4b37-bb03-44cd-8ff2-94bef3ea1e86', 'Forró'),
+  ('2f3c0bf0-95be-4ca7-8426-a536616ac361', 'Frevo'),
+  ('26c4f068-16f4-4ccc-ad7f-dea5ccb68169', 'Funk'),
+  ('80de5587-556f-4aab-9779-b0bcbc7f15d7', 'Hip Hop'),
+  ('2dacdfc0-28e4-48ce-9425-c80a89b766a5', 'Infantil'),
+  ('2dc04353-075d-49cf-892a-b22f4171e5da', 'Jazz'),
+  ('cfecd5ab-0b53-4831-af92-77e6e8d92195', 'K-Pop'),
+  ('ddea46ae-6258-42e9-ba78-f4496cb38fa3', 'Latina'),
+  ('b44587c2-fe0e-4620-8ded-225e9dbdff26', 'Marcha'),
+  ('181f3bf3-2016-41df-aa92-5eb4fca12088', 'Metal'),
+  ('58800e99-34fc-47da-a571-e262b4495526', 'MPB'),
+  ('873ab9cb-9d30-4f7e-b1b2-1eafa81f254d', 'Música Clássica'),
+  ('8f27275a-f7cf-4aaa-b7b6-b0e82d35d385', 'Música Folclórica'),
+  ('1b121a2c-b3ca-4caa-8020-b609214b13b6', 'Musical'),
+  ('3bbf05ce-9247-4ac3-a39f-96a5d3444069', 'Pop'),
+  ('75f760ca-1a99-4bd1-9012-7d52f21c8e7f', 'Pop Rock'),
+  ('803b7c27-60be-428b-add9-6b2089b0d5af', 'Punk'),
+  ('d5c63f11-9010-4057-baaa-d0dc12f30eb9', 'Reggae'),
+  ('91231a89-9544-4457-a9df-213d77df72a8', 'Religiosa'),
+  ('7761bce2-d151-4a0a-b16d-52ca5b4fcd64', 'Rock'),
+  ('f9853d58-a8c8-43ce-af9a-ca38b9f31a44', 'Rumba'),
+  ('3842240b-d557-482d-9a28-647158c6174f', 'Samba / Pagode'),
+  ('89985a02-716b-47b6-b9b8-99ab7429b77f', 'Samba-canção'),
+  ('74433cb6-21e7-44fc-8e9d-cc9c3e739fab', 'Sertanejo'),
+  ('66872580-c712-4eae-877a-1fd10eccab67', 'Tango')
+) as generos(id, name)
+on conflict (id) do nothing;

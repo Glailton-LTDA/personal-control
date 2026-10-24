@@ -11,6 +11,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Abertura/edição de música**: o visualizador e o editor completam a cifra a partir do cache ou do servidor antes de exibir/salvar, evitando gravar `content` vazio por cima do original.
 - **Lista de artistas**: consultas de artistas (geral e por letra) ficam 5 minutos em cache, reduzindo rebaixamentos repetidos ao abrir o dropdown e trocar de letra.
 
+### Corrigido
+- **Criação de música com gênero no ambiente local**: o `supabase/seed.sql` agora cria os 36 gêneros padrão com os mesmos UUIDs e o mesmo dono da produção (`9659a65c-…`). Sem eles, o insert falhava com 409 por violação de `music_songs_genre_id_fkey` e a policy `auth.uid() = user_id` escondia os gêneros do app.
+- **Falha silenciosa ao criar música**: quando o servidor recusa o insert, o editor remove a cópia temporária do cache e mostra o toast de erro. Antes ele exibia "Música criada" e deixava uma música fantasma que nunca chegava ao servidor.
+
 ## [1.17.0] - 2026-10-24
 
 ### Adicionado
