@@ -33,7 +33,6 @@ import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { supabase } from '../../lib/supabase';
 import {
-  useMFLancamentos,
   useMFNarrowScreen,
   useMFAccounts,
   useMFCategories,
@@ -139,7 +138,6 @@ export default function MFAccountDetail({
   onOpenAccount = null,
 }) {
   const { t, i18n } = useTranslation();
-  const { data: lanc } = useMFLancamentos(user, monthKey);
   const { data: categories = [] } = useMFCategories(user);
   const { data: accounts = [] } = useMFAccounts(user);
   const updateMutation = useUpdateAccount();
@@ -418,7 +416,12 @@ export default function MFAccountDetail({
       account.account_type === 'CARTAO'
         ? buildCardInvoices({ card: account, transactions: allTx ?? [], refISO, monthKey })
             .current?.transactions ?? []
-        : (lanc?.transactions ?? []);
+        : (allTx ?? []).filter(
+            (tx) =>
+              tx.account_id === account.id &&
+              tx.payment_date >= monthStart &&
+              tx.payment_date <= monthEnd
+          );
     rows.forEach((tx) => {
       if (tx.account_id !== account.id || tx.type !== 'DESPESA' || tx.status !== 'PAGO') return;
       const amount = Number(tx.amount) || 0;
@@ -446,7 +449,7 @@ export default function MFAccountDetail({
           ? [...top, { id: 'other', value: round2(rest), name: t('common.other') }]
           : top,
     };
-  }, [lanc, account, allTx, refISO, monthKey, categoryById, t]);
+  }, [account, allTx, monthStart, monthEnd, refISO, monthKey, categoryById, t]);
 
   const monthShort = (mk) => {
     const [year, month] = mk.split('-').map(Number);
@@ -491,12 +494,14 @@ export default function MFAccountDetail({
 
   const latest = useMemo(
     () =>
-      (lanc?.transactions ?? [])
+      (allTx ?? [])
         .filter(
           (tx) =>
             tx.account_id === account.id &&
             tx.type === 'DESPESA' &&
-            tx.status !== 'CANCELADO'
+            tx.status !== 'CANCELADO' &&
+            tx.payment_date >= monthStart &&
+            tx.payment_date <= monthEnd
         )
         .sort(
           (a, b) =>
@@ -504,7 +509,7 @@ export default function MFAccountDetail({
             String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
         )
         .slice(0, 5),
-    [lanc, account.id]
+    [allTx, account.id, monthStart, monthEnd]
   );
   const shownSaldo =
     account.account_type === 'CARTAO' && cardBalance ? cardBalance.saldo : Number(account.saldo) || 0;
@@ -895,17 +900,15 @@ export default function MFAccountDetail({
    * recria os links a partir de tx.tagIds).
    */
   const openTx = async (tx) => {
-    let tagIds = lanc ? lanc.tagIdsByTx?.[tx.id] ?? [] : null;
-    if (tagIds === null) {
-      try {
-        const { data } = await supabase
-          .from('mf_transaction_tags')
-          .select('tag_id')
-          .eq('transaction_id', tx.id);
-        tagIds = (data ?? []).map((row) => row.tag_id);
-      } catch {
-        tagIds = [];
-      }
+    let tagIds = [];
+    try {
+      const { data } = await supabase
+        .from('mf_transaction_tags')
+        .select('tag_id')
+        .eq('transaction_id', tx.id);
+      tagIds = (data ?? []).map((row) => row.tag_id);
+    } catch {
+      tagIds = [];
     }
     setDetailTx({ ...tx, tagIds });
   };
