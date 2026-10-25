@@ -10,6 +10,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Músicas: cifras saem da listagem e da sincronização em bloco**: `music_songs` passa a ser consultada só com metadados (título, artista, tipo, gênero, links). No banco de produção, o texto das cifras ocupa ~8,8 MB contra ~0,2 MB de metadados para as 4.812 músicas; o `content` agora é baixado por ID apenas quando a música é aberta ou editada e fica no cache local.
 - **Abertura/edição de música**: o visualizador e o editor completam a cifra a partir do cache ou do servidor antes de exibir/salvar, evitando gravar `content` vazio por cima do original.
 - **Lista de artistas**: consultas de artistas (geral e por letra) ficam 5 minutos em cache, reduzindo rebaixamentos repetidos ao abrir o dropdown e trocar de letra.
+- **Abertura do módulo de músicas**: o sync não carrega mais todas as músicas do cache para descobrir o `updated_at` mais recente (com 4.812 músicas com cifra, a leitura caiu de ~550-1.000 ms para 2-30 ms) e as tabelas auxiliares (setlists, gêneros, vínculos e acordes) são baixadas em paralelo em vez de uma após a outra.
 
 ### Corrigido
 - **Criação de música com gênero no ambiente local**: o `supabase/seed.sql` agora cria os 36 gêneros padrão com os mesmos UUIDs e o mesmo dono da produção (`9659a65c-…`). Sem eles, o insert falhava com 409 por violação de `music_songs_genre_id_fkey` e a policy `auth.uid() = user_id` escondia os gêneros do app.

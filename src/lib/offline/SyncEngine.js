@@ -11,22 +11,14 @@ export class MusicSyncProvider {
     const results = {};
 
     // 1. Sincronização incremental e paginada de music_songs para evitar timeouts e payloads gigantescos (68k+ músicas)
-    const songs = await db.music_songs
-      .where('user_id')
-      .equals(this.userId)
-      .toArray();
-
-    let lastUpdatedAt = null;
-    if (songs.length > 0) {
-      let maxTime = 0;
-      for (const s of songs) {
-        const t = s.updated_at ? new Date(s.updated_at).getTime() : 0;
-        if (t > maxTime) {
-          maxTime = t;
-          lastUpdatedAt = s.updated_at;
-        }
-      }
-    }
+    // Só precisamos do maior `updated_at` local. Ler a tabela inteira aqui
+    // custava segundos quando o cache tinha milhares de cifras (o `content`
+    // de cada uma era materializado à toa, atrasando a listagem).
+    const newestSong = await db.music_songs.orderBy('updated_at').last();
+    const lastUpdatedAt =
+      newestSong?.user_id === this.userId && newestSong.updated_at
+        ? newestSong.updated_at
+        : null;
 
     let offset = 0;
     const limit = 1000;
@@ -63,24 +55,32 @@ export class MusicSyncProvider {
     }
     results.music_songs = allPulledSongs;
 
-    // 2. Outras tabelas do módulo de música (dados compactos)
-    results.music_setlists = await syncEngine.pull(
-      'music_setlists',
-      supabase.from('music_setlists').select('*').eq('user_id', this.userId)
-    );
-    results.music_genres = await syncEngine.pull(
-      'music_genres',
-      supabase.from('music_genres').select('*')
-    );
-    results.music_setlist_songs = await syncEngine.pull(
-      'music_setlist_songs',
-      supabase.from('music_setlist_songs').select('*'),
-      (item) => ({ ...item, id: `${item.setlist_id}_${item.song_id}` })
-    );
-    results.music_chords = await syncEngine.pull(
-      'music_chords',
-      supabase.from('music_chords').select('*, music_instruments(name), music_chord_variations(*)')
-    );
+    // 2. Outras tabelas do módulo de música (dados compactos). São
+    // independentes: buscar em paralelo evita empilhar ~1s de requisições
+    // sequenciais a cada abertura do módulo.
+    const [setlists, genres, setlistSongs, chords] = await Promise.all([
+      syncEngine.pull(
+        'music_setlists',
+        supabase.from('music_setlists').select('*').eq('user_id', this.userId)
+      ),
+      syncEngine.pull(
+        'music_genres',
+        supabase.from('music_genres').select('*')
+      ),
+      syncEngine.pull(
+        'music_setlist_songs',
+        supabase.from('music_setlist_songs').select('*'),
+        (item) => ({ ...item, id: `${item.setlist_id}_${item.song_id}` })
+      ),
+      syncEngine.pull(
+        'music_chords',
+        supabase.from('music_chords').select('*, music_instruments(name), music_chord_variations(*)')
+      ),
+    ]);
+    results.music_setlists = setlists;
+    results.music_genres = genres;
+    results.music_setlist_songs = setlistSongs;
+    results.music_chords = chords;
     return results;
   }
 }

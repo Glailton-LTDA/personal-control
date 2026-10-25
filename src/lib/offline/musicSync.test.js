@@ -113,4 +113,35 @@ describe('MusicSyncProvider — sincronização sem o texto da cifra', () => {
     expect(cached.title).toBe('Nova');
     expect(cached.content).toBe('C G');
   });
+
+  it('usa o updated_at mais recente do cache como cursor incremental', async () => {
+    await db.music_songs.bulkPut([
+      { id: 'old', user_id: 'u1', title: 'Antiga', updated_at: '2026-09-01T00:00:00.000Z' },
+      { id: 'new', user_id: 'u1', title: 'Nova', updated_at: '2026-10-20T00:00:00.000Z' },
+    ]);
+
+    const engine = new SyncEngine('u1', { providers: [] });
+    await new MusicSyncProvider('u1').pull(engine);
+
+    const { supabase } = await import('../supabase');
+    expect(supabase.__chains.music_songs.gt).toHaveBeenCalledWith(
+      'updated_at',
+      '2026-10-20T00:00:00.000Z'
+    );
+  });
+
+  it('ignora o cursor quando a música mais recente do cache é de outro usuário', async () => {
+    await db.music_songs.put({
+      id: 'other',
+      user_id: 'u2',
+      title: 'De outro usuário',
+      updated_at: '2026-12-01T00:00:00.000Z',
+    });
+
+    const engine = new SyncEngine('u1', { providers: [] });
+    await new MusicSyncProvider('u1').pull(engine);
+
+    const { supabase } = await import('../supabase');
+    expect(supabase.__chains.music_songs.gt).not.toHaveBeenCalled();
+  });
 });
