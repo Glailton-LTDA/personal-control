@@ -422,6 +422,40 @@ i18n
             tx_auto_settle: 'Efetivação automática',
             tx_auto_settle_hint:
               'Se marcado, o lançamento agendado vira PAGO sozinho quando a data chegar; desmarcado, só vira PAGO se você efetivar.',
+            integration_title: 'Integrar com outros módulos',
+            integration_trip_title: 'Registrar gasto na viagem',
+            integration_trip_desc:
+              'Cria o gasto na viagem escolhida, com a mesma data e valor.',
+            integration_trip_desc_card:
+              'Cria o gasto na viagem com a data da compra (não a da fatura).',
+            integration_trip_placeholder: 'Escolha a viagem',
+            integration_trip_empty: 'Nenhuma viagem encontrada.',
+            integration_trip_select: 'Viagem',
+            integration_trip_required: 'Escolha uma viagem para criar o gasto.',
+            integration_trip_preview:
+              'Será lançado em {{trip}} em {{date}}: {{value}}.',
+            integration_linked_trip: 'Vinculado à viagem {{trip}}.',
+            integration_trip_installments:
+              'Parcelado: um único gasto com o total de {{total}} ({{count}}× de {{each}}).',
+            integration_trip_out_of_range:
+              'A data {{date}} está fora do período desta viagem ({{period}}). O gasto será criado mesmo assim.',
+            integration_trip_currency:
+              'Esta viagem não tem {{currency}} cadastrado ({{trip}}). Sem conversão: o gasto entra em {{currency}} mesmo assim.',
+            integration_disabled_recurring:
+              'Lançamento recorrente: a integração fica desabilitada.',
+            integration_disabled_offline:
+              'Integração disponível apenas com conexão.',
+            integration_disabled_transfer:
+              'Transferências não geram gasto em viagem.',
+            integration_disabled_pending:
+              'Só lançamentos PAGOS podem ser integrados.',
+            integration_disabled_income:
+              'Gasto em viagem só vale para despesas.',
+            integration_disabled_account: 'Escolha a conta do lançamento primeiro.',
+            integration_disabled_offline_linked:
+              'Este lançamento está vinculado a uma viagem. Conecte-se para editar.',
+            integration_disabled_estorno:
+              'Estornos não geram gasto em viagem.',
             tx_tags_label: 'Tags',
             tx_no_tags: 'Nenhuma tag cadastrada.',
             tx_new_tag_placeholder: 'Nova tag…',
@@ -2325,6 +2359,39 @@ i18n
             tx_auto_settle: 'Automatic settlement',
             tx_auto_settle_hint:
               'When checked, a scheduled transaction becomes PAID on its own once its date arrives; unchecked, it only settles when you mark it paid.',
+            integration_title: 'Link with other modules',
+            integration_trip_title: 'Add expense to a trip',
+            integration_trip_desc:
+              'Creates the expense in the selected trip with the same date and amount.',
+            integration_trip_desc_card:
+              'Creates the trip expense with the purchase date (not the invoice date).',
+            integration_trip_placeholder: 'Choose a trip',
+            integration_trip_empty: 'No trips found.',
+            integration_trip_select: 'Trip',
+            integration_trip_required: 'Choose a trip to create the expense.',
+            integration_trip_preview:
+              'Will be added to {{trip}} on {{date}}: {{value}}.',
+            integration_linked_trip: 'Linked to the trip {{trip}}.',
+            integration_trip_installments:
+              'Installments: a single expense totaling {{total}} ({{count}}× of {{each}}).',
+            integration_trip_out_of_range:
+              '{{date}} is outside this trip ({{period}}). The expense will be created anyway.',
+            integration_trip_currency:
+              'This trip does not list {{currency}} ({{trip}}). No conversion: the expense stays in {{currency}}.',
+            integration_disabled_recurring:
+              'Recurring transaction: integration is disabled.',
+            integration_disabled_offline: 'Integration requires a connection.',
+            integration_disabled_transfer:
+              'Transfers do not create trip expenses.',
+            integration_disabled_pending:
+              'Only PAID transactions can be integrated.',
+            integration_disabled_income:
+              'A trip expense only applies to expenses.',
+            integration_disabled_account: 'Choose the transaction account first.',
+            integration_disabled_offline_linked:
+              'This transaction is linked to a trip. Connect to edit it.',
+            integration_disabled_estorno:
+              'Refunds do not create trip expenses.',
             tx_tags_label: 'Tags',
             tx_no_tags: 'No tags yet.',
             tx_new_tag_placeholder: 'New tag…',
@@ -4171,6 +4238,41 @@ i18n
             tx_auto_settle: 'Efectuación automática',
             tx_auto_settle_hint:
               'Si está marcado, la transacción programada pasa a PAGADA sola cuando llega la fecha; sin marcar, solo pasa a PAGADA si la efectúas tú.',
+            integration_title: 'Integrar con otros módulos',
+            integration_trip_title: 'Registrar gasto en el viaje',
+            integration_trip_desc:
+              'Crea el gasto en el viaje elegido, con la misma fecha e importe.',
+            integration_trip_desc_card:
+              'Crea el gasto del viaje con la fecha de compra (no la de la factura).',
+            integration_trip_placeholder: 'Elige el viaje',
+            integration_trip_empty: 'No se encontraron viajes.',
+            integration_trip_select: 'Viaje',
+            integration_trip_required: 'Elige un viaje para crear el gasto.',
+            integration_trip_preview:
+              'Se registrará en {{trip}} el {{date}}: {{value}}.',
+            integration_linked_trip: 'Vinculado al viaje {{trip}}.',
+            integration_trip_installments:
+              'Cuotas: un único gasto con el total de {{total}} ({{count}}× de {{each}}).',
+            integration_trip_out_of_range:
+              'La fecha {{date}} está fuera del período de este viaje ({{period}}). El gasto se creará igualmente.',
+            integration_trip_currency:
+              'Este viaje no tiene {{currency}} registrado ({{trip}}). Sin conversión: el gasto queda en {{currency}}.',
+            integration_disabled_recurring:
+              'Transacción recurrente: la integración queda deshabilitada.',
+            integration_disabled_offline:
+              'La integración solo está disponible con conexión.',
+            integration_disabled_transfer:
+              'Las transferencias no generan gastos de viaje.',
+            integration_disabled_pending:
+              'Solo las transacciones PAGADAS pueden integrarse.',
+            integration_disabled_income:
+              'El gasto de viaje solo aplica a gastos.',
+            integration_disabled_account:
+              'Elige primero la cuenta de la transacción.',
+            integration_disabled_offline_linked:
+              'Esta transacción está vinculada a un viaje. Conéctate para editarla.',
+            integration_disabled_estorno:
+              'Los reembolsos no generan gastos de viaje.',
             tx_tags_label: 'Etiquetas',
             tx_no_tags: 'Aún no hay etiquetas.',
             tx_new_tag_placeholder: 'Nueva etiqueta…',

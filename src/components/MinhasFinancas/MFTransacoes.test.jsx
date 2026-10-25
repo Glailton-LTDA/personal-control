@@ -144,6 +144,26 @@ vi.mock('../../lib/supabase', () => {
     ],
     error: null,
   });
+  // Integração com viagens: estado mutável (testes setam state.links)
+  const state = {
+    links: [],
+    trips: [
+      {
+        id: 'trip-1',
+        title: 'Gramado',
+        start_date: '2026-05-01',
+        end_date: '2026-05-10',
+        currencies: ['BRL'],
+      },
+    ],
+  };
+  const links = makeChain(() => ({ data: state.links[0] ?? null, error: null }));
+  const trips = makeChain(() => ({ data: state.trips, error: null }));
+  const profiles = makeChain({
+    data: [{ id: 'prof-1', name: 'Glailton', sort_order: 0 }],
+    error: null,
+  });
+  const rpc = vi.fn(() => Promise.resolve({ data: 'tx-linked', error: null }));
 
   return {
     supabase: {
@@ -154,8 +174,12 @@ vi.mock('../../lib/supabase', () => {
         if (table === 'mf_transaction_tags') return transactionTags;
         if (table === 'notification_settings') return notifSettings;
         if (table === 'finance_responsibles') return responsibles;
+        if (table === 'mf_tx_links') return links;
+        if (table === 'trips') return trips;
+        if (table === 'mf_profiles') return profiles;
         return transactions;
       }),
+      rpc,
       functions: {
         invoke: vi.fn().mockResolvedValue({ error: null }),
       },
@@ -171,6 +195,8 @@ vi.mock('../../lib/supabase', () => {
     __upload: upload,
     __txRows: txRows,
     __notifRow: notifRow,
+    __state: state,
+    __rpc: rpc,
   };
 });
 
@@ -230,6 +256,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     // Default do histórico: as mesmas linhas do mock (o hook real funciona
     // sem .range — ver mfSelectAll — então os consumidores esperam os dados)
     const mocked = await import('../../lib/supabase');
+    mocked.__state.links = [];
     allTxMock.mockReturnValue({
       data: mocked.__txRows ?? [],
       isLoading: false,
@@ -438,9 +465,10 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       expect(chain.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
-    // 1ª chamada: parcela 1
+    // 1ª chamada: parcela 1 (id gerado aqui para as filhas apontarem)
     const first = chain.insert.mock.calls[0][0];
     expect(first).toHaveLength(1);
+    expect(first[0].id).toEqual(expect.any(String));
     expect(first[0]).toMatchObject({
       description: 'Plano anual',
       installments_current: 1,
@@ -454,9 +482,9 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(rest[0]).toMatchObject({
       installments_current: 2,
       installments_total: 12,
-      parent_transaction_id: 'created-0',
       payment_date: '2026-11-15',
     });
+    expect(rest[0].parent_transaction_id).toBe(first[0].id);
     expect(rest[10]).toMatchObject({
       installments_current: 12,
       payment_date: '2027-09-15',
@@ -469,6 +497,158 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
     expect(tagsChain.insert.mock.calls[0][0]).toEqual(
       expect.arrayContaining([{ transaction_id: expect.any(String), tag_id: 'tag-trip', user_id: 'test-user' }])
+    );
+  });
+
+  it('despesa vinculada à viagem é salva pela RPC atômica (sem insert avulso)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Hospedagem Gramado' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '100,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-05-02' },
+    });
+
+    fireEvent.click(screen.getByTestId('mf-integration-trip-toggle'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-trip-select')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-integration-trip-select'));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('mf-integration-trip-select-option-trip-1')
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-integration-trip-select-option-trip-1'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-preview')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.rpc).toHaveBeenCalled();
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith('mf_save_tx_linked', {
+      p_tx: expect.objectContaining({
+        description: 'Hospedagem Gramado',
+        amount: 100,
+        payment_date: '2026-05-02',
+        status: 'PAGO',
+      }),
+      p_tx_id: null,
+      p_trip_id: 'trip-1',
+      p_investment_account_id: null,
+      p_children: [],
+      p_paid_by: 'test',
+      p_mirror_amount: 100,
+    });
+    // O lançamento não é gravado duas vezes (insert direto também rodaria).
+    expect(supabase.from('mf_transactions').insert).not.toHaveBeenCalled();
+  });
+
+  it('parcelado vinculado manda as filhas e o total do espelho na RPC', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Passeio parcelado' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '100,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-05-02' },
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-open'));
+    fireEvent.click(screen.getByTestId('mf-repeat-mode-total'));
+    fireEvent.click(screen.getByTestId('mf-repeat-confirm'));
+
+    fireEvent.click(screen.getByTestId('mf-integration-trip-toggle'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-trip-select')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-integration-trip-select'));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('mf-integration-trip-select-option-trip-1')
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-integration-trip-select-option-trip-1'));
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.rpc).toHaveBeenCalled();
+    });
+    const args = supabase.rpc.mock.calls[0][1];
+    expect(args.p_tx.amount).toBe(50);
+    expect(args.p_tx.installments_total).toBe(2);
+    expect(args.p_mirror_amount).toBe(100);
+    expect(args.p_children).toHaveLength(1);
+    expect(args.p_children[0]).toMatchObject({
+      amount: 50,
+      installments_current: 2,
+      installments_total: 2,
+    });
+    expect(supabase.from('mf_transactions').insert).not.toHaveBeenCalled();
+  });
+
+  it('edição de lançamento vinculado desmarca a viagem e remove o espelho', async () => {
+    const mocked = await import('../../lib/supabase');
+    mocked.__state.links = [{ transaction_id: 'tx-2', trip_id: 'trip-1' }];
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    await openDetailEdit('mf-tx-edit-tx-2');
+    const toggle = screen.getByTestId('mf-integration-trip-toggle');
+    await waitFor(() => {
+      expect(toggle).toBeChecked();
+    });
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.rpc).toHaveBeenCalled();
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      'mf_save_tx_linked',
+      expect.objectContaining({ p_tx_id: 'tx-2', p_trip_id: null, p_mirror_amount: null })
+    );
+  });
+
+  it('série fixa desabilita a integração com a viagem', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-fixed'));
+
+    const toggle = screen.getByTestId('mf-integration-trip-toggle');
+    expect(toggle).toBeDisabled();
+    expect(screen.getByTestId('mf-integration-disabled')).toHaveTextContent(
+      'minhasfinancas.integration_disabled_recurring'
     );
   });
 

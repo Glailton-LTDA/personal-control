@@ -6,7 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import { supabase, getSignedUrl } from '../../lib/supabase';
-import { mfMutate } from '../../lib/offline/mfOffline';
+import { mfMutate, isOffline } from '../../lib/offline/mfOffline';
+import { useMFProfileScope } from '../../hooks/mfProfileContext';
 import {
   useMFSuggestionRows,
   useMFAccounts,
@@ -34,15 +35,20 @@ import {
   isRecurrentTx,
   formatMonthLabel,
   invoiceCloseForDueMonth,
+  useSaveMFTransactionLinked,
+  useMFProfiles,
 } from '../../hooks/useMinhasFinancas';
 import MFAccountSelect from './MFAccountSelect';
 import MFCategoryAvatar from './MFCategoryAvatar';
 import { mfNormalize, MF_CATEGORY_COLORS } from './MFCategoryIcons';
 import MFSelect from './MFSelect';
 import MFCategorySelect from './MFCategorySelect';
+import MFIntegrationPanel from './MFIntegrationPanel';
+import { useMFTxLink } from '../../hooks/useMFIntegrationOptions';
 import MFRepeatModal from './MFRepeatModal';
 import MFChoiceDialog from './MFChoiceDialog';
 import MFCalculator from './MFCalculator';
+import { generateUUID } from '../../lib/offline/db';
 
 /** Atalho de navegação (mesmo evento usado pelo Resumo). */
 const goTo = (tab) =>
@@ -157,6 +163,14 @@ export default function MFTransacaoScreen({
   const createMutation = useCreateMFTransaction();
   const updateMutation = useUpdateMFTransaction();
   const deleteMutation = useDeleteMFTransaction();
+  const saveLinkedMutation = useSaveMFTransactionLinked();
+  const { data: profiles = [] } = useMFProfiles(user);
+  const activeProfileId = useMFProfileScope();
+  // Vínculo existente (edição): pré-preenche o bloco de integração.
+  const { data: existingLink = null } = useMFTxLink(user, tx?.id ?? null);
+  const [integration, setIntegration] = useState({ tripEnabled: false, tripId: '' });
+  // Offline: a integração exige conexão (a RPC grava nas Viagens).
+  const [offline, setOffline] = useState(() => isOffline());
   const deleteFixedMutation = useDeleteMFFixedSeries();
   const instDelete = useInstallmentDelete();
   const bulkMutation = useBulkMFTransactions();
@@ -223,6 +237,7 @@ export default function MFTransacaoScreen({
     setEditChoice(null);
     editAccepted.current = false;
     editScopeMode.current = null;
+    setIntegration({ tripEnabled: false, tripId: '' });
     if (tx) {
       setForm({
         type: tx.type ?? 'DESPESA',
@@ -253,6 +268,24 @@ export default function MFTransacaoScreen({
       setTagIds([]);
     }
   }, [tx, defaultAccountId, defaultType, mode]);
+
+  // Edição: o vínculo já existente abre o bloco ligado na viagem certa.
+  // Depende só do id da viagem para não sobrescrever o usuário desmarcando.
+  useEffect(() => {
+    if (!isEdit || !existingLink?.trip_id) return;
+    setIntegration({ tripEnabled: true, tripId: existingLink.trip_id });
+  }, [isEdit, existingLink?.trip_id]);
+
+  // Online/offline: o bloco de integração depende de conexão.
+  useEffect(() => {
+    const sync = () => setOffline(isOffline());
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
 
   // Avisa o container (MinhasFinancas) que a 2ª tela está aberta — o FAB
   // "+" global some enquanto isso (e volta ao fechar).
@@ -398,6 +431,89 @@ export default function MFTransacaoScreen({
   // Repetição na edição: só some se o lançamento já for recorrente
   // (fixa, com recorrência ou parte de parcelado).
   const alreadyRecurrent = isEdit && isRecurrentTx(tx);
+  // Converter um avulso em série nesta edição (mesma regra do salvamento).
+  const converting = isEdit && repeatMode !== 'none' && !alreadyRecurrent;
+
+  // --- Integração com a viagem (Fatia 1) ---------------------------------
+  // O bloco só integra despesa PAGA, de conta comum ou cartão, com conexão.
+  // Recorrente (série fixa ou lançamento já recorrente) fica desabilitado.
+  const hasLink = Boolean(existingLink?.trip_id);
+  const linkStatus = isCardExpense ? 'PAGO' : form.status;
+  const integrationBaseReason = isEstorno
+    ? 'estorno'
+    : offline
+      ? hasLink
+        ? 'offline_linked'
+        : 'offline'
+      : form.type === 'TRANSFERENCIA'
+        ? 'transfer'
+        : !selectedAccount
+          ? 'account'
+          : form.type === 'RECEITA'
+            ? 'income'
+            : linkStatus !== 'PAGO'
+              ? 'pending'
+              : null;
+  const integrationRecurringReason =
+    repeatMode === 'fixed' ||
+    (repeatMode === 'repeat' && repeatConfig.periodicity !== 'MONTHLY') ||
+    alreadyRecurrent
+      ? 'recurring'
+      : null;
+  const integrationDisabledReason =
+    integrationBaseReason || integrationRecurringReason || null;
+  const wantsTrip =
+    !integrationBaseReason &&
+    !integrationRecurringReason &&
+    Boolean(integration.tripEnabled) &&
+    Boolean(integration.tripId);
+  // Série já vinculada (edição de parcelado/fixa): o bloco fica travado,
+  // mas o espelho continua acompanhando o valor (não desvincula sozinho).
+  const preserveLink = Boolean(integrationRecurringReason) && hasLink && alreadyRecurrent;
+  // Offline: não mexe no vínculo (a RPC exige conexão); o lançamento salva
+  // normalmente e o espelho fica como está.
+  const linkTargetTripId = offline
+    ? null
+    : wantsTrip
+      ? integration.tripId
+      : preserveLink
+        ? existingLink.trip_id
+        : null;
+  const linkedEdit = !offline && isEdit && (hasLink || Boolean(linkTargetTripId));
+  const linkedCreate = !offline && !isEdit && Boolean(linkTargetTripId);
+
+  // Prévia do espelho: parcelado = UM gasto com o valor total.
+  const integrationCount = !isEdit || converting
+    ? repeatMode === 'fixed'
+      ? FIXED_SERIES_COUNT
+      : repeatMode === 'repeat'
+        ? Math.max(1, Number(repeatConfig.count) || 1)
+        : 1
+    : tx?.is_fixed
+      ? FIXED_SERIES_COUNT
+      : Number(tx?.installments_total) > 1
+        ? Number(tx.installments_total)
+        : 1;
+  const integrationEach = (() => {
+    const raw = parseMoney(form.amount);
+    return repeatMode === 'repeat' &&
+      repeatConfig.amountMode === 'total' &&
+      repeatConfig.count > 0
+      ? Math.round((raw / repeatConfig.count) * 100) / 100
+      : raw;
+  })();
+  const integrationTotal =
+    Math.round(integrationEach * integrationCount * 100) / 100;
+  // `paid_by` do gasto na viagem = nome do perfil ativo (texto livre).
+  const paidByName = useMemo(() => {
+    const active = (profiles ?? []).find((row) => row.id === activeProfileId);
+    return (
+      active?.name ||
+      user?.user_metadata?.full_name ||
+      user?.email?.split('@')[0] ||
+      ''
+    );
+  }, [profiles, activeProfileId, user]);
 
   // Fatura da despesa de cartão (~2 anos: treze meses para trás + doze
   // para frente, "Mês · Vence dd/mm/aa"). O membro da fatura é a ESCOLHA
@@ -765,7 +881,7 @@ export default function MFTransacaoScreen({
         ? -1
         : 1;
     // Na edição, repetir só converte quem ainda não é recorrente.
-    const converting = isEdit && repeatMode !== 'none' && !alreadyRecurrent;
+    // (`converting` vem do render — usado também pela prévia da integração.)
     // Parcelado "Valor total": o digitado é dividido entre as parcelas;
     // "Valor parcela" (padrão): cada parcela tem o valor digitado.
     const each =
@@ -898,6 +1014,28 @@ export default function MFTransacaoScreen({
 
     setSaving(true);
     try {
+      // Espelho na viagem: UM gasto com o total do lançamento/série.
+      // Parcelado = valor da parcela × nº de parcelas (mesmo no modo
+      // "valor total", em que `each` já é a divisão).
+      const mirrorAmount = Math.round(each * integrationCount * 100) / 100;
+      // Cabeça da série em edição: atualiza o próprio (pela RPC quando há
+      // vínculo, para criar/atualizar/remover o espelho atomicamente).
+      const saveEditHead = async (extra = {}) => {
+        if (linkedEdit) {
+          await saveLinkedMutation.mutateAsync({
+            txId: tx.id,
+            payload: { ...base, ...extra },
+            tripId: linkTargetTripId,
+            mirrorAmount: linkTargetTripId ? mirrorAmount : null,
+            paidBy: paidByName,
+            children: [],
+          });
+        } else {
+          await updateMutation.mutateAsync({ id: tx.id, ...base, ...extra });
+        }
+        return tx.id;
+      };
+
       if (isEdit && !converting) {
         const scope = editAccepted.current ? editScopeMode.current : 'one';
         if (scope && scope !== 'one') {
@@ -922,7 +1060,7 @@ export default function MFTransacaoScreen({
             return (Number(row.installments_current) || 0) >= cur;
           });
           const others = members.filter((row) => row.id !== tx.id);
-          await updateMutation.mutateAsync({ id: tx.id, ...base });
+          await saveEditHead();
           if (others.length > 0) {
             await bulkMutation.mutateAsync({
               ids: others.map((row) => row.id),
@@ -938,7 +1076,7 @@ export default function MFTransacaoScreen({
           }
           await linkTags([tx.id]);
         } else {
-          await updateMutation.mutateAsync({ id: tx.id, ...base });
+          await saveEditHead();
           await linkTags([tx.id]);
         }
         toast.success(t('minhasfinancas.tx_updated'));
@@ -947,19 +1085,39 @@ export default function MFTransacaoScreen({
       }
 
       const createdIds = [];
+      // Id da cabeça gerado aqui (criação) para as filhas já nascerem
+      // apontando para ela — a RPC vinculada insere tudo numa transação.
+      const headId = isEdit ? tx.id : generateUUID();
       // Cabeça: cria — ou atualiza o lançamento em edição ao converter
       // um avulso em série (ele vira a cabeça, com as filhas vinculadas).
-      const saveHead = async (extra) => {
+      const saveHead = async (extra, children = []) => {
         if (isEdit) {
-          await updateMutation.mutateAsync({ id: tx.id, ...base, ...extra });
+          await saveEditHead(extra);
           return tx.id;
         }
-        const [first] = await createMutation.mutateAsync({ ...base, ...extra });
-        createdIds.push(first?.id);
-        return first?.id ?? null;
+        if (linkedCreate) {
+          const childRows = children.map((row) => ({
+            ...row,
+            id: row.id ?? generateUUID(),
+          }));
+          await saveLinkedMutation.mutateAsync({
+            txId: null,
+            payload: { ...base, ...extra, id: headId },
+            tripId: linkTargetTripId,
+            mirrorAmount,
+            paidBy: paidByName,
+            children: childRows,
+          });
+          createdIds.push(headId, ...childRows.map((row) => row.id));
+          return headId;
+        }
+        const [first] = await createMutation.mutateAsync({ ...base, ...extra, id: headId });
+        createdIds.push(first?.id ?? headId);
+        return first?.id ?? headId;
       };
       const saveChildren = async (rows) => {
-        if (rows.length === 0) return;
+        // Vinculado: as filhas já entraram na mesma transação da RPC.
+        if (rows.length === 0 || linkedCreate) return;
         const created = await createMutation.mutateAsync(rows);
         created.forEach((row) => createdIds.push(row?.id));
       };
@@ -986,7 +1144,6 @@ export default function MFTransacaoScreen({
       if (repeatMode === 'fixed') {
         // Série fixa mensal: 12 ocorrências agora; o estensor (1x/dia)
         // mantém ~12 meses futuros até o usuário excluir a série.
-        const headId = await saveHead({ recurrence: 'MONTHLY', is_fixed: true });
         const children = [];
         for (let i = 1; i < FIXED_SERIES_COUNT; i += 1) {
           children.push(
@@ -1003,16 +1160,12 @@ export default function MFTransacaoScreen({
             )
           );
         }
+        await saveHead({ recurrence: 'MONTHLY', is_fixed: true }, children);
         await saveChildren(children);
       } else if (repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY') {
         // Parcelamento numerado (1/12…) — série finita mensal.
         const { initial, count } = repeatConfig;
         const total = initial + count - 1;
-        const headId = await saveHead({
-          recurrence: 'NONE',
-          installments_current: initial,
-          installments_total: total,
-        });
         const children = [];
         for (let i = 1; i < count; i += 1) {
           children.push(
@@ -1030,11 +1183,18 @@ export default function MFTransacaoScreen({
             )
           );
         }
+        await saveHead(
+          {
+            recurrence: 'NONE',
+            installments_current: initial,
+            installments_total: total,
+          },
+          children
+        );
         await saveChildren(children);
       } else if (repeatMode === 'repeat') {
         // Repetição finita semanal/anual (sem numeração de parcela).
         const { count, periodicity } = repeatConfig;
-        const headId = await saveHead({ recurrence: periodicity });
         const children = [];
         for (let i = 1; i < count; i += 1) {
           children.push(
@@ -1048,6 +1208,7 @@ export default function MFTransacaoScreen({
             })
           );
         }
+        await saveHead({ recurrence: periodicity }, children);
         await saveChildren(children);
       } else {
         await saveHead({ recurrence: 'NONE' });
@@ -1585,6 +1746,25 @@ export default function MFTransacaoScreen({
             )}
           </div>
         )}
+
+        {/* Integração com outros módulos (Fatia 1: gasto na viagem). */}
+        <div style={{ marginBottom: '1rem' }}>
+          <MFIntegrationPanel
+            user={user}
+            account={selectedAccount}
+            type={form.type}
+            amount={integrationEach}
+            mirrorAmount={integrationTotal}
+            installmentCount={integrationCount}
+            paymentDate={form.payment_date}
+            status={linkStatus}
+            disabledReason={integrationDisabledReason}
+            offline={offline}
+            linked={hasLink}
+            value={integration}
+            onChange={setIntegration}
+          />
+        </div>
         {repeatOpen && !isEstorno && !alreadyRecurrent && (
           <MFRepeatModal
             initial={repeatConfig.initial}

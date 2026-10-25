@@ -342,6 +342,72 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
           ),
         });
       }
+      if (request.method() === 'POST' && fn === 'mf_save_tx_linked') {
+        let body = {};
+        try {
+          body = JSON.parse(request.postData() || '{}');
+        } catch {
+          body = {};
+        }
+        page.mfLinkedRpcCalls = [...(page.mfLinkedRpcCalls || []), body];
+        const txId = body.p_tx_id || body.p_tx?.id || `tx-linked-${Date.now()}`;
+        // Emula a RPC: grava/atualiza o lançamento, as filhas, o espelho
+        // em trip_expenses e o vínculo em mf_tx_links.
+        const upsertTx = (row) => {
+          if (!row) return;
+          const next = { user_id: authUser.id, ...row };
+          const list = store.mf_transactions || [];
+          const index = list.findIndex((item) => item.id === next.id);
+          if (index >= 0) list[index] = { ...list[index], ...next };
+          else list.push(next);
+          store.mf_transactions = list;
+        };
+        upsertTx({ ...body.p_tx, id: txId });
+        (body.p_children || []).forEach((row) => upsertTx(row));
+
+        const previous = (store.mf_tx_links || []).find(
+          (row) => row.transaction_id === txId
+        );
+        if (previous?.trip_expense_id) {
+          store.trip_expenses = (store.trip_expenses || []).filter(
+            (row) => row.id !== previous.trip_expense_id
+          );
+        }
+        let nextLink = null;
+        if (body.p_trip_id) {
+          const expenseId = `exp-e2e-${Date.now()}`;
+          store.trip_expenses = [
+            ...(store.trip_expenses || []),
+            {
+              id: expenseId,
+              trip_id: body.p_trip_id,
+              user_id: authUser.id,
+              amount: body.p_mirror_amount,
+              currency: 'BRL',
+              date: body.p_tx?.payment_date,
+              description: body.p_tx?.description,
+              paid_by: body.p_paid_by,
+              status: 'PAGO',
+            },
+          ];
+          nextLink = {
+            transaction_id: txId,
+            user_id: authUser.id,
+            trip_id: body.p_trip_id,
+            trip_expense_id: expenseId,
+          };
+        }
+        store.mf_tx_links = [
+          ...(store.mf_tx_links || []).filter((row) => row.transaction_id !== txId),
+          ...(nextLink ? [nextLink] : []),
+        ];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS,
+          body: JSON.stringify(txId),
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -444,6 +510,26 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         contentType: 'application/json',
         headers: CORS,
         body: JSON.stringify(wantsObject(request) ? {} : []),
+      });
+    });
+
+    // Viagens para o dropdown da integração (não é tabela mf_*).
+    page.tripE2E = {
+      id: 'trip-e2e',
+      title: 'Gramado E2E',
+      start_date: '2026-05-01',
+      end_date: '2026-05-10',
+      currencies: ['BRL'],
+    };
+    await page.route('**/rest/v1/trips*', async (route, request) => {
+      if (request.method() === 'OPTIONS') {
+        return route.fulfill({ status: 204, headers: CORS });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: CORS,
+        body: JSON.stringify([page.tripE2E]),
       });
     });
 
@@ -557,6 +643,62 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Almoço E2E');
     await expect(row).toContainText('45,90');
+  });
+
+  test('integração: despesa vinculada à viagem grava o espelho pela RPC', async ({ page }) => {
+    await login(page);
+    await openMinhasFinancas(page);
+
+    await page.getByTestId('sidebar-sub-item-minhasfinancas-transactions').click();
+    await expect(page.getByTestId('mf-transacoes')).toBeVisible();
+    await expect(page.getByTestId('mf-txs-empty')).toBeVisible();
+
+    await page.getByTestId('mf-new-tx').click();
+    await page.getByTestId('mf-add-opt-expense').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeVisible();
+
+    await page.getByTestId('mf-tx-description').fill('Hospedagem E2E');
+    await page.getByTestId('mf-tx-amount').fill('10000'); // máscara → 100,00
+    await page.getByTestId('mf-tx-account').click();
+    await page.getByTestId('mf-tx-account-option-acc-e2e').click();
+    await page.getByTestId('mf-tx-payment-date').fill('2026-05-02');
+
+    // Bloco "Integrar com outros módulos": liga e escolhe a viagem.
+    await page.getByTestId('mf-integration-trip-toggle').check();
+    await page.getByTestId('mf-integration-trip-select').click();
+    await page.getByTestId('mf-integration-trip-select-option-trip-e2e').click();
+    await expect(page.getByTestId('mf-integration-preview')).toBeVisible();
+
+    await page.getByTestId('mf-tx-save').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeHidden();
+
+    // A RPC atômica recebeu o lançamento e o valor do espelho…
+    const calls = page.mfLinkedRpcCalls ?? [];
+    expect(calls).toHaveLength(1);
+    expect(calls[0].p_trip_id).toBe('trip-e2e');
+    expect(calls[0].p_mirror_amount).toBe(100);
+    expect(calls[0].p_tx).toMatchObject({
+      description: 'Hospedagem E2E',
+      amount: 100,
+      payment_date: '2026-05-02',
+      status: 'PAGO',
+    });
+    expect(calls[0].p_tx_id).toBeNull();
+
+    // …e o gasto espelho nasceu na viagem, com data da competência.
+    expect(page.mfStore.trip_expenses).toHaveLength(1);
+    expect(page.mfStore.trip_expenses[0]).toMatchObject({
+      trip_id: 'trip-e2e',
+      amount: 100,
+      date: '2026-05-02',
+      description: 'Hospedagem E2E',
+      status: 'PAGO',
+    });
+    expect(page.mfStore.mf_tx_links).toHaveLength(1);
+
+    // O lançamento aparece na lista (não foi gravado duas vezes).
+    await expect(page.getByTestId('mf-tx-row')).toHaveCount(1);
+    await expect(page.getByTestId('mf-tx-row')).toContainText('Hospedagem E2E');
   });
 
   test('transferência pelo menu de Novo lançamento (4 opções)', async ({ page }) => {
