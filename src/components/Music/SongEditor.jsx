@@ -212,7 +212,15 @@ export default function SongEditor({ user, initialData = null, onClose, onSaved 
             })
             .select()
             .single();
-          if (!error && data) {
+          if (error) {
+            // Não deixa música fantasma no cache nem mostra "criada" quando o
+            // servidor recusou o insert (ex.: gênero inexistente → 409/FK).
+            const { removeMusicSong } = await import('../../lib/offline/db');
+            await removeMusicSong(tempId);
+            engine.destroy();
+            throw error;
+          }
+          if (data) {
             const { removeMusicSong } = await import('../../lib/offline/db');
             await removeMusicSong(tempId);
             savedSong = { ...data, updated_at: new Date().toISOString() };

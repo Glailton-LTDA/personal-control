@@ -496,6 +496,9 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
   });
 
   test('detalhe de conta e cartão abre por URL e sobrevive ao refresh', async ({ page }) => {
+    // São 6 carregamentos completos do app (URLs diretas + refresh); no dev
+    // cada um custa ~3-4 s, então 30 s de timeout não bastam.
+    test.slow();
     await login(page);
     page.mfStore.mf_accounts.push({
       id: 'card-route-e2e',

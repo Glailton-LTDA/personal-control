@@ -204,15 +204,31 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
     if (selectedSongRef.current?.id === songRouteId) return;
 
     const loadSong = async () => {
-      try {
-        const { getMusicSong, putMusicSong } = await import('../../lib/offline/db');
-        const localSong = await getMusicSong(songRouteId);
+      const { getMusicSong, putMusicSong } = await import('../../lib/offline/db');
+      const { isSongComplete } = await import('../../lib/offline/musicQueries');
+      const localSong = await getMusicSong(songRouteId);
+
+      // Cache local já tem o necessário (cifra com texto ou partitura).
+      if (isSongComplete(localSong)) {
+        setSelectedSong(localSong);
+        return;
+      }
+
+      const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+      if (offline) {
+        // Sem conexão não dá para baixar a cifra: abre o que estiver no cache.
+        // A música pode simplesmente ainda não ter cifra cadastrada.
         if (localSong) {
           setSelectedSong(localSong);
           return;
         }
+        toast.error(t('music.song_not_found'));
+        if (navigate) navigate('music/repertoire');
+        return;
+      }
 
-        // Fallback: se não estiver no cache local, busca online
+      try {
+        // `content` não vem na listagem: busca a música completa por id.
         const { data: remoteSong, error } = await supabase
           .from('music_songs')
           .select('*')
@@ -220,14 +236,11 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
           .single();
 
         if (error) throw error;
+        if (!remoteSong) throw new Error('Song not found');
 
-        if (remoteSong) {
-          // Cacheia localmente para uso futuro offline
-          await putMusicSong(remoteSong);
-          setSelectedSong(remoteSong);
-        } else {
-          throw new Error('Song not found');
-        }
+        // Cacheia localmente para uso futuro offline
+        await putMusicSong(remoteSong);
+        setSelectedSong(remoteSong);
       } catch (err) {
         console.error('Erro ao carregar música:', err);
         toast.error(t('music.song_not_found'));
@@ -301,9 +314,40 @@ export default function Music({ user, mode = 'repertoire', navigate }) {
     }
   };
 
-  const handleEditSong = (e, song) => {
+  const handleEditSong = async (e, song) => {
     e.stopPropagation();
-    setEditingSong(song);
+    let fullSong = song;
+
+    // A listagem traz só metadados; o editor precisa do texto da cifra para
+    // não salvar `content` vazio por cima do original. Só bloqueia quando a
+    // busca falha: música sem cifra é válida e pode receber o texto agora.
+    if (song?.id && song.type !== 'partitura' && !song.content) {
+      const { getMusicSong } = await import('../../lib/offline/db');
+      const cached = await getMusicSong(song.id);
+      if (cached?.content) {
+        fullSong = { ...song, ...cached };
+      } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        // Offline e sem a cifra original: salvar sobrescreveria o conteúdo.
+        toast.error(t('music.song_not_found'));
+        return;
+      } else {
+        try {
+          const { data, error } = await supabase
+            .from('music_songs')
+            .select('*')
+            .eq('id', song.id)
+            .single();
+          if (error) throw error;
+          if (data) fullSong = { ...song, ...data };
+        } catch (err) {
+          console.warn('Erro ao carregar a cifra para edição:', err);
+          toast.error(t('music.song_not_found'));
+          return;
+        }
+      }
+    }
+
+    setEditingSong(fullSong);
     setIsEditingSong(true);
   };
 

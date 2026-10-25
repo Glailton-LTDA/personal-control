@@ -97,6 +97,9 @@ export function useOfflineUniqueArtists(userId, searchQuery = '') {
       }
     },
     enabled: !!userId,
+    // Artistas raramente mudam: evita rebaixar todos os nomes a cada abertura
+    // do dropdown (o filtro por busca continua no servidor).
+    staleTime: 5 * 60 * 1000,
   });
 
   return artists;
@@ -162,6 +165,7 @@ export function useOfflineArtistsByLetter(userId, letter) {
       }
     },
     enabled: !!userId && !!letter,
+    staleTime: 5 * 60 * 1000,
   });
 
   return artists;

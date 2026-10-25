@@ -40,6 +40,9 @@ vi.mock('./SheetViewer', () => ({ default: () => <div data-testid="sheet-viewer"
 vi.mock('./SongModal', () => ({ default: () => <div data-testid="song-modal" /> }));
 vi.mock('./ChordSettings', () => ({ default: () => <div data-testid="chord-settings" /> }));
 vi.mock('./Setlists', () => ({ default: () => <div data-testid="setlists-comp" /> }));
+vi.mock('./SongEditor', () => ({
+  default: ({ initialData }) => <div data-testid="song-editor">{initialData?.title}</div>,
+}));
 
 // Mock offline hooks
 const mockUseOfflineSongs = vi.fn();
@@ -77,6 +80,7 @@ const mockSongsQuery = {
   eq: vi.fn().mockReturnThis(),
   order: vi.fn().mockReturnThis(),
   range: vi.fn().mockReturnThis(),
+  single: vi.fn(),
 };
 
 const mockUniqueArtistsQuery = {
@@ -117,6 +121,7 @@ describe('Music Component', () => {
   beforeEach(() => {
     sessionStorage.removeItem('music-session-state');
     vi.clearAllMocks();
+    mockSongsQuery.single.mockReset();
     
     // Default mocks
     mockSongsQuery.range.mockResolvedValue({
@@ -337,5 +342,96 @@ describe('Music Component', () => {
         search: 'Amor',
       }));
     });
+  });
+
+  it('abre a música da rota pelo cache local quando a cifra já foi baixada', async () => {
+    const { db } = await import('../../lib/offline/db');
+    await db.music_songs.put({
+      id: 'song-cache-1',
+      user_id: mockUser.id,
+      title: 'Cache',
+      artist: 'Artista',
+      type: 'cifra',
+      content: 'C G Am F',
+    });
+
+    render(<Music user={mockUser} mode="song-song-cache-1" />, { wrapper: Wrapper });
+
+    expect(await screen.findByTestId('cifra-viewer')).toBeDefined();
+    expect(mockSongsQuery.select).not.toHaveBeenCalled();
+
+    await db.music_songs.delete('song-cache-1');
+  });
+
+  it('busca a cifra por id quando o cache só tem metadados', async () => {
+    const { db } = await import('../../lib/offline/db');
+    await db.music_songs.put({
+      id: 'song-meta-1',
+      user_id: mockUser.id,
+      title: 'Só metadados',
+      artist: 'Artista',
+      type: 'cifra',
+    });
+    mockSongsQuery.single.mockResolvedValue({
+      data: {
+        id: 'song-meta-1',
+        user_id: mockUser.id,
+        title: 'Só metadados',
+        artist: 'Artista',
+        type: 'cifra',
+        content: 'D A Bm G',
+      },
+      error: null,
+    });
+
+    render(<Music user={mockUser} mode="song-song-meta-1" />, { wrapper: Wrapper });
+
+    expect(await screen.findByTestId('cifra-viewer')).toBeDefined();
+    await waitFor(() => expect(mockSongsQuery.single).toHaveBeenCalled());
+    expect(mockSongsQuery.select).toHaveBeenCalledWith('*');
+
+    await waitFor(async () => {
+      const cached = await db.music_songs.get('song-meta-1');
+      expect(cached.content).toBe('D A Bm G');
+    });
+
+    await db.music_songs.delete('song-meta-1');
+  });
+
+  it('abre o editor de uma música que ainda não tem cifra', async () => {
+    const toast = (await import('react-hot-toast')).default;
+    mockSongsQuery.single.mockResolvedValue({
+      data: {
+        id: 's1',
+        user_id: mockUser.id,
+        title: 'Detalhes',
+        artist: 'Roberto Carlos',
+        type: 'cifra',
+        content: null,
+      },
+      error: null,
+    });
+
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getAllByTitle('music.edit_song_action')[0]);
+
+    expect(await screen.findByTestId('song-editor')).toBeDefined();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('não abre o editor quando a busca da cifra falha', async () => {
+    const toast = (await import('react-hot-toast')).default;
+    mockSongsQuery.single.mockResolvedValue({
+      data: null,
+      error: { message: 'network error' },
+    });
+
+    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getAllByTitle('music.edit_song_action')[0]);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('music.song_not_found'));
+    expect(screen.queryByTestId('song-editor')).toBeNull();
   });
 });
