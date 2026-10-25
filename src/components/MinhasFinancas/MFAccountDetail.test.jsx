@@ -301,8 +301,6 @@ const account = {
   initial_balance: 0,
   receitas: 200,
   despesas: 150,
-  saldo: 500,
-  previsto: 450,
   transfCredito: 200,
   transfDebito: 0,
 };
@@ -320,8 +318,6 @@ const cardAccount = {
   linked_account_id: 'acc-1',
   receitas: 0,
   despesas: 350,
-  saldo: -350,
-  previsto: -350,
 };
 
 const renderDetail = (overrides = {}) =>
@@ -655,7 +651,7 @@ describe('MFAccountDetail', () => {
       expect(screen.getByTestId('mf-timeline-item-tx-paid')).toBeInTheDocument();
     });
 
-    // saldo do teste é 500 → alvo maior abre receita
+    // saldo do teste é 1.120 → alvo maior abre receita
     fireEvent.click(screen.getByTestId('mf-acct-det-adjust'));
     fireEvent.change(screen.getByTestId('mf-adjust-target'), { target: { value: '60000' } });
     fireEvent.click(screen.getByTestId('mf-adjust-opt-manual'));
@@ -933,8 +929,10 @@ describe('MFAccountDetail — card-resumo rápido + menu ⋯', () => {
       expect(screen.getByTestId('mf-timeline-item-tx-pending')).toBeInTheDocument();
     });
 
-    // Saldo/previsto vêm do resumo (fixture: saldo 500, previsto 450)
-    expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 500,00');
+    // Saldo/previsto calculados dos lançamentos (mf_accounts não tem
+    // saldo/previsto): setembro +1.000, outubro +200 −100 +20 = 1.120;
+    // pendente −50 → previsto 1.070.
+    expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 1.120,00');
     // Cashflow do mês: transferência recebida 200; despesas pagas 100 − 20
     expect(txt('mf-det-quick-in')).toBe('+R$ 200,00');
     expect(txt('mf-det-quick-out')).toBe('-R$ 80,00');
@@ -943,7 +941,7 @@ describe('MFAccountDetail — card-resumo rápido + menu ⋯', () => {
     expect(screen.getByTestId('mf-det-quick')).toHaveTextContent('R$ 1.000,00');
     expect(screen.getByTestId('mf-det-quick')).toHaveTextContent('-R$ 50,00');
     // Pendente difere do saldo → a linha de Previsto aparece
-    expect(screen.getByTestId('mf-det-quick-forecast')).toHaveTextContent('R$ 450,00');
+    expect(screen.getByTestId('mf-det-quick-forecast')).toHaveTextContent('R$ 1.070,00');
   });
 
   it('cores do card-resumo: pendente na cor do rótulo; saldo/previsto por sinal', async () => {
@@ -963,7 +961,8 @@ describe('MFAccountDetail — card-resumo rápido + menu ⋯', () => {
   });
 
   it('previsto negativo fica vermelho (card-resumo e chip)', async () => {
-    renderDetail({ account: { ...account, previsto: -10 } });
+    // inicial −1.080 → saldo 40 (1.120 − 1.080) e previsto −10 (pendente 50)
+    renderDetail({ account: { ...account, initial_balance: -1080 } });
     await waitFor(() => {
       expect(screen.getByTestId('mf-det-quick-forecast')).toBeInTheDocument();
     });
@@ -973,22 +972,34 @@ describe('MFAccountDetail — card-resumo rápido + menu ⋯', () => {
   });
 
   it('conta sem pendente: some a linha de Previsto (igual ao saldo)', async () => {
-    renderDetail({ account: { ...account, previsto: account.saldo } });
+    // setembro não tem agendados (o pendente é de outubro)
+    renderDetail({ monthKey: '2026-09' });
     await waitFor(() => {
       expect(screen.getByTestId('mf-det-quick')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('mf-det-quick-forecast')).toBeNull();
   });
 
+  it('saldo/previsto do cabeçalho saem dos lançamentos, não de mf_accounts', async () => {
+    // Regressão: a tabela mf_accounts não tem saldo/previsto — antes o
+    // detalhe mostrava 0 mesmo com saldo.
+    renderDetail({ account: { ...account, initial_balance: 2000 } });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-pending')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-acct-det-chip-balance')).toHaveTextContent('R$ 3.120,00');
+    expect(screen.getByTestId('mf-acct-det-chip-forecast')).toHaveTextContent('R$ 3.070,00');
+  });
+
   it('olho do card esconde só o card (o resto segue o olho global)', async () => {
     renderDetail();
     await waitFor(() => {
-      expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 500,00');
+      expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 1.120,00');
     });
     fireEvent.click(screen.getByTestId('mf-det-quick-eye'));
     expect(screen.getByTestId('mf-det-quick-saldo').textContent).toBe('•••');
     fireEvent.click(screen.getByTestId('mf-det-quick-eye'));
-    expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 500,00');
+    expect(screen.getByTestId('mf-det-quick-saldo')).toHaveTextContent('R$ 1.120,00');
   });
 
   it('cartão: fatura corrente com total, gastos do mês e próxima fatura', async () => {
