@@ -538,6 +538,8 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     await waitFor(() => {
       expect(supabase.rpc).toHaveBeenCalled();
     });
+    // Sem perfil ativo ("Todos os perfis"), o responsável vem do primeiro
+    // perfil — não do prefixo do e-mail do usuário.
     expect(supabase.rpc).toHaveBeenCalledWith('mf_save_tx_linked', {
       p_tx: expect.objectContaining({
         description: 'Hospedagem Gramado',
@@ -549,7 +551,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       p_trip_id: 'trip-1',
       p_investment_account_id: null,
       p_children: [],
-      p_paid_by: 'test',
+      p_paid_by: 'Glailton',
       p_mirror_amount: 100,
     });
     // O lançamento não é gravado duas vezes (insert direto também rodaria).

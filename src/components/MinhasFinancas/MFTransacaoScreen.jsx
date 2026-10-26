@@ -504,16 +504,25 @@ export default function MFTransacaoScreen({
   })();
   const integrationTotal =
     Math.round(integrationEach * integrationCount * 100) / 100;
-  // `paid_by` do gasto na viagem = nome do perfil ativo (texto livre).
+  // `paid_by` do gasto na viagem = nome do perfil (texto livre).
+  // Sem perfil ativo ("Todos os perfis"), usa o perfil da conta do
+  // lançamento e, por fim, o primeiro perfil — o prefixo do e-mail só
+  // como último recurso, porque vira um nome feio na viagem.
   const paidByName = useMemo(() => {
     const active = (profiles ?? []).find((row) => row.id === activeProfileId);
+    const fromAccount = (profiles ?? []).find(
+      (row) => row.id === selectedAccount?.profile_id
+    );
     return (
       active?.name ||
+      fromAccount?.name ||
+      profiles?.[0]?.name ||
       user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
       user?.email?.split('@')[0] ||
       ''
     );
-  }, [profiles, activeProfileId, user]);
+  }, [profiles, activeProfileId, selectedAccount, user]);
 
   // Fatura da despesa de cartão (~2 anos: treze meses para trás + doze
   // para frente, "Mês · Vence dd/mm/aa"). O membro da fatura é a ESCOLHA

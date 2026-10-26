@@ -74,6 +74,7 @@ DECLARE
   v_trip_expense_id UUID;
   v_currency TEXT;
   v_amount NUMERIC;
+  v_prev_paid_by TEXT;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'mf_tx_link_not_authenticated';
@@ -162,6 +163,10 @@ BEGIN
 
   -- Desfaz o espelho anterior (edição ou desligar a integração).
   IF v_prev.trip_expense_id IS NOT NULL THEN
+    -- Guarda o responsável atual: ele pode ter sido ajustado direto na
+    -- viagem (o nome do perfil é só o padrão de criação).
+    SELECT paid_by INTO v_prev_paid_by
+    FROM public.trip_expenses WHERE id = v_prev.trip_expense_id;
     DELETE FROM public.trip_expenses WHERE id = v_prev.trip_expense_id;
     v_prev.trip_expense_id := NULL;
     v_prev.trip_id := NULL;
@@ -187,7 +192,11 @@ BEGIN
       trip_id, user_id, amount, currency, date, description, paid_by, status, category_id
     ) VALUES (
       p_trip_id, v_uid, v_amount, COALESCE(v_currency, 'BRL'), v_row.payment_date,
-      v_row.description, NULLIF(btrim(COALESCE(p_paid_by, '')), ''), 'PAGO', NULL
+      v_row.description,
+      -- Na edição, mantém o responsável que já estava no espelho: ele pode
+      -- ter sido ajustado na viagem. O nome do perfil é o padrão de criação.
+      COALESCE(v_prev_paid_by, NULLIF(btrim(COALESCE(p_paid_by, '')), '')),
+      'PAGO', NULL
     ) RETURNING id INTO v_trip_expense_id;
 
     INSERT INTO public.mf_tx_links (

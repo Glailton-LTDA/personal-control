@@ -136,6 +136,9 @@ export function useOfflineUpdateTrip(userId) {
       const updated = {
         ...existing,
         ...payload,
+        // Sem cache local o spread não traz o id; sem ele o put quebra
+        // com DataError (key path `id` vazio).
+        id,
         updated_at: new Date().toISOString(),
       };
 
@@ -288,6 +291,7 @@ export function useOfflineUpdateExpense(userId, tripId) {
       const updated = {
         ...existing,
         ...payload,
+        id,
         updated_at: new Date().toISOString(),
       };
 
@@ -442,6 +446,7 @@ export function useOfflineUpdateItineraryItem(userId, tripId) {
       const updated = {
         ...existing,
         ...payload,
+        id,
         updated_at: new Date().toISOString(),
       };
 
@@ -749,6 +754,7 @@ export function useOfflineUpdateChecklist(userId, tripId) {
       const updated = {
         ...existing,
         ...payload,
+        id,
         updated_at: new Date().toISOString(),
       };
 
@@ -894,6 +900,7 @@ export function useOfflineUpdateChecklistItem(userId, tripId) {
       const updated = {
         ...existing,
         ...payload,
+        id,
         updated_at: new Date().toISOString(),
       };
 

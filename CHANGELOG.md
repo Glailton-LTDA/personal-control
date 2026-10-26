@@ -17,6 +17,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Integração só para despesa PAGA**: receitas, transferências, estornos, lançamentos pendentes e séries recorrentes/fixas ficam desabilitados, com o motivo exibido no bloco.
 - **Offline**: a integração fica desabilitada e o vínculo existente não é alterado; o lançamento salva normalmente e o espelho só muda quando houver conexão.
 
+### Corrigido
+- **Editar despesa da viagem criada pelo Minhas Finanças**: a gravação no cache local (Dexie) falhava com `DataError` quando a despesa ainda não tinha cópia local — caso justamente das despesas criadas pelo espelho da integração. Agora o `id` é sempre incluído na atualização (despesas, viagens, roteiro, checklists e itens).
+- **Responsável padrão do espelho**: usa o perfil ativo, o perfil da conta ou o primeiro perfil antes de cair no prefixo do e-mail; e a edição do lançamento no MF **preserva** o nome ajustado diretamente na viagem.
+
 ## [1.17.1] - 2026-10-24
 
 ### Alterado
