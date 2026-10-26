@@ -4,6 +4,23 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-10-25
+
+### Adicionado
+- **Integração com Viagens (gasto espelho)**: a tela de lançamento ganha o bloco **Integrar com outros módulos**. Ao marcar "Registrar gasto na viagem" e escolher a viagem, o lançamento cria também o gasto em Viagens com a mesma data, descrição e valor; no cartão, a data é a da compra (não a da fatura). O gasto usa a moeda da conta e o `paid_by` do perfil ativo.
+- **Parcelado**: a viagem recebe **um único gasto com o valor total** (parcela × número de parcelas), na data da primeira parcela.
+- **Edição e exclusão acompanham o vínculo**: alterar valor/data/descrição, trocar de viagem ou desmarcar a integração atualiza/remove o espelho; excluir o lançamento (inclusive por série/cascata) remove o gasto da viagem por trigger.
+- **Migration `20261025000000_mf_tx_links_trip.sql`**: tabela `mf_tx_links`, RPC `mf_save_tx_linked` (grava lançamento, filhas da série, vínculo e espelho numa única transação) e trigger `mf_cleanup_tx_links`.
+- **Avisos da integração**: data fora do período da viagem e viagem sem a moeda da conta (não há conversão).
+
+### Alterado
+- **Integração só para despesa PAGA**: receitas, transferências, estornos, lançamentos pendentes e séries recorrentes/fixas ficam desabilitados, com o motivo exibido no bloco.
+- **Offline**: a integração fica desabilitada e o vínculo existente não é alterado; o lançamento salva normalmente e o espelho só muda quando houver conexão.
+
+### Corrigido
+- **Editar despesa da viagem criada pelo Minhas Finanças**: a gravação no cache local (Dexie) falhava com `DataError` quando a despesa ainda não tinha cópia local — caso justamente das despesas criadas pelo espelho da integração. Agora o `id` é sempre incluído na atualização (despesas, viagens, roteiro, checklists e itens).
+- **Responsável padrão do espelho**: usa o perfil ativo, o perfil da conta ou o primeiro perfil antes de cair no prefixo do e-mail; e a edição do lançamento no MF **preserva** o nome ajustado diretamente na viagem.
+
 ## [1.17.2] - 2026-10-25
 
 ### Corrigido

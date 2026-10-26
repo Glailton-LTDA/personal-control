@@ -1546,6 +1546,46 @@ export function useUpdateMFTransaction() {
   });
 }
 
+/**
+ * Salva um lançamento com integração (viagem) numa única RPC atômica:
+ * grava o lançamento (e as filhas do parcelado) + o gasto espelho + o
+ * vínculo. `txId` null = criar; `tripId` null = remover o espelho de um
+ * lançamento já vinculado (desligar a integração).
+ */
+export function useSaveMFTransactionLinked() {
+  const invalidate = useInvalidateAll();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ txId = null, payload, tripId = null, mirrorAmount = null, paidBy = null, children = [] }) =>
+      mfMutate({
+        table: 'mf_transactions',
+        action: txId ? 'update' : 'insert',
+        id: txId,
+        payload,
+        run: async () => {
+          const { data, error } = await supabase.rpc('mf_save_tx_linked', {
+            p_tx: payload,
+            p_tx_id: txId,
+            p_trip_id: tripId,
+            p_investment_account_id: null,
+            p_children: children,
+            p_paid_by: paidBy,
+            p_mirror_amount: mirrorAmount,
+          });
+          if (error) throw error;
+          return data;
+        },
+      }),
+    onSuccess: () => {
+      invalidate();
+      // O espelho vive nas Viagens: atualiza a lista de gastos/viagens.
+      queryClient.invalidateQueries({ queryKey: ['mf-tx-link'] });
+      queryClient.invalidateQueries({ queryKey: ['offline_trips'] });
+      queryClient.invalidateQueries({ queryKey: ['offline_expenses'] });
+    },
+  });
+}
+
 export function useDeleteMFTransaction() {
   const invalidate = useInvalidateAll();
   return useMutation({

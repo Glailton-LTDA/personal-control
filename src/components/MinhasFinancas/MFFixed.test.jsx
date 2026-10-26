@@ -313,7 +313,7 @@ describe('Série fixa — criação', () => {
     const children = txInserts(calls)[1].rows;
     expect(children).toHaveLength(11);
     expect(children[0]).toMatchObject({
-      parent_transaction_id: 'created-0',
+      parent_transaction_id: head.id,
       recurrence: 'MONTHLY',
       is_fixed: true,
       payment_date: '2026-11-15',
@@ -323,7 +323,7 @@ describe('Série fixa — criação', () => {
     expect(children[0]).not.toHaveProperty('installments_current');
     expect(children[10]).toMatchObject({
       payment_date: '2027-09-15',
-      parent_transaction_id: 'created-0',
+      parent_transaction_id: head.id,
     });
   });
 
