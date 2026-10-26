@@ -168,7 +168,12 @@ export default function MFTransacaoScreen({
   const activeProfileId = useMFProfileScope();
   // Vínculo existente (edição): pré-preenche o bloco de integração.
   const { data: existingLink = null } = useMFTxLink(user, tx?.id ?? null);
-  const [integration, setIntegration] = useState({ tripEnabled: false, tripId: '' });
+  const [integration, setIntegration] = useState({
+    tripEnabled: false,
+    tripId: '',
+    investmentEnabled: false,
+    investmentAccountId: '',
+  });
   // Offline: a integração exige conexão (a RPC grava nas Viagens).
   const [offline, setOffline] = useState(() => isOffline());
   const deleteFixedMutation = useDeleteMFFixedSeries();
@@ -237,7 +242,12 @@ export default function MFTransacaoScreen({
     setEditChoice(null);
     editAccepted.current = false;
     editScopeMode.current = null;
-    setIntegration({ tripEnabled: false, tripId: '' });
+    setIntegration({
+      tripEnabled: false,
+      tripId: '',
+      investmentEnabled: false,
+      investmentAccountId: '',
+    });
     if (tx) {
       setForm({
         type: tx.type ?? 'DESPESA',
@@ -269,12 +279,20 @@ export default function MFTransacaoScreen({
     }
   }, [tx, defaultAccountId, defaultType, mode]);
 
-  // Edição: o vínculo já existente abre o bloco ligado na viagem certa.
-  // Depende só do id da viagem para não sobrescrever o usuário desmarcando.
+  // Edição: os vínculos já existentes abrem o bloco ligado no destino certo.
+  // Depende só dos ids para não sobrescrever o usuário desmarcando.
+  const linkTripId = existingLink?.trip_id ?? null;
+  const linkInvestmentId = existingLink?.investment_account_id ?? null;
   useEffect(() => {
-    if (!isEdit || !existingLink?.trip_id) return;
-    setIntegration({ tripEnabled: true, tripId: existingLink.trip_id });
-  }, [isEdit, existingLink?.trip_id]);
+    if (!isEdit) return;
+    if (!linkTripId && !linkInvestmentId) return;
+    setIntegration({
+      tripEnabled: Boolean(linkTripId),
+      tripId: linkTripId ?? '',
+      investmentEnabled: Boolean(linkInvestmentId),
+      investmentAccountId: linkInvestmentId ?? '',
+    });
+  }, [isEdit, linkTripId, linkInvestmentId]);
 
   // Online/offline: o bloco de integração depende de conexão.
   useEffect(() => {
@@ -434,10 +452,12 @@ export default function MFTransacaoScreen({
   // Converter um avulso em série nesta edição (mesma regra do salvamento).
   const converting = isEdit && repeatMode !== 'none' && !alreadyRecurrent;
 
-  // --- Integração com a viagem (Fatia 1) ---------------------------------
-  // O bloco só integra despesa PAGA, de conta comum ou cartão, com conexão.
-  // Recorrente (série fixa ou lançamento já recorrente) fica desabilitado.
-  const hasLink = Boolean(existingLink?.trip_id);
+  // --- Integração com a viagem e o investimento (Fatias 1 e 2) ----------
+  // O bloco só integra lançamento PAGO, com conexão. Recorrente (série fixa
+  // ou lançamento já recorrente) fica desabilitado nos dois destinos.
+  const hasLink = Boolean(
+    existingLink?.trip_id || existingLink?.investment_account_id
+  );
   const linkStatus = isCardExpense ? 'PAGO' : form.status;
   const integrationBaseReason = isEstorno
     ? 'estorno'
@@ -449,38 +469,58 @@ export default function MFTransacaoScreen({
         ? 'transfer'
         : !selectedAccount
           ? 'account'
-          : form.type === 'RECEITA'
-            ? 'income'
-            : linkStatus !== 'PAGO'
-              ? 'pending'
-              : null;
+          : linkStatus !== 'PAGO'
+            ? 'pending'
+            : null;
   const integrationRecurringReason =
     repeatMode === 'fixed' ||
     (repeatMode === 'repeat' && repeatConfig.periodicity !== 'MONTHLY') ||
     alreadyRecurrent
       ? 'recurring'
       : null;
-  const integrationDisabledReason =
-    integrationBaseReason || integrationRecurringReason || null;
+  // Viagem: só DESPESA. Investimento: receita ou despesa, mas nunca cartão.
+  const tripDisabledReason =
+    integrationBaseReason ||
+    integrationRecurringReason ||
+    (form.type === 'RECEITA' ? 'income' : null) ||
+    null;
+  const investmentDisabledReason =
+    integrationBaseReason ||
+    integrationRecurringReason ||
+    (selectedAccount?.account_type === 'CARTAO' ? 'card' : null) ||
+    null;
   const wantsTrip =
-    !integrationBaseReason &&
-    !integrationRecurringReason &&
+    !tripDisabledReason &&
     Boolean(integration.tripEnabled) &&
     Boolean(integration.tripId);
+  const wantsInvestment =
+    !investmentDisabledReason &&
+    Boolean(integration.investmentEnabled) &&
+    Boolean(integration.investmentAccountId);
   // Série já vinculada (edição de parcelado/fixa): o bloco fica travado,
   // mas o espelho continua acompanhando o valor (não desvincula sozinho).
   const preserveLink = Boolean(integrationRecurringReason) && hasLink && alreadyRecurrent;
   // Offline: não mexe no vínculo (a RPC exige conexão); o lançamento salva
-  // normalmente e o espelho fica como está.
+  // normalmente e os espelhos ficam como estão.
   const linkTargetTripId = offline
     ? null
     : wantsTrip
       ? integration.tripId
       : preserveLink
-        ? existingLink.trip_id
+        ? existingLink?.trip_id ?? null
         : null;
-  const linkedEdit = !offline && isEdit && (hasLink || Boolean(linkTargetTripId));
-  const linkedCreate = !offline && !isEdit && Boolean(linkTargetTripId);
+  const linkTargetInvestmentId = offline
+    ? null
+    : wantsInvestment
+      ? integration.investmentAccountId
+      : preserveLink
+        ? existingLink?.investment_account_id ?? null
+        : null;
+  const linkedEdit =
+    !offline && isEdit && (hasLink || Boolean(linkTargetTripId) || Boolean(linkTargetInvestmentId));
+  const linkedCreate =
+    !offline && !isEdit && Boolean(linkTargetTripId || linkTargetInvestmentId);
+  const linkActive = Boolean(linkTargetTripId || linkTargetInvestmentId);
 
   // Prévia do espelho: parcelado = UM gasto com o valor total.
   const integrationCount = !isEdit || converting
@@ -1023,9 +1063,9 @@ export default function MFTransacaoScreen({
 
     setSaving(true);
     try {
-      // Espelho na viagem: UM gasto com o total do lançamento/série.
-      // Parcelado = valor da parcela × nº de parcelas (mesmo no modo
-      // "valor total", em que `each` já é a divisão).
+      // Espelho na viagem/investimento: UM registro com o total do
+      // lançamento/série. Parcelado = valor da parcela × nº de parcelas
+      // (mesmo no modo "valor total", em que `each` já é a divisão).
       const mirrorAmount = Math.round(each * integrationCount * 100) / 100;
       // Cabeça da série em edição: atualiza o próprio (pela RPC quando há
       // vínculo, para criar/atualizar/remover o espelho atomicamente).
@@ -1035,7 +1075,8 @@ export default function MFTransacaoScreen({
             txId: tx.id,
             payload: { ...base, ...extra },
             tripId: linkTargetTripId,
-            mirrorAmount: linkTargetTripId ? mirrorAmount : null,
+            investmentAccountId: linkTargetInvestmentId,
+            mirrorAmount: linkActive ? mirrorAmount : null,
             paidBy: paidByName,
             children: [],
           });
@@ -1113,6 +1154,7 @@ export default function MFTransacaoScreen({
             txId: null,
             payload: { ...base, ...extra, id: headId },
             tripId: linkTargetTripId,
+            investmentAccountId: linkTargetInvestmentId,
             mirrorAmount,
             paidBy: paidByName,
             children: childRows,
@@ -1767,7 +1809,9 @@ export default function MFTransacaoScreen({
             installmentCount={integrationCount}
             paymentDate={form.payment_date}
             status={linkStatus}
-            disabledReason={integrationDisabledReason}
+            disabledReason={integrationBaseReason}
+            tripDisabledReason={tripDisabledReason}
+            investmentDisabledReason={investmentDisabledReason}
             offline={offline}
             linked={hasLink}
             value={integration}

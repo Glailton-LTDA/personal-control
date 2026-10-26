@@ -441,21 +441,36 @@ i18n
               'A data {{date}} está fora do período desta viagem ({{period}}). O gasto será criado mesmo assim.',
             integration_trip_currency:
               'Esta viagem não tem {{currency}} cadastrado ({{trip}}). Sem conversão: o gasto entra em {{currency}} mesmo assim.',
+            integration_investment_title: 'Registrar rendimento no investimento',
+            integration_investment_desc:
+              'Ajusta o rendimento e o saldo final do registro do mês.',
+            integration_investment_placeholder: 'Escolha o investimento',
+            integration_investment_empty: 'Nenhuma conta de investimento em {{currency}}.',
+            integration_investment_select: 'Investimento',
+            integration_investment_required:
+              'Escolha o investimento para lançar o rendimento.',
+            integration_investment_preview:
+              'Rendimento de {{value}} em {{account}} ({{month}}).',
+            integration_investment_installments:
+              'Parcelado: um único ajuste de {{total}} ({{count}}×).',
+            integration_investment_no_institution: 'Sem instituição',
+            integration_linked_investment: 'Vinculado ao investimento {{account}}.',
             integration_disabled_recurring:
               'Lançamento recorrente: a integração fica desabilitada.',
             integration_disabled_offline:
               'Integração disponível apenas com conexão.',
             integration_disabled_transfer:
-              'Transferências não geram gasto em viagem.',
+              'Transferências não podem ser integradas.',
             integration_disabled_pending:
               'Só lançamentos PAGOS podem ser integrados.',
-            integration_disabled_income:
-              'Gasto em viagem só vale para despesas.',
+            integration_disabled_income: 'A viagem só aceita despesas.',
+            integration_disabled_card:
+              'Compras no cartão não geram rendimento em investimento.',
             integration_disabled_account: 'Escolha a conta do lançamento primeiro.',
             integration_disabled_offline_linked:
-              'Este lançamento está vinculado a uma viagem. Conecte-se para editar.',
+              'Este lançamento está vinculado. Conecte-se para editar.',
             integration_disabled_estorno:
-              'Estornos não geram gasto em viagem.',
+              'Estornos não podem ser integrados.',
             tx_tags_label: 'Tags',
             tx_no_tags: 'Nenhuma tag cadastrada.',
             tx_new_tag_placeholder: 'Nova tag…',
@@ -2378,20 +2393,32 @@ i18n
               '{{date}} is outside this trip ({{period}}). The expense will be created anyway.',
             integration_trip_currency:
               'This trip does not list {{currency}} ({{trip}}). No conversion: the expense stays in {{currency}}.',
+            integration_investment_title: 'Record yield in the investment',
+            integration_investment_desc:
+              'Adjusts the yield and final balance of the month record.',
+            integration_investment_placeholder: 'Choose the investment',
+            integration_investment_empty: 'No investment account in {{currency}}.',
+            integration_investment_select: 'Investment',
+            integration_investment_required: 'Choose the investment to record the yield.',
+            integration_investment_preview:
+              'Yield of {{value}} in {{account}} ({{month}}).',
+            integration_investment_installments:
+              'Installments: a single adjustment of {{total}} ({{count}}×).',
+            integration_investment_no_institution: 'No institution',
+            integration_linked_investment: 'Linked to the investment {{account}}.',
             integration_disabled_recurring:
               'Recurring transaction: integration is disabled.',
             integration_disabled_offline: 'Integration requires a connection.',
-            integration_disabled_transfer:
-              'Transfers do not create trip expenses.',
+            integration_disabled_transfer: 'Transfers cannot be integrated.',
             integration_disabled_pending:
               'Only PAID transactions can be integrated.',
-            integration_disabled_income:
-              'A trip expense only applies to expenses.',
+            integration_disabled_income: 'Trips only accept expenses.',
+            integration_disabled_card:
+              'Card purchases do not generate investment yield.',
             integration_disabled_account: 'Choose the transaction account first.',
             integration_disabled_offline_linked:
-              'This transaction is linked to a trip. Connect to edit it.',
-            integration_disabled_estorno:
-              'Refunds do not create trip expenses.',
+              'This transaction is linked. Connect to edit it.',
+            integration_disabled_estorno: 'Refunds cannot be integrated.',
             tx_tags_label: 'Tags',
             tx_no_tags: 'No tags yet.',
             tx_new_tag_placeholder: 'New tag…',
@@ -4257,22 +4284,35 @@ i18n
               'La fecha {{date}} está fuera del período de este viaje ({{period}}). El gasto se creará igualmente.',
             integration_trip_currency:
               'Este viaje no tiene {{currency}} registrado ({{trip}}). Sin conversión: el gasto queda en {{currency}}.',
+            integration_investment_title: 'Registrar rendimiento en la inversión',
+            integration_investment_desc:
+              'Ajusta el rendimiento y el saldo final del registro del mes.',
+            integration_investment_placeholder: 'Elige la inversión',
+            integration_investment_empty: 'Ninguna cuenta de inversión en {{currency}}.',
+            integration_investment_select: 'Inversión',
+            integration_investment_required:
+              'Elige la inversión para registrar el rendimiento.',
+            integration_investment_preview:
+              'Rendimiento de {{value}} en {{account}} ({{month}}).',
+            integration_investment_installments:
+              'Cuotas: un único ajuste de {{total}} ({{count}}×).',
+            integration_investment_no_institution: 'Sin institución',
+            integration_linked_investment: 'Vinculado a la inversión {{account}}.',
             integration_disabled_recurring:
               'Transacción recurrente: la integración queda deshabilitada.',
             integration_disabled_offline:
               'La integración solo está disponible con conexión.',
-            integration_disabled_transfer:
-              'Las transferencias no generan gastos de viaje.',
+            integration_disabled_transfer: 'Las transferencias no pueden integrarse.',
             integration_disabled_pending:
               'Solo las transacciones PAGADAS pueden integrarse.',
-            integration_disabled_income:
-              'El gasto de viaje solo aplica a gastos.',
+            integration_disabled_income: 'El viaje solo acepta gastos.',
+            integration_disabled_card:
+              'Las compras con tarjeta no generan rendimiento en la inversión.',
             integration_disabled_account:
               'Elige primero la cuenta de la transacción.',
             integration_disabled_offline_linked:
-              'Esta transacción está vinculada a un viaje. Conéctate para editarla.',
-            integration_disabled_estorno:
-              'Los reembolsos no generan gastos de viaje.',
+              'Esta transacción está vinculada. Conéctate para editarla.',
+            integration_disabled_estorno: 'Los reembolsos no pueden integrarse.',
             tx_tags_label: 'Etiquetas',
             tx_no_tags: 'Aún no hay etiquetas.',
             tx_new_tag_placeholder: 'Nueva etiqueta…',

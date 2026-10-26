@@ -4,6 +4,21 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-10-26
+
+### Adicionado
+- **Integração com Investimentos (rendimento)**: o bloco "Integrar com outros módulos" ganha a opção **Registrar rendimento no investimento**, com seletor de contas agrupado por instituição e lembrança da última usada. Receita soma no rendimento e despesa subtrai (rendimento negativo); parcelado lança **um único ajuste com o valor total**.
+- **Registro do mês**: se já existe registro da conta no mês, atualiza `yield` e `final_balance`; se não existe, cria com `initial_balance` = fechamento do registro anterior, mantendo **SI + rendimento = SF**.
+- **Editar e excluir acompanham o vínculo**: alterar valor/data/conta desfaz o delta antigo e aplica o novo; excluir o lançamento desfaz o efeito e apaga o registro quando ele foi criado pela integração e ficou sem efeito (só se for o último da série, para não quebrar a corrente dos meses seguintes).
+- **Migration `20261026000000_mf_tx_links_investment.sql`**: RPC `mf_save_tx_linked` passa a gravar o rendimento, trigger de limpeza desfaz o investimento e **índice único (conta de investimento, mês)** impede registros duplicados.
+- **Bloqueios**: cartão não integra investimento; só contas de investimento **na mesma moeda** da conta do lançamento aparecem (sem conversão); receita continua indisponível para viagem.
+
+### Alterado
+- Mensagens de bloqueio do bloco ficaram neutras (valem para viagem e investimento); o motivo é exibido em cada opção.
+
+### Corrigido
+- **Duplicatas de rendimento**: limpeza dos 3 registros duplicados em produção (CDB C6 em 01 e 02/2025, Tesouro Direto em 05/2026) e índice único para impedir novos.
+
 ## [1.18.0] - 2026-10-25
 
 ### Adicionado
