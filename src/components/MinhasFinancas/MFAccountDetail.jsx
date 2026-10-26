@@ -45,6 +45,7 @@ import {
   prevMonthKey,
   shiftMonth,
   computeMovementSplit,
+  computeAccountRows,
   cardExpenseMonth,
   formatMoney,
   formatMonthLabel,
@@ -306,6 +307,23 @@ export default function MFAccountDetail({
 
   // MOVIMENTAÇÃO do mês: efetivadas (PAGO) × pendentes por tipo/direção.
   const { start: monthStart, end: monthEnd } = monthBounds(monthKey);
+  // Saldo/previsto do mês: `mf_accounts` não guarda esses campos (o Resumo
+  // vem da RPC mf_month_summary), então o detalhe calcula a linha com a
+  // mesma função do extrato usando o `allTx` já carregado — sem request
+  // extra. Antes lia `account.saldo`, que era sempre undefined → 0.
+  const monthRow = useMemo(() => {
+    const prev = monthBounds(prevMonthKey(monthKey));
+    const [row] = computeAccountRows(
+      [account],
+      allTx ?? [],
+      monthStart,
+      monthEnd,
+      prev.start,
+      prev.end
+    );
+    return row ?? null;
+  }, [account, allTx, monthStart, monthEnd, monthKey]);
+
   const movement = useMemo(
     // Extrato completo (não o recorte do mês): despesa de cartão conta no
     // mês da fatura, como na timeline.
@@ -396,13 +414,17 @@ export default function MFAccountDetail({
       {
         id: 'balance',
         label: t('minhasfinancas.det_cf_balance'),
-        value: round2(Number(account.saldo) || 0),
+        value: round2(
+          account.account_type === 'CARTAO' && cardBalance
+            ? cardBalance.saldo
+            : monthRow?.saldo ?? 0
+        ),
         pago: 0,
         total: 0,
         color: 'var(--primary)',
       },
     ];
-  }, [movement, account, t]);
+  }, [movement, account, cardBalance, monthRow, t]);
 
   const pieData = useMemo(() => {
     const byCat = {};
@@ -512,11 +534,13 @@ export default function MFAccountDetail({
     [allTx, account.id, monthStart, monthEnd]
   );
   const shownSaldo =
-    account.account_type === 'CARTAO' && cardBalance ? cardBalance.saldo : Number(account.saldo) || 0;
+    account.account_type === 'CARTAO' && cardBalance
+      ? cardBalance.saldo
+      : Number(monthRow?.saldo) || 0;
   const shownPrevisto =
     account.account_type === 'CARTAO' && cardBalance
       ? cardBalance.previsto
-      : Number(account.previsto) || 0;
+      : Number(monthRow?.previsto) || 0;
   // Abertura do mês = fechamento do mês anterior (prevClose): o
   // `initial_balance` é só a âncora da criação/reajuste — exibir a âncora
   // como "inicial" confundia (ex.: £240 da criação com o mês anterior
@@ -1764,7 +1788,7 @@ export default function MFAccountDetail({
         <MFAdjustBalanceModal
           account={account}
           user={user}
-          current={Number(account.saldo) || 0}
+          current={shownSaldo}
           payDate={monthRefISO(monthKey)}
           allowInitial
           onClose={() => setAdjustOpen(false)}

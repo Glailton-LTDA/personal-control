@@ -440,7 +440,7 @@ export function invoiceCloseForDueMonth(card, dueMonthKey) {
  * transferências não canceladas com payment_date dentro do mês.
  * Também calcula receitas/despesas do mês anterior (para variação % dos KPIs).
  */
-const computeAccountRows = (accounts, transactions, start, end, prevStart, prevEnd) =>
+export const computeAccountRows = (accounts, transactions, start, end, prevStart, prevEnd) =>
   accounts.map((acc) => {
     let receitas = 0;
     let despesas = 0;

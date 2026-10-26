@@ -21,6 +21,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Editar despesa da viagem criada pelo Minhas Finanças**: a gravação no cache local (Dexie) falhava com `DataError` quando a despesa ainda não tinha cópia local — caso justamente das despesas criadas pelo espelho da integração. Agora o `id` é sempre incluído na atualização (despesas, viagens, roteiro, checklists e itens).
 - **Responsável padrão do espelho**: usa o perfil ativo, o perfil da conta ou o primeiro perfil antes de cair no prefixo do e-mail; e a edição do lançamento no MF **preserva** o nome ajustado diretamente na viagem.
 
+## [1.17.2] - 2026-10-25
+
+### Corrigido
+- **Saldo e previsto zerados no detalhe da conta**: o cabeçalho lia `saldo`/`previsto` de `mf_accounts`, que não guarda esses campos (o Resumo os calcula na RPC `mf_month_summary`); o resultado era sempre `0` mesmo com movimentações. O detalhe agora calcula a linha com o mesmo `computeAccountRows` do Extrato sobre os lançamentos já carregados — sem requisição extra — e usa o valor também no gráfico de fluxo e no "Reajustar saldo" (que abria com o alvo em zero).
+
 ## [1.17.1] - 2026-10-24
 
 ### Alterado

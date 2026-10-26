@@ -609,6 +609,11 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
       await page.reload();
       await expect(page.getByTestId('mf-account-detail')).toBeVisible();
       await expect(page.getByRole('heading', { name: new RegExp(name) })).toBeVisible();
+      if (path.includes('/accounts/')) {
+        // Regressão: o saldo vinha de mf_accounts (campo inexistente) → 0.
+        await expect(page.getByTestId('mf-acct-det-chip-balance')).toContainText('R$ 1.000,00');
+        await expect(page.getByTestId('mf-acct-det-chip-forecast')).toContainText('R$ 1.000,00');
+      }
     }
 
     await page.goto('/minhasfinancas/accounts');
