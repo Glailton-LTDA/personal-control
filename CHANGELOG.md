@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.17.2] - 2026-10-25
+
+### Corrigido
+- **Saldo e previsto zerados no detalhe da conta**: o cabeçalho lia `saldo`/`previsto` de `mf_accounts`, que não guarda esses campos (o Resumo os calcula na RPC `mf_month_summary`); o resultado era sempre `0` mesmo com movimentações. O detalhe agora calcula a linha com o mesmo `computeAccountRows` do Extrato sobre os lançamentos já carregados — sem requisição extra — e usa o valor também no gráfico de fluxo e no "Reajustar saldo" (que abria com o alvo em zero).
+
 ## [1.17.1] - 2026-10-24
 
 ### Alterado
