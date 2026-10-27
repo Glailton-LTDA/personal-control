@@ -154,6 +154,57 @@ describe('MFFelix — Assistente Felix (Fase 8)', () => {
     );
   });
 
+  it('modelo do Gemini indisponível vira mensagem específica com o detalhe', async () => {
+    const { supabase } = await import('../../lib/supabase');
+    supabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: {
+          clone: () => ({
+            json: async () => ({
+              code: 'model',
+              status: 404,
+              detail: 'models/gemini-3.6-flash is not found',
+            }),
+          }),
+        },
+      },
+    });
+    await renderScreen();
+
+    await typeAndSend('Olá');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('felix-msg-error')).toHaveTextContent(
+        'minhasfinancas.felix_error_model'
+      )
+    );
+    expect(screen.getByTestId('felix-msg-error')).toHaveTextContent(
+      'models/gemini-3.6-flash is not found'
+    );
+  });
+
+  it('chave recusada (401/403) vira mensagem de chave', async () => {
+    const { supabase } = await import('../../lib/supabase');
+    supabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: {
+          clone: () => ({ json: async () => ({ code: 'auth', status: 403 }) }),
+        },
+      },
+    });
+    await renderScreen();
+
+    await typeAndSend('Olá');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('felix-msg-error')).toHaveTextContent(
+        'minhasfinancas.felix_error_key'
+      )
+    );
+  });
+
   it('sugestões clicáveis enviam a pergunta', async () => {
     const { supabase } = await import('../../lib/supabase');
     await renderScreen();

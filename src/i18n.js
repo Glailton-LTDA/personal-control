@@ -705,6 +705,12 @@ i18n
             felix_thinking: 'Felix está pensando…',
             felix_clear: 'Limpar conversa',
             felix_error: 'Não consegui responder agora. Tente novamente.',
+            felix_error_model:
+              'O modelo do Gemini configurado não está disponível. Ajuste a secret GEMINI_MODEL (ex.: gemini-2.5-flash).',
+            felix_error_key:
+              'A chave do Gemini foi recusada. Verifique a secret GEMINI_API_KEY.',
+            felix_error_quota:
+              'Limite de uso do Gemini atingido. Tente novamente mais tarde.',
             felix_not_configured:
               'A IA ainda não foi ativada neste projeto — defina a secret GEMINI_API_KEY no Supabase.',
             felix_empty_reply: 'O Felix ficou sem resposta. Tente reformular.',
@@ -2674,6 +2680,12 @@ i18n
             felix_thinking: 'Felix is thinking…',
             felix_clear: 'Clear conversation',
             felix_error: "I couldn't reply right now. Please try again.",
+            felix_error_model:
+              'The configured Gemini model is unavailable. Adjust the GEMINI_MODEL secret (e.g. gemini-2.5-flash).',
+            felix_error_key:
+              'The Gemini key was rejected. Check the GEMINI_API_KEY secret.',
+            felix_error_quota:
+              'Gemini usage limit reached. Please try again later.',
             felix_not_configured:
               'AI is not enabled on this project yet — set the GEMINI_API_KEY secret in Supabase.',
             felix_empty_reply: 'Felix ran out of answers. Try rephrasing.',
@@ -4589,6 +4601,12 @@ i18n
             felix_thinking: 'Felix está pensando…',
             felix_clear: 'Limpiar conversación',
             felix_error: 'No pude responder ahora. Inténtalo de nuevo.',
+            felix_error_model:
+              'El modelo de Gemini configurado no está disponible. Ajusta el secret GEMINI_MODEL (ej.: gemini-2.5-flash).',
+            felix_error_key:
+              'La clave de Gemini fue rechazada. Revisa el secret GEMINI_API_KEY.',
+            felix_error_quota:
+              'Límite de uso de Gemini alcanzado. Inténtalo más tarde.',
             felix_not_configured:
               'La IA aún no está activada en este proyecto — define el secret GEMINI_API_KEY en Supabase.',
             felix_empty_reply: 'Felix se quedó sin respuesta. Reformula la pregunta.',

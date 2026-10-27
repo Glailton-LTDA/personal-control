@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-27
+
+### Corrigido
+- **Felix 502 (Gemini)**: o modelo era fixo em `gemini-3.6-flash`. Agora o padrão é o alias **`gemini-flash-latest`** (sempre o Flash atual), configurável pela secret **`GEMINI_MODEL`**, com fallback automático para `gemini-2.5-flash` e `gemini-2.0-flash` quando o modelo configurado responde 404 (descontinuado/renomeado). Erros de chave/cota não tentam outro modelo.
+- **Mensagem de erro do Felix**: a Edge Function devolve `code` (`auth`/`model`/`quota`) e um detalhe curto do Gemini; o chat mostra “modelo indisponível”, “chave recusada” ou “limite atingido” em vez de um erro genérico, e o log da função mantém o corpo completo para diagnóstico.
+
 ## [1.20.0] - 2026-10-26
 
 ### Adicionado

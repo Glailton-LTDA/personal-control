@@ -61,10 +61,25 @@ export default function MFFelix({ user }) {
           ? { role: 'assistant', content: reply }
           : { role: 'assistant', content: t('minhasfinancas.felix_empty_reply'), error: true },
       ]);
-    } catch {
+    } catch (err) {
+      // A Edge Function devolve `code` (auth/model/quota) para explicar o
+      // motivo; sem isso, fica a mensagem genérica.
+      let payload = null;
+      try {
+        payload = await err?.context?.clone?.().json?.();
+      } catch {
+        payload = null;
+      }
+      const byCode = {
+        model: 'felix_error_model',
+        auth: 'felix_error_key',
+        quota: 'felix_error_quota',
+      };
+      const key = byCode[payload?.code] ?? 'felix_error';
+      const detail = payload?.detail ? ` — ${payload.detail}` : '';
       setMessages([
         ...next,
-        { role: 'assistant', content: t('minhasfinancas.felix_error'), error: true },
+        { role: 'assistant', content: `${t(`minhasfinancas.${key}`)}${detail}`, error: true },
       ]);
     } finally {
       setBusy(false);
