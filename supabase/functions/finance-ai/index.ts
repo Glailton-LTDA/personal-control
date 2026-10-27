@@ -44,7 +44,13 @@ interface RequestPayload {
   context?: FelixContext
 }
 
-const GEMINI_MODEL = 'gemini-3.6-flash'
+// `gemini-flash-latest` é o alias do Flash atual mantido pelo Google —
+// evita 502 quando o modelo nomeado é descontinuado. O secret GEMINI_MODEL
+// pode fixar um modelo específico.
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest'
+// Se o modelo configurado não existir mais (404), tenta estes antes de
+// desistir — evita o 502 por modelo descontinuado/renomeado.
+const GEMINI_FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash']
 const MAX_TOOL_ROUNDS = 8
 
 // -------------------------------------------------------------
@@ -332,6 +338,7 @@ async function runTool(
 // -------------------------------------------------------------
 async function callGemini(opts: {
   apiKey: string
+  model: string
   contents: Array<Record<string, unknown>>
   systemInstruction: string
 }) {
@@ -339,7 +346,7 @@ async function callGemini(opts: {
   const timeoutId = setTimeout(() => controller.abort(), 30000)
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${opts.apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${opts.model}:generateContent?key=${opts.apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -353,10 +360,54 @@ async function callGemini(opts: {
       },
     )
     const data = await res.json().catch(() => null)
-    return { ok: res.ok, status: res.status, data }
+    return { ok: res.ok, status: res.status, data, model: opts.model }
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+/** Motivo do erro do Gemini, para o cliente traduzir numa mensagem útil. */
+function geminiFailure(status: number, data: unknown): 'auth' | 'model' | 'quota' | 'other' {
+  const message = String(
+    (data as { error?: { message?: string } } | null)?.error?.message ?? '',
+  )
+  if (status === 401 || status === 403) return 'auth'
+  if (/api key not valid|api_key_invalid|invalid api key/i.test(message)) return 'auth'
+  if (status === 404 || /not found|not supported|does not exist/i.test(message)) return 'model'
+  if (status === 429) return 'quota'
+  return 'other'
+}
+
+/** Mensagem curta do Gemini (sem chave/URL), para ajudar no diagnóstico. */
+function geminiDetail(data: unknown): string {
+  const message = String(
+    (data as { error?: { message?: string } } | null)?.error?.message ?? '',
+  ).trim()
+  return message.slice(0, 240)
+}
+
+/**
+ * Chama o Gemini com fallback de modelo: se o modelo configurado não
+ * existir, tenta os da lista. Erros de chave/cota não adiantam trocar de
+ * modelo — devolve na hora.
+ */
+async function callGeminiWithFallback(opts: {
+  apiKey: string
+  contents: Array<Record<string, unknown>>
+  systemInstruction: string
+}) {
+  const models = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS].filter(
+    (model, index, list) => !!model && list.indexOf(model) === index,
+  )
+  let last: Awaited<ReturnType<typeof callGemini>> | null = null
+  for (const model of models) {
+    const res = await callGemini({ ...opts, model })
+    if (res.ok) return res
+    last = res
+    if (geminiFailure(res.status, res.data) !== 'model') return res
+    console.warn(`Gemini: modelo ${model} indisponível (${res.status}); tentando o próximo`)
+  }
+  return last as Awaited<ReturnType<typeof callGemini>>
 }
 
 function json(obj: Record<string, unknown>, status = 200): Response {
@@ -411,10 +462,25 @@ Deno.serve(async (req: Request) => {
     let reply = ''
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-      const geminiRes = await callGemini({ apiKey, contents, systemInstruction })
+      const geminiRes = await callGeminiWithFallback({ apiKey, contents, systemInstruction })
       if (!geminiRes.ok) {
-        console.error('Gemini error:', geminiRes.status, JSON.stringify(geminiRes.data))
-        return json({ error: `Gemini respondeu ${geminiRes.status}` }, 502)
+        const code = geminiFailure(geminiRes.status, geminiRes.data)
+        console.error(
+          'Gemini error:',
+          geminiRes.status,
+          geminiRes.model,
+          JSON.stringify(geminiRes.data),
+        )
+        return json(
+          {
+            error: 'Felix indisponível no momento.',
+            code,
+            status: geminiRes.status,
+            model: geminiRes.model,
+            detail: geminiDetail(geminiRes.data),
+          },
+          502,
+        )
       }
       const parts = (geminiRes.data?.candidates?.[0]?.content?.parts ?? []) as Array<{
         text?: string
