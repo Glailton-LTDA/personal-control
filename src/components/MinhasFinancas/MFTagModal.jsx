@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -56,7 +57,7 @@ export default function MFTagModal({ tag = null, user, onClose, onSaved }) {
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="modal-overlay mf-tag-overlay"
       data-testid="mf-tag-modal"
@@ -205,6 +206,7 @@ export default function MFTagModal({ tag = null, user, onClose, onSaved }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -11,7 +11,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Tags no Resumo**: o feed de lançamentos recentes agora mostra o badge **“Categoria › Subcategoria”** e os **chips das tags** de cada lançamento (a lista de tags vem do cache; só os vínculos dos 10 recentes são consultados).
 
 ### Alterado
-- **Modal de tag (Ajustes → Tags)**: cabeçalho com título/fechar, corpo rolável, paleta com **prévia do chip** e rodapé fixo **Cancelar/Salvar** — a paleta não fica mais cortada. No mobile vira **bottom sheet**.
+- **Modal de tag (Ajustes → Tags)**: cabeçalho com título/fechar, corpo rolável, paleta com **prévia do chip** e rodapé fixo **Cancelar/Salvar** — a paleta não fica mais cortada. No mobile vira **bottom sheet**. O modal (e o de categoria) é renderizado em **portal**, como os demais do app, então não fica preso/recortado dentro do card de Ajustes.
 
 ## [1.22.0] - 2026-10-27
 
