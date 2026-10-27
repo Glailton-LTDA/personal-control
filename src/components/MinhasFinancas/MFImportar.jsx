@@ -4,6 +4,8 @@ import { Upload, X, Check, FileText, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import MFSelect from './MFSelect';
+import MFAccountIcon from './MFAccountIcon';
+import MFCardBrandIcon from './MFCardBrandIcon';
 import {
   useMFAccounts,
   useMFAccountTypes,
@@ -97,6 +99,17 @@ export default function MFImportar({ user, showValues = true }) {
       : info.label;
     return `${acc.name} · ${label}`;
   };
+  // Cartão mostra a bandeira; as demais, o ícone da conta.
+  const accountIcon = (acc, context) =>
+    acc.account_type === 'CARTAO' && acc.card_brand ? (
+      <MFCardBrandIcon brand={acc.card_brand} size={18} title={acc.name} />
+    ) : (
+      <MFAccountIcon
+        account={acc}
+        size={18}
+        data-testid={`mf-${context}-account-icon-${acc.id}`}
+      />
+    );
   const exportAccounts = useMemo(
     () =>
       exportAccountType
@@ -420,6 +433,8 @@ export default function MFImportar({ user, showValues = true }) {
                 ...exportAccounts.map((acc) => ({
                   value: acc.id,
                   label: accountLabel(acc),
+                  icon: accountIcon(acc, 'export'),
+                  meta: acc.currency || 'BRL',
                 })),
               ]}
             />
@@ -534,9 +549,9 @@ export default function MFImportar({ user, showValues = true }) {
               { value: '', label: t('minhasfinancas.import_account_hint') },
               ...accounts.map((acc) => ({
                 value: acc.id,
-                label: acc.name,
-                meta: `(${acc.currency || 'BRL'})`,
-                color: acc.color,
+                label: accountLabel(acc),
+                icon: accountIcon(acc, 'import'),
+                meta: acc.currency || 'BRL',
               })),
             ]}
           />

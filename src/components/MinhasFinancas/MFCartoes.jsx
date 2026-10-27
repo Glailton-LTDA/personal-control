@@ -398,12 +398,16 @@ export default function MFCartoes({ user, showValues = true }) {
                               brand={item.card_brand}
                               size={16}
                               title={t(
-                        `minhasfinancas.card_brand_${String(item.card_brand).toLowerCase()}`
-                      )}
+                                `minhasfinancas.card_brand_${String(
+                                  item.card_brand
+                                ).toLowerCase()}`
+                              )}
                             />
                             {t(
-                        `minhasfinancas.card_brand_${String(item.card_brand).toLowerCase()}`
-                      )}
+                              `minhasfinancas.card_brand_${String(
+                                item.card_brand
+                              ).toLowerCase()}`
+                            )}
                           </span>
                         )}
                         {item.archived_at && (
