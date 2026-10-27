@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-10-26
+
+### Adicionado
+- **Exportar CSV na aba Importar/Exportar**: baixa os lançamentos do período (padrão = mês atual, com intervalo de/até) em CSV, com filtros de conta, tipo e status. Reaproveita a geração dos Relatórios: data ISO, valor numérico com vírgula e conta/categoria por nome. Sem lançamentos no período, avisa em vez de baixar um arquivo vazio.
+
+### Alterado
+- **Ordem das abas do Minhas Finanças**: Resumo · Contas · Cartões · Relatórios · Objetivos · Orçamentos · Importar/Exportar · Felix · Lançamentos · Extrato · Ajustes.
+- A aba de importação passa a se chamar **Importar/Exportar** (pt/en/es).
+
 ## [1.18.0] - 2026-10-25
 
 ### Adicionado
