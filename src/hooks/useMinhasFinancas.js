@@ -3426,6 +3426,31 @@ export function useMFRecentTransactions(user, limit = 10) {
 }
 
 /**
+ * Vínculos de tag dos lançamentos recentes do Resumo: devolve
+ * `{ [transactionId]: [tagId] }`. A lista de tags em si vem do cache de
+ * `useMFTags` — sem baixar a tabela de tags de novo.
+ */
+export function useMFRecentTagLinks(user, txIds = []) {
+  return useQuery({
+    queryKey: ['mf-recent-tag-links', user?.id, txIds.join(',')],
+    enabled: !!user?.id && txIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mf_transaction_tags')
+        .select('transaction_id,tag_id')
+        .in('transaction_id', txIds);
+      if (error) throw error;
+      const byTx = {};
+      (data ?? []).forEach((row) => {
+        if (!row.transaction_id || !row.tag_id) return;
+        (byTx[row.transaction_id] ||= []).push(row.tag_id);
+      });
+      return byTx;
+    },
+  });
+}
+
+/**
  * Lançamentos que tocam UM conjunto de contas (drill-down da conta):
  * origem OU destino — inclui compras dos cartões vinculados e
  * transferências de/para a conta. Sem recorte de data (saldos, 12 meses

@@ -19,7 +19,6 @@ import {
   useInstallmentDelete,
   useDeleteMFFixedSeries,
   useBulkMFTransactions,
-  useCreateMFTag,
   useCreateMFCategory,
   formatMoney,
   parseMoney,
@@ -45,6 +44,7 @@ import MFSelect from './MFSelect';
 import MFCategorySelect from './MFCategorySelect';
 import MFCategoryFormModal from './MFCategoryFormModal';
 import MFIntegrationPanel from './MFIntegrationPanel';
+import MFTagPicker from './MFTagPicker';
 import { useMFTxLink } from '../../hooks/useMFIntegrationOptions';
 import MFRepeatModal from './MFRepeatModal';
 import MFChoiceDialog from './MFChoiceDialog';
@@ -180,7 +180,6 @@ export default function MFTransacaoScreen({
   const deleteFixedMutation = useDeleteMFFixedSeries();
   const instDelete = useInstallmentDelete();
   const bulkMutation = useBulkMFTransactions();
-  const createTagMutation = useCreateMFTag();
   const createCategoryMutation = useCreateMFCategory();
   const [deleteChoice, setDeleteChoice] = useState(null);
   // Edição com escopo (série fixa/parcelada): diálogo pendente.
@@ -190,9 +189,7 @@ export default function MFTransacaoScreen({
 
   const [form, setForm] = useState(emptyForm);
   const [tagIds, setTagIds] = useState([]);
-  const [newTag, setNewTag] = useState('');
   const [tagsOpen, setTagsOpen] = useState(false);
-  const [tagSearch, setTagSearch] = useState('');
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [amountCalcOpen, setAmountCalcOpen] = useState(false);
   // Autocomplete da descrição (só na criação): lista aberta + destaque.
@@ -228,9 +225,7 @@ export default function MFTransacaoScreen({
   const isEstorno = mode === 'estorno' && !isEdit;
 
   useEffect(() => {
-    setNewTag('');
     setTagsOpen(false);
-    setTagSearch('');
     setCategoryTouched(false);
     setSuggestOpen(false);
     setSuggestIndex(0);
@@ -708,22 +703,6 @@ export default function MFTransacaoScreen({
     setTagIds((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
     );
-  };
-
-  const handleAddTag = async () => {
-    const name = newTag.trim();
-    if (!name) return;
-    if (tags.some((tag) => tag.name.toLowerCase() === name.toLowerCase())) {
-      toast.error(t('minhasfinancas.tx_tag_exists'));
-      return;
-    }
-    try {
-      const created = await createTagMutation.mutateAsync({ user_id: user.id, name });
-      if (created?.id) setTagIds((prev) => [...prev, created.id]);
-      setNewTag('');
-    } catch {
-      toast.error(t('minhasfinancas.save_error'));
-    }
   };
 
   /** Cria a categoria digitada na busca do seletor e já a seleciona. */
@@ -2140,79 +2119,15 @@ export default function MFTransacaoScreen({
             {t('minhasfinancas.tx_tags_add')}
           </button>
           {tagsOpen && (
-            <div
-              data-testid="mf-tx-tags-picker"
-              style={{
-                marginTop: '0.6rem',
-                padding: '0.8rem',
-                border: '1px solid var(--glass-border)',
-                borderRadius: 12,
-                background: 'rgba(255, 255, 255, 0.02)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.7rem',
-              }}
-            >
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                {tags.length === 0 && (
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {t('minhasfinancas.tx_no_tags')}
-                  </span>
-                )}
-                {tags.length > 0 && (
-                  <input
-                    type="text"
-                    className="glass-input"
-                    data-testid="mf-tx-tags-search"
-                    value={tagSearch}
-                    onChange={(event) => setTagSearch(event.target.value)}
-                    placeholder={t('minhasfinancas.tag_search_placeholder')}
-                    style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.7rem', marginBottom: '0.3rem' }}
-                  />
-                )}
-                {tags
-                  .filter((tag) => tag.name.toLowerCase().includes(tagSearch.trim().toLowerCase()))
-                  .map((tag) => {
-                  const active = tagIds.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      data-testid={`mf-tx-tag-${tag.id}`}
-                      aria-pressed={active}
-                      onClick={() => handleToggleTag(tag.id)}
-                      style={tagChipStyle(tag, active)}
-                    >
-                      # {tag.name}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(event) => setNewTag(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      handleAddTag();
-                    }
-                  }}
-                  placeholder={t('minhasfinancas.tx_new_tag_placeholder')}
-                  data-testid="mf-tx-new-tag"
-                  style={{ flex: 1 }}
-                />
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  data-testid="mf-tx-add-tag"
-                  onClick={handleAddTag}
-                  style={{ padding: '0.5rem 0.8rem' }}
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
+            <div style={{ marginTop: '0.6rem' }}>
+              <MFTagPicker
+                user={user}
+                tags={tags}
+                value={tagIds}
+                onChange={setTagIds}
+                testId="mf-tx-tags-picker"
+                onDone={() => setTagsOpen(false)}
+              />
             </div>
           )}
         </div>

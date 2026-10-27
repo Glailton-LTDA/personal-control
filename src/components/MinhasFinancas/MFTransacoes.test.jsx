@@ -464,11 +464,13 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     // Tags: seletor fechado por padrão — abre, filtra pela busca e escolhe
     fireEvent.click(screen.getByTestId('mf-tx-tags-toggle'));
     expect(screen.getByTestId('mf-tx-tags-picker')).toBeInTheDocument();
-    fireEvent.change(screen.getByTestId('mf-tx-tags-search'), {
+    fireEvent.change(screen.getByTestId('mf-tx-tags-picker-search'), {
       target: { value: 'via' },
     });
-    expect(screen.queryByTestId('mf-tx-tag-tag-home')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('mf-tx-tag-tag-trip'));
+    expect(
+      screen.queryByTestId('mf-tx-tags-picker-option-tag-home')
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-tx-tags-picker-option-tag-trip'));
 
     fireEvent.click(screen.getByTestId('mf-tx-save'));
 

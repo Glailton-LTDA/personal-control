@@ -48,6 +48,8 @@ import {
   useMFGroups,
   useMFCardUpcoming,
   useMFRecentTransactions,
+  useMFRecentTagLinks,
+  useMFTags,
   useMFPrefs,
   useMFNarrowScreen,
   useMFReorder,
@@ -338,6 +340,17 @@ export default function MFResumo({
   // Feed de recentes (Fase C): 10 últimos lançamentos de todas as contas,
   // independente do mês navegado.
   const { data: recentTxs = [] } = useMFRecentTransactions(user, 10);
+  // Tags dos recentes: vínculos da janela + cache global de tags.
+  const { data: allTags = [] } = useMFTags(user);
+  const recentIds = useMemo(
+    () => (recentTxs ?? []).map((tx) => tx.id).slice(0, 10),
+    [recentTxs]
+  );
+  const { data: recentTagLinks = {} } = useMFRecentTagLinks(user, recentIds);
+  const tagsById = useMemo(
+    () => Object.fromEntries((allTags ?? []).map((tag) => [tag.id, tag])),
+    [allTags]
+  );
   const accountsById = useMemo(
     () => Object.fromEntries(rows.map((row) => [row.id, row])),
     [rows]
@@ -2180,6 +2193,13 @@ export default function MFResumo({
               const amount = Number(tx.amount) || 0;
               const isExpense = tx.type === 'DESPESA';
               const isTransfer = tx.type === 'TRANSFERENCIA';
+              const cat = !isTransfer && tx.category_id ? categoriesById[tx.category_id] : null;
+              const catParent = cat?.parent_id ? categoriesById[cat.parent_id] : null;
+              const catPath = cat ? (catParent ? `${catParent.name} › ${cat.name}` : cat.name) : '';
+              const catColor = (catParent ?? cat)?.color || 'var(--primary)';
+              const txTags = (recentTagLinks[tx.id] ?? [])
+                .map((tagId) => tagsById[tagId])
+                .filter(Boolean);
               return (
                 <button
                   key={tx.id}
@@ -2211,13 +2231,69 @@ export default function MFResumo({
                   >
                     {shortDate(tx.payment_date)}
                   </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                    {tx.description || t('minhasfinancas.chart_uncategorized')}
-                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      {accountsById[tx.account_id]?.name ?? ''}
-                      {!isTransfer && tx.category_id
-                        ? ` · ${categoriesById[tx.category_id]?.name ?? t('minhasfinancas.chart_uncategorized')}`
-                        : ''}
+                  <span style={{ flex: 1, minWidth: 0, fontSize: '0.85rem' }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {tx.description || t('minhasfinancas.chart_uncategorized')}
+                    </span>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        flexWrap: 'wrap',
+                        marginTop: '0.12rem',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {accountsById[tx.account_id]?.name ?? ''}
+                      </span>
+                      {catPath && (
+                        <span
+                          data-testid={`mf-resumo-recent-cat-${tx.id}`}
+                          style={{
+                            fontSize: '0.66rem',
+                            fontWeight: 700,
+                            padding: '0.05rem 0.45rem',
+                            borderRadius: 999,
+                            background: `color-mix(in srgb, ${catColor} 18%, transparent)`,
+                            color: catColor,
+                            border: `1px solid color-mix(in srgb, ${catColor} 35%, transparent)`,
+                            maxWidth: '60%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {catPath}
+                        </span>
+                      )}
+                      {txTags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          data-testid={`mf-resumo-recent-tag-${tx.id}-${tag.id}`}
+                          style={{
+                            fontSize: '0.66rem',
+                            fontWeight: 700,
+                            padding: '0.05rem 0.45rem',
+                            borderRadius: 999,
+                            background: `color-mix(in srgb, ${tag.color || 'var(--text-muted)'} 20%, transparent)`,
+                            color: tag.color || 'var(--text-muted)',
+                            maxWidth: '40%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          # {tag.name}
+                        </span>
+                      ))}
                     </span>
                   </span>
                   <span

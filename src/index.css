@@ -237,6 +237,17 @@ body {
   padding-bottom: 0.25rem;
 }
 
+/* Modal de tag: no mobile vira bottom sheet (paleta e rodapé sempre à mão). */
+@media (max-width: 640px) {
+  .mf-tag-overlay { align-items: flex-end; padding: 0; }
+  .mf-tag-modal {
+    border-radius: 24px 24px 0 0;
+    max-height: 92vh;
+    width: 100%;
+  }
+  .mf-tag-modal .modal-footer { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+}
+
 /* Detalhe da conta: 2 colunas no desktop (resumo | extrato), abas no mobile
    (Transações primeiro) — padrão do app original. */
 .mf-det-tabs {

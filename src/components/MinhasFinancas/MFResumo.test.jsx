@@ -22,13 +22,24 @@ const mockData = vi.hoisted(() => {
     { id: 'acc-brl', name: 'Conta BRL', account_type: 'CORRENTE', currency: 'BRL', initial_balance: 1000, color: '#6366f1', sort_order: 0 },
     { id: 'acc-usd', name: 'Conta USD', account_type: 'CORRENTE', currency: 'USD', initial_balance: 200, color: '#10b981', sort_order: 1 },
   ];
-  const data = { accounts: baseAccounts(), transactions: [], categories: [], groups: [], goals: [], baseAccounts };
+  const data = {
+    accounts: baseAccounts(),
+    transactions: [],
+    categories: [],
+    groups: [],
+    goals: [],
+    tags: [],
+    transactionTags: [],
+    baseAccounts,
+  };
   data.reset = () => {
     data.accounts.splice(0, data.accounts.length, ...baseAccounts());
     data.transactions.length = 0;
     data.categories.length = 0;
     data.groups.length = 0;
     data.goals.length = 0;
+    data.tags.length = 0;
+    data.transactionTags.length = 0;
   };
   return data;
 });
@@ -62,6 +73,8 @@ vi.mock('../../lib/supabase', () => {
     mf_categories: makeChain({ data: mockData.categories, error: null }),
     mf_account_groups: makeChain({ data: mockData.groups, error: null }),
     mf_goals: makeChain({ data: mockData.goals, error: null }),
+    mf_tags: makeChain({ data: mockData.tags, error: null }),
+    mf_transaction_tags: makeChain({ data: mockData.transactionTags, error: null }),
   };
   const empty = makeChain({ data: [], error: null });
 
@@ -508,6 +521,56 @@ describe('MFResumo — feed de recentes (Fase C)', () => {
     } finally {
       window.removeEventListener('set-active-tab', onTab);
     }
+  });
+
+  it('mostra categoria › subcategoria e as tags no feed', async () => {
+    mockData.transactions.length = 0;
+    mockData.categories.push(
+      { id: 'cat-food', name: 'Alimentação', color: '#f59e0b' },
+      {
+        id: 'cat-market',
+        name: 'Supermercado',
+        parent_id: 'cat-food',
+        color: '#10b981',
+      }
+    );
+    mockData.tags.push(
+      { id: 'tag-trip', name: 'viagem', color: '#a78bfa' },
+      { id: 'tag-home', name: 'casa', color: '#38bdf8' }
+    );
+    mockData.transactionTags.push(
+      { transaction_id: 'tx-recent-new', tag_id: 'tag-trip' },
+      { transaction_id: 'tx-recent-new', tag_id: 'tag-home' }
+    );
+    mockData.transactions.push({
+      id: 'tx-recent-new',
+      account_id: 'acc-brl',
+      type: 'DESPESA',
+      status: 'PAGO',
+      amount: 120.5,
+      payment_date: '2026-11-05',
+      description: 'Mercado',
+      category_id: 'cat-market',
+    });
+
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/^mf-resumo-recent-row-/)).toHaveLength(1);
+    });
+
+    expect(screen.getByTestId('mf-resumo-recent-cat-tx-recent-new')).toHaveTextContent(
+      'Alimentação › Supermercado'
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('mf-resumo-recent-tag-tx-recent-new-tag-trip')
+      ).toHaveTextContent('# viagem');
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('mf-resumo-recent-tag-tx-recent-new-tag-home')
+      ).toHaveTextContent('# casa');
+    });
   });
 });
 

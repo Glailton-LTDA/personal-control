@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-10-27
+
+### Adicionado
+- **Seletor de tags com um campo só**: digitar filtra as tags existentes e, quando o nome não existe, aparece **“Criar a tag <nome>”** — cria na hora com cor automática, já marca no lançamento e entra no cache. Vale para a tela de lançamento e para a edição rápida dos Detalhes, no web e no mobile.
+- **Tags no Resumo**: o feed de lançamentos recentes agora mostra o badge **“Categoria › Subcategoria”** e os **chips das tags** de cada lançamento (a lista de tags vem do cache; só os vínculos dos 10 recentes são consultados).
+
+### Alterado
+- **Modal de tag (Ajustes → Tags)**: cabeçalho com título/fechar, corpo rolável, paleta com **prévia do chip** e rodapé fixo **Cancelar/Salvar** — a paleta não fica mais cortada. No mobile vira **bottom sheet**.
+
 ## [1.22.0] - 2026-10-27
 
 ### Adicionado
