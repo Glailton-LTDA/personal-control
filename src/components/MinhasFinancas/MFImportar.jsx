@@ -6,12 +6,16 @@ import { confirmToast } from '../../lib/toast';
 import MFSelect from './MFSelect';
 import {
   useMFAccounts,
+  useMFAccountTypes,
   useMFCategories,
   useMFAllTransactions,
   useMFImportBatches,
   useRunMFImport,
   currentMonthKey,
   monthBounds,
+  accountTypeInfo,
+  MF_BUILTIN_ACCOUNT_TYPES,
+  MF_ACCOUNT_TYPE_ICONS,
   formatMoney,
 } from '../../hooks/useMinhasFinancas';
 import { buildCsv, downloadText } from './mfReports';
@@ -59,10 +63,12 @@ export default function MFImportar({ user, showValues = true }) {
 
   // --- Exportar CSV: período (padrão = mês atual) + filtros ---
   const { data: categories = [] } = useMFCategories(user);
+  const { data: accountTypes = [] } = useMFAccountTypes(user);
   const monthNow = monthBounds(currentMonthKey());
   const [exportFrom, setExportFrom] = useState(monthNow.start);
   const [exportTo, setExportTo] = useState(monthNow.end);
   const [exportAccountId, setExportAccountId] = useState('');
+  const [exportAccountType, setExportAccountType] = useState('');
   const [exportType, setExportType] = useState('');
   const [exportStatus, setExportStatus] = useState('');
   const exportRange = useMemo(
@@ -74,6 +80,36 @@ export default function MFImportar({ user, showValues = true }) {
     exportAccountId || null,
     exportRange
   );
+  const accountsById = useMemo(
+    () => Object.fromEntries((accounts ?? []).map((row) => [row.id, row])),
+    [accounts]
+  );
+  const categoriesById = useMemo(
+    () => Object.fromEntries((categories ?? []).map((row) => [row.id, row])),
+    [categories]
+  );
+  // Nome · tipo da conta (ex.: "Nubank · Cartão"), com o tipo padrão
+  // traduzido e o personalizado como está no cadastro.
+  const accountLabel = (acc) => {
+    const info = accountTypeInfo(acc.account_type, accountTypes);
+    const label = info.builtin
+      ? t(`minhasfinancas.acct_type_${String(acc.account_type).toLowerCase()}`)
+      : info.label;
+    return `${acc.name} · ${label}`;
+  };
+  const exportAccounts = useMemo(
+    () =>
+      exportAccountType
+        ? (accounts ?? []).filter((acc) => acc.account_type === exportAccountType)
+        : accounts ?? [],
+    [accounts, exportAccountType]
+  );
+  // Trocar o tipo de conta não pode deixar uma conta de outro tipo escolhida.
+  useEffect(() => {
+    if (exportAccountId && !exportAccounts.some((acc) => acc.id === exportAccountId)) {
+      setExportAccountId('');
+    }
+  }, [exportAccountId, exportAccounts]);
   const exportRows = useMemo(
     () =>
       (exportTxs ?? []).filter((tx) => {
@@ -86,9 +122,15 @@ export default function MFImportar({ user, showValues = true }) {
         }
         if (exportType && tx.type !== exportType) return false;
         if (exportStatus && tx.status !== exportStatus) return false;
+        if (
+          exportAccountType &&
+          accountsById[tx.account_id]?.account_type !== exportAccountType
+        ) {
+          return false;
+        }
         return true;
       }),
-    [exportTxs, exportRange, exportType, exportStatus]
+    [exportTxs, exportRange, exportType, exportStatus, exportAccountType, accountsById]
   );
 
   const exportCsv = () => {
@@ -96,12 +138,6 @@ export default function MFImportar({ user, showValues = true }) {
       toast.error(t('minhasfinancas.export_empty'));
       return;
     }
-    const accountsById = Object.fromEntries(
-      (accounts ?? []).map((row) => [row.id, row])
-    );
-    const categoriesById = Object.fromEntries(
-      (categories ?? []).map((row) => [row.id, row])
-    );
     downloadText(
       buildCsv(exportRows, { accountsById, categoriesById }),
       `lancamentos_${exportFrom}_${exportTo}.csv`
@@ -379,10 +415,35 @@ export default function MFImportar({ user, showValues = true }) {
               testId="mf-export-account"
               value={exportAccountId}
               onChange={setExportAccountId}
-              searchable={false}
               options={[
                 { value: '', label: t('minhasfinancas.export_all_accounts') },
-                ...accounts.map((acc) => ({ value: acc.id, label: acc.name })),
+                ...exportAccounts.map((acc) => ({
+                  value: acc.id,
+                  label: accountLabel(acc),
+                })),
+              ]}
+            />
+          </div>
+          <div className="input-group" style={{ margin: 0 }}>
+            <label>{t('minhasfinancas.export_account_type')}</label>
+            <MFSelect
+              testId="mf-export-account-type"
+              value={exportAccountType}
+              onChange={setExportAccountType}
+              options={[
+                { value: '', label: t('minhasfinancas.export_all_account_types') },
+                ...MF_BUILTIN_ACCOUNT_TYPES.map((type) => ({
+                  value: type,
+                  group: t('minhasfinancas.default_types'),
+                  label: `${MF_ACCOUNT_TYPE_ICONS[type] || '🏷️'} ${t(
+                    `minhasfinancas.type_${type.toLowerCase()}`
+                  )}`,
+                })),
+                ...accountTypes.map((item) => ({
+                  value: item.name,
+                  group: t('minhasfinancas.custom_types'),
+                  label: `${item.icon || '🏷️'} ${item.name}`,
+                })),
               ]}
             />
           </div>
@@ -392,7 +453,6 @@ export default function MFImportar({ user, showValues = true }) {
               testId="mf-export-type"
               value={exportType}
               onChange={setExportType}
-              searchable={false}
               options={[
                 { value: '', label: t('minhasfinancas.export_all_types') },
                 { value: 'DESPESA', label: t('minhasfinancas.export_type_expense') },
@@ -410,7 +470,6 @@ export default function MFImportar({ user, showValues = true }) {
               testId="mf-export-status"
               value={exportStatus}
               onChange={setExportStatus}
-              searchable={false}
               options={[
                 { value: '', label: t('minhasfinancas.export_all_statuses') },
                 { value: 'PAGO', label: t('minhasfinancas.export_status_paid') },

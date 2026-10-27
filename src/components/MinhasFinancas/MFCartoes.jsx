@@ -397,9 +397,13 @@ export default function MFCartoes({ user, showValues = true }) {
                             <MFCardBrandIcon
                               brand={item.card_brand}
                               size={16}
-                              title={t(`minhasfinancas.card_brand_${item.card_brand}`)}
+                              title={t(
+                        `minhasfinancas.card_brand_${String(item.card_brand).toLowerCase()}`
+                      )}
                             />
-                            {t(`minhasfinancas.card_brand_${item.card_brand}`)}
+                            {t(
+                        `minhasfinancas.card_brand_${String(item.card_brand).toLowerCase()}`
+                      )}
                           </span>
                         )}
                         {item.archived_at && (

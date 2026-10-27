@@ -123,7 +123,9 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
               : '',
             color: account.color || COLORS[0],
             icon: account.icon ?? '',
-            card_brand: account.card_brand ?? '',
+            card_brand: account.card_brand
+              ? String(account.card_brand).toLowerCase()
+              : '',
             closing_day: account.closing_day ? String(account.closing_day) : '',
             due_day: account.due_day ? String(account.due_day) : '',
             credit_limit: account.credit_limit

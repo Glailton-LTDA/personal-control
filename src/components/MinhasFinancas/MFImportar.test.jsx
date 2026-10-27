@@ -94,11 +94,13 @@ vi.mock('../../lib/supabase', () => {
     error: null,
   });
   const importRows = makeChain({ data: [], error: null });
+  const accountTypes = makeChain({ data: [], error: null });
 
   return {
     supabase: {
       from: vi.fn((table) => {
         if (table === 'mf_accounts') return accounts;
+        if (table === 'mf_account_types') return accountTypes;
         if (table === 'mf_transactions') return transactions;
         if (table === 'mf_import_batches') return batches;
         if (table === 'mf_import_rows') return importRows;
@@ -386,6 +388,64 @@ describe('MFImportar — Importação OFX/CSV (Fase 7)', () => {
     expect(csv).toContain('"Nubank"');
     expect(csv).toContain('"100,00"');
     expect(csv).toContain('"PAGO"');
+  });
+
+  it('Tipo de conta filtra pelo tipo cadastrado e a conta mostra Nome · Tipo', async () => {
+    renderScreen();
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-account-type')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('mf-export-from'), {
+      target: { value: '2026-09-01' },
+    });
+    fireEvent.change(screen.getByTestId('mf-export-to'), {
+      target: { value: '2026-09-30' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#1'
+      )
+    );
+
+    // Rótulo "Nome · Tipo" no seletor de contas.
+    fireEvent.click(screen.getByTestId('mf-export-account'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-account-option-acc-1')).toHaveTextContent(
+        'Nubank · minhasfinancas.acct_type_corrente'
+      )
+    );
+    fireEvent.click(screen.getByTestId('mf-export-account-option-acc-1'));
+
+    // Tipos padrão agrupados em "Padrões", com o ícone do tipo.
+    fireEvent.click(screen.getByTestId('mf-export-account-type'));
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('mf-export-account-type-option-CORRENTE')
+      ).toBeInTheDocument()
+    );
+    expect(
+      screen.getByTestId('mf-export-account-type-group-minhasfinancas.default_types')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('mf-export-account-type-option-CORRENTE')
+    ).toHaveTextContent('🏦 minhasfinancas.type_corrente');
+
+    // Filtra pelo tipo da conta do lançamento (CORRENTE mantém; CARTAO zera).
+    fireEvent.click(screen.getByTestId('mf-export-account-type-option-CORRENTE'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#1'
+      )
+    );
+
+    fireEvent.click(screen.getByTestId('mf-export-account-type'));
+    fireEvent.click(screen.getByTestId('mf-export-account-type-option-CARTAO'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#0'
+      )
+    );
   });
 
   it('sem lançamentos no período não baixa o arquivo', async () => {

@@ -59,8 +59,7 @@ vi.mock('../../lib/supabase', () => {
     return chain;
   };
 
-  const accounts = makeChain({
-    data: [
+  const __mfAccounts = [
       {
         id: 'acc-card',
         name: 'Visa',
@@ -95,9 +94,8 @@ vi.mock('../../lib/supabase', () => {
         initial_balance: 5000,
         color: '#10b981',
       },
-    ],
-    error: null,
-  });
+  ];
+  const accounts = makeChain(() => ({ data: __mfAccounts, error: null }));
 
   // Categorias para o badge da linha da fatura (lista da fatura mostra a
   // categoria ao lado da descrição, igual ao app original)
@@ -112,6 +110,7 @@ vi.mock('../../lib/supabase', () => {
   // Estado mutável (padrão __mfState): um teste pontual pode trocar as
   // transações e restaurá-las no finally — usado pela regressão do limite.
   const __mfState = {
+    accounts: __mfAccounts,
     transactions: [
       // Fatura Visa 08 (fecha 10/08, vence 20/08) — paga pela transferência
       { id: 'tx-v1', account_id: 'acc-card', type: 'DESPESA', amount: 300, payment_date: '2026-08-05', status: 'PAGO', description: 'Farmácia' },
@@ -884,6 +883,26 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
 
     const badgeMaster = screen.getByTestId('mf-card-brand-acc-master');
     expect(badgeMaster).toContainElement(screen.getByTestId('mf-brand-icon-mastercard'));
+  });
+
+  it('bandeira gravada com maiúscula ("Mastercard") usa o rótulo traduzido', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.accounts[1].card_brand;
+    __mfState.accounts[1].card_brand = 'Mastercard';
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-brand-acc-master')).toBeInTheDocument();
+      });
+      const badge = screen.getByTestId('mf-card-brand-acc-master');
+      expect(badge).toHaveTextContent('minhasfinancas.card_brand_mastercard');
+      expect(badge).not.toHaveTextContent('Mastercard');
+      expect(badge).toContainElement(
+        screen.getByTestId('mf-brand-icon-mastercard')
+      );
+    } finally {
+      __mfState.accounts[1].card_brand = original;
+    }
   });
 
   it('pagamento futuro quita o mês da fatura, sem limpar o mês passado (regressão de época)', async () => {

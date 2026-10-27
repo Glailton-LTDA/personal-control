@@ -12,20 +12,23 @@ import { MF_BRAND_ICONS } from './MFIconData';
  */
 export default function MFCardBrandIcon({ brand, size = 18, title }) {
   if (!brand) return null;
+  // O banco guarda a bandeira com capitalização variada ("Mastercard",
+  // "mastercard"); o catálogo é minúsculo.
+  const key = String(brand).toLowerCase();
 
-  if (MF_BRAND_ICONS[brand]) {
+  if (MF_BRAND_ICONS[key]) {
     return (
       <MFAccountIcon
-        account={{ icon: `brand:${brand}`, name: title || brand }}
+        account={{ icon: `brand:${key}`, name: title || brand }}
         size={size}
-        data-testid={`mf-brand-icon-${brand}`}
+        data-testid={`mf-brand-icon-${key}`}
       />
     );
   }
 
   return (
     <span
-      data-testid={`mf-brand-fallback-${brand}`}
+      data-testid={`mf-brand-fallback-${key}`}
       title={title || brand}
       style={{
         width: size,

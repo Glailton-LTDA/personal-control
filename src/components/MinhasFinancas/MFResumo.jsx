@@ -1523,7 +1523,9 @@ export default function MFResumo({
                                   <MFCardBrandIcon
                                     brand={row.card_brand}
                                     size={16}
-                                    title={t(`minhasfinancas.card_brand_${row.card_brand}`)}
+                                    title={t(
+                        `minhasfinancas.card_brand_${String(row.card_brand).toLowerCase()}`
+                      )}
                                   />
                                 </span>
                               )}
@@ -1883,7 +1885,9 @@ export default function MFResumo({
                                     <MFCardBrandIcon
                                       brand={row.card_brand}
                                       size={18}
-                                      title={t(`minhasfinancas.card_brand_${row.card_brand}`)}
+                                      title={t(
+                        `minhasfinancas.card_brand_${String(row.card_brand).toLowerCase()}`
+                      )}
                                     />
                                   </span>
                                 )}
