@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import MFAccountIcon from './MFAccountIcon';
 import { MF_CATEGORY_ICONS, mfIconMatches, mfNormalize } from './MFCategoryIcons';
-import { MF_BRAND_ICONS, MF_GLYPH_ICONS, MF_GLYPH_KEYWORDS } from './MFIconData';
+import { MF_BRAND_ICONS, MF_GLYPH_FAMILIES, MF_GLYPH_ICONS, MF_GLYPH_KEYWORDS } from './MFIconData';
 
 /**
  * Seletor de ícone (padrão do Minhas Finanças original): busca + grade de
@@ -49,6 +49,41 @@ export default function MFIconPicker({
           )
         : []),
     [iconNeedle, showGlyphs]
+  );
+
+  const glyphGridStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(42px, 1fr))',
+    gap: '0.4rem',
+  };
+
+  const glyphButton = (key) => (
+    <button
+      key={key}
+      type="button"
+      role="radio"
+      aria-checked={icon === `glyph:${key}`}
+      aria-label={key}
+      title={key}
+      data-testid={`${testIdPrefix}-glyph-${key}`}
+      onClick={() => onChange(`glyph:${key}`)}
+      style={{
+        height: 40,
+        borderRadius: 10,
+        border:
+          icon === `glyph:${key}`
+            ? '2px solid var(--primary)'
+            : '1px solid var(--glass-border)',
+        background: 'transparent',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 0,
+      }}
+    >
+      <MFAccountIcon account={{ icon: `glyph:${key}`, color }} size={24} />
+    </button>
   );
 
   return (
@@ -190,48 +225,50 @@ export default function MFIconPicker({
         </div>
       )}
 
-      {/* Glifos genéricos (lucide) */}
+      {/* Glifos genéricos (lucide) — agrupados por família quando não há
+          busca; na busca sai uma grade única com os resultados. */}
       {visibleGlyphs.length > 0 && (
-        <div
-          role="radiogroup"
-          aria-label={t('minhasfinancas.icon_generics')}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(42px, 1fr))',
-            gap: '0.4rem',
-          }}
-        >
-          {visibleGlyphs.map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="radio"
-              aria-checked={icon === `glyph:${key}`}
-              aria-label={key}
-              title={key}
-              data-testid={`${testIdPrefix}-glyph-${key}`}
-              onClick={() => onChange(`glyph:${key}`)}
-              style={{
-                height: 40,
-                borderRadius: 10,
-                border:
-                  icon === `glyph:${key}`
-                    ? '2px solid var(--primary)'
-                    : '1px solid var(--glass-border)',
-                background: 'transparent',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-              }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {iconNeedle ? (
+            <div
+              role="radiogroup"
+              aria-label={t('minhasfinancas.icon_generics')}
+              style={glyphGridStyle}
             >
-              <MFAccountIcon
-                account={{ icon: `glyph:${key}`, color }}
-                size={24}
-              />
-            </button>
-          ))}
+              {visibleGlyphs.map(glyphButton)}
+            </div>
+          ) : (
+            MF_GLYPH_FAMILIES.map((family) => {
+              const keys = family.icons.filter((key) => visibleGlyphs.includes(key));
+              if (keys.length === 0) return null;
+              return (
+                <div
+                  key={family.key}
+                  data-testid={`${testIdPrefix}-glyph-family-${family.key}`}
+                >
+                  <p
+                    style={{
+                      margin: '0 0 0.3rem',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    {t(family.labelKey)}
+                  </p>
+                  <div
+                    role="radiogroup"
+                    aria-label={t(family.labelKey)}
+                    style={glyphGridStyle}
+                  >
+                    {keys.map(glyphButton)}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 

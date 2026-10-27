@@ -4,6 +4,13 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-10-27
+
+### Adicionado
+- **Categoria e subcategoria em um seletor**: o seletor em árvore do lançamento ganhou **“+ Nova categoria”** e um **“+” em cada categoria** para criar subcategoria, abrindo o formulário completo (nome, cor e ícone) com pai e tipo pré-preenchidos; a criada já entra selecionada. O detalhe do lançamento agora mostra **“Categoria › Subcategoria”** numa linha só.
+- **Ícones agrupados por família**: o seletor de ícone da categoria agrupa os glifos em **Finanças**, **Casa e vida**, **Transporte e viagem**, **Trabalho e estudos**, **Família e pessoas**, **Compras e presentes** e **Saúde**; a busca continua funcionando e mostra os resultados sem os cabeçalhos.
+- O gatilho do seletor mostra o caminho completo quando a subcategoria está escolhida (ex.: “Alimentação › Supermercado”).
+
 ## [1.21.0] - 2026-10-27
 
 ### Corrigido

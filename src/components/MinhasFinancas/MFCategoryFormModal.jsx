@@ -21,6 +21,7 @@ export default function MFCategoryFormModal({
   category = null,
   parent = null,
   categories = [],
+  defaultType = 'DESPESA',
   onSave,
   onCancel,
   onDelete,
@@ -28,7 +29,9 @@ export default function MFCategoryFormModal({
   const { t } = useTranslation();
   const isSub = mode === 'new-sub' || (mode === 'edit' && !!category?.parent_id);
   const [name, setName] = useState(category?.name ?? '');
-  const [type, setType] = useState(category?.type ?? parent?.type ?? 'DESPESA');
+  const [type, setType] = useState(
+    category?.type ?? parent?.type ?? defaultType ?? 'DESPESA'
+  );
   const [parentId, setParentId] = useState(
     mode === 'new-sub' ? parent?.id ?? '' : category?.parent_id ?? ''
   );

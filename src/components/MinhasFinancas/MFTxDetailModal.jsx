@@ -1304,28 +1304,7 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
                 whiteSpace: 'nowrap',
               }}
             >
-              {(catParent ?? cat)?.name ?? '—'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
-            <span style={rowLabel}>{t('minhasfinancas.tx_detail_subcategory')}</span>
-            <span
-              data-testid="mf-tx-detail-subcategory"
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: 800,
-                padding: '0.2rem 0.7rem',
-                borderRadius: 999,
-                background: catParent ? cat.color || 'var(--primary)' : 'transparent',
-                color: catParent ? '#fff' : 'var(--text-muted)',
-                border: catParent ? 'none' : '1px solid var(--glass-border)',
-                maxWidth: '60%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {catParent ? cat.name : '—'}
+              {catParent ? `${catParent.name} › ${cat.name}` : cat?.name ?? '—'}
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>

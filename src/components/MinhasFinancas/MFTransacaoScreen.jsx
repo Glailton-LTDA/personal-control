@@ -43,6 +43,7 @@ import MFCategoryAvatar from './MFCategoryAvatar';
 import { mfNormalize, MF_CATEGORY_COLORS } from './MFCategoryIcons';
 import MFSelect from './MFSelect';
 import MFCategorySelect from './MFCategorySelect';
+import MFCategoryFormModal from './MFCategoryFormModal';
 import MFIntegrationPanel from './MFIntegrationPanel';
 import { useMFTxLink } from '../../hooks/useMFIntegrationOptions';
 import MFRepeatModal from './MFRepeatModal';
@@ -184,6 +185,8 @@ export default function MFTransacaoScreen({
   const [deleteChoice, setDeleteChoice] = useState(null);
   // Edição com escopo (série fixa/parcelada): diálogo pendente.
   const [editChoice, setEditChoice] = useState(null);
+  // Criação inline de categoria/subcategoria a partir do seletor.
+  const [catModal, setCatModal] = useState(null);
 
   const [form, setForm] = useState(emptyForm);
   const [tagIds, setTagIds] = useState([]);
@@ -762,6 +765,53 @@ export default function MFTransacaoScreen({
             : old
         );
       }
+    } catch {
+      toast.error(t('minhasfinancas.save_error'));
+    }
+  };
+
+  /** Cria a categoria/subcategoria do modal aberto pelo seletor. */
+  const handleCategoryModalSave = async (payload) => {
+    const trimmed = String(payload?.name ?? '').trim();
+    if (!trimmed) {
+      toast.error(t('minhasfinancas.cfg_name_required'));
+      return;
+    }
+    const parentId = payload?.parent_id ?? null;
+    const type = payload?.type ?? form.type;
+    const needle = mfNormalize(trimmed);
+    const dupe = categories.some(
+      (cat) =>
+        !cat.is_archived &&
+        (cat.parent_id ?? null) === parentId &&
+        (cat.type === type || cat.type === 'AMBAS' || type === 'AMBAS') &&
+        mfNormalize(cat.name) === needle
+    );
+    if (dupe) {
+      toast.error(t('minhasfinancas.cfg_duplicate_category'));
+      return;
+    }
+    try {
+      const created = await createCategoryMutation.mutateAsync({
+        user_id: user.id,
+        name: trimmed,
+        type,
+        parent_id: parentId,
+        color: payload?.color || MF_CATEGORY_COLORS[0],
+        icon: payload?.icon ?? '🏷️',
+      });
+      const createdRow = Array.isArray(created) ? created[0] : created;
+      if (createdRow?.id) {
+        createdCategoryIds.current.add(createdRow.id);
+        setForm((prev) => ({ ...prev, category_id: createdRow.id }));
+        queryClient.setQueryData(['mf-categories', user?.id], (old) =>
+          Array.isArray(old) && !old.some((cat) => cat.id === createdRow.id)
+            ? [...old, createdRow]
+            : old
+        );
+      }
+      setCategoryTouched(true);
+      setCatModal(null);
     } catch {
       toast.error(t('minhasfinancas.save_error'));
     }
@@ -1583,6 +1633,8 @@ export default function MFTransacaoScreen({
               categories={visibleCategories}
               placeholder={t('minhasfinancas.tx_category_none')}
               onCreate={handleCreateCategory}
+              onNewCategory={() => setCatModal({ mode: 'new', parent: null })}
+              onNewSubcategory={(parent) => setCatModal({ mode: 'new-sub', parent })}
             />
             {categories.length === 0 && (
               <p
@@ -1818,6 +1870,16 @@ export default function MFTransacaoScreen({
             onChange={setIntegration}
           />
         </div>
+        {catModal && (
+          <MFCategoryFormModal
+            mode={catModal.mode}
+            parent={catModal.parent}
+            categories={categories}
+            defaultType={form.type === 'RECEITA' ? 'RECEITA' : 'DESPESA'}
+            onSave={handleCategoryModalSave}
+            onCancel={() => setCatModal(null)}
+          />
+        )}
         {repeatOpen && !isEstorno && !alreadyRecurrent && (
           <MFRepeatModal
             initial={repeatConfig.initial}
