@@ -156,9 +156,21 @@ vi.mock('../../lib/supabase', () => {
         currencies: ['BRL'],
       },
     ],
+    investments: [
+      {
+        id: 'inv-1',
+        name: 'Rendimentos',
+        currency: 'BRL',
+        institution: { name: 'Mercado Pago' },
+      },
+    ],
   };
   const links = makeChain(() => ({ data: state.links[0] ?? null, error: null }));
   const trips = makeChain(() => ({ data: state.trips, error: null }));
+  const investments = makeChain(() => ({
+    data: state.investments,
+    error: null,
+  }));
   const profiles = makeChain({
     data: [{ id: 'prof-1', name: 'Glailton', sort_order: 0 }],
     error: null,
@@ -176,6 +188,7 @@ vi.mock('../../lib/supabase', () => {
         if (table === 'finance_responsibles') return responsibles;
         if (table === 'mf_tx_links') return links;
         if (table === 'trips') return trips;
+        if (table === 'investment_accounts') return investments;
         if (table === 'mf_profiles') return profiles;
         return transactions;
       }),
@@ -652,6 +665,52 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.getByTestId('mf-integration-disabled')).toHaveTextContent(
       'minhasfinancas.integration_disabled_recurring'
     );
+  });
+
+  it('receita vinculada ao investimento é salva pela RPC com o valor total', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('income');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Rendimento CDB' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '100,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-05-02' },
+    });
+
+    fireEvent.click(screen.getByTestId('mf-integration-investment-toggle'));
+    // Uma única conta de investimento em BRL: o painel já seleciona.
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-investment-preview')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.rpc).toHaveBeenCalled();
+    });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      'mf_save_tx_linked',
+      expect.objectContaining({
+        p_tx_id: null,
+        p_trip_id: null,
+        p_investment_account_id: 'inv-1',
+        p_mirror_amount: 100,
+        p_tx: expect.objectContaining({
+          type: 'RECEITA',
+          amount: 100,
+          status: 'PAGO',
+        }),
+      })
+    );
+    expect(supabase.from('mf_transactions').insert).not.toHaveBeenCalled();
   });
 
   it('modo "Valor total" divide o digitado entre as parcelas', async () => {

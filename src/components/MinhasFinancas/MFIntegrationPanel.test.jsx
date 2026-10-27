@@ -28,15 +28,47 @@ const TRIPS = [
   },
 ];
 
-const tripsQuery = vi.fn();
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      order: (...args) => tripsQuery(...args),
-    })),
+const INVESTMENTS = [
+  {
+    id: 'inv-1',
+    name: 'CDB C6',
+    currency: 'BRL',
+    institution: { name: 'C6 Bank' },
   },
-}));
+  {
+    id: 'inv-2',
+    name: 'LCA Nubank',
+    currency: 'BRL',
+    institution: { name: 'Nubank' },
+  },
+  {
+    id: 'inv-usd',
+    name: 'Wise',
+    currency: 'USD',
+    institution: { name: 'Wise' },
+  },
+];
+
+const tripsQuery = vi.fn();
+const investmentsQuery = vi.fn();
+vi.mock('../../lib/supabase', () => {
+  const chain = (run) => {
+    const query = {
+      select: vi.fn(() => query),
+      order: (...args) => run(...args),
+    };
+    return query;
+  };
+  return {
+    supabase: {
+      from: vi.fn((table) =>
+        table === 'investment_accounts'
+          ? chain(investmentsQuery)
+          : chain(tripsQuery)
+      ),
+    },
+  };
+});
 
 const createTestQueryClient = () =>
   new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -91,7 +123,9 @@ const renderStatefulPanel = (overrides = {}) => {
 describe('MFIntegrationPanel — gasto na viagem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     tripsQuery.mockResolvedValue({ data: TRIPS, error: null });
+    investmentsQuery.mockResolvedValue({ data: INVESTMENTS, error: null });
   });
 
   it('desabilitado para lançamento pendente', () => {
@@ -195,5 +229,91 @@ describe('MFIntegrationPanel — gasto na viagem', () => {
     renderPanel({ value: { tripEnabled: true, tripId: 'trip-1' }, onChange });
     fireEvent.click(screen.getByTestId('mf-integration-trip-toggle'));
     expect(onChange).toHaveBeenLastCalledWith({ tripEnabled: false, tripId: '' });
+  });
+
+  it('carrega só investimentos da moeda da conta e escolher preenche o id', async () => {
+    renderStatefulPanel();
+
+    fireEvent.click(screen.getByTestId('mf-integration-investment-toggle'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-investment-select')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-integration-investment-select'));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('mf-integration-investment-select-option-inv-1')
+      ).toBeInTheDocument();
+    });
+    // Conta USD não aparece para uma conta do MF em BRL (sem conversão).
+    expect(
+      screen.queryByTestId('mf-integration-investment-select-option-inv-usd')
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByTestId('mf-integration-investment-select-option-inv-1')
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-investment-select')).toHaveTextContent(
+        'CDB C6'
+      );
+    });
+  });
+
+  it('prévia do rendimento aparece com a conta e o mês', async () => {
+    renderPanel({
+      value: { investmentEnabled: true, investmentAccountId: 'inv-1' },
+      type: 'DESPESA',
+      mirrorAmount: 100,
+      paymentDate: '2026-05-02',
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('mf-integration-investment-preview')
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-integration-investment-preview')).toHaveTextContent(
+      'minhasfinancas.integration_investment_preview'
+    );
+  });
+
+  it('sem conta de investimento na moeda mostra aviso', async () => {
+    renderPanel({
+      account: { id: 'acc-eur', account_type: 'CORRENTE', currency: 'EUR' },
+      value: { investmentEnabled: true, investmentAccountId: '' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-integration-investment-empty')).toBeInTheDocument();
+    });
+  });
+
+  it('cartão desabilita o investimento (viagem continua permitida)', () => {
+    renderPanel({
+      account: { id: 'acc-card', account_type: 'CARTAO', currency: 'BRL' },
+      investmentDisabledReason: 'card',
+      tripDisabledReason: null,
+    });
+
+    expect(screen.getByTestId('mf-integration-investment-toggle')).toBeDisabled();
+    expect(screen.getByTestId('mf-integration-investment-disabled')).toHaveTextContent(
+      'minhasfinancas.integration_disabled_card'
+    );
+    expect(screen.getByTestId('mf-integration-trip-toggle')).not.toBeDisabled();
+    expect(screen.queryByTestId('mf-integration-disabled')).not.toBeInTheDocument();
+  });
+
+  it('desmarcar o investimento limpa a conta escolhida', () => {
+    const onChange = vi.fn();
+    renderPanel({
+      value: { investmentEnabled: true, investmentAccountId: 'inv-1' },
+      onChange,
+    });
+    fireEvent.click(screen.getByTestId('mf-integration-investment-toggle'));
+    expect(onChange).toHaveBeenLastCalledWith({
+      investmentEnabled: false,
+      investmentAccountId: '',
+    });
   });
 });

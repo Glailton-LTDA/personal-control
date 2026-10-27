@@ -397,6 +397,46 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
             trip_expense_id: expenseId,
           };
         }
+        if (body.p_investment_account_id) {
+          // Emula o rendimento no registro do mês (mesma conta/mês soma).
+          const month = String(body.p_tx?.payment_date || '').slice(0, 7);
+          const delta =
+            Number(body.p_mirror_amount) *
+            (body.p_tx?.type === 'RECEITA' ? 1 : -1);
+          store.investment_records = store.investment_records || [];
+          const index = store.investment_records.findIndex(
+            (row) =>
+              row.account_id === body.p_investment_account_id &&
+              String(row.record_date).slice(0, 7) === month
+          );
+          if (index >= 0) {
+            store.investment_records[index] = {
+              ...store.investment_records[index],
+              yield: Number(store.investment_records[index].yield) + delta,
+              final_balance:
+                Number(store.investment_records[index].final_balance) + delta,
+            };
+          } else {
+            store.investment_records.push({
+              id: `inv-rec-e2e-${Date.now()}`,
+              account_id: body.p_investment_account_id,
+              user_id: authUser.id,
+              record_date: body.p_tx?.payment_date,
+              initial_balance: 0,
+              yield: delta,
+              final_balance: delta,
+            });
+          }
+          nextLink = {
+            ...(nextLink || {
+              transaction_id: txId,
+              user_id: authUser.id,
+              trip_id: null,
+              trip_expense_id: null,
+            }),
+            investment_account_id: body.p_investment_account_id,
+          };
+        }
         store.mf_tx_links = [
           ...(store.mf_tx_links || []).filter((row) => row.transaction_id !== txId),
           ...(nextLink ? [nextLink] : []),
@@ -530,6 +570,27 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         contentType: 'application/json',
         headers: CORS,
         body: JSON.stringify([page.tripE2E]),
+      });
+    });
+
+    // Contas de investimento para o dropdown da integração.
+    page.investmentsE2E = [
+      {
+        id: 'inv-e2e',
+        name: 'CDB E2E',
+        currency: 'BRL',
+        institution: { name: 'C6 Bank' },
+      },
+    ];
+    await page.route('**/rest/v1/investment_accounts*', async (route, request) => {
+      if (request.method() === 'OPTIONS') {
+        return route.fulfill({ status: 204, headers: CORS });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: CORS,
+        body: JSON.stringify(page.investmentsE2E),
       });
     });
 
@@ -704,6 +765,54 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     // O lançamento aparece na lista (não foi gravado duas vezes).
     await expect(page.getByTestId('mf-tx-row')).toHaveCount(1);
     await expect(page.getByTestId('mf-tx-row')).toContainText('Hospedagem E2E');
+  });
+
+  test('integração: receita vinculada ao investimento grava o rendimento pela RPC', async ({ page }) => {
+    await login(page);
+    await openMinhasFinancas(page);
+
+    await page.getByTestId('sidebar-sub-item-minhasfinancas-transactions').click();
+    await expect(page.getByTestId('mf-transacoes')).toBeVisible();
+    await expect(page.getByTestId('mf-txs-empty')).toBeVisible();
+
+    await page.getByTestId('mf-new-tx').click();
+    await page.getByTestId('mf-add-opt-income').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeVisible();
+
+    await page.getByTestId('mf-tx-description').fill('Rendimento E2E');
+    await page.getByTestId('mf-tx-amount').fill('10000'); // máscara → 100,00
+    await page.getByTestId('mf-tx-account').click();
+    await page.getByTestId('mf-tx-account-option-acc-e2e').click();
+    await page.getByTestId('mf-tx-payment-date').fill('2026-05-02');
+
+    // Bloco de investimento: única conta em BRL → o painel já seleciona.
+    await page.getByTestId('mf-integration-investment-toggle').check();
+    await expect(page.getByTestId('mf-integration-investment-preview')).toBeVisible();
+
+    await page.getByTestId('mf-tx-save').click();
+    await expect(page.getByTestId('mf-tx-screen')).toBeHidden();
+
+    const calls = page.mfLinkedRpcCalls ?? [];
+    expect(calls).toHaveLength(1);
+    expect(calls[0].p_investment_account_id).toBe('inv-e2e');
+    expect(calls[0].p_trip_id).toBeNull();
+    expect(calls[0].p_mirror_amount).toBe(100);
+    expect(calls[0].p_tx).toMatchObject({
+      type: 'RECEITA',
+      amount: 100,
+      status: 'PAGO',
+    });
+
+    // O rendimento nasceu no registro do mês.
+    expect(page.mfStore.investment_records).toHaveLength(1);
+    expect(page.mfStore.investment_records[0]).toMatchObject({
+      account_id: 'inv-e2e',
+      yield: 100,
+      final_balance: 100,
+    });
+
+    await expect(page.getByTestId('mf-tx-row')).toHaveCount(1);
+    await expect(page.getByTestId('mf-tx-row')).toContainText('Rendimento E2E');
   });
 
   test('transferência pelo menu de Novo lançamento (4 opções)', async ({ page }) => {

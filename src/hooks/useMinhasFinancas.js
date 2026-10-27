@@ -1556,7 +1556,7 @@ export function useSaveMFTransactionLinked() {
   const invalidate = useInvalidateAll();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ txId = null, payload, tripId = null, mirrorAmount = null, paidBy = null, children = [] }) =>
+    mutationFn: ({ txId = null, payload, tripId = null, investmentAccountId = null, mirrorAmount = null, paidBy = null, children = [] }) =>
       mfMutate({
         table: 'mf_transactions',
         action: txId ? 'update' : 'insert',
@@ -1567,7 +1567,7 @@ export function useSaveMFTransactionLinked() {
             p_tx: payload,
             p_tx_id: txId,
             p_trip_id: tripId,
-            p_investment_account_id: null,
+            p_investment_account_id: investmentAccountId,
             p_children: children,
             p_paid_by: paidBy,
             p_mirror_amount: mirrorAmount,
