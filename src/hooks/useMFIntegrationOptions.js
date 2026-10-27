@@ -24,6 +24,25 @@ export function useMFLinkTrips(user, enabled = false) {
   });
 }
 
+/**
+ * Contas de investimento para o bloco de integração. Só baixa quando o
+ * usuário liga o bloco; a tela filtra pela moeda da conta do lançamento.
+ */
+export function useMFLinkInvestments(user, enabled = false) {
+  return useQuery({
+    queryKey: ['mf-link-investments', user?.id],
+    enabled: !!user?.id && enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('investment_accounts')
+        .select('id,name,currency,institution:investment_institutions(name)')
+        .order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useMFTxLink(user, txId) {
   return useQuery({
     queryKey: ['mf-tx-link', txId],
