@@ -4,6 +4,19 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-10-26
+
+### Adicionado
+- **Exportar CSV na aba Importar/Exportar**: baixa os lançamentos do período (padrão = mês atual, com intervalo de/até) em CSV, com filtros de conta, tipo e status. Reaproveita a geração dos Relatórios: data ISO, valor numérico com vírgula e conta/categoria por nome. Sem lançamentos no período, avisa em vez de baixar um arquivo vazio.
+- **Filtros do export**: **Tipo de lançamento**, **Tipo de conta** (tipos padrão e personalizados, com ícone e grupos) e conta no formato **"Nome · Tipo"** (ex.: "Nubank · Cartão"), com o **ícone da conta** (a **bandeira** quando é cartão) e a moeda — assim contas com o mesmo nome não se confundem. Os dropdowns usam o layout com busca e grupos do módulo; a conta de destino da importação segue o mesmo padrão.
+
+### Alterado
+- **Ordem das abas do Minhas Finanças**: Resumo · Contas · Cartões · Relatórios · Objetivos · Orçamentos · Importar/Exportar · Felix · Lançamentos · Extrato · Ajustes.
+- A aba de importação passa a se chamar **Importar/Exportar** (pt/en/es); o filtro antes chamado só de "Tipo" virou **Tipo de lançamento**.
+
+### Corrigido
+- **Bandeira do cartão**: valores gravados com capitalização do banco (ex.: "Mastercard") exibiam a chave crua `MINHASFINANCAS.CARD_BRAND_MASTERCARD` no card; o rótulo e o ícone agora normalizam a caixa.
+
 ## [1.19.0] - 2026-10-26
 
 ### Adicionado

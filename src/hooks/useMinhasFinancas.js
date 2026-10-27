@@ -3332,10 +3332,17 @@ export function useMFSeriesRows(user, rootId) {
  * linhas. Para quem só precisa de um pedaço, prefira os hooks
  * específicos (lembretes, sugestões, série de parcelas).
  */
-export function useMFAllTransactions(user, accountId = null) {
+export function useMFAllTransactions(user, accountId = null, range = null) {
   const profileId = useMFProfileScope();
   return useQuery({
-    queryKey: ['mf-all-transactions', user?.id, profileId ?? 'all', accountId ?? 'all'],
+    queryKey: [
+      'mf-all-transactions',
+      user?.id,
+      profileId ?? 'all',
+      accountId ?? 'all',
+      range?.from ?? '',
+      range?.to ?? '',
+    ],
     enabled: !!user?.id,
     queryFn: async () => {
       const scopeIds = await profileAccountIds(profileId);
@@ -3350,11 +3357,18 @@ export function useMFAllTransactions(user, accountId = null) {
             .order('id', { ascending: false });
           if (accountId) query = query.eq('account_id', accountId);
           else if (scopeIds) query = query.in('account_id', scopeIds);
+          if (range?.from) query = query.gte('payment_date', range.from);
+          if (range?.to) query = query.lte('payment_date', range.to);
           return query;
         },
         {
           filter: (rows) =>
-            rows.filter((row) => !scopeIds || scopeIds.includes(row.account_id)),
+            rows.filter(
+              (row) =>
+                (!scopeIds || scopeIds.includes(row.account_id)) &&
+                (!range?.from || row.payment_date >= range.from) &&
+                (!range?.to || row.payment_date <= range.to)
+            ),
           sort: byDateDesc('payment_date'),
         }
       );

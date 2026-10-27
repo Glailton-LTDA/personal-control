@@ -1,13 +1,21 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFImportar from './MFImportar';
+import { downloadText } from './mfReports';
+import toast from 'react-hot-toast';
+
+vi.mock('./mfReports', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, downloadText: vi.fn() };
+});
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key) => key,
+    t: (key, opts) =>
+      opts && opts.count !== undefined ? `${key}#${opts.count}` : key,
     i18n: {
       changeLanguage: vi.fn(),
       language: 'pt-BR',
@@ -86,11 +94,13 @@ vi.mock('../../lib/supabase', () => {
     error: null,
   });
   const importRows = makeChain({ data: [], error: null });
+  const accountTypes = makeChain({ data: [], error: null });
 
   return {
     supabase: {
       from: vi.fn((table) => {
         if (table === 'mf_accounts') return accounts;
+        if (table === 'mf_account_types') return accountTypes;
         if (table === 'mf_transactions') return transactions;
         if (table === 'mf_import_batches') return batches;
         if (table === 'mf_import_rows') return importRows;
@@ -347,5 +357,121 @@ describe('MFImportar — Importação OFX/CSV (Fase 7)', () => {
     expect(screen.getByTestId('mf-import-batch-status')).toHaveTextContent(
       'minhasfinancas.import_batch_status_COMPLETED'
     );
+  });
+
+  it('exporta os lançamentos do período em CSV (data ISO, valor e conta)', async () => {
+    renderScreen();
+    await waitFor(() => expect(screen.getByTestId('mf-export')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId('mf-export-from'), {
+      target: { value: '2026-09-01' },
+    });
+    fireEvent.change(screen.getByTestId('mf-export-to'), {
+      target: { value: '2026-09-30' },
+    });
+
+    // Só o lançamento de 10/09 do mock cai no período.
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#1'
+      )
+    );
+
+    fireEvent.click(screen.getByTestId('mf-export-csv'));
+
+    expect(downloadText).toHaveBeenCalledTimes(1);
+    const [csv, filename] = downloadText.mock.calls[0];
+    expect(filename).toBe('lancamentos_2026-09-01_2026-09-30.csv');
+    expect(csv).toContain('"Data";"Descrição";"Tipo";"Categoria";"Conta";"Valor";"Status"');
+    expect(csv).toContain('"2026-09-10"');
+    expect(csv).toContain('"Mercado Pão"');
+    expect(csv).toContain('"Nubank"');
+    expect(csv).toContain('"100,00"');
+    expect(csv).toContain('"PAGO"');
+  });
+
+  it('Tipo de conta filtra pelo tipo cadastrado e a conta mostra Nome · Tipo', async () => {
+    renderScreen();
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-account-type')).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByTestId('mf-export-from'), {
+      target: { value: '2026-09-01' },
+    });
+    fireEvent.change(screen.getByTestId('mf-export-to'), {
+      target: { value: '2026-09-30' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#1'
+      )
+    );
+
+    // Rótulo "Nome · Tipo" e ícone da conta no seletor de contas.
+    fireEvent.click(screen.getByTestId('mf-export-account'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-account-option-acc-1')).toHaveTextContent(
+        'Nubank · minhasfinancas.acct_type_corrente'
+      )
+    );
+    expect(
+      within(screen.getByTestId('mf-export-account-option-acc-1')).getByTestId(
+        'mf-export-account-icon-acc-1'
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-export-account-option-acc-1'));
+
+    // Tipos padrão agrupados em "Padrões", com o ícone do tipo.
+    fireEvent.click(screen.getByTestId('mf-export-account-type'));
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('mf-export-account-type-option-CORRENTE')
+      ).toBeInTheDocument()
+    );
+    expect(
+      screen.getByTestId('mf-export-account-type-group-minhasfinancas.default_types')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('mf-export-account-type-option-CORRENTE')
+    ).toHaveTextContent('🏦 minhasfinancas.type_corrente');
+
+    // Filtra pelo tipo da conta do lançamento (CORRENTE mantém; CARTAO zera).
+    fireEvent.click(screen.getByTestId('mf-export-account-type-option-CORRENTE'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#1'
+      )
+    );
+
+    fireEvent.click(screen.getByTestId('mf-export-account-type'));
+    fireEvent.click(screen.getByTestId('mf-export-account-type-option-CARTAO'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#0'
+      )
+    );
+  });
+
+  it('sem lançamentos no período não baixa o arquivo', async () => {
+    renderScreen();
+    await waitFor(() => expect(screen.getByTestId('mf-export')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId('mf-export-from'), {
+      target: { value: '2025-01-01' },
+    });
+    fireEvent.change(screen.getByTestId('mf-export-to'), {
+      target: { value: '2025-01-31' },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-export-count')).toHaveTextContent(
+        'minhasfinancas.export_count#0'
+      )
+    );
+
+    fireEvent.click(screen.getByTestId('mf-export-csv'));
+    expect(downloadText).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith('minhasfinancas.export_empty');
   });
 });
