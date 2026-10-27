@@ -57,6 +57,10 @@ export default function MFCategorySelect({
    * exato já existente na lista, para não duplicar sem querer).
    */
   onCreate = null,
+  /** Abre o formulário completo de nova categoria (raiz). */
+  onNewCategory = null,
+  /** Abre o formulário completo de nova subcategoria do nó (raiz). */
+  onNewSubcategory = null,
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -66,6 +70,10 @@ export default function MFCategorySelect({
 
   const tree = useMemo(() => mfCategoryTree(categories), [categories]);
   const selected = categories.find((cat) => cat.id === value) || null;
+  // Subcategoria selecionada mostra o caminho "Pai › Filho" no gatilho.
+  const selectedParent = selected?.parent_id
+    ? categories.find((cat) => cat.id === selected.parent_id) ?? null
+    : null;
 
   // Ao abrir, a raiz da categoria selecionada já aparece expandida.
   useEffect(() => {
@@ -155,7 +163,11 @@ export default function MFCategorySelect({
               ...(selected ? null : { color: 'var(--text-muted)', fontWeight: 500 }),
             }}
           >
-            {selected ? selected.name : placeholder}
+            {selected
+              ? selectedParent
+                ? `${selectedParent.name} › ${selected.name}`
+                : selected.name
+              : placeholder}
           </span>
         </span>
         <Search size={15} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
@@ -218,6 +230,25 @@ export default function MFCategorySelect({
               </button>
             )}
           </div>
+
+          {onNewCategory && (
+            <button
+              type="button"
+              data-testid={`${testId}-new-category`}
+              onClick={() => {
+                setOpen(false);
+                onNewCategory();
+              }}
+              style={{
+                ...optionStyle,
+                color: 'var(--primary)',
+                fontWeight: 700,
+              }}
+            >
+              <Plus size={15} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{t('minhasfinancas.cat_new_title')}</span>
+            </button>
+          )}
 
           <div style={{ overflowY: 'auto', maxHeight: 260 }}>
             {/* Criar no topo: aparece digitando um nome novo (sem
@@ -290,6 +321,22 @@ export default function MFCategorySelect({
                     </span>
                     {node.id === value && <Check size={14} />}
                   </button>
+                  {onNewSubcategory && (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      data-testid={`${testId}-add-sub-${node.id}`}
+                      aria-label={t('minhasfinancas.cfg_add_child')}
+                      title={t('minhasfinancas.cfg_add_child')}
+                      onClick={() => {
+                        setOpen(false);
+                        onNewSubcategory(node);
+                      }}
+                      style={{ flexShrink: 0 }}
+                    >
+                      <Plus size={14} />
+                    </button>
+                  )}
                   {node.children.length > 0 && (
                     <button
                       type="button"

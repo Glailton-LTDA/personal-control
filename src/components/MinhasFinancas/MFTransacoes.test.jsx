@@ -1046,6 +1046,63 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     ).toMatchObject({ category_id: 'created-0' });
   });
 
+  it('cria categoria pelo modal do seletor e já a seleciona', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+    fireEvent.click(screen.getByTestId('mf-tx-category-new-category'));
+
+    expect(screen.getByTestId('mf-cat-modal')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
+      target: { value: 'Pets' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-save'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('mf-cat-modal')).not.toBeInTheDocument();
+    });
+    const { supabase } = await import('../../lib/supabase');
+    expect(supabase.from('mf_categories').insert.mock.calls[0][0]).toMatchObject({
+      name: 'Pets',
+      type: 'DESPESA',
+      parent_id: null,
+    });
+  });
+
+  it('cria subcategoria pelo "+" do seletor com o pai pré-selecionado', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+    fireEvent.click(screen.getByTestId('mf-tx-category-add-sub-cat-food'));
+
+    expect(screen.getByTestId('mf-cat-modal')).toBeInTheDocument();
+    // subcategoria herda o tipo do pai: o campo Tipo não aparece
+    expect(screen.queryByTestId('mf-cat-modal-type')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mf-cat-modal-name'), {
+      target: { value: 'Padaria' },
+    });
+    fireEvent.click(screen.getByTestId('mf-cat-modal-save'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('mf-cat-modal')).not.toBeInTheDocument();
+    });
+
+    const { supabase } = await import('../../lib/supabase');
+    expect(supabase.from('mf_categories').insert.mock.calls[0][0]).toMatchObject({
+      name: 'Padaria',
+      parent_id: 'cat-food',
+      type: 'DESPESA',
+    });
+  });
+
   it('não oferece criar quando o nome já existe (só selecionar)', async () => {
     renderScreen();
     await waitFor(() => {

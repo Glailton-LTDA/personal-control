@@ -594,8 +594,11 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     await waitFor(() => {
       expect(screen.getByTestId('mf-tx-detail-tag-tag-1')).toHaveTextContent('Viagem');
     });
-    expect(screen.getByTestId('mf-tx-detail-category')).toHaveTextContent('Cartões de crédito');
-    expect(screen.getByTestId('mf-tx-detail-subcategory')).toHaveTextContent('Estornos');
+    expect(screen.getByTestId('mf-tx-detail-category')).toHaveTextContent(
+      'Cartões de crédito › Estornos'
+    );
+    // Categoria e subcategoria agora são uma linha só.
+    expect(screen.queryByTestId('mf-tx-detail-subcategory')).not.toBeInTheDocument();
   });
 
   it('editar abre a edição completa', async () => {

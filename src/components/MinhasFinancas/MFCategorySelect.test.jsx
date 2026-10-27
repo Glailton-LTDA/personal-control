@@ -26,19 +26,23 @@ const renderSelect = (props = {}) => {
       categories={categories}
       placeholder="Nenhuma"
       testId="mf-tx-category"
+      onNewCategory={props.onNewCategory}
+      onNewSubcategory={props.onNewSubcategory}
     />
   );
   return { ...view, onChange };
 };
 
 describe('MFCategorySelect — seletor em árvore do lançamento', () => {
-  it('mostra placeholder no gatilho e a categoria selecionada', () => {
+  it('mostra placeholder no gatilho e o caminho da subcategoria selecionada', () => {
     const { unmount } = renderSelect();
     expect(screen.getByTestId('mf-tx-category')).toHaveTextContent('Nenhuma');
     unmount();
 
     renderSelect({ value: 'cat-2' });
-    expect(screen.getByTestId('mf-tx-category')).toHaveTextContent('Supermercado');
+    expect(screen.getByTestId('mf-tx-category')).toHaveTextContent(
+      'Alimentação › Supermercado'
+    );
   });
 
   it('abre o painel com a árvore e seleciona uma subcategoria', () => {
@@ -119,5 +123,22 @@ describe('MFCategorySelect — seletor em árvore do lançamento', () => {
     // componente controlado: quem decide o novo label é o pai
     expect(onChange).toHaveBeenCalledWith('');
     expect(screen.queryByTestId('mf-tx-category-panel')).not.toBeInTheDocument();
+  });
+
+  it('abre a criação de categoria e de subcategoria pelo seletor', () => {
+    const onNewCategory = vi.fn();
+    const onNewSubcategory = vi.fn();
+    renderSelect({ onNewCategory, onNewSubcategory });
+
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+    fireEvent.click(screen.getByTestId('mf-tx-category-new-category'));
+    expect(onNewCategory).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('mf-tx-category-panel')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-tx-category'));
+    fireEvent.click(screen.getByTestId('mf-tx-category-add-sub-cat-1'));
+    expect(onNewSubcategory).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'cat-1', name: 'Alimentação' })
+    );
   });
 });

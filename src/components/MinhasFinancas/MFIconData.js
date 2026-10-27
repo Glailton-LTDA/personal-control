@@ -281,3 +281,56 @@ export const MF_GLYPH_KEYWORDS = {
   washer: 'maquina de lavar lavanderia roupa',
   fridge: 'geladeira refrigerador freezer congelador',
 };
+
+/**
+ * Famílias dos glifos genéricos (agrupamento do seletor de ícone). A
+ * ordem aqui é a ordem exibida quando não há busca.
+ */
+export const MF_GLYPH_FAMILIES = [
+  {
+    key: 'finance',
+    labelKey: 'minhasfinancas.icon_family_finance',
+    icons: [
+      'landmark',
+      'piggy',
+      'invest',
+      'bolsa',
+      'cash',
+      'crypto',
+      'wallet',
+      'card',
+      'coins',
+      'dollar',
+    ],
+  },
+  {
+    key: 'home',
+    labelKey: 'minhasfinancas.icon_family_home',
+    icons: ['home', 'energy', 'washer', 'fridge', 'farm'],
+  },
+  {
+    key: 'transport',
+    labelKey: 'minhasfinancas.icon_family_transport',
+    icons: ['car', 'plane', 'globe'],
+  },
+  {
+    key: 'work',
+    labelKey: 'minhasfinancas.icon_family_work',
+    icons: ['work', 'realestate', 'study', 'rocket'],
+  },
+  {
+    key: 'people',
+    labelKey: 'minhasfinancas.icon_family_people',
+    icons: ['family'],
+  },
+  {
+    key: 'shopping',
+    labelKey: 'minhasfinancas.icon_family_shopping',
+    icons: ['shopping', 'gift'],
+  },
+  {
+    key: 'health',
+    labelKey: 'minhasfinancas.icon_family_health',
+    icons: ['health'],
+  },
+];
