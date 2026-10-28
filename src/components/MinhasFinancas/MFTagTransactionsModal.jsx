@@ -105,28 +105,44 @@ export default function MFTagTransactionsModal({ user, tag, onClose }) {
             borderBottom: '1px solid var(--glass-border)',
           }}
         >
-          <span
-            aria-hidden="true"
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: 999,
-              background: tag?.color || 'var(--primary)',
-              flexShrink: 0,
-            }}
-          />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h3
+            <p
               style={{
                 margin: 0,
-                fontSize: '1.02rem',
+                fontSize: '0.64rem',
                 fontWeight: 800,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
               }}
             >
-              {t('minhasfinancas.tag_tx_title', { name: tag?.name ?? '' })}
+              {t('minhasfinancas.tag_tx_kicker')}
+            </p>
+            <h3
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                margin: '0.15rem 0 0',
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                lineHeight: 1.3,
+                minWidth: 0,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: tag?.color || 'var(--primary)',
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                # {tag?.name ?? ''}
+              </span>
             </h3>
             <p style={{ margin: '0.15rem 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
               {t('minhasfinancas.tag_tx_count', { count: total })}
