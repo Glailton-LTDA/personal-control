@@ -84,6 +84,16 @@ export function parsePath(path) {
     return { module, screen: `repertoire-artist-${encodedArtist}`, params: { artist } };
   }
 
+  // Contas: grupo selecionado no master-detail. O detalhe da conta segue
+  // em `accounts/{id}`; o grupo usa um segmento explícito para não colidir.
+  if (module === 'minhasfinancas' && screenOrId === 'accounts' && segments[2] === 'grupo' && segments[3]) {
+    return {
+      module,
+      screen: 'accounts',
+      params: { groupId: decodeURIComponent(segments[3]) },
+    };
+  }
+
   // Módulos com tela default quando não há segundo segmento.
   const defaultScreen = {
     finances: 'dashboard',

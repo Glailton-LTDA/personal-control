@@ -52,7 +52,7 @@ let lastMfPullAt = 0;
  * Fase 9: perfil ativo (id | null = todos) fica em localStorage e alimenta
  * o `MFProfileContext` consumido pelos hooks de dados.
  */
-export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', detailId = null, showValues = true }) {
+export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', detailId = null, groupId = null, showValues = true }) {
   const { t } = useTranslation();
   const [key, setKey] = useState(0);
   // Mês sobrevive ao F5 (validado na leitura; drill-down idem, por tela).
@@ -289,7 +289,9 @@ export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', de
 
         {screen === 'resumo' && <MFResumo {...screenProps} />}
         {screen === 'transactions' && <MFTransacoes {...screenProps} />}
-        {screen === 'accounts' && <MFContas {...screenProps} />}
+        {screen === 'accounts' && (
+          <MFContas {...screenProps} initialGroupId={groupId} />
+        )}
         {screen === 'statement' && <MFExtrato {...screenProps} />}
         {screen === 'cards' && <MFCartoes {...screenProps} />}
         {screen === 'reports' && <MFRelatorios {...screenProps} />}

@@ -685,6 +685,43 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(page.getByTestId('mf-contas')).toBeVisible();
   });
 
+  test('grupo de contas abre por URL e sobrevive ao refresh', async ({ page }) => {
+    test.slow();
+    await login(page);
+    page.mfStore.mf_account_groups = [
+      {
+        id: 'grp-route-e2e',
+        user_id: 'user-e2e',
+        name: 'Grupo rota',
+        icon: '🏦',
+        parent_id: null,
+        color: '#6366f1',
+        sort_order: 0,
+        show_in_summary: true,
+        sum_totals: true,
+      },
+    ];
+    page.mfStore.mf_accounts = page.mfStore.mf_accounts.map((account) => ({
+      ...account,
+      group_id: 'grp-route-e2e',
+    }));
+
+    await page.goto('/minhasfinancas/accounts/grupo/grp-route-e2e');
+    await expect(page).toHaveURL('/minhasfinancas/accounts/grupo/grp-route-e2e');
+    await expect(page.getByTestId('mf-accounts-detail')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Grupo rota/ })).toBeVisible();
+    await expect(page.getByTestId('mf-account-row')).toHaveCount(1);
+
+    await page.reload();
+    await expect(page.getByTestId('mf-accounts-detail')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Grupo rota/ })).toBeVisible();
+
+    // A aba Contas (sem grupo na URL) volta para a lista/primeiro grupo.
+    await page.goto('/minhasfinancas/accounts');
+    await expect(page).toHaveURL('/minhasfinancas/accounts');
+    await expect(page.getByTestId('mf-contas')).toBeVisible();
+  });
+
   test('cria um lançamento pela tela de edição', async ({ page }) => {
     await login(page);
     await openMinhasFinancas(page);

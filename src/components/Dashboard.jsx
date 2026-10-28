@@ -145,6 +145,7 @@ export default function Dashboard({ user }) {
     ? activeRoute
     : { screen: null, params: {} };
   const mfDetailId = mfParams.id ?? null;
+  const mfGroupId = mfParams.groupId ?? null;
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -721,6 +722,7 @@ export default function Dashboard({ user }) {
                     refreshKey={refreshKey}
                     screen={mfScreen}
                     detailId={mfDetailId}
+                    groupId={mfGroupId}
                     showValues={showValues}
                   />
                 )}
