@@ -1773,7 +1773,7 @@ export default function MFTransacaoScreen({
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className={repeatMode === 'none' ? 'btn-secondary' : 'btn-cancel'}
+                className="btn-option"
                 data-testid="mf-tx-repeat-none"
                 aria-pressed={repeatMode === 'none'}
                 onClick={() => setRepeatMode('none')}
@@ -1782,7 +1782,7 @@ export default function MFTransacaoScreen({
               </button>
               <button
                 type="button"
-                className={repeatMode === 'repeat' ? 'btn-secondary' : 'btn-cancel'}
+                className="btn-option"
                 data-testid="mf-tx-repeat-open"
                 aria-pressed={repeatMode === 'repeat'}
                 onClick={() => setRepeatOpen(true)}
@@ -1791,7 +1791,7 @@ export default function MFTransacaoScreen({
               </button>
               <button
                 type="button"
-                className={repeatMode === 'fixed' ? 'btn-secondary' : 'btn-cancel'}
+                className="btn-option"
                 data-testid="mf-tx-repeat-fixed"
                 aria-pressed={repeatMode === 'fixed'}
                 onClick={() => setRepeatMode('fixed')}
