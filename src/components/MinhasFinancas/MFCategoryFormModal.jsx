@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X, Trash2 } from 'lucide-react';
 import MFSelect from './MFSelect';
@@ -67,7 +68,7 @@ export default function MFCategoryFormModal({
     if (chosen) setType(chosen.type);
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" data-testid="mf-cat-modal" onClick={onCancel}>
       <div
         className="glass-card modal-content"
@@ -219,6 +220,7 @@ export default function MFCategoryFormModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

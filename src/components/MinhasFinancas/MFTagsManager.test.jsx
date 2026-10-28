@@ -36,6 +36,8 @@ vi.mock('../../lib/supabase', () => {
       order: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      range: vi.fn().mockReturnThis(),
+      ilike: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
@@ -68,13 +70,49 @@ vi.mock('../../lib/supabase', () => {
     ],
     error: null,
   });
+  // Lançamentos do modal (RPC paginada).
+  const accounts = makeChain({
+    data: [{ id: 'acc-1', name: 'Conta', currency: 'BRL' }],
+    error: null,
+  });
   return {
     supabase: {
       from: vi.fn((table) => {
         if (table === 'mf_tags') return tags;
         if (table === 'mf_transaction_tags') return links;
+        if (table === 'mf_accounts') return accounts;
         return transactions;
       }),
+      rpc: vi.fn(async () => ({
+        data: {
+          rows: [
+            {
+              id: 'tx-b',
+              description: 'Passagem',
+              amount: 900,
+              payment_date: '2026-10-06',
+              account_id: 'acc-1',
+              status: 'PAGO',
+              type: 'DESPESA',
+              currency: 'BRL',
+            },
+            {
+              id: 'tx-a',
+              description: 'Hotel',
+              amount: 500,
+              payment_date: '2026-10-05',
+              account_id: 'acc-1',
+              status: 'PAGO',
+              type: 'DESPESA',
+              currency: 'BRL',
+            },
+          ],
+          total: 2,
+          amounts: { BRL: 1400 },
+          years: [2026],
+        },
+        error: null,
+      })),
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
         signOut: vi.fn().mockResolvedValue({ error: null }),
@@ -114,17 +152,29 @@ describe('MFTagsManager — gestão de tags', () => {
     expect(screen.getByTestId('mf-tags-manager-row-tag-2')).toBeInTheDocument();
   });
 
-  it('ver lançamentos expande o drill da tag', async () => {
+  it('ver lançamentos abre o modal paginado da tag', async () => {
     renderManager();
     await waitFor(() => {
       expect(screen.getByTestId('mf-tags-manager-row-tag-1')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId('mf-tags-manager-view-tag-1'));
+    expect(screen.getByTestId('mf-tag-tx-modal')).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByTestId('mf-tags-manager-row-tag-1')).toHaveTextContent('Hotel');
+      expect(screen.getByTestId('mf-tag-tx-row-tx-b')).toHaveTextContent('Passagem');
     });
-    expect(screen.getByTestId('mf-tags-manager-row-tag-1')).toHaveTextContent('Passagem');
+    expect(screen.getByTestId('mf-tag-tx-row-tx-a')).toHaveTextContent('Hotel');
+    expect(screen.getByTestId('mf-tag-tx-page')).toHaveTextContent(
+      'minhasfinancas.tag_tx_page'
+    );
+
+    // busca no modal e fechar
+    fireEvent.change(screen.getByTestId('mf-tag-tx-search'), {
+      target: { value: 'hotel' },
+    });
+    expect(screen.getByTestId('mf-tag-tx-search')).toHaveValue('hotel');
+    fireEvent.click(screen.getByTestId('mf-tag-tx-close'));
+    expect(screen.queryByTestId('mf-tag-tx-modal')).not.toBeInTheDocument();
   });
 
   it('nova tag abre o modal e salva', async () => {

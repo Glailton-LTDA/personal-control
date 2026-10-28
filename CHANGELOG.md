@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-10-27
+
+### Adicionado
+- **Seletor de tags com um campo só**: digitar filtra as tags existentes e, quando o nome não existe, aparece **“Criar a tag <nome>”** — cria na hora com cor automática, já marca no lançamento e entra no cache. Vale para a tela de lançamento e para a edição rápida dos Detalhes, no web e no mobile.
+- **Tags no Resumo**: o feed de lançamentos recentes agora mostra o badge **“Categoria › Subcategoria”** e os **chips das tags** de cada lançamento (a lista de tags vem do cache; só os vínculos dos 10 recentes são consultados).
+- **Lançamentos da tag em modal paginado**: o “olho” da tag abre um modal com **busca por descrição**, **filtros de ano/mês/dia**, **20 lançamentos por página** e **soma por moeda** do filtro. Tudo é consultado no servidor pela RPC `mf_tag_transactions` (página + contagem + somas + anos com movimento) — o histórico inteiro não é mais carregado/empilhado dentro do card de Ajustes. O cabeçalho mostra o nome da tag em linha própria, com quebra, então nomes longos aparecem inteiros no mobile.
+
+### Alterado
+- **Modal de tag (Ajustes → Tags)**: cabeçalho com título/fechar, corpo rolável, paleta com **prévia do chip** e rodapé fixo **Cancelar/Salvar** — a paleta não fica mais cortada. No mobile vira **bottom sheet**. O modal (e o de categoria) é renderizado em **portal**, como os demais do app, então não fica preso/recortado dentro do card de Ajustes.
+
 ## [1.22.0] - 2026-10-27
 
 ### Adicionado

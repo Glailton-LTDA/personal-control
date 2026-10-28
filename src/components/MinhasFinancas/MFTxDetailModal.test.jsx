@@ -296,10 +296,10 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     });
     fireEvent.click(screen.getByTestId('mf-tx-detail-quick'));
     fireEvent.click(screen.getByTestId('mf-tx-detail-quick-tags-toggle'));
-    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-new-tag'), {
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-picker-search'), {
       target: { value: 'NovaTag' },
     });
-    fireEvent.click(screen.getByTestId('mf-tx-detail-quick-add-tag'));
+    fireEvent.click(screen.getByTestId('mf-tx-detail-quick-tags-picker-create'));
 
     const { supabase } = await import('../../lib/supabase');
     await waitFor(() => {
@@ -352,16 +352,20 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     });
     fireEvent.click(screen.getByTestId('mf-tx-detail-quick'));
     fireEvent.click(screen.getByTestId('mf-tx-detail-quick-tags-toggle'));
-    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-search'), {
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-picker-search'), {
       target: { value: 'viag' },
     });
     // "Viagem" passa no filtro; outras tags (se houvesse) sumiriam
     expect(screen.getByTestId('mf-tx-detail-quick-tags-picker')).toBeInTheDocument();
-    expect(screen.getByTestId('mf-tx-detail-quick-tag-tag-1')).toBeInTheDocument();
-    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-search'), {
+    expect(
+      screen.getByTestId('mf-tx-detail-quick-tags-picker-option-tag-1')
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mf-tx-detail-quick-tags-picker-search'), {
       target: { value: 'xyz' },
     });
-    expect(screen.queryByTestId('mf-tx-detail-quick-tag-tag-1')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('mf-tx-detail-quick-tags-picker-option-tag-1')
+    ).not.toBeInTheDocument();
   });
 
   it('toggle alterna PAGO → PENDENTE', async () => {

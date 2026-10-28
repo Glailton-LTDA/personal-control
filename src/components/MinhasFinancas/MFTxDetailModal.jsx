@@ -10,7 +10,6 @@ import {
   useMFAccounts,
   useMFCategories,
   useMFTags,
-  useCreateMFTag,
   useCreateMFCategory,
   useMFAccountTransactions,
   useCreateMFTransaction,
@@ -40,6 +39,7 @@ import {
 import MFChoiceDialog from './MFChoiceDialog';
 import MFCalculator from './MFCalculator';
 import MFCategorySelect from './MFCategorySelect';
+import MFTagPicker from './MFTagPicker';
 import { mfNormalize, MF_CATEGORY_COLORS } from './MFCategoryIcons';
 import MFAccountIcon from './MFAccountIcon';
 import MFAccountSelect from './MFAccountSelect';
@@ -116,7 +116,6 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const instDelete = useInstallmentDelete();
   const deleteFixedMutation = useDeleteMFFixedSeries();
   const setStatusMutation = useMFSetTransactionStatus();
-  const createTagMutation = useCreateMFTag();
   const createCategoryMutation = useCreateMFCategory();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -140,16 +139,12 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   const [quickCategory, setQuickCategory] = useState(tx?.category_id ?? '');
   const [quickTags, setQuickTags] = useState(Array.isArray(tagIds) ? tagIds : []);
   const [tagsOpen, setTagsOpen] = useState(false);
-  const [newTag, setNewTag] = useState('');
-  const [quickTagSearch, setQuickTagSearch] = useState('');
   useEffect(() => {
     setQuickDesc(tx?.description ?? '');
     setQuickNotes(tx?.notes ?? '');
     setQuickCategory(tx?.category_id ?? '');
     setQuickTags(Array.isArray(tagIds) ? tagIds : []);
     setTagsOpen(false);
-    setNewTag('');
-    setQuickTagSearch('');
     setMenuOpen(false);
     setDupeSub(false);
     setQuickOpen(false);
@@ -746,23 +741,6 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
       toast.error(t('minhasfinancas.save_error'));
     } finally {
       setSaving(false);
-    }
-  };
-
-  /** Cria tag nova na edição rápida (mesmo fluxo da tela de criação). */
-  const handleAddTag = async () => {
-    const name = newTag.trim();
-    if (!name) return;
-    if (tags.some((tag) => tag.name.toLowerCase() === name.toLowerCase())) {
-      toast.error(t('minhasfinancas.tx_tag_exists'));
-      return;
-    }
-    try {
-      const created = await createTagMutation.mutateAsync({ user_id: user.id, name });
-      if (created?.id) setQuickTags((prev) => [...prev, created.id]);
-      setNewTag('');
-    } catch {
-      toast.error(t('minhasfinancas.save_error'));
     }
   };
 
@@ -1493,92 +1471,15 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
                   {t('minhasfinancas.tx_tags_add')}
                 </button>
                 {tagsOpen && (
-                  <div
-                    data-testid="mf-tx-detail-quick-tags-picker"
-                    style={{
-                      marginTop: '0.6rem',
-                      padding: '0.8rem',
-                      border: '1px solid var(--glass-border)',
-                      borderRadius: 12,
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.7rem',
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {tags.length === 0 && (
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {t('minhasfinancas.tx_no_tags')}
-                        </span>
-                      )}
-                      {tags.length > 0 && (
-                        <input
-                          type="text"
-                          className="glass-input"
-                          data-testid="mf-tx-detail-quick-tags-search"
-                          value={quickTagSearch}
-                          onChange={(event) => setQuickTagSearch(event.target.value)}
-                          placeholder={t('minhasfinancas.tag_search_placeholder')}
-                          style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem 0.7rem', marginBottom: '0.3rem' }}
-                        />
-                      )}
-                      {tags
-                        .filter((tag) => tag.name.toLowerCase().includes(quickTagSearch.trim().toLowerCase()))
-                        .map((tag) => {
-                        const active = quickTags.includes(tag.id);
-                        return (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            data-testid={`mf-tx-detail-quick-tag-${tag.id}`}
-                            aria-pressed={active}
-                            onClick={() =>
-                              setQuickTags((prev) =>
-                                prev.includes(tag.id) ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
-                              )
-                            }
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              padding: '0.25rem 0.65rem',
-                              borderRadius: 999,
-                              cursor: 'pointer',
-                              border: '1px solid var(--glass-border)',
-                              background: active ? tag.color || 'var(--primary)' : 'transparent',
-                              color: active ? '#fff' : 'var(--text-muted)',
-                            }}
-                          >
-                            # {tag.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input
-                        type="text"
-                        value={newTag}
-                        onChange={(event) => setNewTag(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            handleAddTag();
-                          }
-                        }}
-                        placeholder={t('minhasfinancas.tx_new_tag_placeholder')}
-                        data-testid="mf-tx-detail-quick-new-tag"
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        type="button"
-                        className="btn-cancel"
-                        data-testid="mf-tx-detail-quick-add-tag"
-                        onClick={handleAddTag}
-                        style={{ padding: '0.5rem 0.8rem' }}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
+                  <div style={{ marginTop: '0.6rem' }}>
+                    <MFTagPicker
+                      user={user}
+                      tags={tags}
+                      value={quickTags}
+                      onChange={setQuickTags}
+                      testId="mf-tx-detail-quick-tags-picker"
+                      onDone={() => setTagsOpen(false)}
+                    />
                   </div>
                 )}
               </div>

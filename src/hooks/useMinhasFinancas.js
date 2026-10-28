@@ -2142,32 +2142,46 @@ export function useMFTagUsage(user) {
 }
 
 /** Lançamentos recentes de uma tag (drill "ver lançamentos", 50 últimos). */
-export function useMFTagTransactions(user, tagId) {
+/**
+ * Lançamentos de uma tag, paginados/filtrados no servidor (RPC
+ * `mf_tag_transactions`): devolve `{ rows, total, amounts, years }` —
+ * a página, a contagem, a soma por moeda e os anos com movimento. Nada de
+ * baixar o histórico inteiro da tag para filtrar no cliente.
+ */
+export function useMFTagTransactions(
+  user,
+  tagId,
+  { from = null, to = null, search = '', page = 0, pageSize = 20 } = {}
+) {
+  const term = String(search ?? '').trim();
   return useQuery({
-    queryKey: ['mf-tag-transactions', user?.id, tagId ?? 'none'],
+    queryKey: [
+      'mf-tag-transactions',
+      user?.id,
+      tagId ?? 'none',
+      from ?? '',
+      to ?? '',
+      term,
+      page,
+      pageSize,
+    ],
     enabled: !!user?.id && !!tagId,
     queryFn: async () => {
-      const links = await mfSelect(
-        'mf_transaction_tags',
-        () => supabase.from('mf_transaction_tags').select('tag_id,transaction_id'),
-        { filter: (rows) => rows.filter((row) => row.tag_id === tagId) }
-      );
-      if (links.error) throw links.error;
-      const ids = [...new Set((links.data ?? []).map((row) => row.transaction_id).filter(Boolean))].slice(0, 50);
-      if (ids.length === 0) return [];
-      const txs = await mfSelect(
-        'mf_transactions',
-        () => supabase.from('mf_transactions').select('*').in('id', ids),
-        {
-          filter: (rows) => rows.filter((row) => ids.includes(row.id)),
-          sort: (rows) =>
-            [...rows].sort((a, b) =>
-              String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
-            ),
-        }
-      );
-      if (txs.error) throw txs.error;
-      return txs.data ?? [];
+      const { data, error } = await supabase.rpc('mf_tag_transactions', {
+        p_tag_id: tagId,
+        p_from: from || null,
+        p_to: to || null,
+        p_search: term || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
+      if (error) throw error;
+      return {
+        rows: data?.rows ?? [],
+        total: Number(data?.total) || 0,
+        amounts: data?.amounts ?? {},
+        years: data?.years ?? [],
+      };
     },
   });
 }
@@ -3421,6 +3435,31 @@ export function useMFRecentTransactions(user, limit = 10) {
       const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
+    },
+  });
+}
+
+/**
+ * Vínculos de tag dos lançamentos recentes do Resumo: devolve
+ * `{ [transactionId]: [tagId] }`. A lista de tags em si vem do cache de
+ * `useMFTags` — sem baixar a tabela de tags de novo.
+ */
+export function useMFRecentTagLinks(user, txIds = []) {
+  return useQuery({
+    queryKey: ['mf-recent-tag-links', user?.id, txIds.join(',')],
+    enabled: !!user?.id && txIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mf_transaction_tags')
+        .select('transaction_id,tag_id')
+        .in('transaction_id', txIds);
+      if (error) throw error;
+      const byTx = {};
+      (data ?? []).forEach((row) => {
+        if (!row.transaction_id || !row.tag_id) return;
+        (byTx[row.transaction_id] ||= []).push(row.tag_id);
+      });
+      return byTx;
     },
   });
 }
