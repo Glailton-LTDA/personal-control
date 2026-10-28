@@ -85,6 +85,23 @@ describe('useRouter hook', () => {
     );
   });
 
+  it('interpreta a rota do grupo de contas sem confundir com o detalhe da conta', () => {
+    expect(parsePath('minhasfinancas/accounts/grupo/grp-1')).toEqual({
+      module: 'minhasfinancas',
+      screen: 'accounts',
+      params: { groupId: 'grp-1' },
+    });
+    expect(parsePath('minhasfinancas/accounts/grupo/mf-ungrouped')).toEqual({
+      module: 'minhasfinancas',
+      screen: 'accounts',
+      params: { groupId: 'mf-ungrouped' },
+    });
+    // O detalhe da conta continua com params.id (sem groupId).
+    const account = parsePath('minhasfinancas/accounts/conta-123');
+    expect(account.params).toEqual({ id: 'conta-123' });
+    expect(account.params.groupId).toBeUndefined();
+  });
+
   it('mapeia rotas aninhadas de música para os modos existentes', () => {
     expect(parsePath('music/songs/song-123')).toEqual({
       module: 'music',

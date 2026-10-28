@@ -4,6 +4,19 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-10-28
+
+### Alterado
+- **Contas em master-detail**: a tela deixou a sanfona e passou a ter a lista de instituições/grupos (com saldo consolidado e previsão) ao lado do detalhe do grupo. No mobile, a navegação é **lista → detalhe**, com voltar e rota própria. O grupo selecionado vira a rota `minhasfinancas/accounts/grupo/<id>` e sobrevive ao refresh.
+- **Detalhe do grupo**: cabeçalho com contagem, três KPIs (saldo inicial, saldo consolidado e previsão), **contas diretas** em tabela enxuta (saldo inicial · saldo · previsão) e **subgrupos em cartões** com subtotais e suas contas. Receitas, despesas e transferências saíram da listagem e continuam no detalhe da conta.
+- **Distribuição de capital**: barra com o peso de cada subgrupo/conta direta no saldo do grupo, disponível em todos os grupos com 2+ componentes.
+- **Ações rápidas** por grupo: editar grupo, novo subgrupo, nova conta, reordenar e mostrar arquivadas. A visão **Linear** (tabela plana) continua disponível.
+- **“Ignorar nos totais”** mantido como antes: o total geral exclui as contas marcadas; os subtotais de grupo as incluem, para refletir o total real do grupo.
+
+### Testes
+- Novos testes de master-detail, seleção por rota, KPIs, subgrupos, distribuição, visão linear e navegação mobile.
+- E2E: rota de grupo direta + refresh.
+
 ## [1.24.0] - 2026-10-28
 
 ### Alterado
