@@ -33,6 +33,8 @@ describe('MFRepeatModal — Valor total | Valor parcela', () => {
   it('parcela é o padrão e o preview mostra o valor digitado', () => {
     renderModal();
     expect(screen.getByTestId('mf-repeat-mode-parcela')).toHaveAttribute('aria-pressed', 'true');
+    // segmento neutro: o selecionado é marcado por aria-pressed, sem vermelho
+    expect(screen.getByTestId('mf-repeat-mode-parcela')).toHaveClass('btn-option');
     // t() do mock devolve a chave (interpolação não é resolvida)
     expect(screen.getByTestId('mf-repeat-preview')).toHaveTextContent(
       'minhasfinancas.tx_repeat_preview'

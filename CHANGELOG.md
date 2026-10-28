@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-10-28
+
+### Alterado
+- **Opções × cancelar**: as opções em grupo (ex.: “Não recorrente / Parcelar ou repetir / Fixa mensal”) agora usam um estilo de **segmento neutro**, com a selecionada destacada (fundo/borda primária + ✓) e `aria-pressed`. O **vermelho saiu dos botões de cancelar/voltar** e ficou reservado para ações destrutivas (`btn-danger`). Paginação, modais e toggles herdam o novo “cancelar” neutro.
+
 ## [1.23.0] - 2026-10-27
 
 ### Adicionado

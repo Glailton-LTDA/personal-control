@@ -152,7 +152,7 @@ export default function MFRepeatModal({
 
         <div style={{ ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: '0.6rem' }}>
           {showAmountToggle && (
-          <div style={{ display: 'flex', border: '1px solid var(--glass-border)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
             {[
               { id: 'total', label: t('minhasfinancas.tx_repeat_total') },
               { id: 'parcela', label: t('minhasfinancas.tx_repeat_parcela') },
@@ -160,20 +160,11 @@ export default function MFRepeatModal({
               <button
                 key={opt.id}
                 type="button"
+                className="btn-option"
                 data-testid={`mf-repeat-mode-${opt.id}`}
                 aria-pressed={mode === opt.id}
                 onClick={() => setMode(opt.id)}
-                style={{
-                  flex: 1,
-                  padding: '0.6rem 0.5rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  font: 'inherit',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  background: mode === opt.id ? 'var(--primary)' : 'transparent',
-                  color: mode === opt.id ? '#fff' : 'var(--text-muted)',
-                }}
+                style={{ flex: 1, padding: '0.6rem 0.5rem', fontSize: '0.85rem' }}
               >
                 {opt.label}
               </button>

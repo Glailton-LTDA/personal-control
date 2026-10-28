@@ -1892,6 +1892,25 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.queryByTestId('mf-tx-repeat')).not.toBeInTheDocument();
   });
 
+  it('opções de repetição usam o segmento e marcam a selecionada', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('expense');
+    const none = screen.getByTestId('mf-tx-repeat-none');
+    expect(none).toHaveClass('btn-option');
+    expect(none).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByTestId('mf-tx-repeat-fixed'));
+    expect(screen.getByTestId('mf-tx-repeat-fixed')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(none).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('edição converte avulso em parcelado (cabeça atualizada + filhas)', async () => {    renderScreen();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
