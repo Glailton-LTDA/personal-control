@@ -1118,7 +1118,7 @@ export default function MFContas({
               <div className="mf-accounts-subgroup-name">{child.name}</div>
               <div className="mf-accounts-subgroup-meta">
                 <span className="mf-accounts-subgroup-badge">
-                  {t('minhasfinancas.accounts_subgroup_badge', { count: direct.length })}
+                  {t('minhasfinancas.accounts_subgroup_badge_short')}
                 </span>
                 <span
                   data-testid={`mf-group-count-${child.id}`}
