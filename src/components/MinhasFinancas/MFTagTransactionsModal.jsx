@@ -13,28 +13,74 @@ const PAGE_SIZE = 20;
 const fmtDate = (iso) =>
   iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—';
 
+const pad = (value) => String(value).padStart(2, '0');
+
+const selectStyle = {
+  background: 'var(--input-bg)',
+  border: '1px solid var(--glass-border)',
+  color: 'var(--text-main)',
+  borderRadius: 9,
+  padding: '0.4rem 0.5rem',
+  fontSize: '0.8rem',
+  fontFamily: 'inherit',
+  minWidth: 0,
+};
+
 /**
- * Lançamentos de uma tag em modal paginado (20 por página, busca por
- * descrição no servidor). Antes o drill abria a lista inteira dentro do
- * card de Ajustes — com histórico longo, ficava inviável.
+ * Lançamentos de uma tag em modal paginado (20 por página), com filtros
+ * de ano/mês/dia e busca por descrição — tudo no servidor (RPC
+ * mf_tag_transactions). Mostra a contagem e a soma por moeda do filtro.
  */
 export default function MFTagTransactionsModal({ user, tag, onClose }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [search, setSearch] = useState('');
+  const [year, setYear] = useState('');
+  const [month, setMonth] = useState('');
+  const [day, setDay] = useState('');
   const [page, setPage] = useState(0);
   const { data: accounts = [] } = useMFAccounts(user);
+
+  const monthLabel = (value) => {
+    const raw = new Intl.DateTimeFormat(i18n.language, { month: 'long' }).format(
+      new Date(2026, Number(value) - 1, 1)
+    );
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  };
+
+  const daysInMonth = (y, m) =>
+    y && m ? new Date(Number(y), Number(m), 0).getDate() : 31;
+
+  const from = year ? `${year}-${pad(month || 1)}-${pad(day || 1)}` : null;
+  const to = year
+    ? month
+      ? `${year}-${pad(month)}-${pad(day || daysInMonth(year, month))}`
+      : `${year}-12-31`
+    : null;
+
   const { data, isLoading } = useMFTagTransactions(user, tag?.id, {
+    from,
+    to,
     search,
     page,
     pageSize: PAGE_SIZE,
   });
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
+  const years = data?.years ?? [];
+  const amountEntries = Object.entries(data?.amounts ?? {});
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilter = Boolean(year || month || day);
   const accountsById = useMemo(
     () => Object.fromEntries((accounts ?? []).map((row) => [row.id, row])),
     [accounts]
   );
+
+  const clearFilters = () => {
+    setYear('');
+    setMonth('');
+    setDay('');
+    setPage(0);
+  };
 
   return createPortal(
     <div
@@ -48,7 +94,7 @@ export default function MFTagTransactionsModal({ user, tag, onClose }) {
         aria-modal="true"
         aria-label={t('minhasfinancas.tag_tx_title', { name: tag?.name ?? '' })}
         onClick={(event) => event.stopPropagation()}
-        style={{ maxWidth: 560, padding: 0, display: 'flex', flexDirection: 'column' }}
+        style={{ maxWidth: 600, padding: 0, display: 'flex', flexDirection: 'column' }}
       >
         <div
           style={{
@@ -97,7 +143,14 @@ export default function MFTagTransactionsModal({ user, tag, onClose }) {
           </button>
         </div>
 
-        <div style={{ padding: '0.85rem 1.25rem 0', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        <div
+          style={{
+            padding: '0.85rem 1.25rem 0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.55rem',
+          }}
+        >
           <div
             style={{
               display: 'flex',
@@ -146,13 +199,127 @@ export default function MFTagTransactionsModal({ user, tag, onClose }) {
               </button>
             )}
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <select
+              data-testid="mf-tag-tx-year"
+              aria-label={t('minhasfinancas.tag_tx_year')}
+              value={year}
+              onChange={(event) => {
+                setYear(event.target.value);
+                setMonth('');
+                setDay('');
+                setPage(0);
+              }}
+              style={selectStyle}
+            >
+              <option value="">{t('minhasfinancas.tag_tx_year_all')}</option>
+              {years.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="mf-tag-tx-month"
+              aria-label={t('minhasfinancas.tag_tx_month')}
+              value={month}
+              disabled={!year}
+              onChange={(event) => {
+                setMonth(event.target.value);
+                setDay('');
+                setPage(0);
+              }}
+              style={{ ...selectStyle, opacity: year ? 1 : 0.5 }}
+            >
+              <option value="">{t('minhasfinancas.tag_tx_month_all')}</option>
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => (
+                <option key={value} value={pad(value)}>
+                  {monthLabel(value)}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="mf-tag-tx-day"
+              aria-label={t('minhasfinancas.tag_tx_day')}
+              value={day}
+              disabled={!year || !month}
+              onChange={(event) => {
+                setDay(event.target.value);
+                setPage(0);
+              }}
+              style={{ ...selectStyle, opacity: year && month ? 1 : 0.5 }}
+            >
+              <option value="">{t('minhasfinancas.tag_tx_day_all')}</option>
+              {Array.from(
+                { length: daysInMonth(year, month) },
+                (_, index) => index + 1
+              ).map((value) => (
+                <option key={value} value={pad(value)}>
+                  {pad(value)}
+                </option>
+              ))}
+            </select>
+            {hasFilter && (
+              <button
+                type="button"
+                data-testid="mf-tag-tx-clear"
+                onClick={clearFilters}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--primary)',
+                  fontFamily: 'inherit',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.3rem',
+                }}
+              >
+                {t('minhasfinancas.tag_tx_clear')}
+              </button>
+            )}
+          </div>
+
+          {amountEntries.length > 0 && (
+            <div
+              data-testid="mf-tag-tx-total"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                flexWrap: 'wrap',
+                fontSize: '0.78rem',
+              }}
+            >
+              <span style={{ color: 'var(--text-muted)' }}>
+                {t('minhasfinancas.tag_tx_total')}
+              </span>
+              {amountEntries.map(([currency, value]) => (
+                <span
+                  key={currency}
+                  data-testid={`mf-tag-tx-total-${currency}`}
+                  style={{
+                    fontWeight: 800,
+                    padding: '0.1rem 0.5rem',
+                    borderRadius: 999,
+                    background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+                    color: 'var(--text-main)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {formatMoney(Number(value) || 0, currency)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div
           style={{
             padding: '0.5rem 1.25rem',
             overflowY: 'auto',
-            maxHeight: '46vh',
+            maxHeight: '42vh',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.1rem',
@@ -219,7 +386,7 @@ export default function MFTagTransactionsModal({ user, tag, onClose }) {
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >
-                    {formatMoney(amount, account?.currency || 'BRL')}
+                    {formatMoney(amount, row.currency || account?.currency || 'BRL')}
                   </span>
                 </div>
               );

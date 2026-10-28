@@ -70,54 +70,49 @@ vi.mock('../../lib/supabase', () => {
     ],
     error: null,
   });
-  // Consulta paginada do modal: embed da transação + count.
-  const embedded = makeChain({
-    data: [
-      {
-        transaction_id: 'tx-b',
-        transaction: {
-          id: 'tx-b',
-          description: 'Passagem',
-          amount: 900,
-          payment_date: '2026-10-06',
-          account_id: 'acc-1',
-          status: 'PAGO',
-          type: 'DESPESA',
-        },
-      },
-      {
-        transaction_id: 'tx-a',
-        transaction: {
-          id: 'tx-a',
-          description: 'Hotel',
-          amount: 500,
-          payment_date: '2026-10-05',
-          account_id: 'acc-1',
-          status: 'PAGO',
-          type: 'DESPESA',
-        },
-      },
-    ],
-    count: 2,
-    error: null,
-  });
+  // Lançamentos do modal (RPC paginada).
   const accounts = makeChain({
     data: [{ id: 'acc-1', name: 'Conta', currency: 'BRL' }],
     error: null,
   });
-  const junction = {
-    select: vi.fn((columns) =>
-      String(columns).includes('transaction:') ? embedded : links
-    ),
-  };
   return {
     supabase: {
       from: vi.fn((table) => {
         if (table === 'mf_tags') return tags;
-        if (table === 'mf_transaction_tags') return junction;
+        if (table === 'mf_transaction_tags') return links;
         if (table === 'mf_accounts') return accounts;
         return transactions;
       }),
+      rpc: vi.fn(async () => ({
+        data: {
+          rows: [
+            {
+              id: 'tx-b',
+              description: 'Passagem',
+              amount: 900,
+              payment_date: '2026-10-06',
+              account_id: 'acc-1',
+              status: 'PAGO',
+              type: 'DESPESA',
+              currency: 'BRL',
+            },
+            {
+              id: 'tx-a',
+              description: 'Hotel',
+              amount: 500,
+              payment_date: '2026-10-05',
+              account_id: 'acc-1',
+              status: 'PAGO',
+              type: 'DESPESA',
+              currency: 'BRL',
+            },
+          ],
+          total: 2,
+          amounts: { BRL: 1400 },
+          years: [2026],
+        },
+        error: null,
+      })),
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
         signOut: vi.fn().mockResolvedValue({ error: null }),

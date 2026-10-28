@@ -2143,34 +2143,44 @@ export function useMFTagUsage(user) {
 
 /** Lançamentos recentes de uma tag (drill "ver lançamentos", 50 últimos). */
 /**
- * Lançamentos de uma tag, paginados no servidor (PostgREST com embed em
- * mf_transactions): devolve `{ rows, total }` da página pedida, já ordenado
- * por data desc. A busca filtra a descrição no próprio banco — nada de
+ * Lançamentos de uma tag, paginados/filtrados no servidor (RPC
+ * `mf_tag_transactions`): devolve `{ rows, total, amounts, years }` —
+ * a página, a contagem, a soma por moeda e os anos com movimento. Nada de
  * baixar o histórico inteiro da tag para filtrar no cliente.
  */
-export function useMFTagTransactions(user, tagId, { search = '', page = 0, pageSize = 20 } = {}) {
+export function useMFTagTransactions(
+  user,
+  tagId,
+  { from = null, to = null, search = '', page = 0, pageSize = 20 } = {}
+) {
   const term = String(search ?? '').trim();
   return useQuery({
-    queryKey: ['mf-tag-transactions', user?.id, tagId ?? 'none', term, page, pageSize],
+    queryKey: [
+      'mf-tag-transactions',
+      user?.id,
+      tagId ?? 'none',
+      from ?? '',
+      to ?? '',
+      term,
+      page,
+      pageSize,
+    ],
     enabled: !!user?.id && !!tagId,
     queryFn: async () => {
-      const from = page * pageSize;
-      let query = supabase
-        .from('mf_transaction_tags')
-        .select(
-          'transaction_id,transaction:mf_transactions!inner(id,description,amount,payment_date,account_id,status,type)',
-          { count: 'exact' }
-        )
-        .eq('tag_id', tagId)
-        .order('payment_date', { referencedTable: 'transaction', ascending: false })
-        .order('id', { referencedTable: 'transaction', ascending: false })
-        .range(from, from + pageSize - 1);
-      if (term) query = query.ilike('transaction.description', `%${term}%`);
-      const { data, error, count } = await query;
+      const { data, error } = await supabase.rpc('mf_tag_transactions', {
+        p_tag_id: tagId,
+        p_from: from || null,
+        p_to: to || null,
+        p_search: term || null,
+        p_limit: pageSize,
+        p_offset: page * pageSize,
+      });
       if (error) throw error;
       return {
-        rows: (data ?? []).map((row) => row.transaction).filter(Boolean),
-        total: count ?? (data ?? []).length,
+        rows: data?.rows ?? [],
+        total: Number(data?.total) || 0,
+        amounts: data?.amounts ?? {},
+        years: data?.years ?? [],
       };
     },
   });
