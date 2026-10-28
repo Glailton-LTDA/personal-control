@@ -7,48 +7,9 @@ import {
   useMFTags,
   useDeleteMFTag,
   useMFTagUsage,
-  useMFTagTransactions,
-  formatMoney,
 } from '../../hooks/useMinhasFinancas';
 import MFTagModal from './MFTagModal';
-
-/** Lançamentos da tag (drill expansível da linha). */
-function TagTransactions({ user, tag, currency }) {
-  const { t } = useTranslation();
-  const { data: rows = [], isLoading } = useMFTagTransactions(user, tag.id);
-  if (isLoading) {
-    return (
-      <div style={{ padding: '0.5rem 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        {t('minhasfinancas.loading')}
-      </div>
-    );
-  }
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: '0.5rem 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        {t('minhasfinancas.tag_no_transactions')}
-      </div>
-    );
-  }
-  return (
-    <ul style={{ margin: '0.4rem 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-      {rows.map((row) => (
-        <li
-          key={row.id}
-          data-testid={`mf-tag-tx-${tag.id}-${row.id}`}
-          style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', fontSize: '0.8rem' }}
-        >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {row.description} · {String(row.payment_date || '').slice(0, 10).split('-').reverse().join('/')}
-          </span>
-          <span style={{ fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-            {formatMoney(row.amount, currency)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
+import MFTagTransactionsModal from './MFTagTransactionsModal';
 
 /**
  * Gestão de tags nos Ajustes (padrão do Minhas Finanças original): busca,
@@ -62,7 +23,7 @@ export default function MFTagsManager({ user, testId = 'mf-tags-manager' }) {
   const [search, setSearch] = useState('');
   const [modalTag, setModalTag] = useState(null); // undefined = fechado
   const [modalOpen, setModalOpen] = useState(false);
-  const [viewId, setViewId] = useState(null);
+  const [viewTag, setViewTag] = useState(null);
   const counts = usage?.counts ?? {};
 
   const filtered = useMemo(() => {
@@ -155,7 +116,6 @@ export default function MFTagsManager({ user, testId = 'mf-tags-manager' }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
         {filtered.map((tag) => {
-          const viewing = viewId === tag.id;
           return (
             <div
               key={tag.id}
@@ -191,8 +151,7 @@ export default function MFTagsManager({ user, testId = 'mf-tags-manager' }) {
                     data-testid={`${testId}-view-${tag.id}`}
                     aria-label={t('minhasfinancas.tag_view_transactions')}
                     title={t('minhasfinancas.tag_view_transactions')}
-                    aria-pressed={viewing}
-                    onClick={() => setViewId((prev) => (prev === tag.id ? null : tag.id))}
+                    onClick={() => setViewTag(tag)}
                     style={{ padding: '0.3rem' }}
                   >
                     <Eye size={14} />
@@ -219,12 +178,18 @@ export default function MFTagsManager({ user, testId = 'mf-tags-manager' }) {
                   </button>
                 </span>
               </div>
-              {viewing && <TagTransactions user={user} tag={tag} />}
             </div>
           );
         })}
       </div>
 
+      {viewTag && (
+        <MFTagTransactionsModal
+          user={user}
+          tag={viewTag}
+          onClose={() => setViewTag(null)}
+        />
+      )}
       {modalOpen && (
         <MFTagModal tag={modalTag} user={user} onClose={() => setModalOpen(false)} />
       )}

@@ -2142,32 +2142,36 @@ export function useMFTagUsage(user) {
 }
 
 /** Lançamentos recentes de uma tag (drill "ver lançamentos", 50 últimos). */
-export function useMFTagTransactions(user, tagId) {
+/**
+ * Lançamentos de uma tag, paginados no servidor (PostgREST com embed em
+ * mf_transactions): devolve `{ rows, total }` da página pedida, já ordenado
+ * por data desc. A busca filtra a descrição no próprio banco — nada de
+ * baixar o histórico inteiro da tag para filtrar no cliente.
+ */
+export function useMFTagTransactions(user, tagId, { search = '', page = 0, pageSize = 20 } = {}) {
+  const term = String(search ?? '').trim();
   return useQuery({
-    queryKey: ['mf-tag-transactions', user?.id, tagId ?? 'none'],
+    queryKey: ['mf-tag-transactions', user?.id, tagId ?? 'none', term, page, pageSize],
     enabled: !!user?.id && !!tagId,
     queryFn: async () => {
-      const links = await mfSelect(
-        'mf_transaction_tags',
-        () => supabase.from('mf_transaction_tags').select('tag_id,transaction_id'),
-        { filter: (rows) => rows.filter((row) => row.tag_id === tagId) }
-      );
-      if (links.error) throw links.error;
-      const ids = [...new Set((links.data ?? []).map((row) => row.transaction_id).filter(Boolean))].slice(0, 50);
-      if (ids.length === 0) return [];
-      const txs = await mfSelect(
-        'mf_transactions',
-        () => supabase.from('mf_transactions').select('*').in('id', ids),
-        {
-          filter: (rows) => rows.filter((row) => ids.includes(row.id)),
-          sort: (rows) =>
-            [...rows].sort((a, b) =>
-              String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
-            ),
-        }
-      );
-      if (txs.error) throw txs.error;
-      return txs.data ?? [];
+      const from = page * pageSize;
+      let query = supabase
+        .from('mf_transaction_tags')
+        .select(
+          'transaction_id,transaction:mf_transactions!inner(id,description,amount,payment_date,account_id,status,type)',
+          { count: 'exact' }
+        )
+        .eq('tag_id', tagId)
+        .order('payment_date', { referencedTable: 'transaction', ascending: false })
+        .order('id', { referencedTable: 'transaction', ascending: false })
+        .range(from, from + pageSize - 1);
+      if (term) query = query.ilike('transaction.description', `%${term}%`);
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return {
+        rows: (data ?? []).map((row) => row.transaction).filter(Boolean),
+        total: count ?? (data ?? []).length,
+      };
     },
   });
 }

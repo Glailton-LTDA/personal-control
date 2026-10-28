@@ -183,7 +183,16 @@ export default function MFTagModal({ tag = null, user, onClose, onSaved }) {
           </div>
         </div>
 
-        <div className="modal-footer" style={{ padding: '0.85rem 1.25rem 1rem' }}>
+        <div
+          className="modal-footer"
+          style={{
+            padding: '0.85rem 1.25rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: '0.6rem',
+          }}
+        >
           <button
             type="button"
             className="btn-cancel"
@@ -193,7 +202,6 @@ export default function MFTagModal({ tag = null, user, onClose, onSaved }) {
           >
             {t('minhasfinancas.cancel')}
           </button>
-          <span style={{ flex: 1 }} />
           <button
             type="button"
             className="btn-primary"
