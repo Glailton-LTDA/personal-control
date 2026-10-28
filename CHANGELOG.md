@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.25.1] - 2026-10-28
+
+### Corrigido
+- **Selo do subgrupo em Contas**: o cabeçalho mostrava a contagem duas vezes (“Grupo filho · 3” e “3 contas diretas”). O selo agora traz só o tipo; a linha abaixo mantém a contagem completa (contas diretas, subgrupos e total).
+
 ## [1.25.0] - 2026-10-28
 
 ### Alterado
