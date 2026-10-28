@@ -294,6 +294,14 @@ describe('MFContas — master-detail', () => {
 
       expect(screen.getByTestId('mf-subgroup-grp-2')).toBeInTheDocument();
       expect(screen.getByTestId('mf-subgroup-total-grp-2')).toHaveTextContent('R$ 300,00');
+      expect(
+        screen
+          .getByTestId('mf-subgroup-grp-2')
+          .querySelector('.mf-accounts-subgroup-badge')
+      ).toHaveTextContent('minhasfinancas.accounts_subgroup_badge_short');
+      expect(screen.getByTestId('mf-group-count-grp-2')).toHaveTextContent(
+        'minhasfinancas.accounts_direct_count'
+      );
       expect(screen.getByText('Caixinha Turbo')).toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId('mf-open-subgroup-grp-2'));
