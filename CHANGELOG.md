@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-10-28
+
+### Adicionado
+- **Scroll infinito em Lançamentos**: a lista carrega **30 lançamentos por vez**, com paginação no servidor. Ao chegar ao fim, a próxima página é buscada automaticamente por `IntersectionObserver` — sem botão “carregar mais”.
+- Filtros de busca, status, tipo, conta, categoria, tag e moeda passaram a ser aplicados **no servidor** e reiniciam a paginação. A busca tem debounce de 300 ms.
+- A contagem e os totais de receitas/despesas/transferências continuam refletindo o **filtro inteiro** (consulta leve de totais), não apenas a página carregada.
+- Em modo offline, o cache local é filtrado e paginado no cliente.
+
 ## [1.25.1] - 2026-10-28
 
 ### Corrigido

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -890,55 +890,239 @@ export function useMFStatement(user, monthKey, accountId = null, currency = 'all
  * Lançamentos (Fase 3)
  * ──────────────────────────────────────────────────────────── */
 
-/** Lançamentos do mês + vínculos de tag (tela Lançamentos). */
-export function useMFLancamentos(user, monthKey) {
+/**
+ * Lançamentos do mês + vínculos de tag (tela Lançamentos), com paginação
+ * no servidor e scroll infinito.
+ *
+ * A lista usa uma consulta por página (Range) e uma consulta leve de
+ * totais (só amount/type/status/account_id) para o rodapé/badge refletirem
+ * o filtro inteiro, não só a página carregada. Filtros vão para o
+ * servidor; em offline (ou em mocks/testes) a mesma função de filtro é
+ * reaplicada no cliente e a página é recortada localmente.
+ */
+export function useMFLancamentos(
+  user,
+  monthKey,
+  {
+    search = '',
+    status = 'all',
+    type = 'all',
+    accountId = 'all',
+    categoryIds = null,
+    tagId = 'all',
+    currency = 'all',
+    pageSize = 30,
+  } = {}
+) {
   const profileId = useMFProfileScope();
-  return useQuery({
-    queryKey: ['mf-lancamentos', user?.id, monthKey, profileId ?? 'all'],
+  const { data: accounts = [] } = useMFAccounts(user);
+  const term = String(search ?? '').trim();
+  const categoryKey = (categoryIds ?? []).slice().sort().join(',');
+  const currencyKey = accounts.map((account) => account.currency || 'BRL').join(',');
+
+  return useInfiniteQuery({
+    queryKey: [
+      'mf-lancamentos',
+      user?.id,
+      monthKey,
+      profileId ?? 'all',
+      term,
+      status,
+      type,
+      accountId,
+      categoryKey,
+      tagId,
+      currency,
+      currencyKey,
+      pageSize,
+    ],
     enabled: !!user?.id,
-    queryFn: async () => {
+    initialPageParam: 0,
+    placeholderData: (previousData) => previousData,
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
+    queryFn: async ({ pageParam = 0 }) => {
       const { start, end } = monthBounds(monthKey);
       const scopeIds = await profileAccountIds(profileId);
-      if (scopeIds && scopeIds.length === 0) return { transactions: [], tagIdsByTx: {} };
+      const empty = {
+        rows: [],
+        total: 0,
+        totals: { receitas: {}, despesas: {}, transferencias: {} },
+        tagIdsByTx: {},
+        nextOffset: null,
+      };
+      if (scopeIds && scopeIds.length === 0) return empty;
 
-      let txQuery = supabase
-        .from('mf_transactions')
-        .select('*')
-        .gte('payment_date', start)
-        .lte('payment_date', end);
-      if (scopeIds) txQuery = txQuery.in('account_id', scopeIds);
+      const linksPromise = mfSelect('mf_transaction_tags', () =>
+        supabase.from('mf_transaction_tags').select('*')
+      );
+      let allTagIdsByTx = {};
+      let tagTxIds = null;
+      if (tagId !== 'all') {
+        const links = await linksPromise;
+        if (links.error) throw links.error;
+        (links.data ?? []).forEach((row) => {
+          if (!allTagIdsByTx[row.transaction_id]) allTagIdsByTx[row.transaction_id] = [];
+          allTagIdsByTx[row.transaction_id].push(row.tag_id);
+        });
+        tagTxIds = new Set(
+          Object.entries(allTagIdsByTx)
+            .filter(([, ids]) => ids.includes(tagId))
+            .map(([txId]) => txId)
+        );
+        if (tagTxIds.size === 0) return empty;
+      }
 
-      const [txs, links] = await Promise.all([
-        mfSelect(
-          'mf_transactions',
-          () => txQuery,
-          {
-            filter: (rows) =>
-              rows.filter(
-                (row) =>
-                  row.payment_date >= start &&
-                  row.payment_date <= end &&
-                  (!scopeIds || scopeIds.includes(row.account_id))
-              ),
-          }
-        ),
-        mfSelect('mf_transaction_tags', () =>
-          supabase.from('mf_transaction_tags').select('*')
-        ),
+      const accountCurrency = Object.fromEntries(
+        accounts.map((account) => [account.id, account.currency || 'BRL'])
+      );
+      const currencyAccountIds =
+        currency === 'all'
+          ? null
+          : accounts
+              .filter((account) => (account.currency || 'BRL') === currency)
+              .map((account) => account.id);
+      let effectiveAccountIds = null;
+      if (accountId !== 'all') {
+        effectiveAccountIds =
+          currency !== 'all' && !currencyAccountIds.includes(accountId)
+            ? []
+            : [accountId];
+      } else if (currency !== 'all') {
+        effectiveAccountIds = currencyAccountIds;
+      }
+      if (scopeIds) {
+        effectiveAccountIds = effectiveAccountIds
+          ? effectiveAccountIds.filter((id) => scopeIds.includes(id))
+          : scopeIds;
+      }
+      if (effectiveAccountIds && effectiveAccountIds.length === 0) return empty;
+
+      const categorySet = categoryIds?.length ? new Set(categoryIds) : null;
+      const matches = (tx) => {
+        // Online o recorte de mês já vai na query; no offline (e nos mocks
+        // que ignoram filtros) reaplicamos a janela localmente.
+        if (
+          isOffline() &&
+          (String(tx.payment_date) < start || String(tx.payment_date) > end)
+        ) {
+          return false;
+        }
+        if (scopeIds && !scopeIds.includes(tx.account_id)) return false;
+        if (effectiveAccountIds && !effectiveAccountIds.includes(tx.account_id)) return false;
+        if (status !== 'all' && tx.status !== status) return false;
+        if (type !== 'all' && tx.type !== type) return false;
+        if (categorySet && !categorySet.has(tx.category_id)) return false;
+        if (tagTxIds && !tagTxIds.has(tx.id)) return false;
+        if (term && !String(tx.description ?? '').toLowerCase().includes(term.toLowerCase())) {
+          return false;
+        }
+        return true;
+      };
+      const sortRows = (rows) =>
+        [...rows].sort(
+          (a, b) =>
+            String(a.payment_date).localeCompare(String(b.payment_date)) ||
+            String(a.id).localeCompare(String(b.id))
+        );
+
+      const buildQuery = (columns, withRange) => {
+        let query = supabase
+          .from('mf_transactions')
+          .select(columns)
+          .gte('payment_date', start)
+          .lte('payment_date', end);
+        if (effectiveAccountIds) query = query.in('account_id', effectiveAccountIds);
+        if (status !== 'all') query = query.eq('status', status);
+        if (type !== 'all') query = query.eq('type', type);
+        if (categorySet) query = query.in('category_id', [...categorySet]);
+        if (tagTxIds) query = query.in('id', [...tagTxIds]);
+        if (term && typeof query.ilike === 'function') {
+          query = query.ilike('description', `%${term}%`);
+        }
+        query = query.order('payment_date').order('id');
+        if (withRange && typeof query.range === 'function') {
+          query = query.range(pageParam, pageParam + pageSize - 1);
+        }
+        return query;
+      };
+
+      // Totais: consulta leve (6 colunas), sem paginação/cache — o rodapé
+      // e o badge precisam do filtro inteiro. `mfSelectAll` cobre meses com
+      // mais de 1000 linhas (limite por requisição da REST).
+      const totalsPromise = mfSelectAll(
+        'mf_transactions',
+        () => buildQuery('id,payment_date,amount,type,status,account_id', false),
+        { filter: matches, sort: sortRows, cache: false }
+      );
+      const pagePromise = mfSelect(
+        'mf_transactions',
+        () => buildQuery('*', true),
+        { filter: matches, sort: sortRows }
+      );
+      const [pageRes, totalsRes, linksRes] = await Promise.all([
+        pagePromise,
+        totalsPromise,
+        linksPromise,
       ]);
-      if (txs.error) throw txs.error;
-      if (links.error) throw links.error;
+      if (pageRes.error) throw pageRes.error;
+      if (totalsRes.error) throw totalsRes.error;
+      if (linksRes.error) throw linksRes.error;
+      if (tagId === 'all') {
+        (linksRes.data ?? []).forEach((row) => {
+          if (!allTagIdsByTx[row.transaction_id]) allTagIdsByTx[row.transaction_id] = [];
+          allTagIdsByTx[row.transaction_id].push(row.tag_id);
+        });
+      }
 
-      const transactions = txs.data ?? [];
-      // Vínculos de tag SEM recorte por mês: a query já baixa todos. Assim
-      // uma compra de outra fatura editada a partir do drill-down mantém
-      // as tags (o salvar apaga e recria os links a partir de tagIdsByTx).
-      const tagIdsByTx = {};
-      (links.data ?? []).forEach((row) => {
-        if (!tagIdsByTx[row.transaction_id]) tagIdsByTx[row.transaction_id] = [];
-        tagIdsByTx[row.transaction_id].push(row.tag_id);
+      const rawPage = pageRes.data ?? [];
+      const rawTotals = totalsRes.data ?? [];
+      // Online a página já vem recortada; offline o mfSelect devolve tudo
+      // e a gente recorta aqui. Nos testes os mocks devolvem tudo, por isso
+      // o filtro local também roda no caminho online.
+      const pageRows = (isOffline()
+        ? rawPage.filter(matches).slice(pageParam, pageParam + pageSize)
+        : rawPage.filter(matches)
+      );
+      const allRows = rawTotals.filter((row) =>
+        row.description !== undefined ? matches(row) : true
+      );
+
+      const totals = { receitas: {}, despesas: {}, transferencias: {} };
+      allRows.forEach((row) => {
+        if (row.status === 'CANCELADO') return;
+        const key =
+          row.type === 'RECEITA'
+            ? 'receitas'
+            : row.type === 'DESPESA'
+              ? 'despesas'
+              : row.type === 'TRANSFERENCIA'
+                ? 'transferencias'
+                : null;
+        if (!key) return;
+        const code = accountCurrency[row.account_id] || 'BRL';
+        totals[key][code] = (totals[key][code] || 0) + (Number(row.amount) || 0);
       });
-      return { transactions, tagIdsByTx };
+
+      const pageIds = new Set(pageRows.map((row) => row.id));
+      const tagIdsByTx = {};
+      Object.entries(allTagIdsByTx).forEach(([txId, ids]) => {
+        if (pageIds.has(txId)) tagIdsByTx[txId] = ids;
+      });
+
+      const consumed = pageParam + (isOffline() ? pageRows.length : rawPage.length);
+      const nextOffset =
+        (isOffline() ? pageRows.length : rawPage.length) >= pageSize &&
+        consumed < allRows.length
+          ? consumed
+          : null;
+
+      return {
+        rows: pageRows,
+        total: allRows.length,
+        totals,
+        tagIdsByTx,
+        nextOffset,
+      };
     },
   });
 }

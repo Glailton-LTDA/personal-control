@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFTransacoes from './MFTransacoes';
@@ -337,6 +337,79 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     fireEvent.click(screen.getByTestId('mf-tx-filter-category-option-cat-food'));
     expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(1);
     expect(screen.getByText('Supermercado Extra')).toBeInTheDocument();
+  });
+
+  it('scroll infinito carrega a próxima página (30 por vez)', async () => {
+    const rows = Array.from({ length: 35 }, (_, index) => ({
+      id: `tx-page-${index + 1}`,
+      account_id: 'acc-1',
+      type: 'DESPESA',
+      description: `Lançamento ${index + 1}`,
+      amount: 10,
+      payment_date: `2026-10-${String((index % 28) + 1).padStart(2, '0')}`,
+      status: 'PAGO',
+      category_id: null,
+      recurrence: 'NONE',
+    }));
+
+    const { supabase } = await import('../../lib/supabase');
+    const realFrom = supabase.from.getMockImplementation();
+    const makePageChain = () => {
+      let range = null;
+      const chain = {
+        select: vi.fn(() => chain),
+        gte: vi.fn(() => chain),
+        lte: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        ilike: vi.fn(() => chain),
+        range: vi.fn((from, to) => {
+          range = [from, to];
+          return chain;
+        }),
+        then: vi.fn((onFulfilled, onRejected) => {
+          const data = range ? rows.slice(range[0], range[1] + 1) : rows;
+          return Promise.resolve({ data, error: null }).then(onFulfilled, onRejected);
+        }),
+      };
+      return chain;
+    };
+    supabase.from.mockImplementation((table) =>
+      table === 'mf_transactions' ? makePageChain() : realFrom(table)
+    );
+
+    const OriginalIO = window.IntersectionObserver;
+    let ioCallback = null;
+    class FakeIO {
+      constructor(callback) {
+        ioCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+    }
+    window.IntersectionObserver = FakeIO;
+
+    try {
+      renderScreen();
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(30);
+      });
+      expect(screen.getByTestId('mf-tx-sentinel')).toBeInTheDocument();
+      expect(ioCallback).toBeTruthy();
+
+      act(() => ioCallback([{ isIntersecting: true }]));
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(35);
+      });
+      expect(screen.queryByTestId('mf-tx-loading-more')).not.toBeInTheDocument();
+    } finally {
+      supabase.from.mockImplementation(realFrom);
+      if (OriginalIO) window.IntersectionObserver = OriginalIO;
+      else delete window.IntersectionObserver;
+    }
   });
 
   it('marca um lançamento pendente como pago', async () => {
