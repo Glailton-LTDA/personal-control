@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DollarSign,
@@ -36,7 +36,6 @@ import {
   mfInstallmentSuffix,
   fetchInstallmentSeries,
   installmentHeadId,
-  groupTotalsByCurrency,
   formatTotals,
   currentMonthKey,
   toISODate,
@@ -93,6 +92,16 @@ const dayLabel = (iso, language) => {
     .toUpperCase();
 };
 
+/** Debounce da busca: o servidor só é consultado depois da pausa. */
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
 /**
  * Tela de Lançamentos: lista do mês com filtros (busca, status, tipo,
  * conta, categoria, tag), pagar/estornar, edição em lote e CRUD
@@ -105,7 +114,6 @@ export default function MFTransacoes({
   showValues = true,
 }) {
   const { t, i18n } = useTranslation();
-  const { data: txData, isLoading, isError } = useMFLancamentos(user, monthKey);
   const { data: accounts = [] } = useMFAccounts(user);
   const { data: categories = [] } = useMFCategories(user);
   const { data: tags = [] } = useMFTags(user);
@@ -155,11 +163,55 @@ export default function MFTransacoes({
   // Diálogo de escolha da série fixa (excluir escopo / contabilizar mês)
   const [choice, setChoice] = useState(null);
 
-  const transactions = useMemo(
-    () => txData?.transactions ?? [],
+  const loadMoreRef = useRef(null);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const categoryIds = useMemo(() => {
+    if (categoryFilter === 'all') return null;
+    return [
+      categoryFilter,
+      ...categories
+        .filter((cat) => cat.parent_id === categoryFilter)
+        .map((cat) => cat.id),
+    ];
+  }, [categoryFilter, categories]);
+
+  const {
+    data: txData,
+    isLoading,
+    isError,
+    isFetching,
+    isPlaceholderData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useMFLancamentos(user, monthKey, {
+    search: debouncedSearch,
+    status,
+    type,
+    accountId: accountFilter,
+    categoryIds,
+    tagId: tagFilter,
+    currency,
+    pageSize: 30,
+  });
+
+  const pages = useMemo(() => txData?.pages ?? [], [txData]);
+  const transactions = useMemo(() => pages.flatMap((page) => page.rows ?? []), [pages]);
+  const tagIdsByTx = useMemo(() => {
+    const merged = {};
+    pages.forEach((page) => Object.assign(merged, page.tagIdsByTx ?? {}));
+    return merged;
+  }, [pages]);
+  const totalTransactions = txData?.pages?.[0]?.total ?? 0;
+  const serverTotals = useMemo(
+    () =>
+      txData?.pages?.[0]?.totals ?? {
+        receitas: {},
+        despesas: {},
+        transferencias: {},
+      },
     [txData]
   );
-  const tagIdsByTx = useMemo(() => txData?.tagIdsByTx ?? {}, [txData]);
 
   const accountById = useMemo(
     () => Object.fromEntries(accounts.map((acc) => [acc.id, acc])),
@@ -236,25 +288,39 @@ export default function MFTransacoes({
     return groups;
   }, [filtered]);
 
-  const totals = useMemo(() => {
-    const income = filtered.filter(
-      (tx) => tx.type === 'RECEITA' && tx.status !== 'CANCELADO'
+  // Scroll infinito: o sentinela no fim da lista puxa a próxima página
+  // quando entra na viewport (com margem para pré-carregar).
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage || isFetching || isPlaceholderData) {
+      return undefined;
+    }
+    const node = loadMoreRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) fetchNextPage();
+      },
+      { rootMargin: '400px' }
     );
-    const expense = filtered.filter(
-      (tx) => tx.type === 'DESPESA' && tx.status !== 'CANCELADO'
-    );
-    const transfer = filtered.filter(
-      (tx) => tx.type === 'TRANSFERENCIA' && tx.status !== 'CANCELADO'
-    );
-    const accCurrencyOf = (tx) => accountById[tx.account_id]?.currency || 'BRL';
-    const withCurrency = (rows) =>
-      rows.map((tx) => ({ ...tx, currency: accCurrencyOf(tx) }));
-    return {
-      receitas: formatTotals(groupTotalsByCurrency(withCurrency(income), 'amount'), showValues),
-      despesas: formatTotals(groupTotalsByCurrency(withCurrency(expense), 'amount'), showValues),
-      transferencias: formatTotals(groupTotalsByCurrency(withCurrency(transfer), 'amount'), showValues),
-    };
-  }, [filtered, accountById, showValues]);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [
+    hasNextPage,
+    isFetchingNextPage,
+    isFetching,
+    isPlaceholderData,
+    fetchNextPage,
+    filtered.length,
+  ]);
+
+  const totals = useMemo(
+    () => ({
+      receitas: formatTotals(serverTotals.receitas, showValues),
+      despesas: formatTotals(serverTotals.despesas, showValues),
+      transferencias: formatTotals(serverTotals.transferencias, showValues),
+    }),
+    [serverTotals, showValues]
+  );
 
   const statusColor = {
     PAGO: '#10b981',
@@ -895,7 +961,7 @@ export default function MFTransacoes({
                     padding: '0.15rem 0.6rem',
                   }}
                 >
-                  {t('minhasfinancas.tx_count_badge', { count: filtered.length })}
+                  {t('minhasfinancas.tx_count_badge', { count: totalTransactions })}
                 </span>
               )}
             </div>
@@ -1057,7 +1123,7 @@ export default function MFTransacoes({
       </div>
 
       {/* Estreito: KPIs do filtro numa tira de 3 colunas (mock) */}
-      {isNarrow && !isLoading && !isError && filtered.length > 0 && (
+      {isNarrow && !isLoading && !isError && totalTransactions > 0 && (
         <div
           className="glass-card"
           data-testid="mf-tx-kpis"
@@ -1190,7 +1256,28 @@ export default function MFTransacoes({
         </div>
       )}
 
-      {!isLoading && !isError && filtered.length === 0 && (
+      {isFetching && !isLoading && !isError && filtered.length === 0 && totalTransactions > 0 && (
+        <div
+          className="glass-card"
+          data-testid="mf-tx-filter-loading"
+          style={{ padding: '1.5rem', textAlign: 'center' }}
+        >
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              color: 'var(--text-muted)',
+              fontSize: '0.85rem',
+            }}
+          >
+            <Loader2 size={18} className="animate-spin" />
+            {t('minhasfinancas.loading')}
+          </span>
+        </div>
+      )}
+
+      {!isLoading && !isError && totalTransactions === 0 && filtered.length === 0 && (
         <div className="glass-card" data-testid="mf-txs-empty" style={{ padding: '3rem 2rem', textAlign: 'center' }}>
           <p style={{ color: 'var(--text-muted)', margin: '0 0 1.25rem' }}>
             {t('minhasfinancas.tx_empty')}
@@ -1545,7 +1632,7 @@ export default function MFTransacoes({
               <tfoot>
                 <tr>
                   <td colSpan={2} style={{ ...cellBase, textAlign: 'left', fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    {t('minhasfinancas.tx_totals', { count: filtered.length })}
+                    {t('minhasfinancas.tx_totals', { count: totalTransactions })}
                   </td>
                   <td
                     colSpan={3}
@@ -1724,6 +1811,33 @@ export default function MFTransacoes({
                 </div>
               );
             })}
+        </div>
+      )}
+
+      {/* Sentinela do scroll infinito (desktop e mobile) */}
+      {!isLoading && !isError && filtered.length > 0 && (
+        <div
+          ref={loadMoreRef}
+          data-testid="mf-tx-sentinel"
+          aria-hidden="true"
+          style={{ width: '100%', height: 1 }}
+        />
+      )}
+      {isFetchingNextPage && (
+        <div
+          data-testid="mf-tx-loading-more"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            padding: '0.6rem 0',
+            color: 'var(--text-muted)',
+            fontSize: '0.8rem',
+          }}
+        >
+          <Loader2 size={16} className="animate-spin" />
+          {t('minhasfinancas.loading')}
         </div>
       )}
 
