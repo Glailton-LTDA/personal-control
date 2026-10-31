@@ -26,18 +26,6 @@ import {
   LockOpen,
 } from 'lucide-react';
 import {
-  Legend,
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
   useMFMonthSummary,
   useMFBudgets,
   useMFBudgetWindow,
@@ -82,6 +70,12 @@ import MFAccountModal from './MFAccountModal';
 import MFRemindersBell from './MFRemindersBell';
 import MFPendingCard from './MFPendingCard';
 import MFTxDetailModal from './MFTxDetailModal';
+import MFChartCard from './MFChartCard';
+import MFChartsScreen from './MFChartsScreen';
+import {
+  groupAccountsForChart,
+  groupTransactionsForChart,
+} from './mfCharts';
 import {
   MF_CHARTS,
   visibleWidgets,
@@ -102,8 +96,6 @@ const shortMonthLabel = (monthKey, language) => {
     .format(new Date(year, month - 1, 1))
     .replace('.', '');
 };
-
-const CHART_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#84cc16'];
 
 // Ordenação das contas no Resumo, a critério do usuário (persistida em
 // localStorage). `manual` é o padrão: ordem do banco (sort_order) — as
@@ -165,13 +157,6 @@ const cardInvoiceState = (current) => {
     : { icon: 'open', color: 'var(--primary)', labelKey: 'card_status_open' };
 };
 
-const tooltipStyle = {
-  background: 'var(--input-bg)',
-  border: '1px solid var(--glass-border)',
-  borderRadius: 8,
-  fontSize: 12,
-};
-
 /** Percentual de variação vs mês anterior (null quando não há base). */
 const variation = (current, previous) => {
   if (!previous) return null;
@@ -211,6 +196,9 @@ export default function MFResumo({
   monthKey = currentMonthKey(),
   onChangeMonth = () => {},
   showValues = true,
+  chartId = null,
+  chartGrouping = null,
+  chartCategory = null,
 }) {
   const { t, i18n } = useTranslation();
   const { data, isLoading, isError } = useMFMonthSummary(user, monthKey);
@@ -232,6 +220,50 @@ export default function MFResumo({
 
   // Escopo de moeda por tela: 'all' = todas (totais separados por moeda).
   const [currency, setCurrency] = useState('all');
+
+  // Gráficos interativos: opções do menu ⋮, legenda expandida e moeda da
+  // tela cheia. O agrupamento do card é o último escolhido na tela cheia.
+  const DEFAULT_CHART_OPTIONS = {
+    badges: false,
+    percent: true,
+    includeIgnored: false,
+  };
+  const [chartOptions, setChartOptions] = useState({});
+  const [expandedCharts, setExpandedCharts] = useState({});
+  const [accountChartGrouping, setAccountChartGrouping] = useState('type');
+  const [chartCurrency, setChartCurrency] = useState(() => {
+    try {
+      return sessionStorage.getItem('mf_chart_currency') || null;
+    } catch {
+      return null;
+    }
+  });
+  const chartOptionsFor = (id) => ({
+    ...DEFAULT_CHART_OPTIONS,
+    ...(chartOptions[id] ?? {}),
+  });
+  const updateChartOptions = (id, patch) =>
+    setChartOptions((prev) => ({
+      ...prev,
+      [id]: { ...DEFAULT_CHART_OPTIONS, ...(prev[id] ?? {}), ...patch },
+    }));
+  const toggleChartExpanded = (id) =>
+    setExpandedCharts((prev) => ({ ...prev, [id]: !prev[id] }));
+  const rememberChartCurrency = (code) => {
+    setChartCurrency(code);
+    try {
+      sessionStorage.setItem('mf_chart_currency', code);
+    } catch {
+      /* storage indisponível */
+    }
+  };
+
+  // Refresh da tela cheia em /contas/<agrupamento>: o card do Resumo volta
+  // com o mesmo agrupamento escolhido.
+  useEffect(() => {
+    if (chartId === 'contas' && chartGrouping) setAccountChartGrouping(chartGrouping);
+  }, [chartId, chartGrouping]);
+
   // Preferências de interface sincronizadas entre aparelhos (painel do
   // Resumo + critério de ordenação das contas).
   const { prefs, save: savePrefs } = useMFPrefs(user);
@@ -517,87 +549,165 @@ export default function MFResumo({
     return keys;
   }, [monthKey]);
 
-  const chartData = useMemo(() => {
-    // Gráficos seguem o mesmo universo dos KPIs: todas as contas ativas
-    // (inclusive as ocultas na tela) — arquivadas e "Ignorar nos totais" fora.
-    const countableIds = new Set(countableRows(activeRows).map((row) => row.id));
-    const txs = (data?.chartTxs ?? []).filter(
-      (tx) => countableIds.has(tx.a) && (currency === 'all' || tx.c === currency)
-    );
-    const currencies = [...new Set(txs.map((tx) => tx.c))].sort();
-    return currencies.map((cur) => {
-      const curTxs = txs.filter((tx) => tx.c === cur);
-      // Pizza: despesas realizadas do mês por categoria (top 7 + Outros).
-      const pieFor = (type) => {
-        const byCat = {};
-        curTxs.forEach((tx) => {
-          if (tx.t !== type || tx.m !== monthKey) return;
-          const id = tx.cat || 'none';
-          byCat[id] = (byCat[id] || 0) + tx.v;
-        });
-        const sorted = Object.entries(byCat)
-          .map(([id, value]) => ({
-            id,
-            name:
-              id === 'none' || !categoriesById[id]
-                ? t('minhasfinancas.chart_uncategorized')
-                : categoriesById[id].name,
-            value,
-          }))
-          .sort((a, b) => b.value - a.value);
-        return sorted.length > 8
-          ? [
-              ...sorted.slice(0, 7),
-              {
-                id: 'other',
-                name: t('common.other'),
-                value: sorted.slice(7).reduce((sum, item) => sum + item.value, 0),
-              },
-            ]
-          : sorted;
+  // Tipos de conta com rótulo traduzido e ícone (o gráfico usa o mesmo
+  // vocabulário da tela Contas).
+  const chartTypeMeta = useMemo(() => {
+    const out = {};
+    const types = new Set([
+      ...MF_BUILTIN_ACCOUNT_TYPES,
+      ...activeRows.map((row) => row.account_type).filter(Boolean),
+    ]);
+    types.forEach((type) => {
+      const builtin = MF_BUILTIN_ACCOUNT_TYPES.includes(type);
+      out[type] = {
+        label: builtin ? t(`minhasfinancas.type_${type.toLowerCase()}`) : type,
+        icon: MF_ACCOUNT_TYPE_ICONS[type] || '🏷️',
       };
-      const pie = pieFor('DESPESA');
-      const pieIncome = pieFor('RECEITA');
-      // Barras por tipo de conta: despesas realizadas do mês (top 6 + Outros).
-      const accountTypeById = Object.fromEntries(activeRows.map((row) => [row.id, row]));
-      const byType = {};
-      curTxs.forEach((tx) => {
-        if (tx.t !== 'DESPESA' || tx.m !== monthKey) return;
-        const key = accountTypeById[tx.a]?.account_type || 'OUTRO';
-        byType[key] = (byType[key] || 0) + tx.v;
-      });
-      const typeSorted = Object.entries(byType)
-        .map(([type, value]) => ({ type, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 6)
-        .map(({ type, value }) => ({
-          // rótulo = ícone do tipo + nome (builtin traduzido, custom cru)
-          label: `${MF_ACCOUNT_TYPE_ICONS[type] ?? '💰'} ${
-            MF_BUILTIN_ACCOUNT_TYPES.includes(type)
-              ? t(`minhasfinancas.acct_type_${type.toLowerCase()}`)
-              : type
-          }`,
-          value,
-        }));
-      // Barras: receitas x despesas realizadas nos últimos 6 meses.
-      const flow = flowMonths.map((mk) => {
-        let income = 0;
-        let expense = 0;
-        curTxs.forEach((tx) => {
-          if (tx.m !== mk) return;
-          if (tx.t === 'RECEITA') income += tx.v;
-          else expense += tx.v;
-        });
-        return {
-          key: mk,
-          label: shortMonthLabel(mk, i18n.language),
-          receitas: income,
-          despesas: expense,
+    });
+    return out;
+  }, [activeRows, t]);
+
+  const accountTypeLabel = (type) => chartTypeMeta[type]?.label ?? type;
+
+  // Moedas dos gráficos: contas ativas + lançamentos da janela de 6 meses.
+  // Assim o card de Contas aparece mesmo num mês sem movimentações.
+  const chartCurrencies = useMemo(() => {
+    const set = new Set();
+    activeRows.forEach((row) => {
+      if (row.currency) set.add(row.currency);
+    });
+    (data?.chartTxs ?? []).forEach((tx) => {
+      if (tx.c) set.add(tx.c);
+    });
+    return [...set].sort();
+  }, [activeRows, data]);
+
+  const countableIds = useMemo(
+    () => new Set(countableRows(activeRows).map((row) => row.id)),
+    [activeRows]
+  );
+
+  // Contas por categoria: saldos por tipo/instituição/grupo/conta, por moeda.
+  // Guardamos a versão padrão (sem "Ignorar nos totais") e a completa; o
+  // menu ⋮ só escolhe qual usar.
+  const accountGroupsByGrouping = useMemo(() => {
+    const groupings = ['type', 'institution', 'group', 'account'];
+    const out = {};
+    groupings.forEach((grouping) => {
+      out[grouping] = {};
+      chartCurrencies.forEach((cur) => {
+        const rowsCur = activeRows.filter((row) => row.currency === cur);
+        const build = (list) =>
+          groupAccountsForChart({
+            rows: list,
+            groups,
+            grouping,
+            types: chartTypeMeta,
+            labelUngrouped: t('minhasfinancas.group_ungrouped'),
+          });
+        out[grouping][cur] = {
+          default: build(rowsCur.filter((row) => countableIds.has(row.id))),
+          all: build(rowsCur),
         };
       });
-      return { currency: cur, pie, pieIncome, flow, byType: typeSorted };
     });
-  }, [data, activeRows, currency, monthKey, flowMonths, categoriesById, t, i18n.language]);
+    return out;
+  }, [activeRows, chartCurrencies, groups, chartTypeMeta, countableIds, t]);
+
+  // Despesas/Receitas por categoria (ou por tipo/instituição/grupo/conta na
+  // tela cheia), com o drill-down de contas já embutido em cada grupo.
+  const txGroupsByGrouping = useMemo(() => {
+    const txs = data?.chartTxs ?? [];
+    const groupings = ['category', 'type', 'institution', 'group', 'account'];
+    const out = {};
+    groupings.forEach((grouping) => {
+      out[grouping] = {};
+      chartCurrencies.forEach((cur) => {
+        const curTxs = txs.filter((tx) => tx.c === cur);
+        const build = (list, type) =>
+          groupTransactionsForChart({
+            txs: list,
+            accountsById,
+            categoriesById,
+            type,
+            month: monthKey,
+            grouping,
+            types: chartTypeMeta,
+            groups,
+            labelUngrouped: t('minhasfinancas.group_ungrouped'),
+            labelUncategorized: t('minhasfinancas.chart_uncategorized'),
+          });
+        const countable = curTxs.filter((tx) => countableIds.has(tx.a));
+        out[grouping][cur] = {
+          despesas: {
+            default: build(countable, 'DESPESA'),
+            all: build(curTxs, 'DESPESA'),
+          },
+          receitas: {
+            default: build(countable, 'RECEITA'),
+            all: build(curTxs, 'RECEITA'),
+          },
+        };
+      });
+    });
+    return out;
+  }, [
+    data,
+    chartCurrencies,
+    accountsById,
+    categoriesById,
+    monthKey,
+    chartTypeMeta,
+    groups,
+    countableIds,
+    t,
+  ]);
+
+  // Fluxo de caixa (6 meses) por moeda — opção "ignoradas" inclusa.
+  const flowByCurrency = useMemo(() => {
+    const txs = data?.chartTxs ?? [];
+    const out = {};
+    chartCurrencies.forEach((cur) => {
+      const curTxs = txs.filter((tx) => tx.c === cur);
+      const build = (list) =>
+        flowMonths.map((mk) => {
+          let income = 0;
+          let expense = 0;
+          list.forEach((tx) => {
+            if (tx.m !== mk) return;
+            if (tx.t === 'RECEITA') income += tx.v;
+            else expense += tx.v;
+          });
+          return {
+            key: mk,
+            label: shortMonthLabel(mk, i18n.language),
+            receitas: income,
+            despesas: expense,
+          };
+        });
+      out[cur] = {
+        default: build(curTxs.filter((tx) => countableIds.has(tx.a))),
+        all: build(curTxs),
+      };
+    });
+    return out;
+  }, [data, chartCurrencies, flowMonths, countableIds, i18n.language]);
+
+  /** Dados de um card do Resumo para a moeda/opções escolhidas. */
+  const chartGroupsFor = (chartKeyId, cur, options) => {
+    if (chartKeyId === 'chart_accounts') {
+      const source = accountGroupsByGrouping[accountChartGrouping]?.[cur];
+      return (options.includeIgnored ? source?.all : source?.default) ?? [];
+    }
+    const grouping = chartKeyId === 'chart_bytype' ? 'type' : 'category';
+    const type = chartKeyId === 'chart_income' ? 'receitas' : 'despesas';
+    const source = txGroupsByGrouping[grouping]?.[cur]?.[type];
+    return (options.includeIgnored ? source?.all : source?.default) ?? [];
+  };
+
+  const chartFlowFor = (cur, options) =>
+    (options.includeIgnored ? flowByCurrency[cur]?.all : flowByCurrency[cur]?.default) ?? [];
+
   const budgetItems = useMemo(() => {
     const { start, end } = monthBounds(monthKey);
     const txs = budgetWindow?.transactions ?? [];
@@ -1029,7 +1139,7 @@ export default function MFResumo({
         );
       }
       const shownCharts = visibleCharts(widgetPref);
-      if (chartData.length === 0 || shownCharts.length === 0) {
+      if (chartCurrencies.length === 0 || shownCharts.length === 0) {
         return (
           <div
             className="glass-card"
@@ -1040,184 +1150,125 @@ export default function MFResumo({
           </div>
         );
       }
+
+      const accountOptions = chartOptionsFor('chart_accounts');
+      const categoriesOptions = chartOptionsFor('chart_categories');
+      const incomeOptions = chartOptionsFor('chart_income');
+      const flowOptions = chartOptionsFor('chart_flow');
+      const byTypeOptions = chartOptionsFor('chart_bytype');
+      // Abre a tela cheia já na moeda do card; a categoria opcional vira
+      // drill-down na rota.
+      const openChart = (chart, grouping, cur, category = null) => {
+        rememberChartCurrency(cur);
+        if (chart === 'contas') setAccountChartGrouping(grouping);
+        const base =
+          chart === 'fluxo'
+            ? 'minhasfinancas/resumo/graficos/fluxo'
+            : `minhasfinancas/resumo/graficos/${chart}/${grouping}`;
+        goTo(category ? `${base}/${encodeURIComponent(category)}` : base);
+      };
+
       return (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
             gap: '1.5rem',
           }}
         >
-          {chartData.map(({ currency: cur, pie, pieIncome, flow, byType }) => (
+          {chartCurrencies.map((cur) => (
             <React.Fragment key={cur}>
+              {shownCharts.includes('chart_accounts') && (
+                <MFChartCard
+                  title={t('minhasfinancas.chart_accounts')}
+                  currency={cur}
+                  groups={chartGroupsFor('chart_accounts', cur, accountOptions)}
+                  expanded={!!expandedCharts.chart_accounts}
+                  onToggle={() => toggleChartExpanded('chart_accounts')}
+                  onOpen={() => openChart('contas', accountChartGrouping, cur)}
+                  onSelectGroup={(group) =>
+                    openChart('contas', accountChartGrouping, cur, group.key)
+                  }
+                  options={accountOptions}
+                  onOptionsChange={(patch) => updateChartOptions('chart_accounts', patch)}
+                  testId={`mf-chart-accounts-${cur}`}
+                  emptyTestId={`mf-chart-accounts-empty-${cur}`}
+                  compactHint={t('minhasfinancas.chart_compact_hint')}
+                  showValues={showValues}
+                />
+              )}
               {shownCharts.includes('chart_categories') && (
-                <div
-                  className="glass-card"
-                  data-testid={`mf-chart-categories-${cur}`}
-                  style={{ padding: '1.25rem 1.5rem' }}
-                >
-                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                    {t('minhasfinancas.chart_categories')}
-                    {chartData.length > 1 ? ` (${cur})` : ''}
-                  </h3>
-                  {pie.length === 0 ? (
-                    <p
-                      data-testid={`mf-chart-pie-empty-${cur}`}
-                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
-                    >
-                      {t('minhasfinancas.chart_no_data')}
-                    </p>
-                  ) : (
-                    <div style={{ height: 230 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={pie}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={52}
-                            outerRadius={78}
-                            paddingAngle={2}
-                            isAnimationActive={false}
-                          >
-                            {pie.map((entry, index) => (
-                              <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value) => formatMoney(value, cur)}
-                            contentStyle={tooltipStyle}
-                          />
-                          <Legend wrapperStyle={{ fontSize: 11 }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </div>
+                <MFChartCard
+                  title={t('minhasfinancas.chart_categories')}
+                  currency={cur}
+                  groups={chartGroupsFor('chart_categories', cur, categoriesOptions)}
+                  expanded={!!expandedCharts.chart_categories}
+                  onToggle={() => toggleChartExpanded('chart_categories')}
+                  onOpen={() => openChart('despesas', 'category', cur)}
+                  onSelectGroup={(group) =>
+                    openChart('despesas', 'category', cur, group.key)
+                  }
+                  options={categoriesOptions}
+                  onOptionsChange={(patch) => updateChartOptions('chart_categories', patch)}
+                  testId={`mf-chart-categories-${cur}`}
+                  emptyTestId={`mf-chart-pie-empty-${cur}`}
+                  compactHint={t('minhasfinancas.chart_compact_hint')}
+                  showValues={showValues}
+                />
               )}
               {shownCharts.includes('chart_income') && (
-                <div
-                  className="glass-card"
-                  data-testid={`mf-chart-income-${cur}`}
-                  style={{ padding: '1.25rem 1.5rem' }}
-                >
-                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                    {t('minhasfinancas.chart_income')}
-                    {chartData.length > 1 ? ` (${cur})` : ''}
-                  </h3>
-                  {pieIncome.length === 0 ? (
-                    <p
-                      data-testid={`mf-chart-income-empty-${cur}`}
-                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
-                    >
-                      {t('minhasfinancas.chart_no_data')}
-                    </p>
-                  ) : (
-                    <div style={{ height: 230 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={pieIncome}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={52}
-                            outerRadius={78}
-                            paddingAngle={2}
-                            isAnimationActive={false}
-                          >
-                            {pieIncome.map((entry, index) => (
-                              <Cell key={entry.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value) => formatMoney(value, cur)}
-                            contentStyle={tooltipStyle}
-                          />
-                          <Legend wrapperStyle={{ fontSize: 11 }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </div>
+                <MFChartCard
+                  title={t('minhasfinancas.chart_income')}
+                  currency={cur}
+                  groups={chartGroupsFor('chart_income', cur, incomeOptions)}
+                  expanded={!!expandedCharts.chart_income}
+                  onToggle={() => toggleChartExpanded('chart_income')}
+                  onOpen={() => openChart('receitas', 'category', cur)}
+                  onSelectGroup={(group) =>
+                    openChart('receitas', 'category', cur, group.key)
+                  }
+                  options={incomeOptions}
+                  onOptionsChange={(patch) => updateChartOptions('chart_income', patch)}
+                  testId={`mf-chart-income-${cur}`}
+                  emptyTestId={`mf-chart-income-empty-${cur}`}
+                  compactHint={t('minhasfinancas.chart_compact_hint')}
+                  showValues={showValues}
+                />
               )}
               {shownCharts.includes('chart_flow') && (
-                <div
-                  className="glass-card"
-                  data-testid={`mf-chart-flow-${cur}`}
-                  style={{ padding: '1.25rem 1.5rem' }}
-                >
-                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                    {t('minhasfinancas.chart_flow')}
-                    {chartData.length > 1 ? ` (${cur})` : ''}
-                  </h3>
-                  <div style={{ height: 230 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={flow} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                        <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis hide />
-                        <Tooltip
-                          formatter={(value) => formatMoney(value, cur)}
-                          contentStyle={tooltipStyle}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Bar
-                          dataKey="receitas"
-                          name={t('minhasfinancas.accounts_table_income')}
-                          fill="#10b981"
-                          radius={[3, 3, 0, 0]}
-                          isAnimationActive={false}
-                        />
-                        <Bar
-                          dataKey="despesas"
-                          name={t('minhasfinancas.accounts_table_expense')}
-                          fill="#ef4444"
-                          radius={[3, 3, 0, 0]}
-                          isAnimationActive={false}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                <MFChartCard
+                  title={t('minhasfinancas.chart_flow')}
+                  currency={cur}
+                  kind="flow"
+                  flow={chartFlowFor(cur, flowOptions)}
+                  expanded={false}
+                  options={flowOptions}
+                  onOptionsChange={(patch) => updateChartOptions('chart_flow', patch)}
+                  onOpen={() => openChart('fluxo', null, cur)}
+                  testId={`mf-chart-flow-${cur}`}
+                  footerPrefix={t('minhasfinancas.chart_last_six_months')}
+                  showValues={showValues}
+                />
               )}
               {shownCharts.includes('chart_bytype') && (
-                <div
-                  className="glass-card"
-                  data-testid={`mf-chart-bytype-${cur}`}
-                  style={{ padding: '1.25rem 1.5rem' }}
-                >
-                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 800 }}>
-                    {t('minhasfinancas.chart_bytype')}
-                    {chartData.length > 1 ? ` (${cur})` : ''}
-                  </h3>
-                  {byType.length === 0 ? (
-                    <p
-                      data-testid={`mf-chart-bytype-empty-${cur}`}
-                      style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}
-                    >
-                      {t('minhasfinancas.chart_no_data')}
-                    </p>
-                  ) : (
-                    <div style={{ height: 230 }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={byType} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                          <XAxis dataKey="label" fontSize={10} tickLine={false} axisLine={false} />
-                          <YAxis hide />
-                          <Tooltip
-                            formatter={(value) => formatMoney(value, cur)}
-                            contentStyle={tooltipStyle}
-                          />
-                          <Bar
-                            dataKey="value"
-                            name={t('minhasfinancas.accounts_table_expense')}
-                            fill="#6366f1"
-                            radius={[3, 3, 0, 0]}
-                            isAnimationActive={false}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </div>
+                <MFChartCard
+                  title={t('minhasfinancas.chart_bytype')}
+                  currency={cur}
+                  kind="bars"
+                  groups={chartGroupsFor('chart_bytype', cur, byTypeOptions)}
+                  expanded={!!expandedCharts.chart_bytype}
+                  onToggle={() => toggleChartExpanded('chart_bytype')}
+                  onOpen={() => openChart('despesas', 'type', cur)}
+                  onSelectGroup={(group) =>
+                    openChart('despesas', 'type', cur, group.key)
+                  }
+                  options={byTypeOptions}
+                  onOptionsChange={(patch) => updateChartOptions('chart_bytype', patch)}
+                  testId={`mf-chart-bytype-${cur}`}
+                  emptyTestId={`mf-chart-bytype-empty-${cur}`}
+                  compactHint={t('minhasfinancas.chart_compact_hint')}
+                  showValues={showValues}
+                />
               )}
             </React.Fragment>
           ))}
@@ -2666,6 +2717,87 @@ export default function MFResumo({
       </div>
     </>
   ) : null;
+
+  // Tela cheia de Gráficos (rota `resumo/graficos/...`). Fica antes do
+  // painel normal para o refresh cair direto na tela e no drill-down.
+  if (chartId) {
+    const metric = ['contas', 'despesas', 'receitas', 'fluxo'].includes(chartId)
+      ? chartId
+      : 'contas';
+    const validGroupings =
+      metric === 'contas'
+        ? ['type', 'institution', 'group', 'account']
+        : ['category', 'type', 'institution', 'group', 'account'];
+    const grouping =
+      metric === 'fluxo'
+        ? null
+        : validGroupings.includes(chartGrouping)
+          ? chartGrouping
+          : metric === 'contas'
+            ? 'type'
+            : 'category';
+    const optionId =
+      metric === 'contas'
+        ? 'chart_accounts'
+        : metric === 'despesas'
+          ? 'chart_categories'
+          : metric === 'receitas'
+            ? 'chart_income'
+            : 'chart_flow';
+    const options = chartOptionsFor(optionId);
+    const includeKey = options.includeIgnored ? 'all' : 'default';
+    const activeCurrency =
+      chartCurrency && chartCurrencies.includes(chartCurrency)
+        ? chartCurrency
+        : chartCurrencies[0] ?? '';
+    let screenGroups = [];
+    let screenFlow = [];
+    if (metric === 'contas') {
+      screenGroups = accountGroupsByGrouping[grouping]?.[activeCurrency]?.[includeKey] ?? [];
+    } else if (metric === 'despesas' || metric === 'receitas') {
+      screenGroups =
+        txGroupsByGrouping[grouping]?.[activeCurrency]?.[metric]?.[includeKey] ?? [];
+    } else {
+      screenFlow = flowByCurrency[activeCurrency]?.[includeKey] ?? [];
+    }
+
+    const buildChartPath = (nextMetric, nextGrouping, category) => {
+      if (nextMetric === 'fluxo') return 'minhasfinancas/resumo/graficos/fluxo';
+      const base = `minhasfinancas/resumo/graficos/${nextMetric}/${nextGrouping}`;
+      return category ? `${base}/${encodeURIComponent(category)}` : base;
+    };
+
+    return (
+      <MFChartsScreen
+        chart={metric}
+        grouping={grouping ?? 'type'}
+        categoryKey={chartCategory}
+        monthKey={monthKey}
+        onChangeMonth={onChangeMonth}
+        currencies={chartCurrencies}
+        currency={activeCurrency}
+        onCurrencyChange={rememberChartCurrency}
+        groups={screenGroups}
+        flow={screenFlow}
+        showValues={showValues}
+        options={options}
+        onOptionsChange={(patch) => updateChartOptions(optionId, patch)}
+        onBack={() => goTo('minhasfinancas/resumo')}
+        onChangeChart={(next) => {
+          const nextGrouping =
+            next === 'fluxo' ? null : next === 'contas' ? accountChartGrouping : 'category';
+          goTo(buildChartPath(next, nextGrouping));
+        }}
+        onChangeGrouping={(next) => {
+          if (metric === 'contas') setAccountChartGrouping(next);
+          goTo(buildChartPath(metric, next));
+        }}
+        onSelectCategory={(key) => goTo(buildChartPath(metric, grouping, key))}
+        onSelectAccount={(account) => setSelectedId(account.id)}
+        accountTypeLabel={accountTypeLabel}
+      />
+    );
+  }
 
   return (
     <div data-testid="mf-resumo" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

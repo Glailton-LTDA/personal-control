@@ -89,11 +89,16 @@ vi.mock('../../lib/supabase', () => {
   };
 });
 
-const renderScreen = () => {
+const renderScreen = (props = {}) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MFResumo user={{ id: 'test-user' }} monthKey="2026-10" onChangeMonth={() => {}} />
+      <MFResumo
+        user={{ id: 'test-user' }}
+        monthKey="2026-10"
+        onChangeMonth={() => {}}
+        {...props}
+      />
     </QueryClientProvider>
   );
 };
@@ -748,11 +753,16 @@ describe('MFResumo — gráficos do mês', () => {
     mockData.reset();
   });
 
-  it('sem movimentações mostra o estado de "sem dados"', async () => {
+  it('sem movimentações mostra o card de contas e os cards de categoria vazios', async () => {
     renderScreen();
     await waitForData();
-    expect(screen.getByTestId('mf-chart-empty')).toBeInTheDocument();
-    expect(screen.queryByTestId('mf-chart-categories-BRL')).not.toBeInTheDocument();
+    // O novo card de Contas usa os saldos das contas: aparece mesmo sem
+    // lançamentos no mês.
+    expect(screen.queryByTestId('mf-chart-empty')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-accounts-BRL')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-accounts-USD')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-pie-empty-BRL')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-chart-pie-empty-USD')).toBeInTheDocument();
   });
 
   it('com movimentações renderiza pizza por categoria e barras do fluxo', async () => {
@@ -777,6 +787,45 @@ describe('MFResumo — gráficos do mês', () => {
     // USD não teve despesa em outubro → pizza vazia com aviso
     expect(screen.getByTestId('mf-chart-pie-empty-USD')).toBeInTheDocument();
     expect(screen.getByTestId('mf-chart-flow-USD')).toBeInTheDocument();
+  });
+});
+
+describe('MFResumo — tela cheia de gráficos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem(MF_DASHBOARD_KEY);
+    mockData.reset();
+  });
+
+  it('renderiza a rota de Contas com categoria e emite o detalhe da conta', async () => {
+    renderScreen({
+      chartId: 'contas',
+      chartGrouping: 'type',
+      chartCategory: 'type:CORRENTE',
+    });
+
+    expect(screen.getByTestId('mf-charts-screen')).toBeInTheDocument();
+    expect(await screen.findByText('Conta BRL')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-charts-category-type:CORRENTE')).not.toBeInTheDocument();
+
+    const events = [];
+    const onTab = (event) => events.push(event.detail.tab);
+    window.addEventListener('set-active-tab', onTab);
+    try {
+      fireEvent.click(screen.getByTestId('mf-charts-account-acc-brl'));
+      expect(events).toContain('minhasfinancas/accounts/acc-brl');
+    } finally {
+      window.removeEventListener('set-active-tab', onTab);
+    }
+  });
+
+  it('sem categoria mostra a lista de categorias e o seletor de agrupamento', async () => {
+    renderScreen({ chartId: 'contas', chartGrouping: 'type' });
+
+    expect(screen.getByTestId('mf-charts-screen')).toBeInTheDocument();
+    expect(await screen.findByTestId('mf-charts-category-type:CORRENTE')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-charts-grouping')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-charts-tab-pie')).toBeInTheDocument();
   });
 });
 

@@ -102,6 +102,25 @@ describe('useRouter hook', () => {
     expect(account.params.groupId).toBeUndefined();
   });
 
+  it('interpreta a tela cheia de gráficos e o drill-down da categoria', () => {
+    expect(parsePath('minhasfinancas/resumo/graficos/contas/type')).toEqual({
+      module: 'minhasfinancas',
+      screen: 'resumo',
+      params: { chart: 'contas', grouping: 'type', category: null },
+    });
+    expect(
+      parsePath('minhasfinancas/resumo/graficos/despesas/category/category%3Acat-food')
+    ).toEqual({
+      module: 'minhasfinancas',
+      screen: 'resumo',
+      params: {
+        chart: 'despesas',
+        grouping: 'category',
+        category: 'category:cat-food',
+      },
+    });
+  });
+
   it('mapeia rotas aninhadas de música para os modos existentes', () => {
     expect(parsePath('music/songs/song-123')).toEqual({
       module: 'music',

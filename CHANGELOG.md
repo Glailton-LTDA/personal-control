@@ -4,6 +4,18 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-10-31
+
+### Adicionado
+- **Contas por categoria no Resumo**: novo card com saldos por tipo de conta, limite de 4 categorias + “Outros N”, legenda expansível e menu ⋮ com “Exibir badges”, “Exibir percentual” e “Considerar ignoradas nos totais”.
+- **Tela cheia de Gráficos**: rota `/minhasfinancas/resumo/graficos/<métrica>/<agrupamento>` com mês, métrica (Contas/Despesas/Receitas/Fluxo), moeda, agrupamento (tipo de conta, instituição, grupo ou conta), pizza/barras e drill-down. O refresh preserva a tela, o agrupamento e a categoria.
+- **Drill-down categoria → contas → detalhe**: clicar numa categoria mostra as contas com o valor; clicar numa conta abre o detalhe que já existe. Vale para Contas, Despesas e Receitas.
+- **Mesmo shell nos cards**: Despesas, Receitas e Tipo de conta ganharam a seta de expandir, o ⤢ de tela cheia, o menu ⋮ e o limite de legenda; o fluxo de caixa mantém as barras e abre a tela cheia no modo barras.
+- **Personalização**: o novo gráfico entra em “Gráficos do Resumo” com o mesmo olho de mostrar/ocultar.
+
+### Notas
+- O card e a tela cheia reusam `mf_month_summary` (`rows`/`chartTxs`) e as contas/grupos já carregados: nenhuma consulta nova por gráfico. O detalhe da conta usa a consulta existente.
+
 ## [1.26.2] - 2026-10-31
 
 ### Corrigido
