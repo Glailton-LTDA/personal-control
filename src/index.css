@@ -3672,6 +3672,12 @@ select.glass-input {
   overflow: hidden;
   min-width: 0;
 }
+
+/* Master-detail: ao clicar num grupo fora da viewport, o painel rola até
+   o topo (o `main` tem overflow próprio, então sticky não gruda aqui). */
+.mf-accounts-detail.is-master {
+  scroll-margin-top: 86px; /* header fixo (70) + respiro */
+}
 .mf-accounts-detail-head {
   display: flex;
   align-items: flex-start;

@@ -179,6 +179,7 @@ const waitForDetail = async () => {
 describe('MFContas — master-detail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     localStorage.setItem('pc_skip_confirmations', 'true');
     localStorage.removeItem('mf_month_key');
     localStorage.removeItem('mf_detail_drill');
@@ -235,6 +236,49 @@ describe('MFContas — master-detail', () => {
     expect(screen.getByTestId('mf-accounts-detail')).toHaveTextContent(
       'minhasfinancas.accounts_no_direct'
     );
+  });
+
+  it('restaura o último grupo selecionado ao remontar sem grupo na rota', async () => {
+    const first = renderScreen();
+    await waitForDetail();
+
+    fireEvent.click(screen.getByTestId('mf-ungrouped-card'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-ungrouped-card')).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(sessionStorage.getItem('mf_accounts_last_group.test-user')).toBe('mf-ungrouped');
+
+    // Simula a volta do detalhe da conta: MFContas remonta com a rota
+    // `accounts` (sem grupo), como em produção.
+    first.unmount();
+    renderScreen();
+    await waitForDetail();
+
+    expect(screen.getByTestId('mf-ungrouped-card')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('mf-accounts-detail')).toHaveTextContent(
+      'minhasfinancas.group_ungrouped'
+    );
+    expect(screen.getByText('Itaú', { selector: '.mf-accounts-acc-link' })).toBeInTheDocument();
+  });
+
+  it('revela o painel de detalhe quando o grupo clicado está fora da viewport', async () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      renderScreen();
+      await waitForDetail();
+
+      // jsdom não calcula layout: o painel é tratado como fora da viewport.
+      fireEvent.click(screen.getByTestId('mf-ungrouped-card'));
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    } finally {
+      if (original) Element.prototype.scrollIntoView = original;
+      else delete Element.prototype.scrollIntoView;
+    }
   });
 
   it('grupo soma a conta ignorada; o total geral a exclui', async () => {

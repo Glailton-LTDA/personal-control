@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.26.2] - 2026-10-31
+
+### Corrigido
+- **Contas — seleção fora da viewport**: ao clicar num grupo no fim da lista, o painel de detalhe rola até o topo e fica visível, sem precisar rolar manualmente.
+- **Contas — última seleção**: ao voltar do detalhe de uma conta, o master-detail restaura o último grupo selecionado (por sessão e por usuário) em vez de voltar sempre para o primeiro grupo da lista.
+
 ## [1.26.1] - 2026-10-31
 
 ### Corrigido

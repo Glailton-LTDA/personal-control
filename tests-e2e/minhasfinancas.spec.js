@@ -716,10 +716,65 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(page.getByTestId('mf-accounts-detail')).toBeVisible();
     await expect(page.getByRole('heading', { name: /Grupo rota/ })).toBeVisible();
 
-    // A aba Contas (sem grupo na URL) volta para a lista/primeiro grupo.
+    // A aba Contas (sem grupo na URL) abre o último grupo lembrado; sem
+    // memória, cai no primeiro grupo da lista.
     await page.goto('/minhasfinancas/accounts');
     await expect(page).toHaveURL('/minhasfinancas/accounts');
     await expect(page.getByTestId('mf-contas')).toBeVisible();
+  });
+
+  test('Contas mantém o último grupo ao voltar do detalhe e revela o painel', async ({ page }) => {
+    test.slow();
+    const groups = Array.from({ length: 8 }, (_, index) => ({
+      id: `grp-g${index + 1}`,
+      user_id: 'user-e2e',
+      name: `Grupo ${index + 1}`,
+      icon: '🏦',
+      parent_id: null,
+      color: '#6366f1',
+      sort_order: index,
+      show_in_summary: true,
+      sum_totals: true,
+    }));
+    page.mfStore.mf_account_groups = groups;
+    page.mfStore.mf_accounts = groups.map((group, index) => ({
+      id: `acc-g${index + 1}`,
+      user_id: 'user-e2e',
+      name: `Conta ${index + 1}`,
+      account_type: 'CORRENTE',
+      currency: 'BRL',
+      initial_balance: 100,
+      sort_order: index,
+      group_id: group.id,
+      is_active: true,
+    }));
+
+    await login(page);
+    await page.goto('/minhasfinancas/accounts');
+    await expect(page.getByTestId('mf-group-card-grp-g1')).toBeVisible();
+
+    // O último grupo está abaixo da dobra: o clique deve revelar o painel.
+    const lastGroup = page.getByTestId('mf-group-card-grp-g8');
+    await lastGroup.scrollIntoViewIfNeeded();
+    await lastGroup.click();
+    await expect(page.getByRole('heading', { name: /Grupo 8/ })).toBeVisible();
+    await expect
+      .poll(async () => (await page.getByTestId('mf-accounts-detail').boundingBox())?.y)
+      .toBeGreaterThanOrEqual(70);
+    const detailBox = await page.getByTestId('mf-accounts-detail').boundingBox();
+    expect(detailBox.y).toBeLessThan(200);
+
+    // Abre a conta e volta: o master-detail deve manter o Grupo 8.
+    await page.getByTestId('mf-open-account-acc-g8').click();
+    await expect(page).toHaveURL('/minhasfinancas/accounts/acc-g8');
+    await expect(page.getByTestId('mf-account-detail')).toBeVisible();
+    await page.getByTestId('mf-acct-det-back').click();
+    await expect(page).toHaveURL('/minhasfinancas/accounts');
+    await expect(page.getByRole('heading', { name: /Grupo 8/ })).toBeVisible();
+    await expect(page.getByTestId('mf-group-card-grp-g8')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
   test('cria um lançamento pela tela de edição', async ({ page }) => {
