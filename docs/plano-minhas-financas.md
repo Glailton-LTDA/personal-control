@@ -1707,3 +1707,138 @@ Itens ativos, na ordem de atendimento:
     grupos/drill/rodapé e sai só dos cards de KPI (somas, contagens,
     variação e gráficos).
   - Gates: **ESLint 0 · Vitest 564/564 · E2E 44/44**.
+
+---
+
+## 8. Fila de trabalho atual (31/10/2026)
+
+1. ✅ **PR #80 — gráficos interativos do Resumo (v1.27.0)** —
+   **mergeado em 31/10/2026** (`21b3097`). Validação visual do card, tela
+   cheia, agrupamentos, drill-down e refresh fica para a próxima rodada.
+2. **Fatura Nubank — fechamento 31 × 30 e aviso de fatura fechada**
+   (task do usuário, 31/10/2026) — **investigar**:
+   - **Dados atuais**: cartão `Nubank` em `mf_accounts` com
+     `closing_day = 30` e `due_day = 7`; a fatura real fechou em **31/10**.
+     Confirmar se o Nubank fecha no **último dia do mês** (31, com clamp
+     para 28/29/30 nos meses curtos) e corrigir o cadastro/ciclo. Se for
+     o caso, `closing_day` deve ser 31 (o app já suporta clamp) e o rótulo
+     “fecha todo dia 30” deve refletir o ciclo real.
+   - **Referência do app original (print “Editar Cartão”, 31/10)**: o
+     original tem **“Fechamento dinâmico”** e **“Vencimento em dias
+     úteis”**, além de “Fecha dia 31”/“Vence dia 07” e “Cartão principal”.
+     Regras confirmadas com o usuário:
+     - `closing_dynamic`: se o dia de fechamento cair em fim de semana ou
+       feriado nacional, move para o **próximo dia útil**;
+     - `due_business_days`: se o vencimento cair em fim de semana ou
+       feriado nacional, move para o **próximo dia útil**;
+     - considerar **feriados nacionais** (calendário Brasil; incluir os
+       móveis ou uma lista por ano) nos dois cálculos;
+     - “Cartão principal” (flag de exibição/ordenação) se entrar no
+       escopo.
+     Para o Nubank: `closing_day=31` (fatura real fechou no sábado
+     31/10); o fechamento dinâmico deve ficar **desligado** nesse cartão
+     (senão iria para 02/11); avaliar ligar o vencimento em dias úteis
+     (07/11 é sábado -> 09/11).
+   - **Vigência da alteração**: o original aplica mudanças de
+     fechamento/vencimento/limite/conta vinculada **a partir do mês da
+     edição**, mantendo meses passados com os dados originais. Hoje o
+     ciclo lê o cartão atual para todos os meses — investigar
+     versionamento (`effective_from`/snapshot por mês) para não reescrever
+     faturas antigas.
+   - **Motor de ciclos**: revisar `cardCycles`, `invoiceDueISO`,
+     `buildCardInvoices`, `invoiceCloseForDueMonth` e o picker/chips/
+     detalhe com `closing_day=31` e meses de 28/29/30/31 dias; garantir
+     que a fatura de outubro feche 31/10, vença 07/11 e que o espelho/
+     agendamento use o mesmo ciclo.
+   - **Aviso de fatura fechada**: hoje `planMFReminders`/`MFRemindersBell`
+     e a function `mf-reminders` só cobrem **vencimentos de lançamentos**
+     (D-3/D0/D+3). Não existe lembrete de **fechamento de fatura**.
+     Adicionar:
+     - no sino in-app: um lembrete `invoice_closed` no dia do fechamento,
+       com cartão, total/em aberto e vencimento; clique leva à fatura/
+       Cartões;
+     - no push (`mf-reminders`): mesma regra no servidor, uma vez por
+       fatura, sem spam, com o total e o vencimento;
+     - checar assinatura `mf_push_subscriptions`, permissão do navegador,
+       cron/segredo da function, logs e fuso/data local.
+   - **Diagnóstico inicial (31/10)**: 3 assinaturas em
+     `mf_push_subscriptions` (última em 20/10) e cron `mf-reminders` ativo
+     (diário, 11:00 UTC). A infraestrutura de push está de pé; o buraco é
+     a regra de fechamento de fatura + o `closing_day` do cartão.
+   - **Testes**: planner (fechamento no dia, dedup por fatura, cartão
+     arquivado/sem movimento, clamp 28–31), UI do sino e function; E2E
+     com cartão fechando hoje.
+3. **Card da fatura corrente — total × agendado × zerado** (print 31/10) —
+   **investigar/corrigir**:
+   - Print 1: “Fatura agendada” com ✓ **R$ 0,00** em destaque,
+     “Pagamento agendado” R$ 2.392,24, “Despesas na fatura” R$ 2.506,95,
+     “Estornos” R$ 30,08 e total da fatura R$ 2.476,87. O zero é o
+     `invOpen` (em aberto) quando há espelho agendado; não comunica o total.
+   - Exibir no card o **total da fatura** (`invTotal`), o **pagamento
+     agendado** (`invPending`) e, se houver, a **diferença**
+     (`invTotal − invPending`), sem usar o zero como valor principal;
+     revisar o rótulo “Fatura agendada”/“Em aberto” e o verde de “pago”.
+   - Investigar por que o agendado (2.392,24) ≠ total (2.476,87): espelho
+     desatualizado após novas despesas/estornos (marcador `notes`,
+     `invoice_close`, `planInvoicePaymentSync`, agendador/fuso);
+     sincronizar ou mostrar a diferença.
+   - Testes: render com `invPending` ≠ `invTotal`, sem pagamento, pago,
+     parcial; regressão do valor zerado.
+4. **Lista de faturas do cartão — mostrar só ±1 mês** (print 2):
+   - Hoje `shownInvoices`/`shownUpcoming` mostram todas as faturas com
+     movimento (jan–out/2027), poluindo a tela.
+   - Em novembro/2026, exibir apenas **outubro/2026 (anterior),
+     novembro/2026 (corrente) e dezembro/2026 (próxima)**; aplicar em
+     Cartões, detalhe da conta/cartão e qualquer lista de chips.
+   - Filtrar pelo **mês de vencimento** da fatura corrente (ou
+     selecionada); se a fatura selecionada persistida estiver fora da
+     janela, voltar para a corrente; não quebrar F5/refresh.
+   - Testes: nov/2026 com parcelas futuras → só 3 chips; seleção
+     anterior/próxima; fatura anterior sem movimento; E2E/refresh.
+5. **Editar valor de compra parcelada mostra diálogo de exclusão**
+   (print 31/10) — **corrigir**:
+   - **Reprodução exata**: no detalhe da compra parcelada, clicar no
+     **valor** (abre o `MFCalculator`), alterar e confirmar com ✓; em vez
+     do escopo de alteração, aparece “O que você deseja?” com “Excluir
+     apenas esta / Excluir esta e as próximas / Excluir todas”. O mesmo
+     diálogo é usado pelo ⋮ → Alterar Valor.
+   - O `MFTxDetailModal` reusa o `MFChoiceDialog` de escopo para
+     alterar valor, duplicar e quick save, mas com título/corpo/opções
+     fixos de exclusão (`tx_delete_fixed_*`, `tx_delete_scope_*`).
+   - Criar textos/opções por ação: para `value` (e quick save/duplicar),
+     “Alterar apenas esta / esta e as próximas / todas” e um corpo
+     específico; manter “Excluir…” só na exclusão. A ação por trás já é
+     a correta — revisar também o diálogo de duplicar.
+   - Teste de regressão: clicar no valor → calculadora → ✓ → diálogo com
+     “Alterar” (não “Excluir”) e novo valor aplicado no escopo escolhido,
+     sem excluir a série.
+6. **Extrato — indicador de lançamento fixo mensal** (pedido 31/10) —
+   **implementar**:
+   - O app já mostra o indicador em Lançamentos: ícone `Repeat` roxo
+     (`mf-tx-fixed-badge`, title `tx_fixed_badge`) para `is_fixed`, e um
+     `Repeat` discreto para recorrência. O **Extrato/timeline** e o
+     detalhe da conta não exibem esse indicativo.
+   - Reutilizar o mesmo ícone ao lado da descrição no
+     `MFStatementTimeline` (usado pelo Extrato e pelo detalhe da conta),
+     com tooltip “Fixa mensal”; manter o sufixo/badge de parcela e não
+     duplicar indicadores.
+   - Testes: `MFExtrato`/`MFStatementTimeline` com `is_fixed` mostra o
+     badge; lançamento comum não mostra; E2E abrindo o Extrato.
+7. **Fatura marcada como VENCIDA antes do vencimento** (item 28) —
+   investigar/corrigir a regra de status (`invoice_close` × `due_day`) e
+   teste de regressão.
+8. **Secret do Felix** (item 24) — bloqueado no usuário:
+   `npx supabase secrets set GEMINI_API_KEY=<chave> --project-ref xfcehxyhhmuscodilfha`.
+9. **Modo mobile** (item 25) — validação final pendente; várias correções
+   já foram entregues (bottom nav, Contas, relatórios), falta a varredura/
+   prints restantes.
+   - **Extrato/timeline**: no mobile a fonte da descrição/valor está
+     grande e descrições longas truncam com “…”. Reduzir a fonte,
+     permitir 2 linhas (ou wrap) e ajustar avatar/gap para o valor
+     continuar alinhado; vale para `MFStatementTimeline` e `MFExtrato`.
+     Testar em 390–412px com descrições longas.
+10. **Backlog estratégico** (sem data): importar contas/categorias do
+    módulo Finance; conta padrão “Não atribuída”; custo/créditos da IA;
+    Open Finance fora de escopo; foto de comprovante e relatório
+    inteligente mensal adiados.
+

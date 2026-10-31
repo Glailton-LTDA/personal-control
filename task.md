@@ -2,6 +2,18 @@
 
 Este checklist organiza as melhorias arquiteturais, funcionais e novas features para evolução do sistema.
 
+## 🚨 Tarefas Ativas (31/10/2026)
+
+- [ ] **Cartões — fatura Nubank: fechamento 31 × 30, fechamento dinâmico (próximo dia útil), vencimento em dias úteis (próximo dia útil, feriados nacionais), vigência por mês e aviso de fatura fechada** — investigar (detalhes na seção 8 de `docs/plano-minhas-financas.md`).
+- [ ] **Cartões — card da fatura corrente confuso (total × agendado × zerado)** — investigar/corrigir.
+- [ ] **Cartões — lista de faturas limitada a ±1 mês (anterior/corrente/próxima)** — corrigir a poluição da lista.
+- [ ] **Lançamentos — editar valor de parcelada mostra diálogo de exclusão** — no detalhe, clicar no valor → calculadora → ✓ abre o diálogo de escopo com “Excluir”; corrigir para “Alterar”.
+- [ ] **Extrato — indicador de lançamento fixo mensal** — reutilizar o ícone de repetição que já existe em Lançamentos também no Extrato/timeline e no detalhe da conta.
+- [ ] **Cartões — fatura marcada como VENCIDA antes do vencimento** (item 28 do plano).
+- [ ] **Felix — configurar `GEMINI_API_KEY`** (bloqueado no usuário).
+- [ ] **Mobile — validação final** (aguardando prints/varredura restante).
+- [ ] **Mobile — Extrato/timeline: fonte grande e descrição longa truncada** — reduzir fonte e permitir 2 linhas/wrap.
+
 ## 🚀 Novas Tarefas em Andamento
 
 - [x] Banco de Dados: Adicionar coluna `currency` em `investment_accounts` via migração
