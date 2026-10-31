@@ -146,6 +146,9 @@ export default function Dashboard({ user }) {
     : { screen: null, params: {} };
   const mfDetailId = mfParams.id ?? null;
   const mfGroupId = mfParams.groupId ?? null;
+  const mfChartId = mfParams.chart ?? null;
+  const mfChartGrouping = mfParams.grouping ?? null;
+  const mfChartCategory = mfParams.category ?? null;
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -587,7 +590,10 @@ export default function Dashboard({ user }) {
                 {subItems.map(item => {
                   const isSubActive =
                     activeTab === item.tab ||
-                    (item.tab.includes('/') && activeTab.startsWith(`${item.tab}/`));
+                    (item.tab.includes('/') && activeTab.startsWith(`${item.tab}/`)) ||
+                    (item.tab === 'minhasfinancas' &&
+                      (activeTab === 'minhasfinancas/resumo' ||
+                        activeTab.startsWith('minhasfinancas/resumo/')));
                   return (
                   <a
                     key={item.tab}
@@ -724,6 +730,9 @@ export default function Dashboard({ user }) {
                     screen={mfScreen}
                     detailId={mfDetailId}
                     groupId={mfGroupId}
+                    chartId={mfChartId}
+                    chartGrouping={mfChartGrouping}
+                    chartCategory={mfChartCategory}
                     showValues={showValues}
                   />
                 )}

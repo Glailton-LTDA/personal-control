@@ -777,6 +777,90 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     );
   });
 
+  test('gráficos do Resumo: tela cheia de Contas, drill-down e refresh', async ({ page }) => {
+    test.slow();
+    page.mfStore.mf_account_groups = [
+      {
+        id: 'grp-chart-e2e',
+        user_id: 'user-e2e',
+        name: 'Nubank',
+        icon: '🏦',
+        parent_id: null,
+        color: '#6366f1',
+        sort_order: 0,
+        show_in_summary: true,
+        sum_totals: true,
+      },
+    ];
+    page.mfStore.mf_accounts = [
+      { ...SEED_ACCOUNT, group_id: 'grp-chart-e2e' },
+      {
+        id: 'acc-cx-e2e',
+        user_id: 'user-e2e',
+        name: 'Caixinha E2E',
+        account_type: 'POUPANCA',
+        currency: 'BRL',
+        initial_balance: 500,
+        sort_order: 2,
+        group_id: 'grp-chart-e2e',
+        is_active: true,
+      },
+    ];
+
+    await login(page);
+    await page.goto('/minhasfinancas');
+    await expect(page.getByTestId('mf-chart-accounts-BRL')).toBeVisible();
+    await page.getByTestId('mf-chart-accounts-BRL-open').click();
+    await expect(page).toHaveURL(/\/minhasfinancas\/resumo\/graficos\/contas\/type$/);
+    await expect(page.getByTestId('mf-charts-screen')).toBeVisible();
+    await expect(page.getByTestId('mf-charts-category-type:CORRENTE')).toBeVisible();
+
+    await page.getByTestId('mf-charts-category-type:CORRENTE').click();
+    await expect(page).toHaveURL(/type%3ACORRENTE$/);
+    await page.reload();
+    await expect(page.getByTestId('mf-charts-screen')).toBeVisible();
+    await expect(page.getByTestId('mf-charts-account-acc-e2e')).toBeVisible();
+
+    await page.getByTestId('mf-charts-account-acc-e2e').click();
+    await expect(page).toHaveURL('/minhasfinancas/accounts/acc-e2e');
+    await expect(page.getByTestId('mf-account-detail')).toBeVisible();
+  });
+
+  test('gráficos do Resumo: card de Despesas abre a tela cheia e o drill-down', async ({ page }) => {
+    test.slow();
+    page.mfStore.mf_categories = [
+      { id: 'cat-food-e2e', user_id: 'user-e2e', name: 'Alimentação', color: '#f59e0b' },
+    ];
+    page.mfStore.mf_transactions = [
+      {
+        id: 'tx-chart-e2e',
+        user_id: 'user-e2e',
+        account_id: 'acc-e2e',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 100,
+        payment_date: '2026-10-05',
+        category_id: 'cat-food-e2e',
+        description: 'Mercado E2E',
+      },
+    ];
+
+    await login(page);
+    await page.goto('/minhasfinancas');
+    await expect(page.getByTestId('mf-chart-categories-BRL')).toBeVisible();
+    await page.getByTestId('mf-chart-categories-BRL-open').click();
+    await expect(page).toHaveURL(/\/minhasfinancas\/resumo\/graficos\/despesas\/category$/);
+    await expect(page.getByTestId('mf-charts-screen')).toBeVisible();
+    await expect(page.getByTestId('mf-charts-category-category:cat-food-e2e')).toBeVisible();
+
+    await page.getByTestId('mf-charts-category-category:cat-food-e2e').click();
+    await expect(page).toHaveURL(/category%3Acat-food-e2e$/);
+    await page.reload();
+    await expect(page.getByTestId('mf-charts-account-acc-e2e')).toBeVisible();
+    await page.getByTestId('mf-charts-account-acc-e2e').click();
+    await expect(page).toHaveURL('/minhasfinancas/accounts/acc-e2e');
+  });
+
   test('cria um lançamento pela tela de edição', async ({ page }) => {
     await login(page);
     await openMinhasFinancas(page);

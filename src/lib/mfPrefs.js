@@ -27,7 +27,13 @@ export const MF_DASHBOARD_WIDGETS = [
 ];
 
 /** Gráficos do widget "charts" — cada um pode ser ocultado à parte. */
-export const MF_CHARTS = ['chart_categories', 'chart_flow', 'chart_income', 'chart_bytype'];
+export const MF_CHARTS = [
+  'chart_accounts',
+  'chart_categories',
+  'chart_flow',
+  'chart_income',
+  'chart_bytype',
+];
 
 export const MF_DASHBOARD_KEY = 'mf_dashboard_widgets';
 export const MF_ACCOUNTS_SORT_KEY = 'mf_accounts_sort';

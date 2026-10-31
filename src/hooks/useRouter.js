@@ -94,6 +94,22 @@ export function parsePath(path) {
     };
   }
 
+  // Gráficos do Resumo em tela cheia:
+  //   resumo/graficos/<métrica>/<agrupamento>/<categoria>
+  // A categoria é opcional (drill-down); o agrupamento é opcional nos
+  // atalhos dos cards, mas a tela sempre normaliza um padrão.
+  if (module === 'minhasfinancas' && screenOrId === 'resumo' && segments[2] === 'graficos') {
+    return {
+      module,
+      screen: 'resumo',
+      params: {
+        chart: segments[3] ?? null,
+        grouping: segments[4] ?? null,
+        category: segments[5] ? decodeURIComponent(segments[5]) : null,
+      },
+    };
+  }
+
   // Módulos com tela default quando não há segundo segmento.
   const defaultScreen = {
     finances: 'dashboard',
