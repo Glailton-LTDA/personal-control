@@ -295,6 +295,9 @@ describe('MFContas — master-detail', () => {
       expect(screen.getByTestId('mf-subgroup-grp-2')).toBeInTheDocument();
       expect(screen.getByTestId('mf-subgroup-total-grp-2')).toHaveTextContent('R$ 300,00');
       expect(
+        screen.getByTestId('mf-subgroup-grp-2').querySelector('tfoot')
+      ).toContainElement(screen.getByTestId('mf-subgroup-total-grp-2'));
+      expect(
         screen
           .getByTestId('mf-subgroup-grp-2')
           .querySelector('.mf-accounts-subgroup-badge')

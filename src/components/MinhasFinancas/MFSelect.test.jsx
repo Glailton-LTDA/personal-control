@@ -39,6 +39,34 @@ describe('MFSelect (dropdown genérico do MinhasFinanças)', () => {
     expect(screen.getByTestId('mf-generic-option-v3')).toBeInTheDocument();
   });
 
+  it('agrupa as opções filtradas sem repetir cabeçalhos quando os grupos vêm intercalados', () => {
+    render(
+      <MFSelect
+        testId="mf-generic"
+        value=""
+        onChange={() => {}}
+        options={[
+          { value: 'v1', label: 'Caixa Um', group: 'Nubank' },
+          { value: 'v2', label: 'Caixa Dois', group: 'Mercado Pago' },
+          { value: 'v3', label: 'Caixa Três', group: 'Nubank' },
+          { value: 'v4', label: 'Caixa Quatro', group: 'Mercado Pago' },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('mf-generic'));
+    fireEvent.change(screen.getByTestId('mf-generic-search'), {
+      target: { value: 'caixa' },
+    });
+
+    expect(screen.getAllByTestId('mf-generic-group-Nubank')).toHaveLength(1);
+    expect(screen.getAllByTestId('mf-generic-group-Mercado Pago')).toHaveLength(1);
+    expect(screen.getByTestId('mf-generic-option-v1')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-generic-option-v2')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-generic-option-v3')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-generic-option-v4')).toBeInTheDocument();
+  });
+
   it('valores numéricos (mês/ano) chegam inteiros no onChange', () => {
     const onChange = vi.fn();
     render(

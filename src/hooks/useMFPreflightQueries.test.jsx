@@ -17,6 +17,7 @@ const makeChain = (result) => {
     select: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
@@ -58,6 +59,7 @@ describe('queries estreitas do MF (egress)', () => {
     expect(cols).toContain('description');
     expect(cols).not.toContain('notes');
     expect(cols).not.toContain('attachment_path');
+    expect(chain.lte).toHaveBeenCalledWith('payment_date', expect.any(String));
     expect(chain.limit).toHaveBeenCalledWith(300);
   });
 

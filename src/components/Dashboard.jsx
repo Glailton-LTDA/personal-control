@@ -468,6 +468,7 @@ export default function Dashboard({ user }) {
                       key={item.id}
                       href={`/${targetTab}`}
                       className={`bottom-nav-item ${isActive ? 'active' : ''}`}
+                      data-module={item.id}
                       onClick={(e) => handleNavClick(e, targetTab)}
                     >
                       <item.icon size={20} />

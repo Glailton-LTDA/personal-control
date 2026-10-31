@@ -41,6 +41,16 @@ describe('MFAccountIcon', () => {
     expect(img).toHaveStyle({ filter: 'invert(1)' });
   });
 
+  it('Wise usa o chip verde oficial (não o chip branco) com a bandeira escura', () => {
+    render(<MFAccountIcon account={{ icon: 'brand:wise', name: 'Wise' }} data-testid="icon" />);
+    const box = screen.getByTestId('icon');
+    const img = box.querySelector('img');
+    expect(img).toBeInTheDocument();
+    expect(img.getAttribute('src')).toBe('/mf-brands/wise.svg');
+    expect(box).toHaveStyle({ background: '#9FE870' });
+    expect(img).not.toHaveStyle({ filter: 'invert(1)' });
+  });
+
   it('todos os arquivos de marca apontam para SVGs existentes em public/mf-brands', () => {
     const missing = Object.values(MF_BRAND_FILES).filter(
       (file) => !fs.existsSync(`public/mf-brands/${file}`)

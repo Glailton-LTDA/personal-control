@@ -6,6 +6,10 @@ import { MF_BRAND_ICONS, MF_BRAND_FILES, MF_GLYPH_ICONS } from './MFIconData';
 // para branco — igual ao app de referência (quadrado preto, logo claro).
 const DARK_CHIP_LOGOS = new Set(['c6']);
 
+// Marcas cujo logotipo é desenhado para um fundo colorido da própria marca
+// (o quadrado verde da Wise, por exemplo) em vez do chip branco padrão.
+const BRAND_FILE_CHIP_BG = { wise: '#9FE870' };
+
 /** Tamanho da fonte do glifo de marca conforme o comprimento. */
 const brandFontSize = (size, glyph) => {
   const len = glyph.length;
@@ -48,15 +52,17 @@ export default function MFAccountIcon({ account, size = 26, style, ...rest }) {
     const file = MF_BRAND_FILES[key];
     if (file) {
       const darkChip = DARK_CHIP_LOGOS.has(key);
+      const chipBg = BRAND_FILE_CHIP_BG[key];
       // Chip claro com o logotipo oficial na cor original da marca; para
       // marcas de logo preto (C6) o fundo vira o da marca e o logo inverte
-      // para branco — igual ao app de referência.
+      // para branco — igual ao app de referência. Marcas com fundo próprio
+      // (Wise) usam o verde oficial em vez do chip branco.
       return (
         <span
           title={account?.name}
           style={{
             ...box,
-            background: darkChip ? brand.bg || '#000000' : '#ffffff',
+            background: darkChip ? brand.bg || '#000000' : chipBg || '#ffffff',
             boxShadow: darkChip
               ? 'inset 0 0 0 1px rgba(255, 255, 255, 0.18)'
               : 'inset 0 0 0 1px rgba(15, 23, 42, 0.12)',

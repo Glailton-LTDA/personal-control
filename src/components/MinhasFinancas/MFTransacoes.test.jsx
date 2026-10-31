@@ -1072,6 +1072,27 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
   });
 
+  it('não troca o tipo escolhido ao digitar palavra-chave (rendimento como receita)', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('income');
+    expect(screen.getByTestId('mf-tx-type-badge')).toHaveTextContent(
+      'minhasfinancas.add_income'
+    );
+
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Rendimentos Mercado Pago' },
+    });
+
+    expect(screen.getByTestId('mf-tx-type-badge')).toHaveTextContent(
+      'minhasfinancas.add_income'
+    );
+    expect(screen.getByTestId('mf-tx-category')).not.toHaveTextContent('Alimentação');
+  });
+
   it('cria a categoria digitada na busca do seletor e já seleciona', async () => {
     renderScreen();
     await waitFor(() => {
@@ -1235,6 +1256,31 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     expect(screen.getByTestId('mf-tx-category')).toHaveTextContent('Supermercado');
     expect(screen.getByTestId('mf-tx-amount')).toHaveValue('');
     expect(screen.queryByTestId('mf-tx-suggest')).not.toBeInTheDocument();
+  });
+
+  it('autocomplete filtra pelo tipo do lançamento (receita só receita)', async () => {
+    allTxMock.mockReturnValue({
+      data: [
+        { id: 'tx-d', type: 'DESPESA', description: 'Aluguel despesa', amount: 10, payment_date: '2026-10-01', category_id: null },
+        { id: 'tx-r', type: 'RECEITA', description: 'Aluguel recebido', amount: 10, payment_date: '2026-10-02', category_id: null },
+        { id: 'tx-t', type: 'TRANSFERENCIA', description: 'Aluguel transferência', amount: 10, payment_date: '2026-10-03', category_id: null },
+      ],
+    });
+
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('income');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Aluguel' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/^mf-tx-suggest-item-/)).toHaveLength(1);
+    });
+    expect(screen.getByTestId('mf-tx-suggest-item-0')).toHaveTextContent('Aluguel recebido');
   });
 
   it('autocomplete do histórico traz as tags do lançamento original', async () => {

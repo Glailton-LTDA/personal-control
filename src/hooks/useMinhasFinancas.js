@@ -3487,9 +3487,12 @@ export function useMFSuggestionRows(user, limit = 300) {
     enabled: !!user?.id,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
+      // Só até hoje: as séries futuras (recorrentes/parcelas) enchem a
+      // janela dos 300 e escondem descrições recentes do autocomplete.
       const { data, error } = await supabase
         .from('mf_transactions')
         .select('id,type,description,payment_date,category_id,amount')
+        .lte('payment_date', toISODate(new Date()))
         .order('payment_date', { ascending: false })
         .order('id', { ascending: false })
         .limit(limit);
