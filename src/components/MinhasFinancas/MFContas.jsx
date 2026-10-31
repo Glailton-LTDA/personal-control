@@ -50,6 +50,30 @@ import { hasNewAccountRequest, clearNewAccountRequest } from './mfViewState';
 /** Id sentinela de "Sem grupo" (nunca colide com uuid real). */
 const UNGROUPED_ID = 'mf-ungrouped';
 
+/**
+ * Último grupo aberto no desktop. A rota do detalhe da conta
+ * (`accounts/{id}`) não carrega o grupo; sem essa memória, ao voltar o
+ * master-detail cairia no primeiro grupo da lista (Nubank).
+ */
+const LAST_GROUP_KEY = 'mf_accounts_last_group';
+const lastGroupStorageKey = (userId) => `${LAST_GROUP_KEY}.${userId ?? 'anon'}`;
+
+const readLastGroupId = (userId) => {
+  try {
+    return sessionStorage.getItem(lastGroupStorageKey(userId));
+  } catch {
+    return null;
+  }
+};
+
+const rememberLastGroupId = (userId, groupId) => {
+  try {
+    sessionStorage.setItem(lastGroupStorageKey(userId), groupId);
+  } catch {
+    /* storage indisponível */
+  }
+};
+
 /** Paleta dos grupos/contas sem cor própria — estável e sem vermelho. */
 const GROUP_ACCENTS = [
   '#6366f1',
@@ -132,7 +156,8 @@ const narrowTypeTabStyle = (active) => ({
  * cartões e distribuição de capital. "Sem grupo" é um grupo virtual.
  *
  * A rota do grupo é `minhasfinancas/accounts/grupo/<id>`; a seleção é
- * restaurada no refresh. O detalhe da conta continua em `/accounts/<id>`.
+ * restaurada no refresh e ao voltar do detalhe da conta (memória da sessão).
+ * O detalhe da conta continua em `/accounts/<id>`.
  */
 export default function MFContas({
   user,
@@ -334,13 +359,31 @@ export default function MFContas({
     (selectedGroupId === UNGROUPED_ID || groupsById.has(selectedGroupId))
       ? selectedGroupId
       : null;
-  const fallbackGroupId = railItems[0]?.id ?? (showUngrouped ? UNGROUPED_ID : null);
-  // Mobile: sem grupo na rota = lista. Desktop: primeiro grupo por padrão.
+  // A memória só vale para grupos que ainda existem e têm contas no filtro
+  // atual; caso contrário, cai no primeiro grupo do rail.
+  const rememberedGroupId = !isNarrow ? readLastGroupId(user?.id) : null;
+  const rememberedGroupExists =
+    rememberedGroupId === UNGROUPED_ID
+      ? showUngrouped
+      : !!rememberedGroupId &&
+        groupsById.has(rememberedGroupId) &&
+        subtreeAccountsFor(rememberedGroupId).length > 0;
+  const fallbackGroupId = rememberedGroupExists
+    ? rememberedGroupId
+    : railItems[0]?.id ?? (showUngrouped ? UNGROUPED_ID : null);
+  // Mobile: sem grupo na rota = lista. Desktop: último grupo (ou o primeiro).
   const effectiveGroupId = requestedGroupId ?? (isNarrow ? null : fallbackGroupId);
   const effectiveGroup =
     effectiveGroupId && effectiveGroupId !== UNGROUPED_ID
       ? groupsById.get(effectiveGroupId) ?? null
       : null;
+
+  // Volta do detalhe da conta: a rota perde o grupo, então lembramos a
+  // última seleção no desktop.
+  useEffect(() => {
+    if (isNarrow || !effectiveGroupId) return;
+    rememberLastGroupId(user?.id, effectiveGroupId);
+  }, [effectiveGroupId, isNarrow, user?.id]);
 
   const detailGroup = effectiveGroupId
     ? {
@@ -362,13 +405,32 @@ export default function MFContas({
   const detailDirect = effectiveGroupId ? directAccountsFor(effectiveGroupId) : [];
   const detailChildren = effectiveGroupId ? childGroupsFor(effectiveGroupId) : [];
 
+  const detailRef = useRef(null);
+
+  /** Garante que o painel de detalhe apareça quando o card clicado está
+   *  fora da viewport (lista longa no rail ou layout de uma coluna). */
+  const revealDetail = () => {
+    if (isNarrow) return;
+    const el = detailRef.current;
+    if (!el || typeof el.getBoundingClientRect !== 'function') return;
+    const { top } = el.getBoundingClientRect();
+    const headerOffset = 86; // header fixo (70) + respiro
+    // Só rola se o topo do painel estiver escondido (acima do header ou
+    // abaixo da dobra). Parte de baixo visível não basta: o usuário
+    // precisa ver o cabeçalho do grupo que acabou de selecionar.
+    const visible = top >= headerOffset && top < window.innerHeight;
+    if (!visible) el.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
+
   const groupPath = (groupId) => `minhasfinancas/accounts/grupo/${groupId}`;
   const selectGroup = (groupId) => {
     setSelectedGroupId(groupId);
     setQuickOpen(false);
+    if (!isNarrow) rememberLastGroupId(user?.id, groupId);
     window.dispatchEvent(
       new CustomEvent('set-active-tab', { detail: { tab: groupPath(groupId) } })
     );
+    revealDetail();
   };
   const backToList = () => {
     setSelectedGroupId(null);
@@ -1492,7 +1554,7 @@ export default function MFContas({
     const directCount = detailDirect.length;
     const childCount = detailChildren.length;
     return (
-      <section className="mf-accounts-detail" data-testid="mf-accounts-detail">
+      <section ref={detailRef} className="mf-accounts-detail is-master" data-testid="mf-accounts-detail">
         <div className="mf-accounts-detail-head">
           <div className="mf-accounts-detail-title">
             {detailGroup.ungrouped ? (
