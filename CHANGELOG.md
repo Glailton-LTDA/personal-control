@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-10-31
+
+### Corrigido
+- **Contas — totais do subgrupo**: saldo inicial, saldo e previsão saíram do cabeçalho e foram para um rodapé dentro da tabela do subgrupo, alinhados às mesmas colunas das contas.
+- **Bottom nav — “Minhas Finanças”**: o rótulo não quebra mais em duas linhas no mobile; fonte ajustada para caber em uma linha sem desalinhar o ícone.
+- **Ícone da Wise**: o chip passou a usar o verde oficial (`#9FE870`) com a bandeira escura, em vez do chip branco.
+- **Integração — `common.loading`**: adicionada a chave de tradução; o seletor de conta de investimento mostra “Carregando…” em vez da chave crua.
+- **Autocomplete de descrição**: o histórico passou a considerar só lançamentos até hoje; recorrências futuras não ocupam mais as 300 posições e escondem descrições recentes. As sugestões seguem o tipo do lançamento (despesa/receita/transferência) e digitar uma palavra-chave não troca mais o tipo escolhido (ex.: “Rendimentos Mercado Pago” como receita não vira despesa).
+- **Filtro agrupado (contas)**: o `MFSelect` agrupa as opções filtradas, um cabeçalho por grupo, sem repetir “Nubank/Mercado Pago” a cada troca de grupo.
+
 ## [1.26.0] - 2026-10-28
 
 ### Adicionado

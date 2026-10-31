@@ -1129,47 +1129,49 @@ export default function MFContas({
               </div>
             </div>
           </div>
-          <div className="mf-accounts-subgroup-totals">
-            <div>
-              <span>{t('minhasfinancas.accounts_table_initial')}</span>
-              <b className="muted">
-                <MFTotalsStack
-                  totals={initial}
-                  showValues={showValues}
-                  align="right"
-                  fontSize="inherit"
-                  lineHeight={1.2}
-                />
-              </b>
+          {mobile && (
+            <div className="mf-accounts-subgroup-totals">
+              <div>
+                <span>{t('minhasfinancas.accounts_table_initial')}</span>
+                <b className="muted">
+                  <MFTotalsStack
+                    totals={initial}
+                    showValues={showValues}
+                    align="right"
+                    fontSize="inherit"
+                    lineHeight={1.2}
+                  />
+                </b>
+              </div>
+              <div>
+                <span>{t('minhasfinancas.accounts_table_balance')}</span>
+                <b className="positive">
+                  <MFTotalsStack
+                    totals={saldo}
+                    showValues={showValues}
+                    testId={`mf-subgroup-total-${child.id}`}
+                    align="right"
+                    fontSize="inherit"
+                    lineHeight={1.2}
+                    redNegative
+                  />
+                </b>
+              </div>
+              <div>
+                <span>{t('minhasfinancas.accounts_table_forecast')}</span>
+                <b className="muted">
+                  <MFTotalsStack
+                    totals={forecast}
+                    showValues={showValues}
+                    align="right"
+                    fontSize="inherit"
+                    lineHeight={1.2}
+                    mutedNegative
+                  />
+                </b>
+              </div>
             </div>
-            <div>
-              <span>{t('minhasfinancas.accounts_table_balance')}</span>
-              <b className="positive">
-                <MFTotalsStack
-                  totals={saldo}
-                  showValues={showValues}
-                  testId={`mf-subgroup-total-${child.id}`}
-                  align="right"
-                  fontSize="inherit"
-                  lineHeight={1.2}
-                  redNegative
-                />
-              </b>
-            </div>
-            <div>
-              <span>{t('minhasfinancas.accounts_table_forecast')}</span>
-              <b className="muted">
-                <MFTotalsStack
-                  totals={forecast}
-                  showValues={showValues}
-                  align="right"
-                  fontSize="inherit"
-                  lineHeight={1.2}
-                  mutedNegative
-                />
-              </b>
-            </div>
-          </div>
+          )}
           <div className="mf-accounts-subgroup-actions">
             {reordering && (
               <>
@@ -1271,6 +1273,49 @@ export default function MFContas({
               <tbody>
                 {direct.map((row) => renderDesktopAccountRow(row))}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td>
+                    {t('minhasfinancas.total')}{' '}
+                    <span className="mf-accounts-foot-note">
+                      ({t('minhasfinancas.accounts_count', { count: childRows.length })})
+                    </span>
+                  </td>
+                  <td className="mf-accounts-num muted">
+                    <MFTotalsStack
+                      totals={initial}
+                      showValues={showValues}
+                      testId={`mf-subgroup-initial-${child.id}`}
+                      align="right"
+                      fontSize="inherit"
+                      lineHeight={1.25}
+                    />
+                  </td>
+                  <td className="mf-accounts-num">
+                    <MFTotalsStack
+                      totals={saldo}
+                      showValues={showValues}
+                      testId={`mf-subgroup-total-${child.id}`}
+                      align="right"
+                      fontSize="inherit"
+                      lineHeight={1.25}
+                      redNegative
+                    />
+                  </td>
+                  <td className="mf-accounts-num muted">
+                    <MFTotalsStack
+                      totals={forecast}
+                      showValues={showValues}
+                      testId={`mf-subgroup-forecast-${child.id}`}
+                      align="right"
+                      fontSize="inherit"
+                      lineHeight={1.25}
+                      mutedNegative
+                    />
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

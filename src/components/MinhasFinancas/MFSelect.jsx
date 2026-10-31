@@ -129,16 +129,24 @@ export default function MFSelect({
     );
   }, [options, search]);
 
-  /** Opções intercaladas com cabeçalhos de grupo (optgroups). */
+  /** Opções agrupadas: um cabeçalho por grupo, mesmo que as opções
+   *  originais venham intercaladas (ex.: contas ordenadas por nome com
+   *  instituições diferentes). Só grupos com opções filtradas aparecem. */
   const grouped = useMemo(() => {
     const out = [];
-    let lastGroup = null;
+    const buckets = new Map();
     filtered.forEach((option) => {
-      if (option.group && option.group !== lastGroup) {
-        out.push({ type: 'header', key: `group-${option.group}`, label: option.group });
-        lastGroup = option.group;
+      const group = option.group || '';
+      if (!buckets.has(group)) buckets.set(group, []);
+      buckets.get(group).push(option);
+    });
+    buckets.forEach((items, group) => {
+      if (group) {
+        out.push({ type: 'header', key: `group-${group}`, label: group });
       }
-      out.push({ type: 'option', key: `opt-${String(option.value)}`, option });
+      items.forEach((option) => {
+        out.push({ type: 'option', key: `opt-${String(option.value)}`, option });
+      });
     });
     return out;
   }, [filtered]);

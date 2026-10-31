@@ -630,10 +630,9 @@ export default function MFTransacaoScreen({
         (cat) =>
           cat.name.toLowerCase() === match.category.toLowerCase() &&
           !cat.is_archived &&
-          (cat.type === match.type || cat.type === 'AMBAS')
+          (cat.type === prev.type || cat.type === 'AMBAS')
       );
       if (suggested) {
-        next.type = match.type;
         next.category_id = suggested.id;
       }
       return next;
