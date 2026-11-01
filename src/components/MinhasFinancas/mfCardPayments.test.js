@@ -703,7 +703,8 @@ describe('buildCardInvoices — "Próxima" x Movimentação do detalhe (bug Noma
     const index = month - 1 + delta;
     return `${year + Math.floor(index / 12)}-${pad((((index % 12) + 12) % 12) + 1)}`;
   };
-  const nowISO = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const nowISO = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const refMonth = nowISO.slice(0, 7); // mês vivo (live)
   const nextMonth = shiftMonth(refMonth, 1);
 
@@ -798,6 +799,58 @@ describe('cardCycles — mês da fatura é o do vencimento (vale todos os cartõ
     expect(containing.closeISO).toBe('2026-07-14');
     expect(containing.dueISO).toBe('2026-07-20');
     expect(containing.dueISO.slice(0, 7)).toBe('2026-07');
+  });
+});
+
+describe('cardCycles - fechamento dinâmico e vencimento em dias úteis', () => {
+  it('fechamento 31 em sábado/feriado move para o próximo dia útil', () => {
+    const cycles = cardCycles(
+      { closing_day: 31, due_day: 7, closing_dynamic: true },
+      '2026-10-31',
+      3
+    );
+    // 31/10/2026 é sábado; 01/11 domingo; 02/11 Finados -> 03/11.
+    const cycle = cycles.find((row) => row.closeISO === '2026-11-03');
+    expect(cycle).toBeTruthy();
+    expect(cycle.dueISO).toBe('2026-11-07');
+  });
+
+  it('vencimento em dia útil move sábado 07/11 para segunda 09/11', () => {
+    const cycles = cardCycles(
+      { closing_day: 30, due_day: 7, due_business_days: true },
+      '2026-10-31',
+      3
+    );
+    const cycle = cycles.find((row) => row.closeISO === '2026-10-30');
+    expect(cycle).toBeTruthy();
+    expect(cycle.dueISO).toBe('2026-11-09');
+  });
+
+  it('combina fechamento dinâmico e vencimento em dias úteis', () => {
+    const cycles = cardCycles(
+      {
+        closing_day: 31,
+        due_day: 7,
+        closing_dynamic: true,
+        due_business_days: true,
+      },
+      '2026-10-31',
+      3
+    );
+    const cycle = cycles.find((row) => row.closeISO === '2026-11-03');
+    expect(cycle).toBeTruthy();
+    expect(cycle.dueISO).toBe('2026-11-09');
+    // O próximo ciclo começa no dia seguinte ao fechamento efetivo.
+    const next = cycles.find((row) => row.closeISO === '2026-11-30');
+    expect(next).toBeTruthy();
+    expect(next.startISO).toBe('2026-11-04');
+  });
+
+  it('mantém o comportamento antigo quando as flags estão desligadas', () => {
+    const cycles = cardCycles({ closing_day: 31, due_day: 7 }, '2026-10-31', 3);
+    const october = cycles.find((row) => row.closeISO === '2026-10-31');
+    expect(october).toBeTruthy();
+    expect(october.dueISO).toBe('2026-11-07');
   });
 });
 

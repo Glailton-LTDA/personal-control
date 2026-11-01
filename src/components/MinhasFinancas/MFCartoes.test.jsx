@@ -617,6 +617,29 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(screen.getByTestId('mf-card-due')).toBeInTheDocument();
     expect(screen.getByTestId('mf-card-limit')).toBeInTheDocument();
     expect(screen.getByTestId('mf-card-linked')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-card-closing-dynamic')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-card-due-business-days')).toBeInTheDocument();
+  });
+
+  it('salva fechamento dinâmico e vencimento em dias úteis', async () => {
+    const { supabase } = await import('../../lib/supabase');
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-edit-card-acc-card')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-edit-card-acc-card'));
+    fireEvent.click(screen.getByTestId('mf-card-closing-dynamic'));
+    fireEvent.click(screen.getByTestId('mf-card-due-business-days'));
+    fireEvent.click(screen.getByTestId('mf-account-save'));
+
+    await waitFor(() => {
+      expect(supabase.from('mf_accounts').update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          closing_dynamic: true,
+          due_business_days: true,
+        })
+      );
+    });
   });
 
   it('cartão sem conta vinculada bloqueia o pagamento com aviso', async () => {

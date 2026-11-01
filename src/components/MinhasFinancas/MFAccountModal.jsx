@@ -56,6 +56,8 @@ const emptyForm = {
   card_brand: '',
   closing_day: '',
   due_day: '',
+  closing_dynamic: false,
+  due_business_days: false,
   credit_limit: '',
   linked_account_id: '',
   profile_id: '',
@@ -128,6 +130,8 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
               : '',
             closing_day: account.closing_day ? String(account.closing_day) : '',
             due_day: account.due_day ? String(account.due_day) : '',
+            closing_dynamic: account.closing_dynamic ?? false,
+            due_business_days: account.due_business_days ?? false,
             credit_limit: account.credit_limit
               ? (Number(account.credit_limit) || 0).toFixed(2).replace('.', ',')
               : '',
@@ -256,6 +260,8 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
       card_brand: isCard && form.card_brand ? form.card_brand : null,
       closing_day: isCard && form.closing_day ? Number(form.closing_day) : null,
       due_day: isCard && form.due_day ? Number(form.due_day) : null,
+      closing_dynamic: isCard ? !!form.closing_dynamic : false,
+      due_business_days: isCard ? !!form.due_business_days : false,
       credit_limit: isCard && form.credit_limit ? parseMoney(form.credit_limit) : null,
       linked_account_id: isCard && form.linked_account_id ? form.linked_account_id : null,
       profile_id: form.profile_id || null,
@@ -664,6 +670,75 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
                     })),
                   ]}
                 />
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem',
+                  marginTop: '0.15rem',
+                  gridColumn: '1 / -1',
+                }}
+              >
+                {[
+                  {
+                    key: 'closing_dynamic',
+                    testId: 'mf-card-closing-dynamic',
+                    label: t('minhasfinancas.card_closing_dynamic'),
+                    hint: t('minhasfinancas.card_closing_dynamic_hint'),
+                  },
+                  {
+                    key: 'due_business_days',
+                    testId: 'mf-card-due-business-days',
+                    label: t('minhasfinancas.card_due_business_days'),
+                    hint: t('minhasfinancas.card_due_business_days_hint'),
+                  },
+                ].map((option) => (
+                  <label
+                    key={option.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.55rem',
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid={option.testId}
+                      checked={!!form[option.key]}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          [option.key]: event.target.checked,
+                        }))
+                      }
+                      style={{
+                        width: 16,
+                        height: 16,
+                        marginTop: 2,
+                        accentColor: 'var(--primary)',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <span>
+                      {option.label}
+                      <small
+                        style={{
+                          display: 'block',
+                          marginTop: '0.1rem',
+                          fontSize: '0.7rem',
+                          fontWeight: 500,
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        {option.hint}
+                      </small>
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
           )}

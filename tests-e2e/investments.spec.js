@@ -55,7 +55,11 @@ test.describe('Investments Module', () => {
                 account_id: 1, 
                 yield: 120.50, 
                 final_balance: 5000.00, 
-                record_date: new Date().toISOString().split('T')[0], 
+                record_date: (() => {
+                  const now = new Date();
+                  const pad = (n) => String(n).padStart(2, '0');
+                  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+                })(), 
                 investment_accounts: { 
                   id: 1,
                   name: 'CDB Inter', 

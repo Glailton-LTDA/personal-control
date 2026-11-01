@@ -387,6 +387,12 @@ i18n
             account_initial_balance: 'Saldo inicial',
             account_closing_day: 'Dia do fechamento',
             account_due_day: 'Dia do vencimento',
+            card_closing_dynamic: 'Fechamento dinâmico',
+            card_closing_dynamic_hint:
+              'Se cair em fim de semana ou feriado nacional, fecha no próximo dia útil.',
+            card_due_business_days: 'Vencimento em dias úteis',
+            card_due_business_days_hint:
+              'Se cair em fim de semana ou feriado nacional, vence no próximo dia útil.',
             account_credit_limit: 'Limite',
             account_color: 'Cor',
             account_icon: 'Ícone',
@@ -2470,6 +2476,12 @@ i18n
             account_initial_balance: 'Opening balance',
             account_closing_day: 'Closing day',
             account_due_day: 'Due day',
+            card_closing_dynamic: 'Dynamic closing',
+            card_closing_dynamic_hint:
+              'If it falls on a weekend or national holiday, closes on the next business day.',
+            card_due_business_days: 'Due on business days',
+            card_due_business_days_hint:
+              'If it falls on a weekend or national holiday, due on the next business day.',
             account_credit_limit: 'Credit limit',
             account_color: 'Color',
             account_icon: 'Icon',
@@ -4492,6 +4504,12 @@ i18n
             account_initial_balance: 'Saldo inicial',
             account_closing_day: 'Día de cierre',
             account_due_day: 'Día de vencimiento',
+            card_closing_dynamic: 'Cierre dinámico',
+            card_closing_dynamic_hint:
+              'Si cae en fin de semana o feriado nacional, cierra el siguiente día hábil.',
+            card_due_business_days: 'Vencimiento en días hábiles',
+            card_due_business_days_hint:
+              'Si cae en fin de semana o feriado nacional, vence el siguiente día hábil.',
             account_credit_limit: 'Límite',
             account_color: 'Color',
             account_icon: 'Icono',

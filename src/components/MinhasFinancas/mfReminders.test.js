@@ -84,6 +84,20 @@ describe('mfReminders — planejador puro', () => {
     expect(due).toBe('2026-10-20');
   });
 
+  it('vencimento em dias úteis e fechamento dinâmico usam a data efetiva', () => {
+    expect(
+      invoiceDueISO({ ...accCard, due_business_days: true }, '2026-10-30')
+    ).toBe('2026-11-23'); // 20/11 é Consciência Negra → segunda 23/11
+    // Fechamento dinâmico caiu em 03/11 (31/10 → próximo dia útil):
+    // o vencimento é 09/11 (07/11 sábado), não dezembro.
+    expect(
+      invoiceDueISO(
+        { closing_day: 31, due_day: 7, due_business_days: true },
+        '2026-11-03'
+      )
+    ).toBe('2026-11-09');
+  });
+
   it('due_date explícito tem prioridade; sem data não gera', () => {
     expect(
       reminderDueISO(

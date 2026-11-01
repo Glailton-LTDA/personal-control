@@ -861,6 +861,37 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     await expect(page).toHaveURL('/minhasfinancas/accounts/acc-e2e');
   });
 
+  test('cartão: fechamento dinâmico e vencimento em dias úteis persistem', async ({ page }) => {
+    page.mfStore.mf_accounts.push({
+      id: 'acc-card-toggle',
+      user_id: 'user-e2e',
+      name: 'Cartão toggle',
+      account_type: 'CARTAO',
+      currency: 'BRL',
+      initial_balance: 0,
+      closing_day: 31,
+      due_day: 7,
+      sort_order: 2,
+      is_active: true,
+    });
+
+    await login(page);
+    await page.goto('/minhasfinancas/cards');
+    await page.getByTestId('mf-edit-card-acc-card-toggle').click();
+    await expect(page.getByTestId('mf-account-modal')).toBeVisible();
+    await expect(page.getByTestId('mf-card-closing-dynamic')).not.toBeChecked();
+    await expect(page.getByTestId('mf-card-due-business-days')).not.toBeChecked();
+
+    await page.getByTestId('mf-card-closing-dynamic').check();
+    await page.getByTestId('mf-card-due-business-days').check();
+    await page.getByTestId('mf-account-save').click();
+    await expect(page.getByTestId('mf-account-modal')).toBeHidden();
+
+    await page.getByTestId('mf-edit-card-acc-card-toggle').click();
+    await expect(page.getByTestId('mf-card-closing-dynamic')).toBeChecked();
+    await expect(page.getByTestId('mf-card-due-business-days')).toBeChecked();
+  });
+
   test('cria um lançamento pela tela de edição', async ({ page }) => {
     await login(page);
     await openMinhasFinancas(page);
