@@ -3107,6 +3107,30 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
       boundRows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
     );
     const isDiff = (tx) => tx.notes === MF_INVOICE_DIFF_NOTE;
+    const diffRows = boundRows.filter(isDiff);
+    const diffTotal = roundMoney(
+      diffRows.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+    );
+    const nonDiffTotal = roundMoney(boundTotal - diffTotal);
+    // Um único ajuste por fatura: atualiza a linha existente (ou remove as
+    // sobras) em vez de criar outra a cada mudança de valor. Sem isso, o
+    // agendador acumulava -123,22 + -45,42 e a fatura já paga voltava a
+    // aparecer Vencida.
+    const syncDiff = (desired) => {
+      if (Math.abs(desired) <= 0.005) {
+        diffRows.forEach((row) => deletes.push(row.id));
+        return;
+      }
+      if (diffRows.length > 0) {
+        const [keep, ...extra] = diffRows;
+        if (Math.abs((Number(keep.amount) || 0) - desired) > 0.005) {
+          updates.push({ id: keep.id, patch: { amount: desired } });
+        }
+        extra.forEach((row) => deletes.push(row.id));
+        return;
+      }
+      creates.push(diffTx(invoice, desired));
+    };
     if (mirror) {
       // Corrida agendador × usuário: um pagamento manual entrou junto do
       // espelho (parcial feita enquanto o agendamento era gravado). O
@@ -3119,10 +3143,11 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
       }
       if (mirror.status === 'PAGO') {
         // Fatura paga e reajustada depois: reescrever o pagamento mudaria
-        // o saldo do dia em que ele saiu. A divergência vira lançamento
-        // de diferença (com sinal, datado de hoje); zerado → não faz nada.
-        const delta = roundMoney(billable - fifoCovered - boundTotal);
-        if (Math.abs(delta) > 0.005) creates.push(diffTx(invoice, delta));
+        // o saldo do dia em que ele saiu. A divergência vira UM lançamento
+        // de diferença (com sinal, datado de hoje); as linhas antigas são
+        // consolidadas para não acumular ajustes.
+        const desired = roundMoney(billable - fifoCovered - nonDiffTotal);
+        syncDiff(desired);
         return;
       }
       // Espelho PENDENTE = projeção (nada desembolsado): o valor segue a
@@ -3152,13 +3177,15 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
       // mexe: cobrir o resto é decisão do usuário.
       const paidTotal = roundMoney(
         boundRows.reduce(
-          (sum, tx) => sum + (tx.status === 'PAGO' ? Number(tx.amount) || 0 : 0),
+          (sum, tx) =>
+            sum +
+            (!isDiff(tx) && tx.status === 'PAGO' ? Number(tx.amount) || 0 : 0),
           0
         )
       );
       if (paidTotal + fifoCovered >= billable - 0.005) {
-        const delta = roundMoney(billable - fifoCovered - paidTotal);
-        if (Math.abs(delta) > 0.005) creates.push(diffTx(invoice, delta));
+        const desired = roundMoney(billable - fifoCovered - paidTotal);
+        syncDiff(desired);
       }
       return;
     }

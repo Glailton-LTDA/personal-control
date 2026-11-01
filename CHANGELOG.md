@@ -4,6 +4,13 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.28.2] - 2026-11-01
+
+### Corrigido
+- **Agendador de fatura — ajustes duplicados**: o plano de sincronização agora mantém **um único lançamento de diferença por fatura**, atualizando o valor existente e removendo as sobras. Antes, cada mudança de valor criava outro “Ajuste de fatura” (ex.: `-123,22` e `-45,42`), reduzia os pagamentos e fazia uma fatura já paga voltar a aparecer **Vencida**.
+- **Outubro/Nubank**: o ajuste automático de `123,22` foi removido; o pagamento de `2.954,73` volta a cobrir a fatura.
+- O espelho pendente continua usando o **crédito FIFO** no valor líquido (teste com `2.566,97 - 84,63 = 2.482,34`).
+
 ## [1.28.1] - 2026-10-31
 
 ### Corrigido
