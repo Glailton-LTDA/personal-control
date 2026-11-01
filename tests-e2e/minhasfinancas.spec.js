@@ -839,7 +839,11 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         type: 'DESPESA',
         status: 'PAGO',
         amount: 100,
-        payment_date: '2026-10-05',
+        payment_date: (() => {
+          const now = new Date();
+          const pad = (n) => String(n).padStart(2, '0');
+          return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+        })(),
         category_id: 'cat-food-e2e',
         description: 'Mercado E2E',
       },

@@ -12,6 +12,7 @@ import {
   formatMoney,
   formatMonthLabel,
   monthRefISO,
+  shiftMonth,
   toISODate,
   currentMonthKey,
 } from '../../hooks/useMinhasFinancas';
@@ -81,15 +82,40 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
     () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true }),
     [card, transactions, refISO, monthKey]
   );
+  /** Janela da lista: mês anterior, o mês da fatura corrente e o próximo.
+   *  O chip da corrente é separado; os demais entram só se o vencimento
+   *  cair nessa janela (evita a lista de parcelas até 2027). */
+  const currentDueMonth = current?.dueISO?.slice(0, 7) ?? monthKey;
+  const invoiceWindow = useMemo(
+    () =>
+      new Set([
+        shiftMonth(currentDueMonth, -1),
+        currentDueMonth,
+        shiftMonth(currentDueMonth, 1),
+      ]),
+    [currentDueMonth]
+  );
   /** Faturas com movimento (igual à tela original de cartões). */
   const shownInvoices = useMemo(
-    () => invoices.filter((inv) => inv.total > 0 || inv.openAmount > 0),
-    [invoices]
+    () =>
+      invoices.filter(
+        (inv) =>
+          inv.closeISO !== current?.closeISO &&
+          invoiceWindow.has(String(inv.dueISO || '').slice(0, 7)) &&
+          (inv.total > 0 || inv.openAmount > 0)
+      ),
+    [invoices, invoiceWindow, current?.closeISO]
   );
   /** Futuras com despesa vinculada (picker do app original). */
   const shownUpcoming = useMemo(
-    () => upcomingInvoices.filter((inv) => inv.total > 0 || inv.openAmount > 0),
-    [upcomingInvoices]
+    () =>
+      upcomingInvoices.filter(
+        (inv) =>
+          inv.closeISO !== current?.closeISO &&
+          invoiceWindow.has(String(inv.dueISO || '').slice(0, 7)) &&
+          (inv.total > 0 || inv.openAmount > 0)
+      ),
+    [upcomingInvoices, invoiceWindow, current?.closeISO]
   );
 
   useEffect(() => {
@@ -145,6 +171,10 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   const invOpen = Number(activeInvoice?.openAmount) || 0;
   const invGross = invTotal + invRefunds;
   const invPending = Number(activeInvoice?.pendingBound) || 0;
+  // Diferença entre o total da fatura e o pagamento agendado. Quando o em
+  // aberto é zero, a diferença foi coberta por crédito/FIFO — mostramos
+  // isso explicitamente para o valor zerado não parecer um erro.
+  const invDifference = Math.max(0, Math.round((invTotal - invPending) * 100) / 100);
   // Coberta = em aberto zerado. Paga de verdade = coberta SEM pendente
   // aguardando (item 30): com pagamento vinculado PENDENTE, a fatura está
   // AGENDADA — vence e o agendador promove a PAGA; Reabrir devolve a PENDENTE.
@@ -409,6 +439,15 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                           <strong style={{ color: '#10b981' }}>{money(invRefunds)}</strong>
                         </span>
                       )}
+                      {invDifference > 0.005 && (
+                        <span data-testid="mf-invoice-difference">
+                          {t('minhasfinancas.inv_difference')}:{' '}
+                          <strong style={{ color: '#f59e0b' }}>{money(invDifference)}</strong>
+                          {invOpen < 0.005
+                            ? ` · ${t('minhasfinancas.inv_covered_by_credit')}`
+                            : null}
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -439,8 +478,26 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                     }}
                   >
                     {(invIsPaid || invIsScheduled) && <Check size={20} />}
-                    <span data-testid="mf-invoice-open">{money(invOpen)}</span>
+                    <span data-testid="mf-invoice-open">
+                      {money(invIsPaid || invIsScheduled ? invTotal : invOpen)}
+                    </span>
                   </div>
+                  {(invIsPaid || invIsScheduled) && (
+                    <small
+                      data-testid="mf-invoice-total-label"
+                      style={{
+                        display: 'block',
+                        marginTop: '0.15rem',
+                        fontSize: '0.66rem',
+                        fontWeight: 700,
+                        color: 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {t('minhasfinancas.inv_total_label')}
+                    </small>
+                  )}
                 </div>
               </div>
               <div

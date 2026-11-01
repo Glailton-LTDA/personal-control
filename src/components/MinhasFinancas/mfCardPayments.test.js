@@ -716,7 +716,7 @@ describe('buildCardInvoices — "Próxima" x Movimentação do detalhe (bug Noma
       expense({ id: 'sem-a', payment_date: `${nextMonth}-08`, amount: 300 }),
       expense({ id: 'sem-b', payment_date: `${nextMonth}-20`, amount: 282.71 }),
       // Mês da corrente não pode vazar para a Próxima.
-      expense({ id: 'no', payment_date: `${refMonth}-10`, amount: 582.71 }),
+      expense({ id: 'no', payment_date: `${refMonth}-01`, amount: 582.71 }),
     ];
     const built = buildCardInvoices({
       card: card14,

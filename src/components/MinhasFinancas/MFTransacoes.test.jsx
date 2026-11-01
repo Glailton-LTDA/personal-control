@@ -1951,6 +1951,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
   });
 
   it('"Despesa cartão" parcelada grava cabeça e filhas como PAGO com fatura vinculada', async () => {
+    localStorage.setItem('mf_closed_invoice_warn_off', '1');
     renderScreen();
     await waitFor(() => {
       expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
@@ -1993,6 +1994,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       installments_total: 2,
       payment_date: '2026-11-15',
     });
+    localStorage.removeItem('mf_closed_invoice_warn_off');
   });
 
   it('edição mostra Repetição no avulso e esconde no parcelado', async () => {
