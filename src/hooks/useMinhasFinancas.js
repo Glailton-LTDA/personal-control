@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { readPrefsLocal, writePrefsLocal } from '../lib/mfPrefs';
+import { nextBusinessDay } from '../lib/mfBusinessDays';
 import { useMFProfileScope } from './mfProfileContext';
 import { useNotificationSettings } from './useFinance';
 import { mfSelect, mfSelectAll, mfMutate, isOffline } from '../lib/offline/mfOffline';
@@ -408,22 +409,66 @@ const isCancelled = (tx) => tx.status === 'CANCELADO';
 export function cardExpenseMonth(tx, byId) {
   const acc = byId?.get?.(tx?.account_id);
   if (tx?.type === 'DESPESA' && tx.invoice_close && acc?.account_type === 'CARTAO') {
-    const C = Number(acc.closing_day) || 1;
-    const D = Number(acc.due_day) || 10;
-    return shiftMonth(String(tx.invoice_close).slice(0, 7), D >= C ? 0 : 1);
+    return cardInvoiceDueISO(acc, tx.invoice_close).slice(0, 7);
   }
   return String(tx?.payment_date || '').slice(0, 7);
+}
+
+/**
+ * Vencimento (ISO) de uma fatura a partir do fechamento efetivo.
+ * Regra do emissor: vence no mesmo mês quando D >= dia do fechamento;
+ * senão no mês seguinte. Com `closing_dynamic` vale o dia efetivo (o
+ * fechamento pode ter atravessado o mês) e com `due_business_days` o
+ * vencimento cai no próximo dia útil.
+ */
+export function cardInvoiceDueISO(card, closeISO) {
+  const C = Number(card?.closing_day) || 1;
+  const D = Number(card?.due_day) || 10;
+  const [year, month, day] = String(closeISO ?? '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return closeISO;
+  let dueYear = year;
+  let dueMonth = month;
+  const closingForDue = card?.closing_dynamic ? day : C;
+  if (D < closingForDue) {
+    dueMonth += 1;
+    if (dueMonth > 12) {
+      dueMonth = 1;
+      dueYear += 1;
+    }
+  }
+  const rawDue = isoDay(dueYear, dueMonth, D);
+  return card?.due_business_days ? nextBusinessDay(rawDue) : rawDue;
 }
 
 /**
  * Fechamento (`invoice_close`) da fatura que vence no mês informado
  * (`dueMonthKey` = 'YYYY-MM'): a escolha do picker de fatura é o
  * vencimento, e o fechamento deriva dele (D >= C → mesmo mês, senão
- * mês anterior). Usado como default do picker (fatura do mês).
+ * mês anterior). Com fechamento dinâmico/vencimento em dias úteis, testa
+ * os meses vizinhos até achar o ciclo cujo vencimento cai no mês pedido.
+ * Usado como default do picker (fatura do mês).
  */
 export function invoiceCloseForDueMonth(card, dueMonthKey) {
   const C = Number(card?.closing_day) || 1;
   const D = Number(card?.due_day) || 10;
+  // Sem flags, mantém a fórmula direta (e o comportamento histórico).
+  if (!card?.closing_dynamic && !card?.due_business_days) {
+    const closeKey = shiftMonth(dueMonthKey, D >= C ? 0 : -1);
+    const [y, m] = closeKey.split('-').map(Number);
+    return isoDay(y, m, C);
+  }
+  // Testa o mês anterior, o mês e o seguinte: o fechamento dinâmico pode
+  // atravessar a virada e o vencimento em dia útil pode empurrar 1–3 dias.
+  for (const delta of [-1, 0, 1]) {
+    const closeKey = shiftMonth(dueMonthKey, delta);
+    const [y, m] = closeKey.split('-').map(Number);
+    const rawClose = isoDay(y, m, C);
+    const closeISO = card?.closing_dynamic ? nextBusinessDay(rawClose) : rawClose;
+    if (cardInvoiceDueISO(card, closeISO).slice(0, 7) === dueMonthKey) {
+      return closeISO;
+    }
+  }
+  // Fallback: fórmula histórica.
   const closeKey = shiftMonth(dueMonthKey, D >= C ? 0 : -1);
   const [y, m] = closeKey.split('-').map(Number);
   return isoDay(y, m, C);
@@ -2449,27 +2494,55 @@ export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
   const C = Number(card.closing_day) || 1;
   const D = Number(card.due_day) || 10;
   const [ry, rm] = refISO.split('-').map(Number);
-  const cycles = [];
+  const raw = [];
   // i = -1 → próximo fechamento ainda futuro (picker de fatura do app
   // original alcança ~1 ano à frente: futureCount amplia a janela); depois
   // mês a mês para trás
   for (let i = -futureCount; i <= count; i += 1) {
     const key = shiftMonth(`${ry}-${pad(rm)}`, -i);
     const [y, m] = key.split('-').map(Number);
-    const closeISO = isoDay(y, m, C);
-    const dueKey = shiftMonth(key, D >= C ? 0 : 1);
-    const [dy, dm] = dueKey.split('-').map(Number);
-    const dueISO = isoDay(dy, dm, D);
-    const prevKey = shiftMonth(key, -1);
-    const [py, pm] = prevKey.split('-').map(Number);
-    cycles.push({
-      closeISO,
-      dueISO,
-      startISO: plusDaysISO(isoDay(py, pm, C), 1),
-      closed: closeISO <= refISO,
-    });
+    const rawClose = isoDay(y, m, C);
+    // Fechamento dinâmico: caiu em fim de semana/feriado → próximo dia útil.
+    const closeISO = card.closing_dynamic ? nextBusinessDay(rawClose) : rawClose;
+    const [cy, cm, cd] = closeISO.split('-').map(Number);
+    // Regra do emissor: vence no mesmo mês do fechamento quando D >= dia do
+    // fechamento; senão no mês seguinte. Com fechamento dinâmico usamos o
+    // dia efetivo (pode ter atravessado o mês).
+    let dueYear = cy;
+    let dueMonth = cm;
+    const closingForDue = card.closing_dynamic ? cd : C;
+    if (D < closingForDue) {
+      dueMonth += 1;
+      if (dueMonth > 12) {
+        dueMonth = 1;
+        dueYear += 1;
+      }
+    }
+    const rawDue = isoDay(dueYear, dueMonth, D);
+    const dueISO = card.due_business_days ? nextBusinessDay(rawDue) : rawDue;
+    raw.push({ key, closeISO, dueISO });
   }
-  return cycles;
+  return raw.map((cycle, index) => {
+    // A ordem é do mais futuro para o mais antigo: o ciclo anterior no
+    // tempo é o próximo item do array.
+    const older = raw[index + 1];
+    let startISO;
+    if (older) {
+      startISO = plusDaysISO(older.closeISO, 1);
+    } else {
+      const prevKey = shiftMonth(cycle.key, -1);
+      const [py, pm] = prevKey.split('-').map(Number);
+      const rawPrev = isoDay(py, pm, C);
+      const prevClose = card.closing_dynamic ? nextBusinessDay(rawPrev) : rawPrev;
+      startISO = plusDaysISO(prevClose, 1);
+    }
+    return {
+      closeISO: cycle.closeISO,
+      dueISO: cycle.dueISO,
+      startISO,
+      closed: cycle.closeISO <= refISO,
+    };
+  });
 };
 
 /**

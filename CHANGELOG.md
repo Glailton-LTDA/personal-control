@@ -4,6 +4,18 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-10-31
+
+### Adicionado
+- **Cartões — fechamento dinâmico**: opção no cadastro do cartão para, quando o dia de fechamento cair em fim de semana ou feriado nacional, fechar no **próximo dia útil**.
+- **Cartões — vencimento em dias úteis**: opção para o vencimento cair no **próximo dia útil** quando a data original for fim de semana ou feriado nacional. O calendário cobre feriados nacionais fixos, Sexta-feira Santa e o Dia da Consciência Negra (nacional desde 2024).
+- As regras valem no ciclo exibido (`cardCycles`), no picker/default de fatura, no detalhamento, nos lembretes do sino e na function `mf-reminders`.
+- **Nubank**: cartão corrigido para fechamento no dia **31**; os vínculos `invoice_close` de meses com 31 dias foram movidos de 30 para 31, preservando as faturas e os pagamentos existentes.
+
+### Notas
+- As flags nascem desligadas; cartões existentes mantêm o comportamento atual até o usuário ligar no modal.
+- A vigência “alterações valem a partir do mês da edição” e o aviso de fatura fechada seguem como próximos itens da fila.
+
 ## [1.27.0] - 2026-10-31
 
 ### Adicionado

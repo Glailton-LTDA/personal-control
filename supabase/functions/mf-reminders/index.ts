@@ -24,15 +24,86 @@ const pad = (n: number): string => String(n).padStart(2, "0");
 const daysInMonth = (year: number, month: number): number =>
   new Date(year, month, 0).getDate();
 
-/** Vencimento da fatura (mesma régua do app: D >= C cai no mês). */
+// Feriados nacionais (fixos + Sexta-feira Santa + Consciência Negra desde
+// 2024). O app cliente usa a mesma régua em src/lib/mfBusinessDays.js.
+const FIXED_HOLIDAYS = [
+  "01-01",
+  "04-21",
+  "05-01",
+  "09-07",
+  "10-12",
+  "11-02",
+  "11-15",
+  "12-25",
+];
+
+function easterSunday(year: number): string {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function addDaysISO(iso: string, days: number): string {
+  const [year, month, day] = String(iso).slice(0, 10).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+    date.getUTCDate(),
+  )}`;
+}
+
+const holidaysByYear = new Map<number, Set<string>>();
+
+function holidaysFor(year: number): Set<string> {
+  if (holidaysByYear.has(year)) return holidaysByYear.get(year)!;
+  const set = new Set(FIXED_HOLIDAYS.map((md) => `${year}-${md}`));
+  set.add(addDaysISO(easterSunday(year), -2));
+  if (year >= 2024) set.add(`${year}-11-20`);
+  holidaysByYear.set(year, set);
+  return set;
+}
+
+function isBusinessDay(iso: string): boolean {
+  const [year, month, day] = String(iso).slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return false;
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (weekday === 0 || weekday === 6) return false;
+  return !holidaysFor(year).has(String(iso).slice(0, 10));
+}
+
+function nextBusinessDay(iso: string): string {
+  let current = String(iso).slice(0, 10);
+  for (let attempts = 0; attempts < 14; attempts += 1) {
+    if (isBusinessDay(current)) return current;
+    current = addDaysISO(current, 1);
+  }
+  return current;
+}
+
+/** Vencimento da fatura (mesma régua do app: D >= dia efetivo do fechamento). */
 function invoiceDueISO(
-  account: { closing_day?: number | null; due_day?: number | null },
+  account: {
+    closing_day?: number | null;
+    due_day?: number | null;
+    due_business_days?: boolean | null;
+  },
   closeISO: string,
 ): string | null {
   const parts = String(closeISO).slice(0, 10).split("-").map(Number);
   if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) return null;
-  const [year, month] = parts;
-  const closing = Number(account?.closing_day) || 1;
+  const [year, month, closeDay] = parts;
+  const closing = closeDay || Number(account?.closing_day) || 1;
   const due = Number(account?.due_day) || 10;
   let dueYear = year;
   let dueMonth = month;
@@ -43,7 +114,10 @@ function invoiceDueISO(
       dueYear += 1;
     }
   }
-  return `${dueYear}-${pad(dueMonth)}-${pad(Math.min(due, daysInMonth(dueYear, dueMonth)))}`;
+  const rawDue = `${dueYear}-${pad(dueMonth)}-${pad(
+    Math.min(due, daysInMonth(dueYear, dueMonth)),
+  )}`;
+  return account?.due_business_days ? nextBusinessDay(rawDue) : rawDue;
 }
 
 const isDateISO = (value: unknown): value is string =>

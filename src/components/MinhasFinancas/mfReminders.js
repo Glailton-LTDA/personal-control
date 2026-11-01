@@ -15,6 +15,8 @@
  * sem vínculo, vale a `payment_date`.
  */
 
+import { nextBusinessDay } from '../../lib/mfBusinessDays';
+
 /** Janelas de disparo (diff em dias = vencimento − hoje). */
 export const MF_REMINDER_WINDOWS = { UPCOMING: 3, TODAY: 0, OVERDUE: -3 };
 
@@ -30,8 +32,8 @@ export function invoiceDueISO(account, closeISO) {
   if (!closeISO) return null;
   const parts = String(closeISO).slice(0, 10).split('-').map(Number);
   if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) return null;
-  const [year, month] = parts;
-  const closing = Number(account?.closing_day) || 1;
+  const [year, month, closeDay] = parts;
+  const closing = closeDay || Number(account?.closing_day) || 1;
   const due = Number(account?.due_day) || 10;
   let dueYear = year;
   let dueMonth = month;
@@ -42,7 +44,10 @@ export function invoiceDueISO(account, closeISO) {
       dueYear += 1;
     }
   }
-  return `${dueYear}-${pad(dueMonth)}-${pad(Math.min(due, daysInMonth(dueYear, dueMonth)))}`;
+  const rawDue = `${dueYear}-${pad(dueMonth)}-${pad(
+    Math.min(due, daysInMonth(dueYear, dueMonth))
+  )}`;
+  return account?.due_business_days ? nextBusinessDay(rawDue) : rawDue;
 }
 
 const isDateISO = (value) =>
