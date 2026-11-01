@@ -4477,3 +4477,35 @@ select.glass-input {
   .mf-charts-controls { margin-left: 0; width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 0.15rem; }
   .mf-charts-screen { padding-bottom: 0.5rem; }
 }
+
+/* Extrato/timeline: descrição longa legível no mobile. */
+.mf-timeline-desc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.mf-timeline-desc {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.mf-extrato-desc { line-height: 1.3; }
+@media (max-width: 768px) {
+  .mf-timeline-desc-row { align-items: flex-start; }
+  .mf-timeline-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 0.8rem;
+    line-height: 1.25;
+  }
+  .mf-timeline-amount { font-size: 0.82rem; }
+  .mf-extrato-desc { font-size: 0.82rem; }
+  .mf-extrato-amount { font-size: 0.85rem; }
+}

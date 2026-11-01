@@ -81,6 +81,7 @@ vi.mock('../../lib/supabase', () => {
         amount: 100,
         payment_date: '2026-10-05',
         status: 'PAGO',
+        is_fixed: true,
         category_id: 'cat-food',
       },
       {
@@ -189,6 +190,15 @@ describe('MFStatementTimeline', () => {
     // saldo do dia (1000 + 500 − 100 = 1400) e abertura (1000)
     expect(screen.getByTestId('mf-timeline-balance-2026-10-05')).toBeInTheDocument();
     expect(screen.getByTestId('mf-timeline-opening')).toBeInTheDocument();
+  });
+
+  it('mostra o indicador de lançamento fixo no extrato', async () => {
+    renderTimeline();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('mf-timeline-fixed-tx-d')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-timeline-fixed-tx-p')).not.toBeInTheDocument();
   });
 
   it('busca filtra os lançamentos', async () => {
