@@ -231,13 +231,13 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   });
 
   it('fatura selecionada sobrevive ao F5 e volta à corrente ao trocar', async () => {
-    localStorage.setItem('mf_invoice_sel_acc-card', '2026-08-10');
+    localStorage.setItem('mf_invoice_sel_acc-card', '2026-09-10');
     renderScreen();
     fireEvent.click(await screen.findByTestId('mf-open-card-acc-card'));
-    // abre direto na fatura salva (paga), não na corrente
+    // abre direto na fatura salva (vencida), não na corrente
     await waitFor(() => {
       expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
-        'minhasfinancas.card_status_paid'
+        'minhasfinancas.card_status_overdue'
       );
     });
 
@@ -292,13 +292,12 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(screen.getByTestId('mf-invoice-detail')).toHaveTextContent('10/10/26');
     expect(screen.getAllByTestId('mf-card-tx-row')).toHaveLength(2);
 
-    // Fatura fechada 10/09 → vence 20/09 (vencida) e 10/08 → 20/08 (paga)
+    // Fatura fechada 10/09 → vence 20/09 (vencida); a de 10/08 fica fora
+    // da janela de ±1 mês (set/out/nov).
     const chip09 = screen.getByTestId('mf-invoice-chip-2026-09-10');
     expect(chip09).toHaveTextContent('minhasfinancas.card_due 20/09/26');
     expect(chip09).toHaveTextContent('minhasfinancas.card_status_overdue');
-    const chip08 = screen.getByTestId('mf-invoice-chip-2026-08-10');
-    expect(chip08).toHaveTextContent('minhasfinancas.card_due 20/08/26');
-    expect(chip08).toHaveTextContent('minhasfinancas.card_status_paid');
+    expect(screen.queryByTestId('mf-invoice-chip-2026-08-10')).not.toBeInTheDocument();
   });
 
   it('paga a fatura vencida criando transferência da conta vinculada ao cartão', async () => {
@@ -345,27 +344,39 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   });
 
   it('fatura já paga não exibe o botão de pagar', async () => {
-    renderScreen();
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
-    });
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      ...original,
+      { id: 'tx-pay-sep', account_id: 'acc-check', transfer_account_id: 'acc-card', type: 'TRANSFERENCIA', amount: 800, payment_date: '2026-09-20', status: 'PAGO', description: 'Pagamento' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+      });
 
-    fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-invoice-chip-2026-08-10')).toBeInTheDocument();
-    });
+      fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-chip-2026-09-10')).toBeInTheDocument();
+      });
 
-    fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-08-10'));
+      fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-09-10'));
 
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
-        'minhasfinancas.card_status_paid'
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+          'minhasfinancas.card_status_paid'
+        );
+        expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 800,00');
+      });
+      expect(screen.queryByTestId('mf-invoice-pay')).not.toBeInTheDocument();
+      // identidade pelo vencimento: fatura de setembro (vence 20/09/26)
+      expect(screen.getByTestId('mf-invoice-chip-2026-09-10')).toHaveTextContent(
+        'Setembro de 2026'
       );
-      expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
-    });
-    expect(screen.queryByTestId('mf-invoice-pay')).not.toBeInTheDocument();
-    // identidade pelo vencimento: fatura de agosto (vence 20/08/26)
-    expect(screen.getByTestId('mf-invoice-chip-2026-08-10')).toHaveTextContent('Agosto de 2026');
+    } finally {
+      __mfState.transactions = original;
+    }
   });
 
   it('fatura coberta só por pendente: chip Agendada, Pagar à mão e modal com o valor todo (item 30)', async () => {
@@ -400,7 +411,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
         expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
           'minhasfinancas.card_status_scheduled'
         );
-        expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
+        expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 500,00');
       });
       expect(screen.getByTestId('mf-invoice-badge')).toHaveTextContent(
         'minhasfinancas.inv_status_scheduled'
@@ -418,6 +429,83 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
         expect(screen.getByTestId('mf-pay-modal')).toBeInTheDocument();
       });
       expect(screen.getByTestId('mf-pay-amount')).toHaveValue('500,00');
+    } finally {
+      __mfState.transactions = original;
+    }
+  });
+
+  it('mostra total, agendado e diferença coberta por crédito (sem zero enganoso)', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      { id: 'tx-buy', account_id: 'acc-card', type: 'DESPESA', amount: 500, payment_date: '2026-10-02', status: 'PAGO', description: 'Compra' },
+      // Pagamento agendado parcial: 300. O crédito de FIFO (200) cobre o resto.
+      { id: 'tx-sched', account_id: 'acc-check', type: 'DESPESA', amount: 300, payment_date: '2026-10-20', status: 'PENDENTE', invoice_close: '2026-10-10', description: 'Pagamento de fatura' },
+      { id: 'tx-fifo', account_id: 'acc-check', transfer_account_id: 'acc-card', type: 'TRANSFERENCIA', amount: 200, payment_date: '2026-10-01', status: 'PAGO', description: 'Pagamento antigo' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-invoice-chip-current'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-status')).toHaveTextContent(
+          'minhasfinancas.card_status_scheduled'
+        );
+        // O valor principal é o total da fatura, não o em aberto zerado.
+        expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 500,00');
+        expect(screen.getByTestId('mf-invoice-total-label')).toHaveTextContent(
+          'minhasfinancas.inv_total_label'
+        );
+      });
+      const summary = screen.getByTestId('mf-invoice-summary');
+      expect(summary).toHaveTextContent('minhasfinancas.inv_scheduled_amount');
+      expect(summary).toHaveTextContent('R$ 300,00');
+      expect(screen.getByTestId('mf-invoice-difference')).toHaveTextContent(
+        'minhasfinancas.inv_difference'
+      );
+      expect(screen.getByTestId('mf-invoice-difference')).toHaveTextContent('R$ 200,00');
+      expect(screen.getByTestId('mf-invoice-difference')).toHaveTextContent(
+        'minhasfinancas.inv_covered_by_credit'
+      );
+    } finally {
+      __mfState.transactions = original;
+    }
+  });
+
+  it('lista de faturas mostra só o mês anterior, o corrente e o próximo', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      ...original,
+      { id: 'tx-nov', account_id: 'acc-card', type: 'DESPESA', amount: 100, payment_date: '2026-11-05', status: 'PAGO', description: 'Novembro' },
+      { id: 'tx-dec', account_id: 'acc-card', type: 'DESPESA', amount: 100, payment_date: '2026-12-05', status: 'PAGO', description: 'Dezembro' },
+      { id: 'tx-jan', account_id: 'acc-card', type: 'DESPESA', amount: 100, payment_date: '2027-01-05', status: 'PAGO', description: 'Janeiro' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-chip-current')).toHaveTextContent('R$ 1.700,00');
+      });
+
+      // Corrente outubro/2026: anterior setembro, próxima novembro.
+      expect(screen.getByTestId('mf-invoice-chip-2026-09-10')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-invoice-chip-2026-11-10')).toBeInTheDocument();
+      expect(screen.queryByTestId('mf-invoice-chip-2026-12-10')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('mf-invoice-chip-2027-01-10')).not.toBeInTheDocument();
     } finally {
       __mfState.transactions = original;
     }
@@ -643,25 +731,36 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
   });
 
   it('cartão sem conta vinculada bloqueia o pagamento com aviso', async () => {
-    renderScreen();
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-open-card-acc-master')).toBeInTheDocument();
-    });
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.transactions;
+    __mfState.transactions = [
+      ...original,
+      { id: 'tx-m2', account_id: 'acc-master', type: 'DESPESA', amount: 300, payment_date: '2026-09-05', status: 'PAGO', description: 'Streaming set' },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-open-card-acc-master')).toBeInTheDocument();
+      });
 
-    fireEvent.click(screen.getByTestId('mf-open-card-acc-master'));
-    // Master fecha dia 1/vence dia 10: 20/08 é de agosto (fecha 01/08)
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-invoice-chip-2026-08-01')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-08-01'));
+      fireEvent.click(screen.getByTestId('mf-open-card-acc-master'));
+      // Master fecha dia 1/vence dia 10: compra de 05/09 entra na fatura
+      // que fecha 01/09 (anterior), dentro da janela de ±1 mês.
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-invoice-chip-2026-09-01')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-09-01'));
 
-    expect(screen.getByTestId('mf-invoice-link-hint')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('mf-invoice-pay'));
+      expect(screen.getByTestId('mf-invoice-link-hint')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('mf-invoice-pay'));
 
-    const toast = (await import('react-hot-toast')).default;
-    expect(toast.error).toHaveBeenCalledWith('minhasfinancas.card_link_required');
-    const { supabase } = await import('../../lib/supabase');
-    expect(supabase.from('mf_transactions').insert).not.toHaveBeenCalled();
+      const toast = (await import('react-hot-toast')).default;
+      expect(toast.error).toHaveBeenCalledWith('minhasfinancas.card_link_required');
+      const { supabase } = await import('../../lib/supabase');
+      expect(supabase.from('mf_transactions').insert).not.toHaveBeenCalled();
+    } finally {
+      __mfState.transactions = original;
+    }
   });
 
   it('navega o mês: fatura corrente reflete o mês selecionado (não é sempre "hoje")', async () => {
@@ -796,7 +895,7 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(summary).toHaveTextContent('R$ 780,00');
       expect(summary).toHaveTextContent('minhasfinancas.inv_month_expenses');
       expect(summary).toHaveTextContent('R$ 800,00');
-      expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 0,00');
+      expect(screen.getByTestId('mf-invoice-open')).toHaveTextContent('R$ 780,00');
       expect(screen.getByTestId('mf-invoice-badge')).toHaveTextContent(
         'minhasfinancas.inv_status_paid'
       );

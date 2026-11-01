@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.28.1] - 2026-10-31
+
+### Corrigido
+- **Fatura agendada**: o valor principal do card passa a ser o **total da fatura**, com o pagamento agendado e a diferença (coberta por crédito) logo abaixo; o R$ 0,00 de “em aberto” não é mais exibido como se fosse o total.
+- **Lista de faturas do cartão**: mostra apenas o **mês anterior, o corrente e o próximo** (por vencimento), em vez de listar todas as faturas futuras com movimento.
+
 ## [1.28.0] - 2026-10-31
 
 ### Adicionado
