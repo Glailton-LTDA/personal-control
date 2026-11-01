@@ -1362,4 +1362,96 @@ describe('planInvoicePaymentSync — espelho de fatura (item 30)', () => {
     });
     expect(out).toEqual({ creates: [], updates: [], deletes: [] });
   });
+
+  it('consolida ajustes duplicados em um único lançamento de diferença', () => {
+    const out = plan({
+      today: '2026-10-20',
+      invoice: { total: 2400, openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+        {
+          id: 'd1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: -123.22,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_DIFF_NOTE,
+        },
+        {
+          id: 'd2',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: -45.42,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_DIFF_NOTE,
+        },
+      ],
+    });
+    expect(out.creates).toEqual([]);
+    expect(out.updates).toEqual([{ id: 'd1', patch: { amount: -53.64 } }]);
+    expect(out.deletes).toEqual(['d2']);
+  });
+
+  it('quando a diferença zera, remove os ajustes antigos', () => {
+    const out = plan({
+      invoice: { total: 2453.64, openAmount: 0 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: 2453.64,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+        {
+          id: 'd1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PAGO',
+          amount: -45.42,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_DIFF_NOTE,
+        },
+      ],
+    });
+    expect(out.creates).toEqual([]);
+    expect(out.updates).toEqual([]);
+    expect(out.deletes).toEqual(['d1']);
+  });
+
+  it('espelho PENDENTE respeita o crédito FIFO (valor líquido)', () => {
+    const out = plan({
+      invoice: { total: 2566.97, openAmount: 0, fifoCovered: 84.63 },
+      transactions: [
+        {
+          id: 'm1',
+          type: 'DESPESA',
+          account_id: 'acc-1',
+          invoice_close: '2026-10-10',
+          status: 'PENDENTE',
+          amount: 2566.97,
+          payment_date: '2026-10-20',
+          notes: MF_INVOICE_PAYMENT_NOTE,
+        },
+      ],
+    });
+    expect(out.updates).toEqual([{ id: 'm1', patch: { amount: 2482.34 } }]);
+  });
 });
