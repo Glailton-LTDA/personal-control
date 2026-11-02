@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-11-03
+
+### Corrigido
+- **Toda despesa/estorno de cartão tem fatura**: backfill de **5.170** lançamentos de cartão sem `invoice_close`. Parcelas seguem a âncora da série (3/10 → novembro, 4/10 → dezembro, …); compras avulsas e estornos usam o fechamento da data.
+- **Extrato do cartão = fatura**: com todas as despesas vinculadas, o extrato soma **despesas − estornos = total da fatura**. No Nomad, novembro fecha em **1.818,67** (a 3/10 entra em novembro), dezembro em **828,88** e janeiro em **658,75**.
+- **Invariante no banco**: trigger `mf_require_card_invoice_close` bloqueia nova despesa de cartão sem fatura; a importação de cartão atribui o `invoice_close` automaticamente (histórico de configuração por mês).
+- **Cartões legados Inter/Ourocard**: fechamento configurado em 31 (vencimentos 15 e 28) para os fechamentos históricos casarem com os ciclos; a configuração histórica foi registrada em `mf_card_settings`.
+
 ## [1.30.0] - 2026-11-02
 
 ### Adicionado
