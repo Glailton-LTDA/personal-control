@@ -2541,15 +2541,55 @@ export const plusDaysISO = (iso, days) => {
 };
 
 /**
+ * Configuração do cartão vigente num mês (`YYYY-MM`): a linha de
+ * `mf_card_settings` com `effective_from <= monthKey` mais recente.
+ * Sem histórico (cartões antigos, antes da migração), vale o próprio
+ * cartão — o comportamento legado.
+ */
+export const cardSettingsAt = (card, settings, monthKey) => {
+  if (!card) return card;
+  const key = String(monthKey ?? '').slice(0, 7);
+  let best = null;
+  for (const row of settings ?? []) {
+    if (!row || row.card_id !== card.id) continue;
+    const from = String(row.effective_from ?? '').slice(0, 7);
+    if (!from || from > key) continue;
+    if (!best || from > String(best.effective_from).slice(0, 7)) best = row;
+  }
+  if (!best) return card;
+  return {
+    ...card,
+    closing_day: best.closing_day,
+    due_day: best.due_day,
+    closing_dynamic: !!best.closing_dynamic,
+    due_business_days: !!best.due_business_days,
+    credit_limit: best.credit_limit,
+    linked_account_id: best.linked_account_id,
+    settingsEffectiveFrom: best.effective_from,
+  };
+};
+
+/** Todas as contas vinculadas que já pagaram este cartão (histórico). */
+export const cardLinkedAccountIds = (card, settings) => {
+  const ids = new Set();
+  if (card?.linked_account_id) ids.add(card.linked_account_id);
+  for (const row of settings ?? []) {
+    if (row?.card_id === card?.id && row.linked_account_id) ids.add(row.linked_account_id);
+  }
+  return ids;
+};
+
+/**
  * Ciclos de fatura de um cartão ancorados no fechamento (dia C) e
  * vencimento (dia D): a compra fecha no dia C do mês e vence no dia D
  * do mesmo mês quando D >= C, senão no mês seguinte (regra dos emissores).
- * Retorna do ciclo mais futuro ao mais antigo, com período
- * (startISO..closeISO), vencimento (dueISO) e se já fechou (closed).
+ * `settings` = histórico de `mf_card_settings`: cada ciclo usa a
+ * configuração vigente no mês dele, então mudar o fechamento/vencimento
+ * não reescreve faturas passadas. Retorna do ciclo mais futuro ao mais
+ * antigo, com período (startISO..closeISO), vencimento (dueISO) e se já
+ * fechou (closed).
  */
-export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
-  const C = Number(card.closing_day) || 1;
-  const D = Number(card.due_day) || 10;
+export const cardCycles = (card, refISO, count = 6, futureCount = 1, settings = []) => {
   const [ry, rm] = refISO.split('-').map(Number);
   const raw = [];
   // i = -1 → próximo fechamento ainda futuro (picker de fatura do app
@@ -2557,17 +2597,20 @@ export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
   // mês a mês para trás
   for (let i = -futureCount; i <= count; i += 1) {
     const key = shiftMonth(`${ry}-${pad(rm)}`, -i);
+    const cfg = cardSettingsAt(card, settings, key);
+    const C = Number(cfg.closing_day) || 1;
+    const D = Number(cfg.due_day) || 10;
     const [y, m] = key.split('-').map(Number);
     const rawClose = isoDay(y, m, C);
     // Fechamento dinâmico: caiu em fim de semana/feriado → próximo dia útil.
-    const closeISO = card.closing_dynamic ? nextBusinessDay(rawClose) : rawClose;
+    const closeISO = cfg.closing_dynamic ? nextBusinessDay(rawClose) : rawClose;
     const [cy, cm, cd] = closeISO.split('-').map(Number);
     // Regra do emissor: vence no mesmo mês do fechamento quando D >= dia do
     // fechamento; senão no mês seguinte. Com fechamento dinâmico usamos o
     // dia efetivo (pode ter atravessado o mês).
     let dueYear = cy;
     let dueMonth = cm;
-    const closingForDue = card.closing_dynamic ? cd : C;
+    const closingForDue = cfg.closing_dynamic ? cd : C;
     if (D < closingForDue) {
       dueMonth += 1;
       if (dueMonth > 12) {
@@ -2576,7 +2619,7 @@ export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
       }
     }
     const rawDue = isoDay(dueYear, dueMonth, D);
-    const dueISO = card.due_business_days ? nextBusinessDay(rawDue) : rawDue;
+    const dueISO = cfg.due_business_days ? nextBusinessDay(rawDue) : rawDue;
     raw.push({ key, closeISO, dueISO });
   }
   return raw.map((cycle, index) => {
@@ -2588,9 +2631,10 @@ export const cardCycles = (card, refISO, count = 6, futureCount = 1) => {
       startISO = plusDaysISO(older.closeISO, 1);
     } else {
       const prevKey = shiftMonth(cycle.key, -1);
+      const prevCfg = cardSettingsAt(card, settings, prevKey);
       const [py, pm] = prevKey.split('-').map(Number);
-      const rawPrev = isoDay(py, pm, C);
-      const prevClose = card.closing_dynamic ? nextBusinessDay(rawPrev) : rawPrev;
+      const rawPrev = isoDay(py, pm, Number(prevCfg.closing_day) || 1);
+      const prevClose = prevCfg.closing_dynamic ? nextBusinessDay(rawPrev) : rawPrev;
       startISO = plusDaysISO(prevClose, 1);
     }
     return {
@@ -2624,8 +2668,10 @@ export const buildCardInvoices = ({
   monthKey,
   includeFutureBound = false,
   aggregates = null,
+  settings = [],
 }) => {
   const refMonthKey = refISO.slice(0, 7);
+  const linkedAccountIds = cardLinkedAccountIds(card, settings);
   // Despesas até a data de referência — com fatura escolhida
   // (invoice_close) vale o MÊS DO CICLO: uma vez que o mês aberto alcança
   // o fechamento, a compra entra naquela fatura independentemente da data
@@ -2658,7 +2704,7 @@ export const buildCardInvoices = ({
   // certa; DESPESA sem vínculo é gasto normal da conta (nunca vai ao FIFO).
   const isPaymentTx = (tx) =>
     (tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === card.id) ||
-    (tx.type === 'DESPESA' && tx.account_id === card.linked_account_id && tx.invoice_close);
+    (tx.type === 'DESPESA' && linkedAccountIds.has(tx.account_id) && tx.invoice_close);
   const payments = transactions
     .filter(
       (tx) =>
@@ -2728,7 +2774,7 @@ export const buildCardInvoices = ({
       (tx) =>
         (tx.account_id === card.id && tx.type === 'DESPESA') ||
         (tx.transfer_account_id === card.id && tx.type === 'TRANSFERENCIA') ||
-        (tx.account_id === card.linked_account_id && tx.type === 'DESPESA' && tx.invoice_close)
+        (linkedAccountIds.has(tx.account_id) && tx.type === 'DESPESA' && tx.invoice_close)
     )
     .map((tx) => tx.payment_date)
     .filter(Boolean);
@@ -2788,7 +2834,7 @@ export const buildCardInvoices = ({
     const [uy, um] = maxFutureUnbound.split('-').map(Number);
     futureCount = Math.max(futureCount, (uy - refYear) * 12 + (um - refMonth) + 1);
   }
-  const cycles = cardCycles(card, refISO, historyCount, futureCount);
+  const cycles = cardCycles(card, refISO, historyCount, futureCount, settings);
   const closed = cycles.filter((cycle) => cycle.closed); // mais recente primeiro
   const upcoming = cycles
     .filter((cycle) => !cycle.closed)
@@ -3303,6 +3349,7 @@ export function useMFScheduleCardPayments(user) {
   const { data: cardData } = useMFCardTransactions(user, cardAccounts);
   const transactions = cardData?.transactions;
   const aggregates = cardData?.aggregates ?? null;
+  const settings = useMemo(() => cardData?.settings ?? [], [cardData]);
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
     if (mfScheduleRunning || !accounts || !transactions) return undefined;
@@ -3335,6 +3382,7 @@ export function useMFScheduleCardPayments(user) {
             // de exibição — sem a flag o agendador não as enxerga).
             includeFutureBound: true,
             aggregates,
+            settings,
           });
           const plan = planInvoicePaymentSync({
             userId: user.id,
@@ -3443,7 +3491,7 @@ export function useMFScheduleCardPayments(user) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, accounts, transactions, aggregates, queryClient]);
+  }, [user?.id, accounts, transactions, aggregates, settings, queryClient]);
 }
 
 /**
@@ -3924,7 +3972,45 @@ export function useMFCardTransactions(user, cards, monthKey = null) {
         }
       }
 
-      // 2) Linhas: com agregados, só a janela de exibição (as faturas
+      // 2) Histórico de configuração do cartão (vigência por mês). É
+      // pequeno (1 linha por cartão/mês com mudança) e define o ciclo de
+      // cada fatura; offline cai no cartão atual.
+      let settings = [];
+      if (cardIds.length > 0) {
+        try {
+          const result = await mfSelectAll(
+            'mf_card_settings',
+            () =>
+              supabase
+                .from('mf_card_settings')
+                .select('*')
+                .in('card_id', cardIds)
+                .order('effective_from'),
+            {
+              filter: (rows) => rows.filter((row) => cardIds.includes(row.card_id)),
+              sort: (rows) =>
+                [...rows].sort((a, b) =>
+                  String(a.effective_from ?? '').localeCompare(String(b.effective_from ?? ''))
+                ),
+            }
+          );
+          if (result.error) throw result.error;
+          settings = Array.isArray(result.data) ? result.data : [];
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn('[MF] histórico de cartão indisponível; usando o cartão atual', err);
+          }
+          settings = [];
+        }
+      }
+      const allLinkedIds = [
+        ...new Set([
+          ...linkedIds,
+          ...settings.map((row) => row.linked_account_id).filter(Boolean),
+        ]),
+      ].sort();
+
+      // 3) Linhas: com agregados, só a janela de exibição (as faturas
       // mostradas e as compras futuras); sem eles, o histórico inteiro
       // (o caminho antigo, que sabe fazer o FIFO sozinho).
       const windowStart = shiftMonth(refISO.slice(0, 7), -13) + '-01';
@@ -3961,20 +4047,20 @@ export function useMFCardTransactions(user, cards, monthKey = null) {
                 sort: sortByPaymentDate,
               }
             ),
-        linkedIds.length
+        allLinkedIds.length
           ? mfSelectAll(
               'mf_transactions',
               () =>
                 supabase
                   .from('mf_transactions')
                   .select('*')
-                  .in('account_id', linkedIds)
+                  .in('account_id', allLinkedIds)
                   .or('invoice_close.not.is.null')
                   .order('payment_date')
                   .order('id'),
               {
                 filter: (rows) =>
-                  rows.filter((row) => linkedIds.includes(row.account_id) && row.invoice_close),
+                  rows.filter((row) => allLinkedIds.includes(row.account_id) && row.invoice_close),
                 sort: sortByPaymentDate,
               }
             )
@@ -3989,7 +4075,45 @@ export function useMFCardTransactions(user, cards, monthKey = null) {
       [...(own.data ?? []), ...(incoming.data ?? []), ...(mirror.data ?? [])].forEach((row) => {
         byId.set(row.id, row);
       });
-      return { transactions: [...byId.values()].sort(byPaymentDate), aggregates };
+      return { transactions: [...byId.values()].sort(byPaymentDate), aggregates, settings };
+    },
+  });
+}
+
+/**
+ * Histórico de configuração dos cartões (`mf_card_settings`): usado pelo
+ * detalhe da conta, que não passa pelo `useMFCardTransactions`. Retorna
+ * uma linha por cartão/mês em que fechamento, vencimento, limite, flags
+ * ou conta vinculada mudaram.
+ */
+export function useMFCardSettings(user, cardIds) {
+  const ids = useMemo(
+    () => [...new Set((cardIds ?? []).filter(Boolean))].sort(),
+    [cardIds]
+  );
+  return useQuery({
+    queryKey: ['mf-card-settings', user?.id, ids.join(',')],
+    enabled: !!user?.id && ids.length > 0,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await mfSelectAll(
+        'mf_card_settings',
+        () =>
+          supabase
+            .from('mf_card_settings')
+            .select('*')
+            .in('card_id', ids)
+            .order('effective_from'),
+        {
+          filter: (rows) => rows.filter((row) => ids.includes(row.card_id)),
+          sort: (rows) =>
+            [...rows].sort((a, b) =>
+              String(a.effective_from ?? '').localeCompare(String(b.effective_from ?? ''))
+            ),
+        }
+      );
+      if (error) throw error;
+      return data ?? [];
     },
   });
 }
@@ -4837,6 +4961,7 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
   const { data: cardData } = useMFCardTransactions(user, cards, monthKey);
   const transactions = useMemo(() => cardData?.transactions ?? [], [cardData]);
   const aggregates = cardData?.aggregates ?? null;
+  const settings = useMemo(() => cardData?.settings ?? [], [cardData]);
   return useMemo(() => {
     if (!cards || cards.length === 0) {
       return { items: [], openTotalByCurrency: {}, upcomingTotalByCurrency: {} };
@@ -4855,6 +4980,7 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
         count: 6,
         includeFutureBound: true,
         aggregates,
+        settings,
       });
       // Próxima fatura = primeira futura com despesa vinculada, senão a corrente.
       const upcoming = upcomingInvoices.find(
@@ -4880,5 +5006,5 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
       return { card, current, upcoming: shown, next: upcoming ?? null, openAmount };
     });
     return { items, openTotalByCurrency, upcomingTotalByCurrency };
-  }, [cards, transactions, aggregates, monthKey]);
+  }, [cards, transactions, aggregates, settings, monthKey]);
 }

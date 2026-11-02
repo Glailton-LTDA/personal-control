@@ -61,6 +61,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
     monthKey
   );
   const transactions = useMemo(() => cardData?.transactions ?? [], [cardData]);
+  const settings = useMemo(() => cardData?.settings ?? [], [cardData]);
   const { data: categories = [] } = useMFCategories(user);
   // Fatura selecionada sobrevive ao F5 (por cartão, em qualquer
   // superfície); inválida ou sumida → corrente.
@@ -79,8 +80,8 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   const { current, invoices, upcomingInvoices = [] } = useMemo(
     // Limite comprometido (igual ao widget): futuras vinculadas contam
     // mesmo com data futura, para o detalhe reconciliar com o EM ABERTO.
-    () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true }),
-    [card, transactions, refISO, monthKey]
+    () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true, settings }),
+    [card, transactions, refISO, monthKey, settings]
   );
   /** Janela da lista: mês anterior, o mês da fatura corrente e o próximo.
    *  O chip da corrente é separado; os demais entram só se o vencimento

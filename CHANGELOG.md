@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-11-02
+
+### Adicionado
+- **Vigência por mês da configuração do cartão**: fechamento, vencimento, limite, fechamento dinâmico, vencimento em dias úteis e conta vinculada agora têm histórico em `mf_card_settings`. O cálculo de cada fatura usa a configuração vigente no **mês do ciclo**, então mudar o cartão não reescreve faturas passadas.
+- O modal de cartão avisa que as mudanças valem a partir do mês atual.
+- A configuração do mês visualizado também alimenta o **limite** e a **conta vinculada** exibidos nos Cartões; pagamentos feitos pela conta vinculada antiga continuam sendo reconhecidos.
+- O histórico é replicado no cache offline (`mf_card_settings`) e sincronizado como as demais tabelas `mf_*`.
+
 ## [1.29.0] - 2026-11-02
 
 ### Adicionado

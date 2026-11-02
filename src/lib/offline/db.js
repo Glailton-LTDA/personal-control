@@ -118,6 +118,12 @@ db.version(6).stores({
   mf_restore_points: 'id, user_id, created_at',
 });
 
+// Vigência por mês da configuração do cartão (histórico que o cálculo de
+// faturas usa). Só leitura; quem escreve é o trigger no servidor.
+db.version(7).stores({
+  mf_card_settings: 'id, card_id, user_id, effective_from',
+});
+
 /**
  * Tabelas do Minhas Finanças replicadas no Dexie (cache de leitura).
  * mf_import_* ficam de fora (exigem conexão) e mf_restore_points não é
@@ -127,6 +133,7 @@ export const MF_OFFLINE_TABLES = [
   'mf_account_groups',
   'mf_accounts',
   'mf_account_types',
+  'mf_card_settings',
   'mf_transactions',
   'mf_transaction_tags',
   'mf_categories',
