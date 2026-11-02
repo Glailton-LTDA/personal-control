@@ -8,6 +8,7 @@ import {
   useMFMonthSummary,
   useUpdateAccount,
   buildCardInvoices,
+  cardSettingsAt,
   formatMoney,
   formatMonthLabel,
   currencyFlag,
@@ -86,6 +87,7 @@ export default function MFCartoes({ user, showValues = true }) {
   const { data: cardData } = useMFCardTransactions(user, cardAccounts, monthKey);
   const transactions = cardData?.transactions ?? [];
   const aggregates = cardData?.aggregates ?? null;
+  const settings = cardData?.settings ?? [];
 
   const { data: summary } = useMFMonthSummary(user, monthKey);
   const summaryRows = useMemo(() => summary?.rows ?? [], [summary]);
@@ -288,7 +290,7 @@ export default function MFCartoes({ user, showValues = true }) {
               // (ex.: fixas criadas 12 meses à frente) — sem a flag, só
               // entrava o que já tinha payment_date até o mês (Nubank com
               // despesas até 2027 mostrava R$ 0 em aberto).
-              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true, aggregates });
+              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true, aggregates, settings });
               // EM ABERTO e DISPONÍVEL seguem a mesma régua das faturas
               // (fechadas + corrente, incluindo parcelas/estornos), em vez
               // de recalcular um saldo paralelo que divergia do detalhe.
@@ -302,13 +304,14 @@ export default function MFCartoes({ user, showValues = true }) {
               const currentOpen = Number(built.current.openAmount) || 0;
               const currentPending = Number(built.current.pendingBound) || 0;
               const used = open + committed;
-              const limit = item.credit_limit != null ? Number(item.credit_limit) : null;
+              const cfg = cardSettingsAt(item, settings, monthKey);
+              const limit = cfg.credit_limit != null ? Number(cfg.credit_limit) : null;
               const available = limit != null ? limit - used : null;
               const rawPct = limit && limit > 0 ? (used / limit) * 100 : 0;
               const pct = mfCardUsagePct(used, limit);
               const barColor = mfCardBarColor(item.color);
               const overLimit = limit != null && used > limit;
-              const linked = accountById[item.linked_account_id];
+              const linked = accountById[cfg.linked_account_id];
               const inv = built.current;
               const total = Number(inv.total) || 0;
               const oldestOpen = built.oldestOpenInvoice;

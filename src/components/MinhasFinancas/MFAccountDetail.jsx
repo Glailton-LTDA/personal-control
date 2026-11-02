@@ -37,6 +37,7 @@ import {
   useMFAccounts,
   useMFCategories,
   useMFAccountTransactions,
+  useMFCardSettings,
   useUpdateAccount,
   useDeleteAccount,
   buildCardInvoices,
@@ -252,6 +253,15 @@ export default function MFAccountDetail({
     refetch: refetchAllTx,
   } = useMFAccountTransactions(user, account.id, linkedCardIds);
 
+  const cardSettingsIds = useMemo(
+    () => [
+      ...linkedCardIds,
+      ...(account.account_type === 'CARTAO' ? [account.id] : []),
+    ],
+    [linkedCardIds, account]
+  );
+  const { data: cardSettings = [] } = useMFCardSettings(user, cardSettingsIds);
+
   const refISO = monthRefISO(monthKey);
   const linkedInvoices = useMemo(() => {
     if (account.account_type === 'CARTAO') return [];
@@ -268,6 +278,7 @@ export default function MFAccountDetail({
           transactions: allTx,
           refISO,
           monthKey,
+          settings: cardSettings,
         });
         const active =
           // 1) fatura em aberto mais antiga (é o que falta pagar);
@@ -280,7 +291,7 @@ export default function MFAccountDetail({
             : invoices.find((inv) => (Number(inv.total) || 0) > 0) ?? current);
         return { card, active };
       });
-  }, [account, accounts, allTx, refISO, monthKey]);
+  }, [account, accounts, allTx, refISO, monthKey, cardSettings]);
 
   /** Abre o modal de pagamento (total ou parcial) da fatura do cartão vinculado. */
   const handlePayLinked = (card, invoice) => {
@@ -436,7 +447,7 @@ export default function MFAccountDetail({
     // régua de sempre (mês de pagamento, só efetivas positivas).
     const rows =
       account.account_type === 'CARTAO'
-        ? buildCardInvoices({ card: account, transactions: allTx ?? [], refISO, monthKey })
+        ? buildCardInvoices({ card: account, transactions: allTx ?? [], refISO, monthKey, settings: cardSettings })
             .current?.transactions ?? []
         : (allTx ?? []).filter(
             (tx) =>
@@ -471,7 +482,7 @@ export default function MFAccountDetail({
           ? [...top, { id: 'other', value: round2(rest), name: t('common.other') }]
           : top,
     };
-  }, [account, allTx, monthStart, monthEnd, refISO, monthKey, categoryById, t]);
+  }, [account, allTx, monthStart, monthEnd, refISO, monthKey, categoryById, t, cardSettings]);
 
   const monthShort = (mk) => {
     const [year, month] = mk.split('-').map(Number);
@@ -585,11 +596,12 @@ export default function MFAccountDetail({
       transactions: allTx ?? [],
       refISO,
       monthKey,
+      settings: cardSettings,
     });
     if (!current) return null;
     const next = upcomingInvoices.find((row) => row.closeISO !== current.closeISO) ?? null;
     return { current, next };
-  }, [account, allTx, refISO, monthKey]);
+  }, [account, allTx, refISO, monthKey, cardSettings]);
   const quickStatus = cardQuick
     ? INVOICE_STATUS[cardQuick.current.status] ?? INVOICE_STATUS.CORRENTE
     : null;

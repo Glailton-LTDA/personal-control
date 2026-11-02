@@ -586,6 +586,7 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
           </div>
 
           {form.account_type === 'CARTAO' && (
+            <>
             <div className="form-grid">
               <div className="input-group">
                 <label>{t('minhasfinancas.account_closing_day')}</label>
@@ -741,6 +742,18 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
                 ))}
               </div>
             </div>
+            <p
+              data-testid="mf-card-settings-validity"
+              style={{
+                margin: '0.35rem 0 0',
+                fontSize: '0.72rem',
+                color: 'var(--text-muted)',
+                lineHeight: 1.35,
+              }}
+            >
+              {t('minhasfinancas.card_settings_validity_hint')}
+            </p>
+            </>
           )}
 
           {/* Ícone: seletor recolhível com busca (catálogo grande de marcas) */}

@@ -1857,9 +1857,10 @@ Itens pendentes, na ordem de atendimento:
    - dedup por `card_id + invoice_close`, cartão arquivado/sem movimento
      não gera aviso, clamp 28–31;
    - testes do planner, UI do sino, function e E2E com cartão fechando hoje.
-2. **Vigência por mês** — mudanças de fechamento/vencimento/limite/conta
-   vinculada valerem a partir do mês da edição, sem reescrever faturas
-   passadas (`effective_from`/snapshot por mês).
+2. ✅ **Vigência por mês** — entregue na **1.30.0** (`mf_card_settings`):
+   mudanças de fechamento/vencimento/limite/conta vinculada valem a
+   partir do mês da edição, sem reescrever faturas passadas; o cálculo
+   usa a configuração vigente no mês de cada ciclo.
 3. **Mobile — validação final** — varredura/prints restantes; o
    Extrato/timeline já foi ajustado (fonte menor e 2 linhas).
 4. **Felix — `GEMINI_API_KEY`** — bloqueado no usuário:
@@ -1887,6 +1888,6 @@ Itens pendentes, na ordem de atendimento:
 > Histórico: os itens 2–7 da seção 8 foram entregues nos PRs #81–#85
 > (fechamento 31/dinâmico/dias úteis, card da fatura, lista ±1 mês,
 > diálogo “Alterar”, indicador de fixa, fatura vencida e mobile do
-> Extrato). O aviso de fatura fechada e a vigência por mês continuam
-> pendentes.
+> Extrato). O aviso de fatura fechada e a vigência por mês foram
+> entregues na 1.29.0 e 1.30.0.
 

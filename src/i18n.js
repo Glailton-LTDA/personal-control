@@ -398,6 +398,8 @@ i18n
             card_due_business_days: 'Vencimento em dias úteis',
             card_due_business_days_hint:
               'Se cair em fim de semana ou feriado nacional, vence no próximo dia útil.',
+            card_settings_validity_hint:
+              'As mudanças de fechamento, vencimento, limite e conta vinculada valem a partir deste mês; as faturas passadas não são alteradas.',
             account_credit_limit: 'Limite',
             account_color: 'Cor',
             account_icon: 'Ícone',
@@ -2512,6 +2514,8 @@ i18n
             card_due_business_days: 'Due on business days',
             card_due_business_days_hint:
               'If it falls on a weekend or national holiday, due on the next business day.',
+            card_settings_validity_hint:
+              'Changes to closing day, due date, limit and linked account apply from this month; past invoices are not changed.',
             account_credit_limit: 'Credit limit',
             account_color: 'Color',
             account_icon: 'Icon',
@@ -4565,6 +4569,8 @@ i18n
             card_due_business_days: 'Vencimiento en días hábiles',
             card_due_business_days_hint:
               'Si cae en fin de semana o feriado nacional, vence el siguiente día hábil.',
+            card_settings_validity_hint:
+              'Los cambios de cierre, vencimiento, límite y cuenta vinculada se aplican desde este mes; las facturas pasadas no cambian.',
             account_credit_limit: 'Límite',
             account_color: 'Color',
             account_icon: 'Icono',

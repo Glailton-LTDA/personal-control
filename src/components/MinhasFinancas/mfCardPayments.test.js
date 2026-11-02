@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate, cardSettingsAt, cardLinkedAccountIds } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -1517,8 +1517,7 @@ describe('buildCardInvoices — fatura estável ao navegar (vínculo manda)', ()
   });
 });
 
-describe('addInvoiceCloseMonths — fechamento por ciclo, não por dia do mês', () => {
-  const card31 = { closing_day: 31 };
+describe('addInvoiceCloseMonths — fechamento por ciclo, não por dia do mês', () => {  const card31 = { closing_day: 31 };
   const card30 = { closing_day: 30 };
   const card10 = { closing_day: 10 };
 
@@ -1570,5 +1569,119 @@ describe('addInvoiceCloseMonths — fechamento por ciclo, não por dia do mês',
     expect(plan[0].payment_date).toBe('2026-12-01');
     expect(plan[0].invoice_close).toBe('2026-12-31');
     expect(plan[1].invoice_close).toBe('2027-01-31');
+  });
+});
+
+describe('mf_card_settings — vigência por mês da configuração', () => {
+  const card10 = {
+    ...card,
+    closing_day: 10,
+    due_day: 20,
+    linked_account_id: 'acc-1',
+  };
+  const history = [
+    {
+      card_id: 'acc-card',
+      effective_from: '2000-01',
+      closing_day: 10,
+      due_day: 20,
+      closing_dynamic: false,
+      due_business_days: false,
+      credit_limit: 1000,
+      linked_account_id: 'acc-1',
+    },
+    {
+      card_id: 'acc-card',
+      effective_from: '2026-11',
+      closing_day: 25,
+      due_day: 5,
+      closing_dynamic: false,
+      due_business_days: false,
+      credit_limit: 2000,
+      linked_account_id: 'acc-2',
+    },
+  ];
+
+  it('cardSettingsAt usa a linha vigente do mês e cai no cartão sem histórico', () => {
+    expect(cardSettingsAt(card10, history, '2026-10')).toMatchObject({
+      closing_day: 10,
+      due_day: 20,
+      linked_account_id: 'acc-1',
+    });
+    expect(cardSettingsAt(card10, history, '2026-11')).toMatchObject({
+      closing_day: 25,
+      due_day: 5,
+      credit_limit: 2000,
+      linked_account_id: 'acc-2',
+    });
+    expect(cardSettingsAt(card10, [], '2026-11')).toBe(card10);
+    expect(cardLinkedAccountIds(card10, history)).toEqual(
+      new Set(['acc-1', 'acc-2'])
+    );
+  });
+
+  it('cardCycles fecha outubro com a configuração antiga e novembro com a nova', () => {
+    const cycles = cardCycles(card10, '2026-12-31', 3, 1, history);
+    const oct = cycles.find((cycle) => cycle.closeISO === '2026-10-10');
+    const nov = cycles.find((cycle) => cycle.closeISO === '2026-11-25');
+    expect(oct).toBeTruthy();
+    expect(oct.dueISO).toBe('2026-10-20');
+    expect(nov).toBeTruthy();
+    expect(nov.dueISO).toBe('2026-12-05');
+  });
+
+  it('mudar a configuração em novembro não reescreve a fatura de outubro', () => {
+    const txs = [
+      purchase({ id: 'oct', payment_date: '2026-10-05', amount: 100, invoice_close: '2026-10-10' }),
+      purchase({ id: 'nov', payment_date: '2026-11-05', amount: 200, invoice_close: '2026-11-25' }),
+    ];
+
+    const octView = buildCardInvoices({
+      card: card10,
+      transactions: txs,
+      refISO: '2026-10-31',
+      monthKey: '2026-10',
+      settings: history,
+    });
+    expect(octView.current.closeISO).toBe('2026-10-10');
+    expect(octView.current.total).toBe(100);
+
+    const decView = buildCardInvoices({
+      card: card10,
+      transactions: txs,
+      refISO: '2026-12-31',
+      monthKey: '2026-12',
+      settings: history,
+    });
+    expect(decView.invoices.find((inv) => inv.closeISO === '2026-10-10').total).toBe(100);
+    expect(decView.current.closeISO).toBe('2026-11-25');
+    expect(decView.current.total).toBe(200);
+  });
+
+  it('pagamento na conta vinculada antiga continua contando a fatura', () => {
+    const cardNow = { ...card, closing_day: 25, due_day: 5, linked_account_id: 'acc-2' };
+    const txs = [
+      purchase({ id: 'oct', payment_date: '2026-10-05', amount: 100, invoice_close: '2026-10-10' }),
+      {
+        id: 'pay-old',
+        account_id: 'acc-1',
+        type: 'DESPESA',
+        status: 'PAGO',
+        amount: 100,
+        payment_date: '2026-10-20',
+        invoice_close: '2026-10-10',
+      },
+    ];
+
+    const built = buildCardInvoices({
+      card: cardNow,
+      transactions: txs,
+      refISO: '2026-10-31',
+      monthKey: '2026-10',
+      settings: history,
+    });
+    expect(built.current.closeISO).toBe('2026-10-10');
+    expect(built.current.openAmount).toBe(0);
+    expect(built.current.status).toBe('PAGA');
   });
 });

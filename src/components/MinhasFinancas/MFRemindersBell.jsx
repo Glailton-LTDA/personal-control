@@ -89,6 +89,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
   const invoiceReminders = useMemo(() => {
     const today = toISODate(new Date());
     const transactions = cardData?.transactions ?? [];
+    const settings = cardData?.settings ?? [];
     const built = [];
     for (const card of closingCards) {
       const { current, invoices = [] } = buildCardInvoices({
@@ -99,6 +100,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
         count: 2,
         includeFutureBound: true,
         aggregates: cardData?.aggregates ?? null,
+        settings,
       });
       const seen = new Set();
       for (const invoice of [current, ...invoices]) {
