@@ -83,6 +83,28 @@ export const addInvoiceCloseMonths = (card, closeISO, months) => {
 };
 
 /**
+ * Fechamento da fatura que contém uma compra avulsa (sem `invoice_close`):
+ * o primeiro fechamento do cartão >= data da compra. Para cartão legado sem
+ * `closing_day` (a data importada é o vencimento), o fechamento é o último
+ * dia do mês anterior. Parcelas NÃO usam esta função: cada uma segue a
+ * âncora da série (`invoice_close` da primeira parcela + N ciclos).
+ */
+export const invoiceCloseForPurchaseDate = (card, dateISO) => {
+  if (!card || !dateISO) return null;
+  const iso = String(dateISO).slice(0, 10);
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  if (!(Number(card.closing_day) > 0)) {
+    const prev = new Date(y, m - 1, 0);
+    return `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-${pad(prev.getDate())}`;
+  }
+  const monthKey = `${y}-${pad(m)}`;
+  const closeISO = cardCloseForMonth(card, monthKey);
+  if (closeISO >= iso) return closeISO;
+  return cardCloseForMonth(card, shiftMonth(monthKey, 1));
+};
+
+/**
  * Avança `step` períodos de uma recorrência a partir de uma data ISO:
  * WEEKLY soma 7 dias; YEARLY avança 12 meses; MONTHLY avança meses.
  */
@@ -4267,6 +4289,28 @@ export function useRunMFImport() {
       const toImport = rows.filter((row) => row.decision === 'IMPORT');
       let created = [];
       if (toImport.length > 0) {
+        // Cartão: toda linha importada precisa nascer vinculada a uma fatura.
+        // Usa o histórico de `mf_card_settings` para o mês da compra; sem
+        // histórico, o cartão atual. Parcelas importadas como linhas avulsas
+        // seguem o fechamento da data (o usuário pode ajustar depois).
+        let account = null;
+        let cardSettings = [];
+        const { data: accountRow, error: accountError } = await supabase
+          .from('mf_accounts')
+          .select('*')
+          .eq('id', account_id)
+          .maybeSingle();
+        if (accountError) throw accountError;
+        account = accountRow ?? null;
+        if (account?.account_type === 'CARTAO') {
+          const { data: settingsRows, error: settingsError } = await supabase
+            .from('mf_card_settings')
+            .select('*')
+            .eq('card_id', account_id);
+          if (settingsError) throw settingsError;
+          cardSettings = settingsRows ?? [];
+        }
+
         const { data, error: txError } = await supabase
           .from('mf_transactions')
           .insert(
@@ -4278,6 +4322,14 @@ export function useRunMFImport() {
               amount: row.amount,
               payment_date: row.date,
               status: 'PAGO',
+              ...(account?.account_type === 'CARTAO'
+                ? {
+                    invoice_close: invoiceCloseForPurchaseDate(
+                      cardSettingsAt(account, cardSettings, String(row.date).slice(0, 7)),
+                      row.date
+                    ),
+                  }
+                : {}),
             }))
           )
           .select();

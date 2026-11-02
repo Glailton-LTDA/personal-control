@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate, cardSettingsAt, cardLinkedAccountIds } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate, cardSettingsAt, cardLinkedAccountIds, invoiceCloseForPurchaseDate } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -1543,8 +1543,7 @@ describe('addInvoiceCloseMonths — fechamento por ciclo, não por dia do mês',
     expect(addInvoiceCloseMonths(null, '2026-11-10', 1)).toBe('2026-12-10');
   });
 
-  it('a extensão das séries fixas usa o fechamento do cartão', () => {
-    const plan = planFixedExtensions(
+  it('a extensão das séries fixas usa o fechamento do cartão', () => {    const plan = planFixedExtensions(
       [
         {
           id: 'head',
@@ -1683,5 +1682,22 @@ describe('mf_card_settings — vigência por mês da configuração', () => {
     expect(built.current.closeISO).toBe('2026-10-10');
     expect(built.current.openAmount).toBe(0);
     expect(built.current.status).toBe('PAGA');
+  });
+});
+
+describe('invoiceCloseForPurchaseDate — compra avulsa sem vínculo', () => {
+  it('pega o primeiro fechamento >= data (fecha 14)', () => {
+    const card14 = { closing_day: 14, due_day: 20 };
+    expect(invoiceCloseForPurchaseDate(card14, '2026-11-10')).toBe('2026-11-14');
+    expect(invoiceCloseForPurchaseDate(card14, '2026-11-14')).toBe('2026-11-14');
+    expect(invoiceCloseForPurchaseDate(card14, '2026-11-15')).toBe('2026-12-14');
+    expect(invoiceCloseForPurchaseDate(card14, '2026-11-28')).toBe('2026-12-14');
+  });
+
+  it('fecha 31 usa o último dia do mês; cartão legado usa o vencimento', () => {
+    expect(invoiceCloseForPurchaseDate({ closing_day: 31 }, '2026-11-28')).toBe('2026-11-30');
+    // Sem closing_day, a data importada é o vencimento: fecha no mês anterior.
+    expect(invoiceCloseForPurchaseDate({ closing_day: null }, '2020-08-15')).toBe('2020-07-31');
+    expect(invoiceCloseForPurchaseDate({ closing_day: null }, '2021-01-15')).toBe('2020-12-31');
   });
 });
