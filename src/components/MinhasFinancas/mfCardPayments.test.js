@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -1453,5 +1453,122 @@ describe('planInvoicePaymentSync — espelho de fatura (item 30)', () => {
       ],
     });
     expect(out.updates).toEqual([{ id: 'm1', patch: { amount: 2482.34 } }]);
+  });
+});
+
+describe('buildCardInvoices — fatura estável ao navegar (vínculo manda)', () => {
+  const cardMonthEnd = { ...card, closing_day: 31, due_day: 7 };
+  const pad = (n) => String(n).padStart(2, '0');
+  const shiftKey = (monthKey, delta) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    return `${year + Math.floor((month - 1 + delta) / 12)}-${pad(((month - 1 + delta) % 12 + 12) % 12 + 1)}`;
+  };
+  const currentKey = currentMonthKey();
+  const prevKey = shiftKey(currentKey, -1);
+  const nextKey = shiftKey(currentKey, 1);
+  const prevClose = monthBounds(prevKey).end;
+  const todayISO = toISODate(new Date());
+
+  it('parcela futura vinculada à fatura corrente não muda o total ao abrir o mês seguinte', () => {
+    // Caso real Nubank: 3/3 de 12/12 vinculada ao fechamento de 31/10.
+    // Abrindo novembro, a parcela de dezembro ficava de fora; abrindo
+    // dezembro, ela entrava — a fatura de novembro mudava 37,80.
+    const txs = [
+      purchase({ id: 'base', payment_date: todayISO, amount: 100 }),
+      purchase({
+        id: 'futura',
+        payment_date: `${nextKey}-12`,
+        amount: 37.8,
+        invoice_close: prevClose,
+      }),
+    ];
+
+    const live = buildCardInvoices({
+      card: cardMonthEnd,
+      refISO: todayISO,
+      monthKey: currentKey,
+      transactions: txs,
+    });
+    expect(live.current.closeISO).toBe(prevClose);
+    expect(live.current.total).toBe(137.8);
+
+    const nextView = buildCardInvoices({
+      card: cardMonthEnd,
+      refISO: monthBounds(nextKey).end,
+      monthKey: nextKey,
+      transactions: txs,
+    });
+    const sameInvoice = nextView.invoices.find((inv) => inv.closeISO === prevClose);
+    expect(sameInvoice).toBeTruthy();
+    expect(sameInvoice.total).toBe(137.8);
+  });
+
+  it('fatura futura só entra quando o mês dela chega (sem includeFutureBound)', () => {
+    const txs = [
+      purchase({ id: 'futura', payment_date: `${nextKey}-12`, amount: 50, invoice_close: monthBounds(nextKey).end }),
+    ];
+    const past = buildCardInvoices({
+      card: cardMonthEnd,
+      refISO: `${prevKey}-28`,
+      monthKey: prevKey,
+      transactions: txs,
+    });
+    expect(past.upcomingInvoices).toHaveLength(0);
+  });
+});
+
+describe('addInvoiceCloseMonths — fechamento por ciclo, não por dia do mês', () => {
+  const card31 = { closing_day: 31 };
+  const card30 = { closing_day: 30 };
+  const card10 = { closing_day: 10 };
+
+  it('mantém o último dia do mês (31) ao avançar faturas', () => {
+    expect(addInvoiceCloseMonths(card31, '2026-11-30', 1)).toBe('2026-12-31');
+    expect(addInvoiceCloseMonths(card31, '2026-12-31', 1)).toBe('2027-01-31');
+    expect(addInvoiceCloseMonths(card31, '2027-01-31', 1)).toBe('2027-02-28');
+    expect(addInvoiceCloseMonths(card31, '2026-12-31', 2)).toBe('2027-02-28');
+  });
+
+  it('mantém o dia fixo nos cartões que não fecham no fim do mês', () => {
+    expect(addInvoiceCloseMonths(card10, '2026-11-10', 1)).toBe('2026-12-10');
+    expect(addInvoiceCloseMonths({ closing_day: 14 }, '2026-11-14', 2)).toBe('2027-01-14');
+  });
+
+  it('não transforma 30/12 em 31/12 para cartão que fecha no dia 30', () => {
+    expect(addInvoiceCloseMonths(card30, '2026-11-30', 1)).toBe('2026-12-30');
+    expect(addInvoiceCloseMonths(card30, '2026-12-30', 1)).toBe('2027-01-30');
+  });
+
+  it('sem cartão, preserva o fim de mês da origem', () => {
+    expect(addInvoiceCloseMonths(null, '2026-11-30', 1)).toBe('2026-12-31');
+    expect(addInvoiceCloseMonths(null, '2026-11-10', 1)).toBe('2026-12-10');
+  });
+
+  it('a extensão das séries fixas usa o fechamento do cartão', () => {
+    const plan = planFixedExtensions(
+      [
+        {
+          id: 'head',
+          parent_transaction_id: null,
+          is_fixed: true,
+          user_id: 'u1',
+          account_id: 'acc-card',
+          type: 'DESPESA',
+          description: 'Fixa',
+          amount: 10,
+          payment_date: '2026-11-01',
+          due_date: null,
+          status: 'PAGO',
+          category_id: null,
+          invoice_close: '2026-11-30',
+        },
+      ],
+      '2026-11-01',
+      { 'acc-card': card31 }
+    );
+    expect(plan.length).toBeGreaterThan(0);
+    expect(plan[0].payment_date).toBe('2026-12-01');
+    expect(plan[0].invoice_close).toBe('2026-12-31');
+    expect(plan[1].invoice_close).toBe('2027-01-31');
   });
 });

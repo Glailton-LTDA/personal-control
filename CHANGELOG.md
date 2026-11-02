@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.28.3] - 2026-11-01
+
+### Corrigido
+- **Fatura estável ao navegar**: compra de cartão com fatura escolhida (`invoice_close`) pertence àquela fatura pelo **mês do ciclo**, não pela data do lançamento. Antes, uma parcela com data em dezembro vinculada a novembro só entrava quando dezembro era aberto — a fatura de novembro mudava `37,80` de uma tela para outra. Agora o total é o mesmo em qualquer mês aberto.
+- **Movimentação × fatura**: “Despesas efetivadas” e o total da fatura passam a usar a mesma régua (`invoice_close`/mês do vencimento), então os dois números batem.
+- **Parcelas Amazon**: a 3/3 (`37,80`) e a 6/6 (`46,83`) saíram de novembro/dezembro e foram para o fechamento de **31/12** (janeiro). Com isso, **novembro = 2.482,34** e **dezembro = 1.899,28**, os valores conferidos com o banco.
+- **Fechamento de fim de mês nas séries**: parcelas e séries fixas não herdam mais o dia 30 nos meses de 31 dias (`30/12`, `30/01`). O avanço agora usa o `closing_day` do cartão, então fecha em `31/12`, `31/01` e `28/02` corretamente. O mesmo vale para a extensão automática das séries fixas.
+- **Reajuste de fatura**: o ajuste manual criado pelo “Reajustar” agora nasce vinculado ao ciclo da fatura (`invoice_close`), em vez de entrar pela data e mudar de mês ao navegar.
+- **RPC `mf_card_cycle_totals`**: as despesas vinculadas não são mais cortadas pela data de referência; o `invoice_close` é a fonte da verdade, alinhado ao cálculo do cliente.
+
 ## [1.28.2] - 2026-11-01
 
 ### Corrigido

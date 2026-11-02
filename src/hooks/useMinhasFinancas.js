@@ -38,6 +38,50 @@ export const addMonthsISO = (iso, months) => {
   return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}`;
 };
 
+/** Verdadeiro quando a data ISO é o último dia do mês. */
+export const isMonthEndISO = (iso) => {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  if (!y || !m || !d) return false;
+  return d === new Date(y, m, 0).getDate();
+};
+
+/**
+ * Data de fechamento de um ciclo (`YYYY-MM`) para um cartão: usa o
+ * `closing_day` do cartão (clamp no fim do mês) e, quando o fechamento é
+ * dinâmico, o próximo dia útil. É a mesma régua de `cardCycles`.
+ */
+export function cardCloseForMonth(card, monthKey) {
+  const closingDay = Number(card?.closing_day) || 1;
+  const [y, m] = String(monthKey).split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const rawClose = `${y}-${pad(m)}-${pad(Math.min(closingDay, lastDay))}`;
+  return card?.closing_dynamic ? nextBusinessDay(rawClose) : rawClose;
+}
+
+/**
+ * Avança N ciclos de fatura a partir de um fechamento (`invoice_close`).
+ * Com o cartão, usa o `closing_day` dele: 30/11 + 1 → 31/12 para quem
+ * fecha 31, mas 30/12 para quem fecha 30. Sem o cartão, preserva a
+ * semântica de fim de mês quando a origem é o último dia; senão mantém o
+ * dia com clamp. `addMonthsISO` sozinho "prendia" o dia 30 e criava
+ * faturas em 30/12, 30/01 — fora dos ciclos reais do cartão (que fecha
+ * 31), fazendo a parcela sumir da fatura.
+ */
+export const addInvoiceCloseMonths = (card, closeISO, months) => {
+  if (!closeISO) return closeISO;
+  const [y, m] = String(closeISO).split('-').map(Number);
+  if (!y || !m) return closeISO;
+  if (Number(card?.closing_day) > 0) {
+    return cardCloseForMonth(card, shiftMonth(`${y}-${pad(m)}`, months));
+  }
+  if (isMonthEndISO(closeISO)) {
+    const target = new Date(y, m - 1 + months, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(lastDay)}`;
+  }
+  return addMonthsISO(closeISO, months);
+};
+
 /**
  * Avança `step` períodos de uma recorrência a partir de uma data ISO:
  * WEEKLY soma 7 dias; YEARLY avança 12 meses; MONTHLY avança meses.
@@ -91,7 +135,7 @@ export const FIXED_EXTEND_STORAGE = 'mf_fixed_extend_at';
  * Despesa de cartão com fatura (`invoice_close`) ancora as novas
  * ocorrências na fatura da última + N (não no mês da data).
  */
-export const planFixedExtensions = (rows, todayISO) => {
+export const planFixedExtensions = (rows, todayISO, cardsById = {}) => {
   if (!Array.isArray(rows) || rows.length === 0) return [];
   const inserts = [];
   const heads = rows.filter((row) => row && !row.parent_transaction_id);
@@ -126,7 +170,9 @@ export const planFixedExtensions = (rows, todayISO) => {
         recurrence: 'MONTHLY',
         is_fixed: true,
         parent_transaction_id: head.id,
-        invoice_close: last.invoice_close ? addMonthsISO(last.invoice_close, step) : null,
+        invoice_close: last.invoice_close
+          ? addInvoiceCloseMonths(cardsById[last.account_id], last.invoice_close, step)
+          : null,
       });
       step += 1;
       paymentDate = addMonthsISO(last.payment_date, step);
@@ -2102,9 +2148,20 @@ export function useMFExtendFixedSeries(user) {
           .select('*')
           .eq('is_fixed', true);
         if (error || cancelled) return;
+        // O fechamento da nova ocorrência precisa do `closing_day` do
+        // cartão (30/11 + 1 → 31/12 para quem fecha 31; 30/12 para quem
+        // fecha 30). Uma consulta pequena, no máximo 1×/dia.
+        const { data: cards } = await supabase
+          .from('mf_accounts')
+          .select('id, closing_day, closing_dynamic, due_business_days')
+          .eq('account_type', 'CARTAO');
+        const cardsById = Object.fromEntries(
+          (Array.isArray(cards) ? cards : []).map((card) => [card.id, card])
+        );
         const planned = planFixedExtensions(
           Array.isArray(data) ? data : [],
-          toISODate(new Date())
+          toISODate(new Date()),
+          cardsById
         );
         if (planned.length > 0 && !cancelled) {
           await mfMutate({
@@ -2570,14 +2627,17 @@ export const buildCardInvoices = ({
 }) => {
   const refMonthKey = refISO.slice(0, 7);
   // Despesas até a data de referência — com fatura escolhida
-  // (invoice_close) vale o MÊS: a compra entra quando o mês chega (ex.:
-  // parcela de 28/10 vinculada a outubro aparece na fatura de outubro
-  // já no mês vivo), sem vazar para meses anteriores. Sem vínculo, vale
-  // a data (regra do emissor) — sem o corte, a fatura corrente de um
-  // mês passado englobaria compras dos meses seguintes (futuro relativo a refISO).
+  // (invoice_close) vale o MÊS DO CICLO: uma vez que o mês aberto alcança
+  // o fechamento, a compra entra naquela fatura independentemente da data
+  // do lançamento. É isso que mantém o total estável ao navegar: antes o
+  // corte era pela data da compra, então uma parcela de dez/ vinculada a
+  // novembro só aparecia quando dezembro era aberto — e novembro mudava
+  // 37,80 de uma tela para outra. Sem vínculo, vale a data (regra do
+  // emissor) — sem o corte, a fatura corrente de um mês passado englobaria
+  // compras dos meses seguintes (futuro relativo a refISO).
   const inWindow = (tx) =>
     tx.payment_date <= refISO ||
-    (tx.invoice_close && (tx.payment_date || '').slice(0, 7) <= refMonthKey);
+    (tx.invoice_close && String(tx.invoice_close).slice(0, 7) <= refMonthKey);
   const expenses = transactions.filter(
     (tx) =>
       tx.account_id === card.id &&

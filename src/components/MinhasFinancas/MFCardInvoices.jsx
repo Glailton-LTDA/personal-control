@@ -779,6 +779,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                 ? `${t('minhasfinancas.card_current')}${activeInvoice?.dueISO ? ` · ${invMonth(activeInvoice.dueISO)}` : ''}`
                 : `${invMonth(activeInvoice?.dueISO)} · ${t('minhasfinancas.card_due')} ${formatDate(activeInvoice?.dueISO)}`
             }
+            invoiceClose={activeInvoice?.closeISO ?? null}
             allowInitial={false}
             onClose={() => setAdjustOpen(false)}
             onManual={() => onManualTx?.()}
