@@ -5,6 +5,7 @@ import {
   reminderDueISO,
   diffDays,
   planMFReminders,
+  planMFInvoiceReminders,
 } from './mfReminders';
 
 const TODAY = '2026-10-15';
@@ -143,5 +144,66 @@ describe('mfReminders — planejador puro', () => {
     expect(diffDays('2026-10-18', TODAY)).toBe(3);
     expect(diffDays('2026-10-15', TODAY)).toBe(0);
     expect(diffDays('2026-10-12', TODAY)).toBe(-3);
+  });
+});
+
+describe('planMFInvoiceReminders — aviso de fatura fechada', () => {
+  const invoice = (over = {}) => ({
+    cardId: 'acc-card',
+    cardName: 'Nubank',
+    currency: 'BRL',
+    closeISO: '2026-10-15',
+    dueISO: '2026-10-22',
+    total: 1000,
+    openAmount: 1000,
+    pendingBound: 0,
+    status: 'EM_ABERTO',
+    ...over,
+  });
+
+  it('só entra a fatura que fechou hoje e tem movimento', () => {
+    const rows = planMFInvoiceReminders(
+      [
+        invoice(),
+        invoice({ cardId: 'other', closeISO: '2026-10-14' }),
+        invoice({ cardId: 'empty', total: 0 }),
+      ],
+      TODAY
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      key: 'invoice:acc-card:2026-10-15',
+      kind: 'invoice_closed',
+      cardId: 'acc-card',
+      cardName: 'Nubank',
+      total: 1000,
+      openAmount: 1000,
+      dueISO: '2026-10-22',
+      currency: 'BRL',
+    });
+  });
+
+  it('carrega em aberto/agendado e ordena por vencimento', () => {
+    const rows = planMFInvoiceReminders(
+      [
+        invoice({ cardId: 'b', cardName: 'Inter', dueISO: '2026-10-25', pendingBound: 1000, openAmount: 0 }),
+        invoice({ cardId: 'a', cardName: 'Nubank', dueISO: '2026-10-22' }),
+      ],
+      TODAY
+    );
+    expect(rows.map((row) => row.cardId)).toEqual(['a', 'b']);
+    expect(rows[1].pendingBound).toBe(1000);
+    expect(rows[1].openAmount).toBe(0);
+  });
+
+  it('limita a quantidade e ignora entrada inválida', () => {
+    const rows = planMFInvoiceReminders(
+      [invoice({ cardId: 'a' }), invoice({ cardId: 'b' })],
+      TODAY,
+      { limit: 1 }
+    );
+    expect(rows).toHaveLength(1);
+    expect(planMFInvoiceReminders(null, TODAY)).toEqual([]);
+    expect(planMFInvoiceReminders([invoice()], null)).toEqual([]);
   });
 });

@@ -1421,4 +1421,47 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     expect(sentBodies[0].messages[0].role).toBe('user');
     expect(sentBodies[0].context.accounts[0].id).toBe('acc-e2e');
   });
+
+  test('sino: fatura que fecha hoje aparece e leva aos Cartões', async ({ page }) => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const todayISO = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    page.mfStore.mf_accounts.push({
+      id: 'acc-card-alert',
+      user_id: 'user-e2e',
+      name: 'Nubank Alerta',
+      account_type: 'CARTAO',
+      currency: 'BRL',
+      initial_balance: 0,
+      closing_day: now.getDate(),
+      due_day: 7,
+      sort_order: 2,
+      is_active: true,
+    });
+    page.mfStore.mf_transactions = [
+      {
+        id: 'tx-card-alert',
+        user_id: 'user-e2e',
+        account_id: 'acc-card-alert',
+        type: 'DESPESA',
+        description: 'Compra E2E',
+        amount: 100,
+        payment_date: todayISO,
+        invoice_close: todayISO,
+        status: 'PAGO',
+        effective_date: todayISO,
+        created_at: `${todayISO}T12:00:00Z`,
+      },
+    ];
+
+    await login(page);
+    await openMinhasFinancas(page);
+    await page.getByTestId('mf-reminders-bell').click();
+
+    const alert = page.getByTestId('mf-reminders-invoice-acc-card-alert');
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText('100');
+    await alert.click();
+    await expect(page.getByTestId('mf-cartoes')).toBeVisible();
+  });
 });

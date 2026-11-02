@@ -120,6 +120,60 @@ function invoiceDueISO(
   return account?.due_business_days ? nextBusinessDay(rawDue) : rawDue;
 }
 
+type CardAccount = {
+  id: string;
+  name?: string | null;
+  currency?: string | null;
+  linked_account_id?: string | null;
+  closing_day?: number | null;
+  due_day?: number | null;
+  closing_dynamic?: boolean | null;
+  due_business_days?: boolean | null;
+  account_type?: string | null;
+  archived_at?: string | null;
+};
+
+/** Fechamento do ciclo de um mês (clamp no fim do mês + dia útil). */
+function closeForMonth(
+  account: {
+    closing_day?: number | null;
+    closing_dynamic?: boolean | null;
+  },
+  year: number,
+  month: number,
+): string {
+  const closingDay = Number(account?.closing_day) || 1;
+  const lastDay = daysInMonth(year, month);
+  const raw = `${year}-${pad(month)}-${pad(Math.min(closingDay, lastDay))}`;
+  return account?.closing_dynamic ? nextBusinessDay(raw) : raw;
+}
+
+/**
+ * Fechamentos candidatos a "hoje" para um cartão: o do mês corrente e o do
+ * mês anterior (o fechamento dinâmico pode ter atravessado a virada —
+ * 31/01 domingo → 01/02). Retorna ISO único.
+ */
+function closeCandidates(
+  account: {
+    closing_day?: number | null;
+    closing_dynamic?: boolean | null;
+  },
+  todayISO: string,
+): string[] {
+  const [year, month] = todayISO.split("-").map(Number);
+  const out = new Set<string>();
+  for (const delta of [-1, 0]) {
+    const date = new Date(Date.UTC(year, month - 1 + delta, 1));
+    out.add(closeForMonth(account, date.getUTCFullYear(), date.getUTCMonth() + 1));
+  }
+  return [...out];
+}
+
+/** Data dd/mm para o corpo do push. */
+function shortDate(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
 const isDateISO = (value: unknown): value is string =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value);
 
@@ -204,7 +258,12 @@ serve(async (req) => {
     }
     webpush.setVapidDetails(mailto, vapidPublicKey, vapidPrivateKey);
 
-    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayISO = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
 
     const { data: subs, error: subsError } = await supabase
       .from("mf_push_subscriptions")
@@ -281,11 +340,168 @@ serve(async (req) => {
           : row,
       );
 
+      // ── Faturas que fecharam hoje ────────────────────────────────
+      // Um aviso por cartão/fechamento, com total, em aberto e vencimento.
+      // A linha em `mf_invoice_notifications` é a trava de idempotência:
+      // se o cron rodar de novo no mesmo dia, o upsert não devolve linha
+      // e o push não repete.
+      const cards = ((accounts ?? []) as CardAccount[]).filter(
+        (acc) => acc.account_type === "CARTAO" && !acc.archived_at,
+      );
+      const closing = cards
+        .map((card) => ({
+          card,
+          closeISO: closeCandidates(card, todayISO).find((iso) => iso === todayISO) ?? null,
+        }))
+        .filter((row): row is { card: CardAccount; closeISO: string } =>
+          Boolean(row.closeISO)
+        );
+
+      const invoiceAlerts: Array<{
+        cardId: string;
+        closeISO: string;
+        title: string;
+        body: string;
+        tag: string;
+      }> = [];
+
+      if (closing.length > 0) {
+        const cardIds = closing.map((row) => String(row.card.id));
+        const linkedIds = [
+          ...new Set(
+            closing
+              .map((row) => row.card.linked_account_id)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+        const closes = [...new Set(closing.map((row) => row.closeISO))];
+        const [{ data: cardExpenses }, { data: depPayments }, { data: transfPayments }] =
+          await Promise.all([
+            supabase
+              .from("mf_transactions")
+              .select("id,account_id,type,amount,status,payment_date,invoice_close")
+              .in("account_id", cardIds)
+              .eq("type", "DESPESA")
+              .neq("status", "CANCELADO"),
+            linkedIds.length
+              ? supabase
+                  .from("mf_transactions")
+                  .select("id,account_id,type,amount,status,invoice_close")
+                  .in("account_id", linkedIds)
+                  .in("invoice_close", closes)
+                  .neq("status", "CANCELADO")
+              : Promise.resolve({ data: [] }),
+            supabase
+              .from("mf_transactions")
+              .select("id,account_id,transfer_account_id,type,amount,status,invoice_close")
+              .in("transfer_account_id", cardIds)
+              .in("invoice_close", closes)
+              .neq("status", "CANCELADO"),
+          ]);
+
+        const seenPay = new Set<string>();
+        const paymentRows = [...(depPayments ?? []), ...(transfPayments ?? [])].filter(
+          (row) => {
+            if (!row?.id || seenPay.has(row.id)) return false;
+            seenPay.add(row.id);
+            return true;
+          },
+        );
+
+        for (const { card, closeISO } of closing) {
+          const dueISO = invoiceDueISO(card, closeISO);
+          if (!dueISO) continue;
+          const dueMonth = dueISO.slice(0, 7);
+          const total = (cardExpenses ?? [])
+            .filter(
+              (tx) =>
+                tx.account_id === card.id &&
+                (tx.invoice_close === closeISO ||
+                  (!tx.invoice_close &&
+                    String(tx.payment_date ?? "").slice(0, 7) === dueMonth)),
+            )
+            .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+          if (!(total > 0.005)) continue;
+
+          const bound = paymentRows.filter(
+            (tx) =>
+              tx.invoice_close === closeISO &&
+              ((tx.type === "DESPESA" && tx.account_id === card.linked_account_id) ||
+                (tx.type === "TRANSFERENCIA" && tx.transfer_account_id === card.id)),
+          );
+          const paid = bound
+            .filter((tx) => tx.status === "PAGO")
+            .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+          const pending = bound
+            .filter((tx) => tx.status === "PENDENTE")
+            .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+          const open = Math.max(0, Math.round((total - paid - pending) * 100) / 100);
+          const currency = String(card.currency ?? "BRL");
+          const statusLabel =
+            open > 0.005
+              ? `em aberto ${money(open, currency)}`
+              : pending > 0.005
+                ? "pagamento agendado"
+                : "fatura paga";
+
+          // Claim atômico: só o primeiro run do dia envia esta fatura.
+          const { data: claimed, error: claimError } = await supabase
+            .from("mf_invoice_notifications")
+            .upsert(
+              { user_id: userId, card_id: card.id, close_iso: closeISO },
+              {
+                onConflict: "user_id,card_id,close_iso",
+                ignoreDuplicates: true,
+              },
+            )
+            .select("id");
+          if (claimError) {
+            console.error(
+              `Failed invoice notification claim ${card.id}/${closeISO}:`,
+              claimError,
+            );
+            continue;
+          }
+          if (!claimed || claimed.length === 0) continue;
+
+          invoiceAlerts.push({
+            cardId: String(card.id),
+            closeISO,
+            title: `Fatura ${card.name ?? "do cartão"} fechou`,
+            body: `Total ${money(total, currency)} · vence ${shortDate(dueISO)} · ${statusLabel}`,
+            tag: `mf-invoice-${card.id}-${closeISO}`,
+          });
+        }
+      }
+
       for (const sub of userSubs) {
         const pushSubscription = {
           endpoint: sub.endpoint,
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         };
+        for (const row of invoiceAlerts) {
+          try {
+            await webpush.sendNotification(
+              pushSubscription,
+              JSON.stringify({
+                type: "mf-reminder",
+                tag: row.tag,
+                title: row.title,
+                body: row.body,
+                url: "/minhasfinancas/cards",
+                kind: "invoice_closed",
+                cardId: row.cardId,
+                invoiceClose: row.closeISO,
+              }),
+            );
+            sent += 1;
+          } catch (err) {
+            console.error(`Failed push ${sub.id}:`, err);
+            if (err.statusCode === 404 || err.statusCode === 410) {
+              await supabase.from("mf_push_subscriptions").delete().eq("id", sub.id);
+            }
+          }
+        }
         for (const row of picked) {
           try {
             await webpush.sendNotification(
