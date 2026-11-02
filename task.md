@@ -2,17 +2,20 @@
 
 Este checklist organiza as melhorias arquiteturais, funcionais e novas features para evolução do sistema.
 
-## 🚨 Tarefas Ativas (31/10/2026)
+## 🚨 Tarefas Ativas (02/11/2026)
 
-- [ ] **Cartões — fatura Nubank: fechamento 31 × 30, fechamento dinâmico (próximo dia útil), vencimento em dias úteis (próximo dia útil, feriados nacionais), vigência por mês e aviso de fatura fechada** — investigar (detalhes na seção 8 de `docs/plano-minhas-financas.md`).
-- [ ] **Cartões — card da fatura corrente confuso (total × agendado × zerado)** — investigar/corrigir.
-- [ ] **Cartões — lista de faturas limitada a ±1 mês (anterior/corrente/próxima)** — corrigir a poluição da lista.
-- [ ] **Lançamentos — editar valor de parcelada mostra diálogo de exclusão** — no detalhe, clicar no valor → calculadora → ✓ abre o diálogo de escopo com “Excluir”; corrigir para “Alterar”.
-- [ ] **Extrato — indicador de lançamento fixo mensal** — reutilizar o ícone de repetição que já existe em Lançamentos também no Extrato/timeline e no detalhe da conta.
-- [ ] **Cartões — fatura marcada como VENCIDA antes do vencimento** (item 28 do plano).
+- [x] **Cartões — fechamento 31 × 30, fechamento dinâmico e vencimento em dias úteis** — entregue no PR #81.
+- [x] **Cartões — card da fatura corrente (total × agendado × zerado)** — entregue no PR #82.
+- [x] **Cartões — lista de faturas limitada a ±1 mês** — entregue no PR #82.
+- [x] **Lançamentos — editar valor de parcelada mostrava diálogo de exclusão** — entregue no PR #85 (diálogo “Alterar”).
+- [x] **Extrato — indicador de lançamento fixo mensal** — entregue no PR #85.
+- [x] **Cartões — fatura marcada como VENCIDA antes do vencimento** — corrigido nos PRs #83/#84.
+- [x] **Mobile — Extrato/timeline: fonte grande e descrição longa truncada** — entregue no PR #85.
+- [ ] **Aviso de fatura fechada** — sino in-app + push (`mf-reminders`), uma vez por fatura, com total e vencimento.
+- [ ] **Vigência por mês** — mudanças de fechamento/vencimento/limite/conta vinculada a partir do mês da edição (`effective_from`/snapshot).
 - [ ] **Felix — configurar `GEMINI_API_KEY`** (bloqueado no usuário).
 - [ ] **Mobile — validação final** (aguardando prints/varredura restante).
-- [ ] **Mobile — Extrato/timeline: fonte grande e descrição longa truncada** — reduzir fonte e permitir 2 linhas/wrap.
+- [ ] **Calculadora — acesso global, saldo da conta e teclado** (item 6 da fila atual; detalhes na seção 9 de `docs/plano-minhas-financas.md`).
 
 ## 🚀 Novas Tarefas em Andamento
 

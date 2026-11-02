@@ -1842,3 +1842,49 @@ Itens ativos, na ordem de atendimento:
     Open Finance fora de escopo; foto de comprovante e relatório
     inteligente mensal adiados.
 
+---
+
+## 9. Fila atual (02/11/2026)
+
+Itens pendentes, na ordem de atendimento:
+
+1. **Aviso de fatura fechada** — sino in-app + push (`mf-reminders`):
+   - no dia do fechamento, um lembrete `invoice_closed` com cartão,
+     total/em aberto e vencimento; clique leva à fatura/Cartões;
+   - no servidor, a mesma regra, uma vez por fatura, sem spam;
+   - dedup por `card_id + invoice_close`, cartão arquivado/sem movimento
+     não gera aviso, clamp 28–31;
+   - testes do planner, UI do sino, function e E2E com cartão fechando hoje.
+2. **Vigência por mês** — mudanças de fechamento/vencimento/limite/conta
+   vinculada valerem a partir do mês da edição, sem reescrever faturas
+   passadas (`effective_from`/snapshot por mês).
+3. **Mobile — validação final** — varredura/prints restantes; o
+   Extrato/timeline já foi ajustado (fonte menor e 2 linhas).
+4. **Felix — `GEMINI_API_KEY`** — bloqueado no usuário:
+   `npx supabase secrets set GEMINI_API_KEY=<chave> --project-ref xfcehxyhhmuscodilfha`.
+5. **Backlog estratégico** — importar contas/categorias do Finance; conta
+   padrão “Não atribuída”; custo/créditos da IA; Open Finance fora de
+   escopo; foto de comprovante e relatório inteligente mensal adiados.
+6. **Calculadora — acesso global, saldo da conta e teclado** (pedido
+   02/11) — implementar:
+   - **Acesso de qualquer lugar** do Minhas Finanças: botão/atalho global
+     (cabeçalho ou menu) que abre a calculadora sem precisar entrar em um
+     lançamento.
+   - **Contexto de despesa/receita/transferência**: botão para inserir o
+     **saldo corrente da conta selecionada** na expressão. Ex.: saldo da
+     Nuconta = 1.000,00; `200 + saldo` → `1.200,00`. Usar o saldo PAGO até
+     hoje (mesma régua do extrato), na moeda da conta; deixar claro qual
+     conta/saldo foi inserido.
+   - **Teclado na web**: números, `+ - * /`, `%`, `Enter`/`=` para
+     confirmar, `Backspace` para apagar, `Esc` para limpar (ou fechar, se
+     vazio) e vírgula/ponto decimal. No mobile, manter o teclado virtual.
+   - **Testes**: abrir pelo botão global, inserir saldo no contexto da
+     conta, operações pelo teclado, `Esc`, `Enter`, foco/arialabel e
+     regressão do fluxo de valor em `MFTransacaoScreen`/`MFTxDetailModal`.
+
+> Histórico: os itens 2–7 da seção 8 foram entregues nos PRs #81–#85
+> (fechamento 31/dinâmico/dias úteis, card da fatura, lista ±1 mês,
+> diálogo “Alterar”, indicador de fixa, fatura vencida e mobile do
+> Extrato). O aviso de fatura fechada e a vigência por mês continuam
+> pendentes.
+
