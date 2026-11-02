@@ -25,6 +25,7 @@ import {
   maskAmount,
   toISODate,
   addMonthsISO,
+  addInvoiceCloseMonths,
   shiftRecurrenceDate,
   cardCycles,
   FIXED_SERIES_COUNT,
@@ -1020,7 +1021,7 @@ export default function MFTransacaoScreen({
           const monthOf = (iso, index) => {
             if (!useInvoice) return iso.slice(0, 7);
             const close = monthlySteps
-              ? addMonthsISO(base.invoice_close, index)
+              ? addInvoiceCloseMonths(selectedAccount, base.invoice_close, index)
               : invoiceCloseForDueMonth(selectedAccount, iso.slice(0, 7));
             return close.slice(0, 7);
           };
@@ -1212,7 +1213,7 @@ export default function MFTransacaoScreen({
           ? {
               invoice_close:
                 monthly && base.invoice_close
-                  ? addMonthsISO(base.invoice_close, step)
+                  ? addInvoiceCloseMonths(selectedAccount, base.invoice_close, step)
                   : invoiceCloseForDueMonth(selectedAccount, over.payment_date.slice(0, 7)),
             }
           : { invoice_close: null }),
