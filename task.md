@@ -11,7 +11,7 @@ Este checklist organiza as melhorias arquiteturais, funcionais e novas features 
 - [x] **Extrato — indicador de lançamento fixo mensal** — entregue no PR #85.
 - [x] **Cartões — fatura marcada como VENCIDA antes do vencimento** — corrigido nos PRs #83/#84.
 - [x] **Mobile — Extrato/timeline: fonte grande e descrição longa truncada** — entregue no PR #85.
-- [ ] **Aviso de fatura fechada** — sino in-app + push (`mf-reminders`), uma vez por fatura, com total e vencimento.
+- [x] **Aviso de fatura fechada** — sino in-app + push (`mf-reminders`), uma vez por fatura, com total e vencimento. Entregue na 1.29.0.
 - [ ] **Vigência por mês** — mudanças de fechamento/vencimento/limite/conta vinculada a partir do mês da edição (`effective_from`/snapshot).
 - [ ] **Felix — configurar `GEMINI_API_KEY`** (bloqueado no usuário).
 - [ ] **Mobile — validação final** (aguardando prints/varredura restante).

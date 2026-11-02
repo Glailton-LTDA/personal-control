@@ -127,3 +127,45 @@ export function planMFReminders(
   );
   return out.slice(0, Math.max(0, limit));
 }
+
+/**
+ * Planeja os avisos de **fatura fechada** do dia. `invoices` = faturas já
+ * calculadas pelo `buildCardInvoices` (a corrente + as fechadas), cada uma
+ * com `cardId`, `cardName`, `currency`, `closeISO`, `dueISO`, `total`,
+ * `openAmount` e `status`. Só entra a fatura cujo fechamento é HOJE e que
+ * tem movimento (total > 0). O `key` inclui cartão + fechamento: o aviso
+ * aparece uma vez por fatura, não por compra.
+ */
+export function planMFInvoiceReminders(
+  invoices,
+  todayISO,
+  { limit = 10 } = {}
+) {
+  if (!todayISO || !Array.isArray(invoices)) return [];
+  const out = [];
+  for (const invoice of invoices) {
+    if (!invoice || invoice.closeISO !== todayISO) continue;
+    const total = Number(invoice.total) || 0;
+    if (!(total > 0.005)) continue;
+    out.push({
+      key: `invoice:${invoice.cardId}:${invoice.closeISO}`,
+      kind: 'invoice_closed',
+      cardId: invoice.cardId ?? null,
+      cardName: invoice.cardName ?? '—',
+      closeISO: invoice.closeISO,
+      dueISO: invoice.dueISO ?? null,
+      total,
+      openAmount: Number(invoice.openAmount) || 0,
+      pendingBound: Number(invoice.pendingBound) || 0,
+      status: invoice.status ?? null,
+      currency: invoice.currency || 'BRL',
+    });
+  }
+  out.sort(
+    (a, b) =>
+      String(a.dueISO ?? '').localeCompare(String(b.dueISO ?? '')) ||
+      String(a.cardName).localeCompare(String(b.cardName))
+  );
+  return out.slice(0, Math.max(0, limit));
+}
+

@@ -7,12 +7,17 @@ import { supabase } from '../../lib/supabase';
 import {
   useMFAccounts,
   useMFReminderRows,
+  useMFCardTransactions,
+  buildCardInvoices,
+  currentMonthKey,
+  cardCloseForMonth,
+  shiftMonth,
   useMFNarrowScreen,
   formatMoney,
   mfInstallmentSuffix,
   toISODate,
 } from '../../hooks/useMinhasFinancas';
-import { planMFReminders } from './mfReminders';
+import { planMFReminders, planMFInvoiceReminders } from './mfReminders';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_MF_VAPID_PUBLIC_KEY ?? '';
 
@@ -47,16 +52,73 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
   // Só os pendentes (e as colunas do planeador) — antes o sino baixava a
   // tabela inteira de lançamentos a cada montagem do módulo.
   const { data: allTx = [], isLoading } = useMFReminderRows(user);
+  // Cartões: o aviso de fatura fechada precisa do total do ciclo que fecha
+  // hoje. O hook já é usado em Cartões/Resumo e fica em cache por 10 min.
+  const cardAccounts = useMemo(
+    () =>
+      (accounts ?? []).filter(
+        (acc) => acc.account_type === 'CARTAO' && !acc.archived_at
+      ),
+    [accounts]
+  );
+  const closingCards = useMemo(() => {
+    const today = toISODate(new Date());
+    const monthKey = today.slice(0, 7);
+    return cardAccounts.filter(
+      (card) =>
+        cardCloseForMonth(card, monthKey) === today ||
+        cardCloseForMonth(card, shiftMonth(monthKey, -1)) === today
+    );
+  }, [cardAccounts]);
+  const { data: cardData, isLoading: cardLoading } = useMFCardTransactions(
+    user,
+    closingCards,
+    currentMonthKey()
+  );
   const [pushState, setPushState] = useState('unknown'); // on | off | unsupported | unknown
   const [pushBusy, setPushBusy] = useState(false);
 
-  const reminders = useMemo(() => {
+  const txReminders = useMemo(() => {
     const accountsById = Object.fromEntries((accounts ?? []).map((acc) => [acc.id, acc]));
     return planMFReminders(allTx ?? [], {
       accountsById,
       todayISO: toISODate(new Date()),
     });
   }, [accounts, allTx]);
+
+  const invoiceReminders = useMemo(() => {
+    const today = toISODate(new Date());
+    const transactions = cardData?.transactions ?? [];
+    const built = [];
+    for (const card of closingCards) {
+      const { current, invoices = [] } = buildCardInvoices({
+        card,
+        transactions,
+        refISO: today,
+        monthKey: currentMonthKey(),
+        count: 2,
+        includeFutureBound: true,
+        aggregates: cardData?.aggregates ?? null,
+      });
+      const seen = new Set();
+      for (const invoice of [current, ...invoices]) {
+        if (!invoice || invoice.closeISO !== today || seen.has(invoice.closeISO)) continue;
+        seen.add(invoice.closeISO);
+        built.push({
+          ...invoice,
+          cardId: card.id,
+          cardName: card.name,
+          currency: card.currency,
+        });
+      }
+    }
+    return planMFInvoiceReminders(built, today);
+  }, [closingCards, cardData]);
+
+  const reminders = useMemo(
+    () => [...invoiceReminders, ...txReminders],
+    [invoiceReminders, txReminders]
+  );
 
   // Estado do push neste aparelho (inscrição existente?).
   useEffect(() => {
@@ -145,6 +207,13 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
 
   const pick = (reminder) => {
     setOpen(false);
+    if (reminder.kind === 'invoice_closed') {
+      if (reminder.dueISO) onChangeMonth?.(reminder.dueISO.slice(0, 7));
+      window.dispatchEvent(
+        new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas/cards' } })
+      );
+      return;
+    }
     onChangeMonth?.(reminder.dueISO.slice(0, 7));
     window.dispatchEvent(
       new CustomEvent('set-active-tab', { detail: { tab: 'minhasfinancas/transactions' } })
@@ -156,9 +225,12 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
       ? { color: '#ef4444', label: t('minhasfinancas.rem_overdue') }
       : kind === 'today'
         ? { color: '#f59e0b', label: t('minhasfinancas.rem_today') }
-        : { color: 'var(--primary)', label: t('minhasfinancas.rem_upcoming') };
+        : kind === 'invoice_closed'
+          ? { color: '#8b5cf6', label: t('minhasfinancas.rem_invoice_closed') }
+          : { color: 'var(--primary)', label: t('minhasfinancas.rem_upcoming') };
 
   const dueLabel = (reminder) => {
+    if (!reminder.dueISO) return '—';
     try {
       return new Intl.DateTimeFormat(i18n.language, { day: '2-digit', month: '2-digit' }).format(
         new Date(`${reminder.dueISO}T12:00:00`)
@@ -235,7 +307,57 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
             {t('minhasfinancas.rem_empty')}
           </span>
         )}
-        {reminders.map((reminder) => {
+        {invoiceReminders.map((reminder) => {
+          const kind = kindStyle(reminder.kind);
+          const openLabel =
+            reminder.openAmount > 0.005
+              ? t('minhasfinancas.rem_invoice_open', {
+                  amount: formatMoney(reminder.openAmount, reminder.currency),
+                })
+              : reminder.pendingBound > 0.005
+                ? t('minhasfinancas.rem_invoice_scheduled')
+                : t('minhasfinancas.rem_invoice_paid');
+          return (
+            <button
+              key={reminder.key}
+              type="button"
+              data-testid={`${testId}-invoice-${reminder.cardId}`}
+              onClick={() => pick(reminder)}
+              style={{
+                background: 'none',
+                border: 'none',
+                textAlign: 'left',
+                padding: '0.55rem 0.6rem',
+                borderRadius: 10,
+                cursor: 'pointer',
+                font: 'inherit',
+                color: 'var(--text-main)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.15rem',
+              }}
+            >
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t('minhasfinancas.rem_invoice_title', { card: reminder.cardName })}
+                </span>
+                <span style={{ fontWeight: 800, fontSize: '0.85rem', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                  {formatMoney(reminder.total, reminder.currency)}
+                </span>
+              </span>
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {openLabel}
+                </span>
+                <span style={{ color: kind.color, fontWeight: 700, flexShrink: 0 }}>
+                  {kind.label}
+                  {reminder.dueISO ? ` · ${dueLabel(reminder)}` : ''}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+        {txReminders.map((reminder) => {
           const kind = kindStyle(reminder.kind);
           return (
             <button
@@ -327,7 +449,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
         style={{ position: 'relative', padding: '0.55rem' }}
       >
         <Bell size={17} />
-        {!isLoading && reminders.length > 0 && (
+        {!isLoading && !cardLoading && reminders.length > 0 && (
           <span
             data-testid={`${testId}-count`}
             aria-hidden

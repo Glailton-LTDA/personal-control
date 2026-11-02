@@ -4,6 +4,13 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-11-02
+
+### Adicionado
+- **Aviso de fatura fechada** no sino do Minhas Finanças: no dia do fechamento, mostra o cartão, o total da fatura, o em aberto (ou “pagamento agendado”/“fatura paga”) e o vencimento. Clicar leva aos **Cartões** no mês do vencimento.
+- **Push de fatura fechada** na function `mf-reminders`: um aviso por cartão/fechamento, com total, vencimento e status; usa a data de **São Paulo**, respeita fechamento dinâmico/dias úteis e grava a trava de idempotência em `mf_invoice_notifications` para não repetir em re-runs do cron.
+- Migração `mf_invoice_notifications` (unique por usuário + cartão + fechamento, RLS de leitura própria).
+
 ## [1.28.4] - 2026-11-02
 
 ### Corrigido

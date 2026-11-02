@@ -32,7 +32,10 @@ vi.mock('../../lib/supabase', () => ({
 // Hooks com dados fixos (conta + 1 despesa vencendo em 3 dias)
 vi.mock('../../hooks/useMinhasFinancas', () => ({
   useMFAccounts: () => ({
-    data: [{ id: 'acc-1', name: 'Nuconta', account_type: 'CORRENTE', currency: 'BRL' }],
+    data: [
+      { id: 'acc-1', name: 'Nuconta', account_type: 'CORRENTE', currency: 'BRL' },
+      { id: 'acc-card', name: 'Nubank', account_type: 'CARTAO', currency: 'BRL' },
+    ],
   }),
   useMFReminderRows: () => ({
     data: [
@@ -49,6 +52,37 @@ vi.mock('../../hooks/useMinhasFinancas', () => ({
     ],
     isLoading: false,
   }),
+  useMFCardTransactions: () => ({
+    data: {
+      transactions: [
+        {
+          id: 'card-exp',
+          account_id: 'acc-card',
+          type: 'DESPESA',
+          status: 'PAGO',
+          amount: 1000,
+          payment_date: '2026-10-01',
+          invoice_close: '2026-10-15',
+        },
+      ],
+      aggregates: null,
+    },
+    isLoading: false,
+  }),
+  buildCardInvoices: () => ({
+    current: {
+      closeISO: '2026-10-15',
+      dueISO: '2026-10-22',
+      total: 1000,
+      openAmount: 1000,
+      pendingBound: 0,
+      status: 'EM_ABERTO',
+    },
+    invoices: [],
+  }),
+  currentMonthKey: () => '2026-10',
+  cardCloseForMonth: () => '2026-10-15',
+  shiftMonth: () => '2026-09',
   formatMoney: (value) => `R$ ${value}`,
   mfInstallmentSuffix: () => '',
   toISODate: (date) => date.toISOString().slice(0, 10),
@@ -79,12 +113,32 @@ describe('MFRemindersBell — sino de lembretes', () => {
     renderBell();
 
     await waitFor(() => {
-      expect(screen.getByTestId('mf-reminders-count')).toHaveTextContent('1');
+      expect(screen.getByTestId('mf-reminders-count')).toHaveTextContent('2');
     });
 
     fireEvent.click(screen.getByTestId('mf-reminders-bell'));
     expect(screen.getByTestId('mf-reminders-panel')).toBeInTheDocument();
     expect(screen.getByTestId('mf-reminders-item-tx-rem')).toHaveTextContent('Aluguel');
+    expect(screen.getByTestId('mf-reminders-invoice-acc-card')).toBeInTheDocument();
+  });
+
+  it('fatura fechada hoje leva aos Cartões no mês do vencimento', async () => {
+    const onChangeMonth = renderBell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-reminders-count')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-reminders-bell'));
+
+    const listener = vi.fn();
+    window.addEventListener('set-active-tab', listener);
+    fireEvent.click(screen.getByTestId('mf-reminders-invoice-acc-card'));
+    expect(onChangeMonth).toHaveBeenCalledWith('2026-10');
+    expect(listener).toHaveBeenCalled();
+    const event = listener.mock.calls[0][0];
+    expect(event.detail.tab).toBe('minhasfinancas/cards');
+    window.removeEventListener('set-active-tab', listener);
+    expect(screen.queryByTestId('mf-reminders-panel')).not.toBeInTheDocument();
   });
 
   it('clicar no lembrete vai aos Lançamentos no mês do vencimento', async () => {

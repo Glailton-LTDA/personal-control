@@ -1848,7 +1848,9 @@ Itens ativos, na ordem de atendimento:
 
 Itens pendentes, na ordem de atendimento:
 
-1. **Aviso de fatura fechada** — sino in-app + push (`mf-reminders`):
+1. ✅ **Aviso de fatura fechada** — entregue na **1.29.0** (sino + push
+   `mf-reminders`, dedup em `mf_invoice_notifications`). Detalhes para
+   referência:
    - no dia do fechamento, um lembrete `invoice_closed` com cartão,
      total/em aberto e vencimento; clique leva à fatura/Cartões;
    - no servidor, a mesma regra, uma vez por fatura, sem spam;
