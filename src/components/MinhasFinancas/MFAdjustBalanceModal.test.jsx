@@ -282,6 +282,7 @@ describe('MFAdjustBalanceModal', () => {
       current: 350,
       payDate: '2026-10-20',
       invoiceLabel: 'Venc. 20/10/26',
+      invoiceClose: '2026-10-10',
       allowInitial: false,
     });
 
@@ -302,6 +303,7 @@ describe('MFAdjustBalanceModal', () => {
       status: 'PAGO',
       payment_date: '2026-10-20',
       description: 'minhasfinancas.adjust_tx_expense',
+      invoice_close: '2026-10-10',
     });
   });
 });

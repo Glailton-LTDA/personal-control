@@ -31,7 +31,16 @@ where id in (
 )
 and invoice_close <> '2026-12-31';
 
--- 3) Espelhos de pagamento das faturas afetadas: sem isso, o espelho de
+-- 3) Ajuste manual de -123,22 feito em 01/11 para acertar novembro:
+--    vincula ao fechamento de 31/10. Sem o vínculo ele entra pela data e
+--    a fatura de novembro mudaria 123,22 ao abrir outubro (a compra
+--    "ainda não existia" na régua de época).
+update public.mf_transactions
+set invoice_close = '2026-10-31'
+where id = '23f861a7-602a-4701-8cd0-d6438eb0486d' -- Despesa de ajuste -123,22
+  and invoice_close is null;
+
+-- 4) Espelhos de pagamento das faturas afetadas: sem isso, o espelho de
 --    dezembro continuaria em 1.946,11 (46,83 acima) e o de janeiro em
 --    750,96 (37,80 + 46,83 abaixo) até o agendador rodar. Atualiza só o
 --    espelho automático pendente do Nubank; o pagamento manual do usuário

@@ -1790,6 +1790,7 @@ export default function MFAccountDetail({
           user={user}
           current={shownSaldo}
           payDate={monthRefISO(monthKey)}
+          invoiceClose={cardQuick?.current?.closeISO ?? null}
           allowInitial
           onClose={() => setAdjustOpen(false)}
           onManual={(d) =>

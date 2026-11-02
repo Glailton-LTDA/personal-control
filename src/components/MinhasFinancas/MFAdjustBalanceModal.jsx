@@ -55,6 +55,7 @@ export default function MFAdjustBalanceModal({
   current = 0,
   payDate,
   invoiceLabel = null,
+  invoiceClose = null,
   allowInitial = true,
   onClose = () => {},
   onManual = null,
@@ -259,6 +260,10 @@ export default function MFAdjustBalanceModal({
           status: 'PAGO',
           category_id: categoryId,
           recurrence: 'NONE',
+          // Ajuste de fatura nasce vinculado ao ciclo que está sendo
+          // reajustado; sem isso ele entra pela data e a fatura muda ao
+          // navegar para o mês anterior.
+          ...(cardLike && invoiceClose ? { invoice_close: invoiceClose } : {}),
         });
         applyOptimistic(created);
         toast.success(t('minhasfinancas.tx_saved'));
