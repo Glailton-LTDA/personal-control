@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight, Send, X } from 'lucide-react';
+import { ArrowLeftRight, Repeat, Send, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNotificationSettings } from '../../hooks/useFinance';
 import {
@@ -282,16 +282,36 @@ export default function MFStatementTimeline({
                         )}
                       </span>
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          style={{
-                            display: 'block',
-                            fontWeight: 700,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {`${tx.description || '—'}${mfInstallmentSuffix(tx)}`}
+                        <span className="mf-timeline-desc-row">
+                          <span
+                            className="mf-timeline-desc"
+                            title={`${tx.description || '—'}${mfInstallmentSuffix(tx)}`}
+                          >
+                            {`${tx.description || '—'}${mfInstallmentSuffix(tx)}`}
+                          </span>
+                          {tx.is_fixed ? (
+                            <span
+                              data-testid={`mf-timeline-fixed-${tx.id}`}
+                              title={t('minhasfinancas.tx_fixed_badge')}
+                              style={{ color: '#8b5cf6', display: 'inline-flex', flexShrink: 0 }}
+                            >
+                              <Repeat size={13} />
+                            </span>
+                          ) : (
+                            tx.recurrence &&
+                            tx.recurrence !== 'NONE' && (
+                              <span
+                                title={t('minhasfinancas.tx_recurrence')}
+                                style={{
+                                  color: 'var(--text-muted)',
+                                  display: 'inline-flex',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <Repeat size={12} />
+                              </span>
+                            )
+                          )}
                         </span>
                         {subtitle && (
                           <span
@@ -311,6 +331,7 @@ export default function MFStatementTimeline({
                       <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', flexShrink: 0 }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                           <span
+                            className="mf-timeline-amount"
                             style={{
                               fontWeight: 800,
                               color,

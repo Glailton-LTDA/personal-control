@@ -4,6 +4,13 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.28.4] - 2026-11-02
+
+### Corrigido
+- **Editar valor de parcelada**: ao confirmar o novo valor na calculadora, o diálogo de escopo agora fala em **alterar** (“Alterar apenas esta / esta e as próximas / todas”), em vez de exibir as opções de exclusão. O mesmo ajuste vale para salvar edição rápida e duplicar.
+- **Extrato/timeline**: lançamentos fixos ganharam o indicador de repetição (roxo) também no Extrato e no detalhe da conta.
+- **Mobile — descrição longa**: a descrição do Extrato/timeline permite **duas linhas** com fonte menor; o valor também foi reduzido para manter o alinhamento.
+
 ## [1.28.3] - 2026-11-01
 
 ### Corrigido

@@ -307,7 +307,10 @@ export default function MFExtrato({
                   )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{`${tx.description}${mfInstallmentSuffix(tx)}`}</p>
+                    <p
+                      className="mf-extrato-desc"
+                      style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}
+                    >{`${tx.description}${mfInstallmentSuffix(tx)}`}</p>
                     <p
                       style={{
                         margin: '0.15rem 0 0',
@@ -339,6 +342,7 @@ export default function MFExtrato({
                   <div style={{ textAlign: 'right' }}>
                     <p
                       data-testid="mf-statement-amount"
+                      className="mf-extrato-amount"
                       style={{
                         margin: 0,
                         fontWeight: 800,

@@ -279,6 +279,31 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     return list.filter((row) => row.id === tx.id);
   };
   const needsScope = headId || fixedSeries.length > 1;
+  // Diálogo de escopo com texto por ação: antes o mesmo título/opções de
+  // "Excluir" aparecia ao alterar valor ou salvar edição rápida.
+  const scopeCopy = scopeAction?.action === 'value'
+    ? {
+        title: 'tx_value_scope_title',
+        body: 'tx_value_scope_body',
+        one: 'tx_value_scope_one',
+        from: 'tx_value_scope_from',
+        all: 'tx_value_scope_all',
+      }
+    : scopeAction?.action === 'quick'
+      ? {
+          title: 'tx_quick_scope_title',
+          body: 'tx_quick_scope_body',
+          one: 'tx_quick_scope_one',
+          from: 'tx_quick_scope_from',
+          all: 'tx_quick_scope_all',
+        }
+      : {
+          title: 'tx_delete_fixed_title',
+          body: 'tx_delete_fixed_body',
+          one: 'tx_delete_scope_one',
+          from: 'tx_delete_scope_from',
+          all: 'tx_delete_scope_all',
+        };
   // Espelho local do lançamento (edição rápida / valor): o `tx` vindo do
   // pai é um snapshot da abertura — sem isso o modal seguia mostrando o
   // valor/nome antigo após salvar, até fechar e reabrir.
@@ -1491,12 +1516,12 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
         {scopeAction && (
           <MFChoiceDialog
             testId="mf-tx-detail-scope"
-            title={t('minhasfinancas.tx_delete_fixed_title')}
-            body={t('minhasfinancas.tx_delete_fixed_body')}
+            title={t(`minhasfinancas.${scopeCopy.title}`)}
+            body={t(`minhasfinancas.${scopeCopy.body}`)}
             options={[
-              { key: 'one', label: t('minhasfinancas.tx_delete_scope_one'), testId: 'mf-tx-detail-scope-one' },
-              { key: 'from', label: t('minhasfinancas.tx_delete_scope_from'), testId: 'mf-tx-detail-scope-from' },
-              { key: 'all', label: t('minhasfinancas.tx_delete_scope_all'), testId: 'mf-tx-detail-scope-all' },
+              { key: 'one', label: t(`minhasfinancas.${scopeCopy.one}`), testId: 'mf-tx-detail-scope-one' },
+              { key: 'from', label: t(`minhasfinancas.${scopeCopy.from}`), testId: 'mf-tx-detail-scope-from' },
+              { key: 'all', label: t(`minhasfinancas.${scopeCopy.all}`), testId: 'mf-tx-detail-scope-all' },
             ]}
             onOption={onScopeOption}
             onClose={() => setScopeAction(null)}
@@ -1507,12 +1532,12 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
         {dupeScopeKind && (
           <MFChoiceDialog
             testId="mf-tx-detail-dupe-scope"
-            title={t('minhasfinancas.tx_delete_fixed_title')}
-            body={t('minhasfinancas.tx_delete_fixed_body')}
+            title={t('minhasfinancas.tx_dupe_scope_title')}
+            body={t('minhasfinancas.tx_dupe_scope_body')}
             options={[
-              { key: 'one', label: t('minhasfinancas.tx_delete_scope_one'), testId: 'mf-tx-detail-dupe-scope-one' },
-              { key: 'from', label: t('minhasfinancas.tx_delete_scope_from'), testId: 'mf-tx-detail-dupe-scope-from' },
-              { key: 'all', label: t('minhasfinancas.tx_delete_scope_all'), testId: 'mf-tx-detail-dupe-scope-all' },
+              { key: 'one', label: t('minhasfinancas.tx_dupe_scope_one'), testId: 'mf-tx-detail-dupe-scope-one' },
+              { key: 'from', label: t('minhasfinancas.tx_dupe_scope_from'), testId: 'mf-tx-detail-dupe-scope-from' },
+              { key: 'all', label: t('minhasfinancas.tx_dupe_scope_all'), testId: 'mf-tx-detail-dupe-scope-all' },
             ]}
             onOption={(key) => openDupeForm(dupeScopeKind, key)}
             onClose={() => setDupeScopeKind(null)}

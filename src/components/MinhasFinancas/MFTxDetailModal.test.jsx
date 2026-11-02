@@ -677,6 +677,15 @@ describe('MFTxDetailModal — Detalhes da despesa', () => {
     // série: o escopo só aparece DEPOIS do ✓ (fluxo do print)
     expect(screen.queryByTestId('mf-tx-detail-calc')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-tx-detail-scope')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-tx-detail-scope')).toHaveTextContent(
+      'minhasfinancas.tx_value_scope_title'
+    );
+    expect(screen.getByTestId('mf-tx-detail-scope-all')).toHaveTextContent(
+      'minhasfinancas.tx_value_scope_all'
+    );
+    expect(screen.getByTestId('mf-tx-detail-scope')).not.toHaveTextContent(
+      'minhasfinancas.tx_delete_fixed_title'
+    );
     fireEvent.click(screen.getByTestId('mf-tx-detail-scope-all'));
 
     const { supabase } = await import('../../lib/supabase');
