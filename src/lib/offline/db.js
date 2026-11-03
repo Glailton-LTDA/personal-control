@@ -124,6 +124,12 @@ db.version(7).stores({
   mf_card_settings: 'id, card_id, user_id, effective_from',
 });
 
+// Cabeçalhos oficiais de fatura (baixa manual/importação). Só leitura
+// offline: a UI sobrepõe o cálculo derivado quando há registro manual.
+db.version(8).stores({
+  mf_invoices: 'id, card_id, user_id, close_date',
+});
+
 /**
  * Tabelas do Minhas Finanças replicadas no Dexie (cache de leitura).
  * mf_import_* ficam de fora (exigem conexão) e mf_restore_points não é
@@ -134,6 +140,7 @@ export const MF_OFFLINE_TABLES = [
   'mf_accounts',
   'mf_account_types',
   'mf_card_settings',
+  'mf_invoices',
   'mf_transactions',
   'mf_transaction_tags',
   'mf_categories',

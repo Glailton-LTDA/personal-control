@@ -20,6 +20,9 @@ import {
   useInstallmentDelete,
   useDeleteMFFixedSeries,
   useMFSetTransactionStatus,
+  useMFInvoices,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
   buildEstornoTx,
   cardCycles,
@@ -192,6 +195,16 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
   }, [tx, accounts, accountById]);
   const { data: allTx = [] } = useMFAccountTransactions(user, null, txScopeIds);
   const isCard = account?.account_type === 'CARTAO';
+  // Baixa manual/importada também manda no detalhe do lançamento (a
+  // fatura mostrada é a mesma das telas de Cartões/Resumo).
+  const { data: invoiceRecords = [] } = useMFInvoices(
+    user,
+    isCard && account ? [account.id] : []
+  );
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
   const isTransfer = tx?.type === 'TRANSFERENCIA';
   const parcelada = isParceladaTx(tx);
   const headId = installmentHeadId(tx);
@@ -237,14 +250,24 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     const refISO = monthRefISO(currentMonthKey());
     // Com vínculo futuro (fixas criadas à frente), a fatura só existe
     // com a flag — sem ela caía no fallback da corrente.
-    const built = buildCardInvoices({ card: account, transactions: allTx, refISO, includeFutureBound: true });
+    const built = applyCardInvoiceRecords(
+      buildCardInvoices({
+        card: account,
+        transactions: allTx,
+        refISO,
+        includeFutureBound: true,
+      }),
+      invoiceRecordMap,
+      account.id,
+      refISO
+    );
     const all = [built.current, ...built.invoices, ...(built.upcomingInvoices ?? [])];
     return (
       all.find((inv) => inv.closeISO === tx.invoice_close) ??
       all.find((inv) => inv.closeISO === built.current?.closeISO) ??
       null
     );
-  }, [tx, isCard, isTransfer, account, allTx]);
+  }, [tx, isCard, isTransfer, account, allTx, invoiceRecordMap]);
 
   const money = (value, currency) => formatMoney(value, currency || account?.currency || 'BRL');
   const seriesPaid = series

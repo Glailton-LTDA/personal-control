@@ -41,7 +41,10 @@ import {
   useMFInvoices,
   useUpdateAccount,
   useDeleteAccount,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
+  getInvoiceRecord,
   monthRefISO,
   monthBounds,
   prevMonthKey,
@@ -68,31 +71,6 @@ import MFStatementTimeline from './MFStatementTimeline';
 import MFManageMenu from './MFManageMenu';
 
 /** Status possíveis de fatura (chips de cartões vinculados). */
-const applyInvoiceRecord = (invoice, record, refISO) => {
-  if (!invoice || !record) return invoice;
-  const total = Number(record.total) || 0;
-  const paid = Number(record.paid_total) || 0;
-  const open = Math.max(0, Math.round((total - paid) * 100) / 100);
-  const isPaid = record.status === 'PAID' || (total > 0 && open < 0.005);
-  const status = isPaid
-    ? 'PAGA'
-    : record.status === 'OVERDUE' || (invoice.dueISO && invoice.dueISO < refISO)
-      ? 'VENCIDA'
-      : record.status === 'SCHEDULED'
-        ? 'AGENDADA'
-        : 'EM_ABERTO';
-  return {
-    ...invoice,
-    total,
-    paid,
-    openAmount: open,
-    pendingBound: isPaid ? 0 : invoice.pendingBound,
-    refunds: 0,
-    status,
-    manual: true,
-  };
-};
-
 const INVOICE_STATUS = {
   PAGA: { key: 'minhasfinancas.card_status_paid', color: '#10b981' },
   AGENDADA: { key: 'minhasfinancas.card_status_scheduled', color: 'var(--primary)' },
@@ -313,14 +291,8 @@ export default function MFAccountDetail({
     [account.account_type, account.id, linkedCardIds]
   );
   const { data: invoiceRecords = [] } = useMFInvoices(user, invoiceCardIds);
-  const recordByCardClose = useMemo(
-    () =>
-      Object.fromEntries(
-        (invoiceRecords ?? []).map((row) => [
-          `${row.card_id}|${String(row.close_date).slice(0, 10)}`,
-          row,
-        ])
-      ),
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
     [invoiceRecords]
   );
 
@@ -335,21 +307,18 @@ export default function MFAccountDetail({
           !row.archived_at
       )
       .map((card) => {
-        const built = buildCardInvoices({
-          card,
-          transactions: allTx,
-          refISO,
-          monthKey,
-          settings: cardSettings,
-        });
-        const apply = (inv) =>
-          applyInvoiceRecord(
-            inv,
-            recordByCardClose[`${card.id}|${inv?.closeISO}`],
-            refISO
-          );
-        const current = apply(built.current);
-        const invoices = (built.invoices ?? []).map(apply);
+        const { current, invoices } = applyCardInvoiceRecords(
+          buildCardInvoices({
+            card,
+            transactions: allTx,
+            refISO,
+            monthKey,
+            settings: cardSettings,
+          }),
+          invoiceRecordMap,
+          card.id,
+          refISO
+        );
         const active =
           // 1) fatura em aberto mais antiga (é o que falta pagar);
           // 2) corrente com movimento; 3) última fechada com valor
@@ -362,10 +331,10 @@ export default function MFAccountDetail({
         return {
           card,
           active,
-          record: active ? recordByCardClose[`${card.id}|${active.closeISO}`] ?? null : null,
+          record: getInvoiceRecord(invoiceRecordMap, card.id, active?.closeISO),
         };
       });
-  }, [account, accounts, allTx, refISO, monthKey, cardSettings, recordByCardClose]);
+  }, [account, accounts, allTx, refISO, monthKey, cardSettings, invoiceRecordMap]);
 
   /** Abre o modal de pagamento (total ou parcial) da fatura do cartão vinculado. */
   const handlePayLinked = (card, invoice) => {
@@ -665,25 +634,22 @@ export default function MFAccountDetail({
   // chips de fatura) — sem fatura no mês, sem card.
   const cardQuick = useMemo(() => {
     if (account.account_type !== 'CARTAO') return null;
-    const built = buildCardInvoices({
-      card: account,
-      transactions: allTx ?? [],
-      refISO,
-      monthKey,
-      settings: cardSettings,
-    });
-    const apply = (inv) =>
-      applyInvoiceRecord(
-        inv,
-        recordByCardClose[`${account.id}|${inv?.closeISO}`],
-        refISO
-      );
-    const current = apply(built.current);
+    const { current, upcomingInvoices } = applyCardInvoiceRecords(
+      buildCardInvoices({
+        card: account,
+        transactions: allTx ?? [],
+        refISO,
+        monthKey,
+        settings: cardSettings,
+      }),
+      invoiceRecordMap,
+      account.id,
+      refISO
+    );
     if (!current) return null;
-    const upcomingInvoices = (built.upcomingInvoices ?? []).map(apply);
     const next = upcomingInvoices.find((row) => row.closeISO !== current.closeISO) ?? null;
     return { current, next };
-  }, [account, allTx, refISO, monthKey, cardSettings, recordByCardClose]);
+  }, [account, allTx, refISO, monthKey, cardSettings, invoiceRecordMap]);
   const quickStatus = cardQuick
     ? INVOICE_STATUS[cardQuick.current.status] ?? INVOICE_STATUS.CORRENTE
     : null;

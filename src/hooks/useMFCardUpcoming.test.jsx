@@ -58,13 +58,22 @@ const payment = {
 };
 
 let rows = [];
+let invoiceRows = [];
 let scopeFilters = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
   rows = [];
+  invoiceRows = [];
   scopeFilters = [];
   mfSelectAll.mockImplementation(async (table, buildQuery, local = {}) => {
+    // Cabeçalhos oficiais (`mf_invoices`) vêm de outra tabela: não entram
+    // no recorte de transações nem nos filtros de escopo testados abaixo.
+    if (table === 'mf_invoices') {
+      let out = [...invoiceRows];
+      if (typeof local.filter === 'function') out = local.filter(out);
+      return { data: out, error: null };
+    }
     // O hook de cartões consulta o recorte em três pedaços (compras no
     // cartão, transferências para ele e os pagamentos-espelho na conta
     // vinculada) — o escopo efetivo é a união dos filtros.
@@ -139,6 +148,52 @@ describe('useMFCardUpcoming — escopo enxuto com conta vinculada', () => {
     // ciclo fechado com saldo → "CORRENTE" (ícone fechado âmbar), não PAGA
     expect(current.status).toBe('CORRENTE');
     expect(current.openAmount).toBe(100);
+    expect(result.current.openTotalByCurrency).toEqual({ BRL: 100 });
+  });
+
+  it('baixa manual em mf_invoices sobrepõe o derivado e zera o "a pagar"', async () => {
+    rows = [purchase]; // derivado: fatura de 100 em aberto
+    invoiceRows = [
+      {
+        id: 'inv-1',
+        card_id: 'card-nu',
+        close_date: '2026-09-30',
+        due_date: '2026-10-07',
+        total: 100,
+        total_source: 'manual',
+        paid_total: 100,
+        status: 'PAID',
+      },
+    ];
+    const { result } = renderUpcoming();
+
+    await waitFor(() =>
+      expect(result.current.items[0]?.current?.status).toBe('PAGA')
+    );
+    expect(result.current.items[0].current.manual).toBe(true);
+    expect(result.current.items[0].current.openAmount).toBe(0);
+    expect(result.current.openTotalByCurrency).toEqual({});
+  });
+
+  it('backfill derived NÃO sobrepõe a fatura derivada', async () => {
+    rows = [purchase];
+    invoiceRows = [
+      {
+        id: 'inv-derived',
+        card_id: 'card-nu',
+        close_date: '2026-09-30',
+        total: 999,
+        total_source: 'derived',
+        paid_total: 999,
+        status: 'PAID',
+      },
+    ];
+    const { result } = renderUpcoming();
+
+    await waitFor(() =>
+      expect(result.current.items[0]?.current?.total).toBe(100)
+    );
+    expect(result.current.items[0].current.status).toBe('CORRENTE');
     expect(result.current.openTotalByCurrency).toEqual({ BRL: 100 });
   });
 

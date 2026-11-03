@@ -145,6 +145,8 @@ export function planMFInvoiceReminders(
   const out = [];
   for (const invoice of invoices) {
     if (!invoice || invoice.closeISO !== todayISO) continue;
+    // Fatura já paga (inclusive baixa manual) não vira lembrete.
+    if (invoice.status === 'PAGA') continue;
     const total = Number(invoice.total) || 0;
     if (!(total > 0.005)) continue;
     out.push({

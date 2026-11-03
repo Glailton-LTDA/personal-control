@@ -3453,9 +3453,23 @@ export function useMFScheduleCardPayments(user) {
   const transactions = cardData?.transactions;
   const aggregates = cardData?.aggregates ?? null;
   const settings = useMemo(() => cardData?.settings ?? [], [cardData]);
+  const cardIds = useMemo(
+    () => cardAccounts.map((card) => card.id).filter(Boolean),
+    [cardAccounts]
+  );
+  const { data: invoiceRecords = [], isLoading: invoiceLoading } = useMFInvoices(
+    user,
+    cardIds
+  );
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
   useEffect(() => {
     if (!user?.id || import.meta.env.MODE === 'test') return undefined;
-    if (mfScheduleRunning || !accounts || !transactions) return undefined;
+    // Espera os cabeçalhos oficiais: sem eles o agendador poderia criar
+    // espelho numa fatura que já foi baixada manualmente.
+    if (invoiceLoading || mfScheduleRunning || !accounts || !transactions) return undefined;
     const accountIds = new Set(accounts.map((row) => row.id));
     const cards = accounts.filter(
       (row) =>
@@ -3487,10 +3501,16 @@ export function useMFScheduleCardPayments(user) {
             aggregates,
             settings,
           });
+          // Fatura com baixa manual/importada é oficial: o agendador não
+          // pode criar/reescrever espelho nela (o pagamento pode não estar
+          // no histórico e o espelho mudaria o saldo da conta).
+          const officialInvoices = [current, ...invoices, ...upcomingInvoices].filter(
+            (inv) => !isOfficialInvoiceRecord(getInvoiceRecord(invoiceRecordMap, card.id, inv?.closeISO))
+          );
           const plan = planInvoicePaymentSync({
             userId: user.id,
             card,
-            invoices: [current, ...invoices, ...upcomingInvoices],
+            invoices: officialInvoices,
             transactions,
             today,
             minCloseMonth: currentMonthKey(),
@@ -3595,7 +3615,7 @@ export function useMFScheduleCardPayments(user) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, accounts, transactions, aggregates, settings, queryClient]);
+  }, [user?.id, accounts, transactions, aggregates, settings, invoiceRecordMap, invoiceLoading, queryClient]);
 }
 
 /**
@@ -4225,6 +4245,97 @@ export function useMFCardSettings(user, cardIds) {
 }
 
 /**
+ * Fonte oficial da fatura. Registros de backfill (`derived`) são só
+ * referência e NÃO podem sobrepor o cálculo derivado: eles foram gerados a
+ * partir do próprio extrato e, se aplicados, zerariam uma baixa manual.
+ * Somente `manual` (baixa do usuário) e `imported` (extrato) mandam.
+ */
+export const isOfficialInvoiceRecord = (record) =>
+  !!record &&
+  (record.total_source === 'manual' || record.total_source === 'imported');
+
+/** Índice `${card_id}|${close_date}` → registro de `mf_invoices`. */
+export function buildInvoiceRecordMap(records) {
+  return Object.fromEntries(
+    (records ?? []).map((row) => [
+      `${row.card_id}|${String(row.close_date ?? '').slice(0, 10)}`,
+      row,
+    ])
+  );
+}
+
+/** Registro da fatura no índice de `buildInvoiceRecordMap` (ou null). */
+export function getInvoiceRecord(map, cardId, closeISO) {
+  if (!map || !cardId || !closeISO) return null;
+  return map[`${cardId}|${String(closeISO).slice(0, 10)}`] ?? null;
+}
+
+/**
+ * Sobrepõe o cabeçalho oficial (`mf_invoices`) a uma fatura derivada.
+ * Sem registro manual/importado devolve a fatura intacta.
+ */
+export function applyInvoiceRecord(invoice, record, refISO = null) {
+  if (!invoice || !isOfficialInvoiceRecord(record)) return invoice;
+  const total = Number(record.total) || 0;
+  const paid = Number(record.paid_total) || 0;
+  const open = Math.max(0, Math.round((total - paid) * 100) / 100);
+  const isPaid = record.status === 'PAID' || (total > 0 && open < 0.005);
+  const status = isPaid
+    ? 'PAGA'
+    : record.status === 'OVERDUE' || (invoice.dueISO && invoice.dueISO < refISO)
+      ? 'VENCIDA'
+      : record.status === 'SCHEDULED'
+        ? 'AGENDADA'
+        : 'EM_ABERTO';
+  return {
+    ...invoice,
+    total,
+    // Total oficial é líquido (despesas − estornos): os estornos derivados
+    // não podem ser somados de novo na UI.
+    refunds: 0,
+    paid,
+    openAmount: open,
+    pendingBound: isPaid ? 0 : invoice.pendingBound,
+    status,
+    manual: true,
+  };
+}
+
+/**
+ * Aplica o mapa de `mf_invoices` a TODAS as faturas de um cartão e recalcula
+ * os agregados (em aberto/agendado/mais antiga em aberto) usados pelo widget.
+ */
+export function applyCardInvoiceRecords(built, recordMap, cardId, refISO = null) {
+  if (!built) return built;
+  const apply = (invoice) =>
+    applyInvoiceRecord(invoice, getInvoiceRecord(recordMap, cardId, invoice?.closeISO), refISO);
+  const current = apply(built.current);
+  const invoices = (built.invoices ?? []).map(apply);
+  const upcomingInvoices = (built.upcomingInvoices ?? []).map(apply);
+  const sum = (rows, field) =>
+    rows.reduce((acc, row) => acc + (Number(row?.[field]) || 0), 0);
+  const roundMoney = (value) => Math.round(value * 100) / 100;
+  return {
+    ...built,
+    current,
+    invoices,
+    upcomingInvoices,
+    openTotal: roundMoney(
+      sum(invoices, 'openAmount') +
+        (Number(current?.openAmount) || 0) +
+        sum(upcomingInvoices, 'openAmount')
+    ),
+    pendingTotal: roundMoney(
+      sum(invoices, 'pendingBound') +
+        (Number(current?.pendingBound) || 0) +
+        sum(upcomingInvoices, 'pendingBound')
+    ),
+    oldestOpenInvoice:
+      [...invoices].filter((invoice) => Number(invoice.openAmount) > 0).pop() ?? null,
+  };
+}
+
+/**
  * Cabeçalhos de fatura (`mf_invoices`) dos cartões informados. A UI usa
  * esse registro para sobrepor o total/status derivado quando existe uma
  * baixa manual (total oficial informado pelo usuário).
@@ -4238,11 +4349,22 @@ export function useMFInvoices(user, cardIds = null) {
     queryKey: ['mf-invoices', user?.id, ids.join(',')],
     enabled: !!user?.id && ids.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('mf_invoices')
-        .select('*')
-        .in('card_id', ids)
-        .order('close_date');
+      const { data, error } = await mfSelectAll(
+        'mf_invoices',
+        () =>
+          supabase
+            .from('mf_invoices')
+            .select('*')
+            .in('card_id', ids)
+            .order('close_date'),
+        {
+          filter: (rows) => rows.filter((row) => ids.includes(row.card_id)),
+          sort: (rows) =>
+            [...rows].sort((a, b) =>
+              String(a.close_date ?? '').localeCompare(String(b.close_date ?? ''))
+            ),
+        }
+      );
       if (error) throw error;
       return data ?? [];
     },
@@ -5140,6 +5262,17 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
   const transactions = useMemo(() => cardData?.transactions ?? [], [cardData]);
   const aggregates = cardData?.aggregates ?? null;
   const settings = useMemo(() => cardData?.settings ?? [], [cardData]);
+  // Cabeçalho oficial da fatura (baixa manual/importação). Sem isso o
+  // Resumo continuaria mostrando o total derivado mesmo após a baixa.
+  const cardIds = useMemo(
+    () => (cards ?? []).map((card) => card.id).filter(Boolean),
+    [cards]
+  );
+  const { data: invoiceRecords = [] } = useMFInvoices(user, cardIds);
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
   return useMemo(() => {
     if (!cards || cards.length === 0) {
       return { items: [], openTotalByCurrency: {}, upcomingTotalByCurrency: {} };
@@ -5150,16 +5283,21 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
     const refISO = monthRefISO(monthKey);
     const items = cards.map((card) => {
       const cur = card.currency || 'BRL';
-      const { current, upcomingInvoices = [] } = buildCardInvoices({
-        card,
-        transactions: allTxs,
-        refISO,
-        monthKey,
-        count: 6,
-        includeFutureBound: true,
-        aggregates,
-        settings,
-      });
+      const { current, upcomingInvoices = [] } = applyCardInvoiceRecords(
+        buildCardInvoices({
+          card,
+          transactions: allTxs,
+          refISO,
+          monthKey,
+          count: 6,
+          includeFutureBound: true,
+          aggregates,
+          settings,
+        }),
+        invoiceRecordMap,
+        card.id,
+        refISO
+      );
       // Próxima fatura = primeira futura com despesa vinculada, senão a corrente.
       const upcoming = upcomingInvoices.find(
         (inv) => Number(inv.total) > 0 || Number(inv.openAmount) > 0
@@ -5184,5 +5322,5 @@ export function useMFCardUpcoming(user, cards, monthKey = currentMonthKey()) {
       return { card, current, upcoming: shown, next: upcoming ?? null, openAmount };
     });
     return { items, openTotalByCurrency, upcomingTotalByCurrency };
-  }, [cards, transactions, aggregates, settings, monthKey]);
+  }, [cards, transactions, aggregates, settings, monthKey, invoiceRecordMap]);
 }

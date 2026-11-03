@@ -8,6 +8,9 @@ import {
   useMFAccounts,
   useMFReminderRows,
   useMFCardTransactions,
+  useMFInvoices,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
   currentMonthKey,
   cardCloseForMonth,
@@ -75,6 +78,16 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
     closingCards,
     currentMonthKey()
   );
+  // Baixa manual/importada zera o lembrete de fechamento: a fatura oficial
+  // já está resolvida, mesmo que o cálculo derivado ainda mostre saldo.
+  const { data: invoiceRecords = [] } = useMFInvoices(
+    user,
+    closingCards.map((card) => card.id)
+  );
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
   const [pushState, setPushState] = useState('unknown'); // on | off | unsupported | unknown
   const [pushBusy, setPushBusy] = useState(false);
 
@@ -92,16 +105,21 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
     const settings = cardData?.settings ?? [];
     const built = [];
     for (const card of closingCards) {
-      const { current, invoices = [] } = buildCardInvoices({
-        card,
-        transactions,
-        refISO: today,
-        monthKey: currentMonthKey(),
-        count: 2,
-        includeFutureBound: true,
-        aggregates: cardData?.aggregates ?? null,
-        settings,
-      });
+      const { current, invoices = [] } = applyCardInvoiceRecords(
+        buildCardInvoices({
+          card,
+          transactions,
+          refISO: today,
+          monthKey: currentMonthKey(),
+          count: 2,
+          includeFutureBound: true,
+          aggregates: cardData?.aggregates ?? null,
+          settings,
+        }),
+        invoiceRecordMap,
+        card.id,
+        today
+      );
       const seen = new Set();
       for (const invoice of [current, ...invoices]) {
         if (!invoice || invoice.closeISO !== today || seen.has(invoice.closeISO)) continue;
@@ -115,7 +133,7 @@ export default function MFRemindersBell({ user, onChangeMonth, testId = 'mf-remi
       }
     }
     return planMFInvoiceReminders(built, today);
-  }, [closingCards, cardData]);
+  }, [closingCards, cardData, invoiceRecordMap]);
 
   const reminders = useMemo(
     () => [...invoiceReminders, ...txReminders],

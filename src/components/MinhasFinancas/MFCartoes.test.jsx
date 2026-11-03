@@ -111,6 +111,7 @@ vi.mock('../../lib/supabase', () => {
   // transações e restaurá-las no finally — usado pela regressão do limite.
   const __mfState = {
     accounts: __mfAccounts,
+    invoices: [],
     transactions: [
       // Fatura Visa 08 (fecha 10/08, vence 20/08) — paga pela transferência
       { id: 'tx-v1', account_id: 'acc-card', type: 'DESPESA', amount: 300, payment_date: '2026-08-05', status: 'PAGO', description: 'Farmácia' },
@@ -125,12 +126,14 @@ vi.mock('../../lib/supabase', () => {
     ],
   };
   const transactions = makeChain(() => ({ data: __mfState.transactions, error: null }));
+  const invoices = makeChain(() => ({ data: __mfState.invoices, error: null }));
 
   return {
     supabase: {
       from: vi.fn((table) => {
         if (table === 'mf_accounts') return accounts;
         if (table === 'mf_categories') return categories;
+        if (table === 'mf_invoices') return invoices;
         return transactions;
       }),
       storage: { from: vi.fn(() => ({ upload: vi.fn().mockResolvedValue({ error: null }) })) },
@@ -175,6 +178,58 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('mf-cards-grid')).toBeInTheDocument();
     });
+  });
+
+  it('baixa manual em mf_invoices sobrepõe o total e marca a fatura como paga no widget', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.invoices;
+    __mfState.invoices = [
+      {
+        id: 'inv-manual',
+        card_id: 'acc-card',
+        close_date: '2026-10-10',
+        due_date: '2026-10-20',
+        total: 1700,
+        total_source: 'manual',
+        paid_total: 1700,
+        status: 'PAID',
+      },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-fatura-paid-acc-card')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('mf-card-fatura-acc-card').textContent).toContain('1.700,00');
+    } finally {
+      __mfState.invoices = original;
+    }
+  });
+
+  it('backfill derived não sobrepõe o total derivado no widget', async () => {
+    const { __mfState } = await import('../../lib/supabase');
+    const original = __mfState.invoices;
+    __mfState.invoices = [
+      {
+        id: 'inv-derived',
+        card_id: 'acc-card',
+        close_date: '2026-10-10',
+        due_date: '2026-10-20',
+        total: 9999,
+        total_source: 'derived',
+        paid_total: 9999,
+        status: 'PAID',
+      },
+    ];
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-card-fatura-acc-card')).toHaveTextContent('1.700,00');
+      });
+      expect(screen.queryByTestId('mf-card-fatura-paid-acc-card')).not.toBeInTheDocument();
+    } finally {
+      __mfState.invoices = original;
+    }
   });
 
   it('chip da conta vinculada no widget abre o detalhe da conta', async () => {

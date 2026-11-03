@@ -9,7 +9,10 @@ import {
   useUpdateMFTransaction,
   useMFInvoices,
   MF_INVOICE_PAYMENT_NOTE,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
+  getInvoiceRecord,
   formatMoney,
   formatMonthLabel,
   monthRefISO,
@@ -87,48 +90,17 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
     () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true, settings }),
     [card, transactions, refISO, monthKey, settings]
   );
-  // Baixa manual: o cabeçalho de `mf_invoices` sobrepõe o cálculo
-  // derivado. Sem registro manual, a fatura continua 100% derivada.
-  const recordByClose = useMemo(
-    () =>
-      Object.fromEntries(
-        (invoiceRecords ?? []).map((row) => [String(row.close_date).slice(0, 10), row])
-      ),
+  // Baixa manual: o cabeçalho oficial de `mf_invoices` sobrepõe o cálculo
+  // derivado. Registros `derived` do backfill ficam de fora do overlay.
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
     [invoiceRecords]
   );
-  const { current, invoices, upcomingInvoices } = useMemo(() => {
-    const applyManual = (inv) => {
-      if (!inv) return inv;
-      const record = recordByClose[inv.closeISO];
-      if (!record) return inv;
-      const total = Number(record.total) || 0;
-      const paid = Number(record.paid_total) || 0;
-      const open = Math.max(0, Math.round((total - paid) * 100) / 100);
-      const isPaid = record.status === 'PAID' || (total > 0 && open < 0.005);
-      const status = isPaid
-        ? 'PAGA'
-        : record.status === 'OVERDUE' || (inv.dueISO && inv.dueISO < refISO)
-          ? 'VENCIDA'
-          : record.status === 'SCHEDULED'
-            ? 'AGENDADA'
-            : 'EM_ABERTO';
-      return {
-        ...inv,
-        total,
-        paid,
-        openAmount: open,
-        pendingBound: isPaid ? 0 : inv.pendingBound,
-        refunds: 0,
-        status,
-        manual: true,
-      };
-    };
-    return {
-      current: applyManual(builtInvoices.current),
-      invoices: (builtInvoices.invoices ?? []).map(applyManual),
-      upcomingInvoices: (builtInvoices.upcomingInvoices ?? []).map(applyManual),
-    };
-  }, [builtInvoices, recordByClose, refISO]);
+  const { current, invoices, upcomingInvoices } = useMemo(
+    () =>
+      applyCardInvoiceRecords(builtInvoices, invoiceRecordMap, card.id, refISO),
+    [builtInvoices, invoiceRecordMap, card.id, refISO]
+  );
   /** Janela da lista: mês anterior, o mês da fatura corrente e o próximo.
    *  O chip da corrente é separado; os demais entram só se o vencimento
    *  cair nessa janela (evita a lista de parcelas até 2027). */
@@ -861,7 +833,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
         <MFInvoiceManualModal
           card={card}
           invoice={activeInvoice}
-          record={recordByClose[activeInvoice.closeISO] ?? null}
+          record={getInvoiceRecord(invoiceRecordMap, card.id, activeInvoice.closeISO)}
           user={user}
           onClose={() => setManualOpen(false)}
         />

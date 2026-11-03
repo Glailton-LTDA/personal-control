@@ -6,7 +6,10 @@ import {
   useMFAccounts,
   useMFCardTransactions,
   useMFMonthSummary,
+  useMFInvoices,
   useUpdateAccount,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
   cardSettingsAt,
   formatMoney,
@@ -88,6 +91,16 @@ export default function MFCartoes({ user, showValues = true }) {
   const transactions = cardData?.transactions ?? [];
   const aggregates = cardData?.aggregates ?? null;
   const settings = cardData?.settings ?? [];
+  // Fatura oficial (baixa manual/importação): total/status do widget vêm
+  // de `mf_invoices` quando o registro é manual/importado.
+  const { data: invoiceRecords = [] } = useMFInvoices(
+    user,
+    cardAccounts.map((card) => card.id)
+  );
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
 
   const { data: summary } = useMFMonthSummary(user, monthKey);
   const summaryRows = useMemo(() => summary?.rows ?? [], [summary]);
@@ -290,7 +303,12 @@ export default function MFCartoes({ user, showValues = true }) {
               // (ex.: fixas criadas 12 meses à frente) — sem a flag, só
               // entrava o que já tinha payment_date até o mês (Nubank com
               // despesas até 2027 mostrava R$ 0 em aberto).
-              const built = buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true, aggregates, settings });
+              const built = applyCardInvoiceRecords(
+                buildCardInvoices({ card: item, transactions, refISO, monthKey, includeFutureBound: true, aggregates, settings }),
+                invoiceRecordMap,
+                item.id,
+                refISO
+              );
               // EM ABERTO e DISPONÍVEL seguem a mesma régua das faturas
               // (fechadas + corrente, incluindo parcelas/estornos), em vez
               // de recalcular um saldo paralelo que divergia do detalhe.
