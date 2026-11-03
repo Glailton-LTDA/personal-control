@@ -358,25 +358,47 @@ export const parseMoney = (value) => {
 };
 
 /**
- * Interpreta a busca do extrato/lançamentos como valor monetário.
- * Retorna `null` quando o texto não é puramente numérico (aí a busca é por
- * nome). Aceita "100", "100,00", "1.234,56" e "1.234" (milhar pt-BR).
+ * Prefixo monetário da busca (string canônica com ponto decimal).
+ * Retorna `null` quando o texto não é puramente numérico. Preserva o ponto
+ * final digitado ("10," vira "10.") para diferenciar 10,xx de 100,xx.
  */
-export const parseSearchAmount = (value) => {
+export const parseSearchAmountPrefix = (value) => {
   const raw = String(value ?? '').trim();
   if (!raw || !/\d/.test(raw)) return null;
   const cleaned = raw.replace(/R\$\s?/gi, '').replace(/\s/g, '');
   if (!/^[-+]?\d[\d.,]*$/.test(cleaned)) return null;
 
-  let normalized = cleaned;
+  let normalized = cleaned.replace(/^[-+]/, '');
   if (normalized.includes(',')) {
     normalized = normalized.replace(/\./g, '').replace(',', '.');
-  } else if (/^[-+]?\d{1,3}(\.\d{3})+$/.test(normalized)) {
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(normalized)) {
     normalized = normalized.replace(/\./g, '');
   }
 
-  const parsed = Number.parseFloat(normalized);
+  return /\d/.test(normalized) ? normalized : null;
+};
+
+/**
+ * Interpreta a busca como valor monetário (número). Retorna `null` quando
+ * o texto não é puramente numérico.
+ */
+export const parseSearchAmount = (value) => {
+  const prefix = parseSearchAmountPrefix(value);
+  if (prefix === null) return null;
+  const parsed = Number.parseFloat(prefix);
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : null;
+};
+
+/**
+ * Busca por prefixo no valor: "10" encontra 10, 100, 1.000 e 10,50;
+ * "10," encontra só 10,xx. Compara sempre pelo valor absoluto (estornos
+ * também entram).
+ */
+export const amountMatchesSearch = (amount, query) => {
+  const prefix = parseSearchAmountPrefix(query);
+  if (prefix === null) return false;
+  const value = Math.abs(Number(amount) || 0).toFixed(2);
+  return value.startsWith(prefix);
 };
 
 /** Máscara de valor monetário (centavos inteiros → '0,00'). */
@@ -1152,7 +1174,7 @@ export function useMFLancamentos(
         if (tagTxIds && !tagTxIds.has(tx.id)) return false;
         if (term) {
           if (isAmountSearch) {
-            if (Math.abs(Number(tx.amount) || 0) !== amountTerm) return false;
+            if (!amountMatchesSearch(tx.amount, term)) return false;
           } else if (
             !String(tx.description ?? '').toLowerCase().includes(term.toLowerCase())
           ) {
@@ -1179,9 +1201,7 @@ export function useMFLancamentos(
         if (type !== 'all') query = query.eq('type', type);
         if (categorySet) query = query.in('category_id', [...categorySet]);
         if (tagTxIds) query = query.in('id', [...tagTxIds]);
-        if (isAmountSearch) {
-          query = query.in('amount', [amountTerm, -amountTerm]);
-        } else if (term && typeof query.ilike === 'function') {
+        if (!isAmountSearch && term && typeof query.ilike === 'function') {
           query = query.ilike('description', `%${term}%`);
         }
         query = query.order('payment_date').order('id');
@@ -1199,11 +1219,21 @@ export function useMFLancamentos(
         () => buildQuery('id,payment_date,amount,type,status,account_id', false),
         { filter: matches, sort: sortRows, cache: false }
       );
-      const pagePromise = mfSelect(
-        'mf_transactions',
-        () => buildQuery('*', true),
-        { filter: matches, sort: sortRows }
-      );
+      // Busca por valor é por prefixo: o filtro não é uma faixa única no
+      // PostgREST ("10" pega 10, 100, 1.000...). Nesse caso baixamos o mês
+      // inteiro e paginamos no cliente; é uma busca deliberada e o mês tem
+      // poucas centenas de linhas.
+      const pagePromise = isAmountSearch
+        ? mfSelectAll(
+            'mf_transactions',
+            () => buildQuery('*', false),
+            { filter: matches, sort: sortRows }
+          )
+        : mfSelect(
+            'mf_transactions',
+            () => buildQuery('*', true),
+            { filter: matches, sort: sortRows }
+          );
       const [pageRes, totalsRes, linksRes] = await Promise.all([
         pagePromise,
         totalsPromise,
@@ -1224,7 +1254,7 @@ export function useMFLancamentos(
       // Online a página já vem recortada; offline o mfSelect devolve tudo
       // e a gente recorta aqui. Nos testes os mocks devolvem tudo, por isso
       // o filtro local também roda no caminho online.
-      const pageRows = (isOffline()
+      const pageRows = (isOffline() || isAmountSearch
         ? rawPage.filter(matches).slice(pageParam, pageParam + pageSize)
         : rawPage.filter(matches)
       );
@@ -1254,12 +1284,10 @@ export function useMFLancamentos(
         if (pageIds.has(txId)) tagIdsByTx[txId] = ids;
       });
 
-      const consumed = pageParam + (isOffline() ? pageRows.length : rawPage.length);
+      const pageCount = isOffline() || isAmountSearch ? pageRows.length : rawPage.length;
+      const consumed = pageParam + pageCount;
       const nextOffset =
-        (isOffline() ? pageRows.length : rawPage.length) >= pageSize &&
-        consumed < allRows.length
-          ? consumed
-          : null;
+        pageCount >= pageSize && consumed < allRows.length ? consumed : null;
 
       return {
         rows: pageRows,

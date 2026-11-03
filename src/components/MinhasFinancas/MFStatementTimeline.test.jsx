@@ -224,16 +224,18 @@ describe('MFStatementTimeline', () => {
     });
 
     fireEvent.change(screen.getByTestId('mf-timeline-search'), {
-      target: { value: '100' },
+      target: { value: '10' },
     });
+    // 100 começa com "10"; 40 e 500 não.
     expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
     expect(screen.queryByTestId('mf-timeline-item-tx-p')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mf-timeline-item-tx-r')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('mf-timeline-search'), {
-      target: { value: '100,00' },
+      target: { value: '10,00' },
     });
-    expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    // 100,00 não começa com 10,00.
+    expect(screen.getByTestId('mf-timeline-empty')).toBeInTheDocument();
   });
 
   it('x limpa a busca e mostra tudo de novo', async () => {

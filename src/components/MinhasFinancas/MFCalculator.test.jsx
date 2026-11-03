@@ -63,4 +63,64 @@ describe('MFCalculator — tecla =', () => {
     fireEvent.click(screen.getByTestId('mf-calc-confirm'));
     expect(onConfirm).toHaveBeenCalledWith('5,00');
   });
+
+  it('teclado físico opera e Enter confirma', () => {
+    const { onConfirm } = setup();
+    const dialog = screen.getByRole('dialog');
+
+    fireEvent.keyDown(dialog, { key: '9' });
+    fireEvent.keyDown(dialog, { key: '*' });
+    fireEvent.keyDown(dialog, { key: '2' });
+    fireEvent.keyDown(dialog, { key: 'Enter' });
+
+    expect(onConfirm).toHaveBeenCalledWith('18,00');
+  });
+
+  it('Backspace apaga e Esc limpa; Esc vazio fecha', () => {
+    const { onClose } = setup();
+    const dialog = screen.getByRole('dialog');
+
+    fireEvent.keyDown(dialog, { key: '9' });
+    fireEvent.keyDown(dialog, { key: '9' });
+    fireEvent.keyDown(dialog, { key: 'Backspace' });
+    expect(screen.getByTestId('mf-calc-display')).toHaveTextContent('9');
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByTestId('mf-calc-display')).toHaveTextContent('0');
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('insere o saldo da conta na expressão', () => {
+    const onConfirm = vi.fn();
+    render(
+      <MFCalculator
+        onConfirm={onConfirm}
+        onClose={vi.fn()}
+        balance={1000}
+        balanceLabel="Nuconta"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('mf-calc-2'));
+    fireEvent.click(screen.getByTestId('mf-calc-0'));
+    fireEvent.click(screen.getByTestId('mf-calc-0'));
+    fireEvent.click(screen.getByTestId('mf-calc-op-add'));
+    fireEvent.click(screen.getByTestId('mf-calc-balance'));
+    fireEvent.click(screen.getByTestId('mf-calc-equals'));
+
+    expect(screen.getByTestId('mf-calc-display')).toHaveTextContent('1200');
+
+    fireEvent.click(screen.getByTestId('mf-calc-confirm'));
+    expect(onConfirm).toHaveBeenCalledWith('1200,00');
+  });
+
+  it('abre com foco no diálogo e aria-modal', () => {
+    setup();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(document.activeElement).toBe(dialog);
+  });
 });

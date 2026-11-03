@@ -11,7 +11,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfMutate: vi.fn(),
 }));
 
-import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle, formatMonthNavLabel, parseSearchAmount } from './useMinhasFinancas';
+import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle, formatMonthNavLabel, parseSearchAmount, amountMatchesSearch } from './useMinhasFinancas';
 
 describe('formatMoney', () => {
   it('escopo "all" da tela nÃ£o Ã© moeda â€” cai no padrÃ£o BRL (nÃ£o Lek albanÃªs)', () => {
@@ -266,8 +266,8 @@ describe('planAutoSettle â€” efetivaÃ§Ã£o automÃ¡tica (auto_settle, default fals
   });
 });
 
-describe('parseSearchAmount — busca por valor no extrato', () => {
-  it('aceita inteiro, decimal com vírgula e milhar pt-BR', () => {
+describe('parseSearchAmount ï¿½ busca por valor no extrato', () => {
+  it('aceita inteiro, decimal com vï¿½rgula e milhar pt-BR', () => {
     expect(parseSearchAmount('100')).toBe(100);
     expect(parseSearchAmount('100,00')).toBe(100);
     expect(parseSearchAmount('1.234,56')).toBe(1234.56);
@@ -275,9 +275,27 @@ describe('parseSearchAmount — busca por valor no extrato', () => {
     expect(parseSearchAmount('R$ 45,90')).toBe(45.9);
   });
 
-  it('texto não numérico continua sendo busca por nome', () => {
+  it('texto nï¿½o numï¿½rico continua sendo busca por nome', () => {
     expect(parseSearchAmount('mercado')).toBeNull();
     expect(parseSearchAmount('')).toBeNull();
     expect(parseSearchAmount('100 reais')).toBeNull();
+  });
+});
+
+describe('amountMatchesSearch — prefixo do valor', () => {
+  it('"10" encontra 10, 100, 1.000 e 10,50, mas não 5', () => {
+    expect(amountMatchesSearch(10, '10')).toBe(true);
+    expect(amountMatchesSearch(100, '10')).toBe(true);
+    expect(amountMatchesSearch(1000, '10')).toBe(true);
+    expect(amountMatchesSearch(10.5, '10')).toBe(true);
+    expect(amountMatchesSearch(5, '10')).toBe(false);
+    expect(amountMatchesSearch(500, '10')).toBe(false);
+  });
+
+  it('vírgula restringe a parte decimal e ignora o sinal', () => {
+    expect(amountMatchesSearch(10.5, '10,5')).toBe(true);
+    expect(amountMatchesSearch(10.5, '10,50')).toBe(true);
+    expect(amountMatchesSearch(100, '10,00')).toBe(false);
+    expect(amountMatchesSearch(-100, '10')).toBe(true);
   });
 });

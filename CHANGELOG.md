@@ -4,6 +4,17 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-11-03
+
+### Adicionado
+- **Calculadora global**: botão no cabeçalho do Minhas Finanças (e no detalhe de conta/cartão) abre a calculadora de qualquer tela, sem entrar em um lançamento. O resultado é copiado ao confirmar.
+- **Saldo da conta na calculadora**: seletor de conta e botão para inserir o saldo corrente (PAGO até hoje) na expressão. Ex.: `200 + saldo` → `1.200,00`. No fluxo de despesa/receita/transferência, o botão usa a conta já selecionada e mostra o nome dela.
+- **Teclado na web**: números, `+ - * /`, `%`, `Backspace`, `Enter` (confirma), `Esc` (limpa; fecha se vazio) e vírgula/ponto decimal. A calculadora recebe foco ao abrir (`role="dialog"`, `aria-modal`).
+- Testes: abertura pelo botão global, seleção de conta/saldo, operações pelo teclado, `Esc`, `Enter`, foco/aria e regressão dos fluxos de valor.
+
+### Corrigido
+- **Busca por valor por prefixo**: digitar `10` agora encontra `10`, `100`, `1.000` e `10,50` (não precisa ser o valor exato). Digitar `10,` ou `10,5` restringe a parte decimal. A comparação é pelo valor absoluto, então estornos também aparecem. No modo online, a busca por valor baixa o mês e pagina no cliente (o PostgREST não faz prefixo numérico em uma faixa única).
+
 ## [1.32.0] - 2026-11-03
 
 ### Adicionado

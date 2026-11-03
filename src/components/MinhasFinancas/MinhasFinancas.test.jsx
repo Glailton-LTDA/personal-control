@@ -90,6 +90,13 @@ describe('MinhasFinancas', () => {
     });
   });
 
+  it('abre a calculadora global pelo cabeçalho', async () => {
+    renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="resumo" />);
+
+    fireEvent.click(screen.getByTestId('mf-global-calc-open'));
+    expect(screen.getByTestId('mf-global-calc')).toBeInTheDocument();
+  });
+
   it('renderiza o Resumo com navegação de mês, KPIs e tabela de contas', async () => {
     renderWithProviders(<MinhasFinancas user={mockUser} refreshKey={0} screen="resumo" />);
 

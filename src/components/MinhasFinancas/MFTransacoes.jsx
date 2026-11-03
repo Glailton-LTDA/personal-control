@@ -41,6 +41,7 @@ import {
   toISODate,
   useMFNarrowScreen,
   parseSearchAmount,
+  amountMatchesSearch,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFAccountIcon from './MFAccountIcon';
@@ -253,7 +254,7 @@ export default function MFTransacoes({
         if (tagFilter !== 'all' && !(tagIdsByTx[tx.id] || []).includes(tagFilter)) return false;
         if (term) {
           if (amountTerm !== null) {
-            if (Math.abs(Number(tx.amount) || 0) !== amountTerm) return false;
+            if (!amountMatchesSearch(tx.amount, term)) return false;
           } else if (!String(tx.description).toLowerCase().includes(term)) {
             return false;
           }

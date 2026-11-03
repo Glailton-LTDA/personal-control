@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, Delete } from 'lucide-react';
-import { parseMoney } from '../../hooks/useMinhasFinancas';
+import { formatMoney, parseMoney } from '../../hooks/useMinhasFinancas';
 
 /**
  * Calculadora monetária do Minhas Finanças (print original): display da
@@ -69,8 +69,16 @@ export default function MFCalculator({
   initial = '',
   onConfirm,
   onClose,
+  balance = null,
+  balanceLabel = '',
+  balanceCurrency = 'BRL',
+  accounts = null,
+  balances = {},
+  selectedAccountId = '',
+  onSelectAccount = null,
 }) {
   const { t } = useTranslation();
+  const dialogRef = useRef(null);
   const [calc, setCalc] = useState(() => ({
     acc: null,
     op: null,
@@ -80,6 +88,32 @@ export default function MFCalculator({
 
   const { acc, op, entry, justEvaluated } = calc;
   const canConfirm = entry !== '' || acc !== null;
+
+  const calcAccounts = Array.isArray(accounts) ? accounts : [];
+  const selectedAccount =
+    calcAccounts.find((account) => account.id === selectedAccountId) ?? null;
+  const contextBalance = calcAccounts.length > 0
+    ? balances?.[selectedAccountId]
+    : balance;
+  const contextCurrency = selectedAccount?.currency || balanceCurrency || 'BRL';
+  const contextLabel = selectedAccount?.name || balanceLabel;
+  const hasContext =
+    calcAccounts.length > 0 ||
+    (balance !== null && balance !== undefined && Number.isFinite(Number(balance)));
+
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
+
+  const pressBalance = () => {
+    const value = Number(contextBalance);
+    if (!Number.isFinite(value)) return;
+    setCalc((prev) => ({
+      ...prev,
+      entry: fmtEntry(value),
+      justEvaluated: false,
+    }));
+  };
 
   const pressDigit = (d) =>
     setCalc((prev) => {
@@ -197,6 +231,35 @@ export default function MFCalculator({
     return pressDigit(key);
   };
 
+  /** Teclado físico: números, operadores, Enter confirma, Esc limpa/fecha. */
+  const onDialogKeyDown = (event) => {
+    const tag = event.target?.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    const key = event.key;
+    let handled = true;
+    if (/^[0-9]$/.test(key)) pressDigit(key);
+    else if (key === ',' || key === '.') pressComma();
+    else if (key === '+') pressOperator('+');
+    else if (key === '-') pressOperator('−');
+    else if (key === '*' || key.toLowerCase() === 'x') pressOperator('×');
+    else if (key === '/') pressOperator('÷');
+    else if (key === '%') pressPercent();
+    else if (key === 'Backspace') pressBackspace();
+    else if (key === 'Enter') pressConfirm();
+    else if (key === '=') pressEquals();
+    else if (key === 'Escape') {
+      if (entry === '' && acc === null && op === null) onClose();
+      else pressClear();
+    } else handled = false;
+
+    if (handled) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
   const display = entry !== '' ? entry : acc !== null ? fmtPreview(acc) : '0';
   const expr = justEvaluated
     ? '='
@@ -215,8 +278,14 @@ export default function MFCalculator({
   return createPortal(
     <div className="modal-overlay" data-testid={testId} onClick={onClose}>
       <div
+        ref={dialogRef}
         className="glass-card modal-content"
         style={{ maxWidth: 340 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title ?? t('minhasfinancas.calc_title')}
+        tabIndex={-1}
+        onKeyDown={onDialogKeyDown}
         onClick={(event) => event.stopPropagation()}
       >
         <h3
@@ -225,6 +294,57 @@ export default function MFCalculator({
         >
           {title ?? t('minhasfinancas.calc_title')}
         </h3>
+
+        {hasContext && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.45rem',
+              alignItems: 'stretch',
+              marginBottom: '0.75rem',
+            }}
+          >
+            {calcAccounts.length > 0 && (
+              <select
+                className="glass-input"
+                data-testid="mf-calc-account"
+                aria-label={t('minhasfinancas.tx_account_label')}
+                value={selectedAccountId}
+                onChange={(event) => onSelectAccount?.(event.target.value)}
+                style={{ flex: 1, minWidth: 130, padding: '0.45rem 0.55rem', fontSize: '0.8rem' }}
+              >
+                {calcAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              className="btn-cancel"
+              data-testid="mf-calc-balance"
+              disabled={!Number.isFinite(Number(contextBalance))}
+              onClick={pressBalance}
+              title={`${t('minhasfinancas.calc_insert_balance')}${
+                contextLabel && calcAccounts.length === 0 ? ` (${contextLabel})` : ''
+              }`}
+              style={{
+                padding: '0.45rem 0.65rem',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t('minhasfinancas.calc_insert_balance')}
+              {contextLabel && calcAccounts.length === 0 ? ` (${contextLabel})` : ''}:{' '}
+              {Number.isFinite(Number(contextBalance))
+                ? formatMoney(contextBalance, contextCurrency)
+                : '—'}
+            </button>
+          </div>
+        )}
 
         <div
           data-testid={`${testId}-display`}
