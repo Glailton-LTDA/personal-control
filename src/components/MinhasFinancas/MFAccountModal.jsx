@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Landmark, Plus, Search, ChevronDown, Ban } from 'lucide-react';
+import { X, Landmark, Plus, Search, ChevronDown, Ban, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
@@ -10,6 +10,7 @@ import {
   useCreateAccountType,
   useMFProfiles,
   useMFGroups,
+  useMFPrefs,
   parseMoney,
   maskAmount,
   MF_BUILTIN_ACCOUNT_TYPES,
@@ -63,6 +64,7 @@ const emptyForm = {
   profile_id: '',
   group_id: '',
   ignore_in_totals: false,
+  default_transfer: false,
 };
 
 /** Botão quadrado do seletor de ícone (borda branca quando selecionado). */
@@ -92,6 +94,7 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
   const { data: allAccounts = [] } = useMFAccounts(user);
   const { data: profiles = [] } = useMFProfiles(user);
   const { data: groups = [] } = useMFGroups(user);
+  const { prefs, save: savePrefs } = useMFPrefs(user);
   const activeProfileId = useMFProfileScope();
   const createTypeMutation = useCreateAccountType();
   const [form, setForm] = useState(emptyForm);
@@ -139,6 +142,7 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
             profile_id: account.profile_id ?? '',
             group_id: account.group_id ?? '',
             ignore_in_totals: account.ignore_in_totals ?? false,
+            default_transfer: prefs.defaultTransferAccountId === account.id,
           }
         : {
             ...emptyForm,
@@ -147,6 +151,9 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
             group_id: defaultGroupId ?? '',
           }
     );
+    // `prefs` não entra nas deps: a conta padrão vale na abertura; a
+    // chegada do servidor não pode resetar o formulário em edição.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, account, activeProfileId, defaultType, defaultGroupId]);
 
   if (!isOpen) return null;
@@ -273,8 +280,18 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
 
     setSaving(true);
     try {
-      if (account) await updateMutation.mutateAsync({ id: account.id, ...payload });
-      else await createMutation.mutateAsync({ ...payload, sort_order: 0 });
+      const saved = account
+        ? await updateMutation.mutateAsync({ id: account.id, ...payload })
+        : await createMutation.mutateAsync({ ...payload, sort_order: 0 });
+      const savedId = account?.id ?? saved?.id ?? null;
+      // Conta padrão de destino das transferências (preferência do usuário,
+      // não uma coluna de `mf_accounts`). Trocar de padrão substitui a
+      // anterior; desmarcar/transformar em cartão limpa a preferência.
+      if (!isCard && form.default_transfer && savedId) {
+        savePrefs({ defaultTransferAccountId: savedId });
+      } else if (savedId && prefs.defaultTransferAccountId === savedId) {
+        savePrefs({ defaultTransferAccountId: null });
+      }
       toast.success(t(account ? 'minhasfinancas.account_updated' : 'minhasfinancas.account_saved'));
       onClose();
     } catch {
@@ -993,6 +1010,42 @@ export default function MFAccountModal({ isOpen, onClose, account = null, user, 
             <Ban size={14} style={{ color: 'var(--text-muted)' }} />
             {t('minhasfinancas.ignore_in_totals')}
           </label>
+
+          {/* Destino padrão das transferências (só conta comum) */}
+          {form.account_type !== 'CARTAO' && (
+            <>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  marginTop: '0.75rem',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: form.default_transfer ? 'var(--primary)' : 'var(--text-main)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  data-testid="mf-account-default-transfer"
+                  checked={!!form.default_transfer}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      default_transfer: event.target.checked,
+                    }))
+                  }
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                <Star size={14} style={{ color: 'var(--text-muted)' }} />
+                {t('minhasfinancas.account_default_transfer')}
+              </label>
+              <p style={{ margin: '0.3rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {t('minhasfinancas.account_default_transfer_hint')}
+              </p>
+            </>
+          )}
 
           <div className="modal-footer" style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
             <button type="button" className="btn-cancel" onClick={onClose} style={{ flex: 1 }}>

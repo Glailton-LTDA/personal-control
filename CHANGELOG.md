@@ -4,6 +4,17 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-11-03
+
+### Adicionado
+- **Conta padrão para transferências**: opção no cadastro da conta (só conta comum) que define o destino padrão das transferências. A preferência é sincronizada entre aparelhos (`mf_user_prefs`/cache local).
+- **Calculadora contextual**: ao abrir pelo detalhe de uma conta, a calculadora já vem com essa conta selecionada; no detalhe de um cartão, usa a conta vinculada.
+
+### Corrigido
+- **Transferência contextual**: abrir a transferência pelo detalhe de uma conta já traz essa conta como origem (no cartão, a conta vinculada); o destino padrão é escolhido automaticamente quando compatível com a moeda.
+- **Fatura do cartão vinculado no detalhe da conta**: agora respeita o mês navegado (mostra a fatura daquele mês), em vez de puxar uma fatura em aberto de outro mês.
+- **Preferências entre componentes**: salvar a conta padrão (ou outra preferência) atualiza na hora as outras instâncias abertas na mesma tela.
+
 ## [1.34.0] - 2026-11-03
 
 ### Adicionado

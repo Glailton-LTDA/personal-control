@@ -63,4 +63,25 @@ describe('MFGlobalCalculator', () => {
     fireEvent.click(screen.getByTestId('mf-calc-balance'));
     expect(screen.getByTestId('mf-global-calc-display')).toHaveTextContent('500');
   });
+
+  it('abre com a conta contextual já selecionada (detalhe da conta)', async () => {
+    render(
+      <MFGlobalCalculator
+        user={{ id: 'u' }}
+        accounts={accounts}
+        defaultAccountId="acc-2"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('mf-global-calc-open'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-calc-account')).toHaveValue('acc-2');
+    });
+
+    // Troca manual não é desfeita pelo default no próximo render.
+    fireEvent.change(screen.getByTestId('mf-calc-account'), {
+      target: { value: 'acc-1' },
+    });
+    expect(screen.getByTestId('mf-calc-account')).toHaveValue('acc-1');
+  });
 });

@@ -579,20 +579,35 @@ describe('MFAccountDetail', () => {
     }
   });
 
-  it('cartão vinculado quitado mostra o valor da última fatura com PAGA', async () => {
+  it('cartão vinculado mostra a fatura do mês navegado (setembro quitada)', async () => {
+    renderDetail({ monthKey: '2026-09' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-linked-card-acc-card2')).toBeInTheDocument();
+    });
+
+    // Em setembro, a fatura do mês está quitada: total (não zero) + PAGA,
+    // sem botão de pagar (nada em aberto).
+    expect(txt('mf-linked-card-amount-acc-card2')).toBe('R$ 200,00');
+    expect(screen.getByTestId('mf-linked-card-status-acc-card2')).toHaveTextContent(
+      'minhasfinancas.card_status_paid'
+    );
+    expect(screen.queryByTestId('mf-linked-card-pay-acc-card2')).not.toBeInTheDocument();
+  });
+
+  it('cartão vinculado não mostra fatura em aberto de outro mês', async () => {
     renderDetail();
 
     await waitFor(() => {
       expect(screen.getByTestId('mf-linked-card-acc-card2')).toBeInTheDocument();
     });
 
-    // fatura de setembro quitada: mostra o total (não zero) + tag PAGA,
-    // sem botão de pagar (nada em aberto)
-    expect(txt('mf-linked-card-amount-acc-card2')).toBe('R$ 200,00');
-    expect(screen.getByTestId('mf-linked-card-status-acc-card2')).toHaveTextContent(
-      'minhasfinancas.card_status_paid'
-    );
+    // Outubro não tem compras no cartão 2: mostra zero, não a fatura de
+    // setembro (paga) nem uma fatura em aberto antiga.
+    expect(txt('mf-linked-card-amount-acc-card2')).toBe('R$ 0,00');
     expect(screen.queryByTestId('mf-linked-card-pay-acc-card2')).not.toBeInTheDocument();
+    // O cartão 1 continua com a fatura de outubro (350).
+    expect(txt('mf-linked-card-amount-acc-card')).toBe('R$ 350,00');
   });
 
   it('cartão vinculado: o nome abre o detalhe do cartão pelo callback do pai', async () => {

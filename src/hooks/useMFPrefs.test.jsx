@@ -9,7 +9,11 @@ vi.mock('../lib/supabase', () => ({
 
 import { supabase } from '../lib/supabase';
 import { useMFPrefs } from './useMinhasFinancas';
-import { MF_DASHBOARD_KEY, MF_ACCOUNTS_SORT_KEY } from '../lib/mfPrefs';
+import {
+  MF_DASHBOARD_KEY,
+  MF_ACCOUNTS_SORT_KEY,
+  MF_DEFAULT_TRANSFER_KEY,
+} from '../lib/mfPrefs';
 
 const REMOTO = {
   dashboard: {
@@ -98,6 +102,18 @@ describe('useMFPrefs — preferências sincronizadas entre aparelhos', () => {
     expect(upserts).toHaveLength(1);
     expect(upserts[0].user_id).toBe('u1');
     expect(upserts[0].data.accountsSort).toBe('manual');
+  });
+
+  it('conta padrão de transferência sincroniza local e servidor', async () => {
+    const { result } = renderPrefs();
+
+    act(() => {
+      result.current.save({ defaultTransferAccountId: 'acc-2' });
+    });
+    expect(localStorage.getItem(MF_DEFAULT_TRANSFER_KEY)).toBe('acc-2');
+
+    await vi.advanceTimersByTimeAsync(900);
+    expect(upserts.at(-1)?.data.defaultTransferAccountId).toBe('acc-2');
   });
 
   it('sem servidor (offline/erro) o cache local continua valendo', async () => {

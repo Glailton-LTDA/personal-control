@@ -181,6 +181,9 @@ i18n
             accounts_table_account: 'Conta / tipo',
             accounts_all: 'Todas as contas',
             ignore_in_totals: 'Ignorar nos totais',
+            account_default_transfer: 'Conta padrão para transferências',
+            account_default_transfer_hint:
+              'Usada como destino padrão ao criar uma transferência.',
             group_hide_accounts: 'Recolher contas',
             group_show_accounts: 'Expandir contas',
             group_create_action: 'Criar grupo de contas',
@@ -2313,6 +2316,9 @@ i18n
             accounts_table_account: 'Account / type',
             accounts_all: 'All accounts',
             ignore_in_totals: 'Ignore in totals',
+            account_default_transfer: 'Default transfer account',
+            account_default_transfer_hint:
+              'Used as the default destination when creating a transfer.',
             group_hide_accounts: 'Collapse accounts',
             group_show_accounts: 'Expand accounts',
             group_create_action: 'Create account group',
@@ -4384,6 +4390,9 @@ i18n
             accounts_table_account: 'Cuenta / tipo',
             accounts_all: 'Todas las cuentas',
             ignore_in_totals: 'Ignorar en los totales',
+            account_default_transfer: 'Cuenta predeterminada para transferencias',
+            account_default_transfer_hint:
+              'Se usa como destino predeterminado al crear una transferencia.',
             group_hide_accounts: 'Contraer cuentas',
             group_show_accounts: 'Expandir cuentas',
             group_create_action: 'Crear grupo de cuentas',
