@@ -4,6 +4,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Adicionado
+- **Faturas como entidade (em andamento)**: tabela `mf_invoices` (total, fonte, pago, status) e backfill dos cabeçalhos; views de auditoria `mf_invoice_audit`, `mf_invoice_audit_payments`, `mf_invoice_legacy_transfers` e `mf_invoice_audit_fifo`. Nenhum lançamento foi apagado; a limpeza dos espelhos/ajustes automáticos depende da auditoria.
+
 ## [1.33.0] - 2026-11-03
 
 ### Adicionado
