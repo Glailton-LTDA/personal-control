@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFTransferModal from './MFTransferModal';
 import { addMonthsISO, toISODate } from '../../hooks/useMinhasFinancas';
+import { MF_DEFAULT_TRANSFER_KEY, writePrefsLocal } from '../../lib/mfPrefs';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -47,6 +48,7 @@ vi.mock('../../lib/supabase', () => {
       eq: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
       then: vi.fn((onFulfilled, onRejected) =>
         Promise.resolve(typeof result === 'function' ? result() : result).then(
           onFulfilled,
@@ -75,11 +77,17 @@ const accounts = [
   { id: 'acc-2', name: 'Itaú', currency: 'BRL', color: '#06b6d4' },
 ];
 
-const renderModal = () => {
+const renderModal = (overrides = {}) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MFTransferModal isOpen accounts={accounts} user={mockUser} onClose={() => {}} />
+      <MFTransferModal
+        isOpen
+        accounts={accounts}
+        user={mockUser}
+        onClose={() => {}}
+        {...overrides}
+      />
     </QueryClientProvider>
   );
 };
@@ -91,6 +99,7 @@ const fillAmount = (value) => {
 describe('MFTransferModal — transferência recorrente (Fase D)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.removeItem(MF_DEFAULT_TRANSFER_KEY);
   });
 
   it('avulsa continua igual (sem parcelas)', async () => {
@@ -114,6 +123,21 @@ describe('MFTransferModal — transferência recorrente (Fase D)', () => {
     });
     expect(payload).not.toHaveProperty('installments_total');
     expect(payload).not.toHaveProperty('parent_transaction_id');
+  });
+
+  it('abre com a conta contextual como origem (detalhe da conta)', () => {
+    renderModal({ defaultFromId: 'acc-2' });
+
+    expect(screen.getByTestId('mf-transfer-from')).toHaveTextContent(accounts[1].name);
+    expect(screen.getByTestId('mf-transfer-to')).toHaveTextContent(accounts[0].name);
+  });
+
+  it('destino padrão das preferências é escolhido ao abrir', () => {
+    writePrefsLocal({ defaultTransferAccountId: 'acc-2' });
+    renderModal();
+
+    expect(screen.getByTestId('mf-transfer-from')).toHaveTextContent(accounts[0].name);
+    expect(screen.getByTestId('mf-transfer-to')).toHaveTextContent(accounts[1].name);
   });
 
   it('efetivação automática: desmarcada por padrão e vai no payload ao marcar', async () => {

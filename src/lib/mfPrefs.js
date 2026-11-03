@@ -9,9 +9,10 @@
  *   tablet, desktop), em vez de um layout por navegador.
  *
  * O que sincroniza: o painel do Resumo (ordem dos widgets, widgets,
- * contas e gráficos ocultos) e o critério de ordenação das contas. O
- * perfil ativo e o mês navegado ficam locais de propósito — cada
- * aparelho pode estar num perfil/mês diferente ao mesmo tempo.
+ * contas e gráficos ocultos), o critério de ordenação das contas e a
+ * conta padrão de destino das transferências. O perfil ativo e o mês
+ * navegado ficam locais de propósito — cada aparelho pode estar num
+ * perfil/mês diferente ao mesmo tempo.
  */
 
 /** Widgets do painel do Resumo (ordem padrão). */
@@ -37,6 +38,7 @@ export const MF_CHARTS = [
 
 export const MF_DASHBOARD_KEY = 'mf_dashboard_widgets';
 export const MF_ACCOUNTS_SORT_KEY = 'mf_accounts_sort';
+export const MF_DEFAULT_TRANSFER_KEY = 'mf_default_transfer_account';
 
 /**
  * Normaliza uma preferência vinda de JSON/strings inválidas.
@@ -125,14 +127,40 @@ export const saveAccountsSort = (value) => {
   }
 };
 
+/** Conta padrão de destino nas transferências (id ou null). */
+export const readDefaultTransferAccount = () => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    return localStorage.getItem(MF_DEFAULT_TRANSFER_KEY) || null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveDefaultTransferAccount = (value) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (value) localStorage.setItem(MF_DEFAULT_TRANSFER_KEY, value);
+    else localStorage.removeItem(MF_DEFAULT_TRANSFER_KEY);
+  } catch {
+    /* storage indisponível */
+  }
+};
+
 /** Preferências completas do cache local. */
 export const readPrefsLocal = () => ({
   dashboard: loadWidgetPref(),
   accountsSort: readAccountsSort(),
+  defaultTransferAccountId: readDefaultTransferAccount(),
 });
 
 /** Grava as preferências no cache local (o servidor recebe em seguida). */
 export const writePrefsLocal = (data) => {
   if (data?.dashboard) saveWidgetPref(data.dashboard);
   if (data?.accountsSort) saveAccountsSort(data.accountsSort);
+  // `null` é um valor válido (limpar a conta padrão): usa hasOwn em vez
+  // de truthiness para não deixar a preferência antiga presa no cache.
+  if (Object.prototype.hasOwnProperty.call(data ?? {}, 'defaultTransferAccountId')) {
+    saveDefaultTransferAccount(data.defaultTransferAccountId);
+  }
 };

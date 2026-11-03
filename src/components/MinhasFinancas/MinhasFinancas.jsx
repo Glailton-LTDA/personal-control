@@ -221,7 +221,13 @@ export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', de
               flexShrink: 0,
             }}
           >
-            <MFGlobalCalculator user={user} accounts={accounts} />
+            <MFGlobalCalculator
+              user={user}
+              accounts={accounts}
+              defaultAccountId={
+                target.account_type === 'CARTAO' ? target.linked_account_id : target.id
+              }
+            />
           </div>
           <MFAccountDetail
             account={target}

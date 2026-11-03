@@ -307,7 +307,7 @@ export default function MFAccountDetail({
           !row.archived_at
       )
       .map((card) => {
-        const { current, invoices } = applyCardInvoiceRecords(
+        const { current } = applyCardInvoiceRecords(
           buildCardInvoices({
             card,
             transactions: allTx,
@@ -319,15 +319,10 @@ export default function MFAccountDetail({
           card.id,
           refISO
         );
-        const active =
-          // 1) fatura em aberto mais antiga (é o que falta pagar);
-          // 2) corrente com movimento; 3) última fechada com valor
-          // (quitada mostra o total + PAGA em vez de zero);
-          // 4) corrente vazia.
-          invoices.find((inv) => inv.openAmount > 0) ??
-          ((Number(current.total) || 0) > 0
-            ? current
-            : invoices.find((inv) => (Number(inv.total) || 0) > 0) ?? current);
+        // A conta está navegando um mês: o cartão vinculado mostra a fatura
+        // DESSE mês (a corrente do build, rotulada pelo vencimento), e não
+        // a fatura em aberto mais antiga de outro mês.
+        const active = current;
         return {
           card,
           active,
@@ -1865,6 +1860,9 @@ export default function MFAccountDetail({
         accounts={accounts.filter(
           (row) => !row.archived_at && row.account_type !== 'CARTAO'
         )}
+        defaultFromId={
+          account.account_type === 'CARTAO' ? account.linked_account_id : account.id
+        }
         user={user}
         onClose={() => setTransferOpen(false)}
       />

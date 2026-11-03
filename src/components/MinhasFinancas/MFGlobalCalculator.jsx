@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
@@ -11,10 +11,19 @@ import MFCalculator from './MFCalculator';
  * o saldo corrente (PAGO até hoje) na expressão. O resultado é copiado ao
  * confirmar.
  */
-export default function MFGlobalCalculator({ user, accounts = [], buttonStyle = null }) {
+export default function MFGlobalCalculator({
+  user,
+  accounts = [],
+  defaultAccountId = null,
+  buttonStyle = null,
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [accountId, setAccountId] = useState('');
+  // A conta contextual (detalhe da conta/cartão) vale na ABERTURA. Depois
+  // disso o usuário manda: trocar no seletor não pode ser desfeito pelo
+  // efeito a cada render.
+  const openAppliedRef = useRef(false);
 
   const options = useMemo(
     () =>
@@ -25,11 +34,21 @@ export default function MFGlobalCalculator({ user, accounts = [], buttonStyle = 
   );
 
   useEffect(() => {
-    if (!open) return;
-    if (!options.some((account) => account.id === accountId)) {
-      setAccountId(options[0]?.id ?? '');
+    if (!open) {
+      openAppliedRef.current = false;
+      return;
     }
-  }, [open, options, accountId]);
+    const preferred =
+      options.find((account) => account.id === defaultAccountId)?.id ??
+      options.find((account) => account.id === accountId)?.id ??
+      options[0]?.id ??
+      '';
+    if (!preferred) return;
+    if (!openAppliedRef.current) {
+      openAppliedRef.current = true;
+      setAccountId(preferred);
+    }
+  }, [open, options, defaultAccountId, accountId]);
 
   // Só busca o saldo quando a calculadora está aberta e há conta escolhida.
   const { data: balances = {} } = useMFAccountBalances(

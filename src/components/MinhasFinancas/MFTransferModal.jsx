@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, ArrowLeftRight, Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useCreateTransfer, useCreateMFTransaction, useMFAccountBalances, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney, FIXED_SERIES_COUNT } from '../../hooks/useMinhasFinancas';
+import { useCreateTransfer, useCreateMFTransaction, useMFAccountBalances, useMFPrefs, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney, FIXED_SERIES_COUNT } from '../../hooks/useMinhasFinancas';
 import MFSelect from './MFSelect';
 import MFRepeatModal from './MFRepeatModal';
 import MFCalculator from './MFCalculator';
@@ -15,10 +15,20 @@ import MFCalculator from './MFCalculator';
  * chamado depois do fechamento quando a transferência é criada (o chamador
  * decide se volta pra lista; cancelar só fecha).
  */
-export default function MFTransferModal({ isOpen, onClose, accounts = [], user, onSuccess }) {
+export default function MFTransferModal({
+  isOpen,
+  onClose,
+  accounts = [],
+  defaultFromId = null,
+  user,
+  onSuccess,
+}) {
   const { t } = useTranslation();
   const createTransfer = useCreateTransfer();
   const createTx = useCreateMFTransaction();
+  // Destino padrão sincronizado entre aparelhos (definido no cadastro da
+  // conta). Só vale para contas da mesma moeda da origem.
+  const { prefs } = useMFPrefs(user);
   const [saving, setSaving] = useState(false);
   const [repeat, setRepeat] = useState(null); // null | { initial, count, periodicity }
   const [repeatOpen, setRepeatOpen] = useState(false);
@@ -40,16 +50,30 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
     isOpen && amountCalcOpen && form.from ? [form.from] : []
   );
 
+  /** Primeiro destino válido: o padrão (se compatível) ou o primeiro da moeda. */
+  const pickDestinationId = (originId, preferredId = null) => {
+    const originAccount = accounts.find((account) => account.id === originId);
+    const currency = originAccount?.currency || 'BRL';
+    const candidates = accounts.filter(
+      (account) =>
+        account.id !== originId && (account.currency || 'BRL') === currency
+    );
+    return (
+      candidates.find((account) => account.id === preferredId)?.id ??
+      candidates[0]?.id ??
+      ''
+    );
+  };
+
   useEffect(() => {
     if (!isOpen) return;
-    const origin = accounts[0];
-    const originCurrency = origin?.currency || 'BRL';
-    const sameCurrency = accounts.filter(
-      (account) => account.id !== origin?.id && (account.currency || 'BRL') === originCurrency
-    );
+    // Abrindo de dentro de uma conta: ela é a origem. Sem contexto, a
+    // primeira conta continua sendo o padrão histórico.
+    const origin =
+      accounts.find((account) => account.id === defaultFromId) ?? accounts[0];
     setForm({
       from: origin?.id ?? '',
-      to: sameCurrency[0]?.id ?? '',
+      to: pickDestinationId(origin?.id, prefs.defaultTransferAccountId),
       amount: '',
       payment_date: toISODate(new Date()),
       description: t('minhasfinancas.transfer_default'),
@@ -58,8 +82,10 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
     setRepeat(null);
     setRepeatOpen(false);
     setFixedMonthly(false);
+    // `prefs` fica fora das deps de propósito: a preferência vale na
+    // abertura e não pode resetar o formulário quando chega do servidor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, accounts.length]);
+  }, [isOpen, accounts.length, defaultFromId]);
 
   if (!isOpen) return null;
 
@@ -81,7 +107,11 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
         (account) => account.id !== from && (account.currency || 'BRL') === nextCurrency
       );
       const keep = candidates.some((account) => account.id === prev.to);
-      return { ...prev, from, to: keep ? prev.to : (candidates[0]?.id ?? '') };
+      return {
+        ...prev,
+        from,
+        to: keep ? prev.to : pickDestinationId(from, prefs.defaultTransferAccountId),
+      };
     });
   };
 

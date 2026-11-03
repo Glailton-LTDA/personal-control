@@ -9,6 +9,9 @@ import { useMFProfileScope } from './mfProfileContext';
 import { useNotificationSettings } from './useFinance';
 import { mfSelect, mfSelectAll, mfMutate, isOffline } from '../lib/offline/mfOffline';
 
+/** Evento interno: uma instância de `useMFPrefs` avisa as outras. */
+const MF_PREFS_EVENT = 'mf-prefs-changed';
+
 /* ────────────────────────────────────────────────────────────
  * Helpers de data e dinheiro
  * ──────────────────────────────────────────────────────────── */
@@ -1314,6 +1317,7 @@ export function useMFLancamentos(
  */
 export function useMFPrefs(user) {
   const [prefs, setPrefs] = useState(() => readPrefsLocal());
+  const prefsRef = useRef(prefs);
   const dirtyRef = useRef(false);
   const timerRef = useRef(null);
 
@@ -1334,6 +1338,7 @@ export function useMFPrefs(user) {
         const remote = data.data;
         if (JSON.stringify(remote) === JSON.stringify(readPrefsLocal())) return;
         writePrefsLocal(remote);
+        prefsRef.current = remote;
         setPrefs(remote);
       } catch {
         // Sem servidor (offline, mock ou tabela ainda não criada): o
@@ -1345,34 +1350,50 @@ export function useMFPrefs(user) {
     };
   }, [user?.id]);
 
+  // Várias instâncias do hook convivem na mesma tela (cadastro de conta,
+  // modal de transferência, Resumo). Quem salva avisa as outras para a
+  // preferência valer na hora, sem esperar um refetch.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onPrefsChanged = (event) => {
+      if (!event?.detail) return;
+      prefsRef.current = event.detail;
+      setPrefs(event.detail);
+    };
+    window.addEventListener(MF_PREFS_EVENT, onPrefsChanged);
+    return () => window.removeEventListener(MF_PREFS_EVENT, onPrefsChanged);
+  }, []);
+
   // Local → servidor: grava na hora no cache e envia (com folga) para a
   // conta, para os outros aparelhos pegarem.
   const save = useCallback(
     (patch) => {
       dirtyRef.current = true;
-      setPrefs((current) => {
-        const next = { ...current, ...patch };
-        writePrefsLocal(next);
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          if (!user?.id) return;
-          try {
-            supabase
-              .from('mf_user_prefs')
-              .upsert(
-                { user_id: user.id, data: next, updated_at: new Date().toISOString() },
-                { onConflict: 'user_id' }
-              )
-              .then(
-                () => {},
-                () => {}
-              );
-          } catch {
-            // Sem servidor: a preferência fica só no cache local.
-          }
-        }, 700);
-        return next;
-      });
+      const next = { ...prefsRef.current, ...patch };
+      prefsRef.current = next;
+      writePrefsLocal(next);
+      setPrefs(next);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(MF_PREFS_EVENT, { detail: next }));
+      }
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (!user?.id) return;
+        try {
+          supabase
+            .from('mf_user_prefs')
+            .upsert(
+              { user_id: user.id, data: next, updated_at: new Date().toISOString() },
+              { onConflict: 'user_id' }
+            )
+            .then(
+              () => {},
+              () => {}
+            );
+        } catch {
+          // Sem servidor: a preferência fica só no cache local.
+        }
+      }, 700);
     },
     [user?.id]
   );
