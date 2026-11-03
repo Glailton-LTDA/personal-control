@@ -1701,3 +1701,39 @@ describe('invoiceCloseForPurchaseDate â€” compra avulsa sem vÃ­nculo', () => {
     expect(invoiceCloseForPurchaseDate({ closing_day: null }, '2021-01-15')).toBe('2020-12-31');
   });
 });
+
+describe('agendador — fatura histórica não é reescrita', () => {
+  const invoice = (over = {}) => ({
+    closeISO: '2025-12-31',
+    dueISO: '2026-01-07',
+    total: 100,
+    openAmount: 100,
+    fifoCovered: 0,
+    ...over,
+  });
+
+  it('ignora fechamento anterior ao mês corrente', () => {
+    const plan = planInvoicePaymentSync({
+      userId: 'u',
+      card,
+      invoices: [invoice()],
+      transactions: [],
+      today: '2026-11-02',
+      minCloseMonth: '2026-11',
+    });
+    expect(plan).toEqual({ creates: [], updates: [], deletes: [] });
+  });
+
+  it('mês corrente continua gerando espelho', () => {
+    const plan = planInvoicePaymentSync({
+      userId: 'u',
+      card,
+      invoices: [invoice({ closeISO: '2026-11-30', dueISO: '2026-12-07' })],
+      transactions: [],
+      today: '2026-11-02',
+      minCloseMonth: '2026-11',
+    });
+    expect(plan.creates).toHaveLength(1);
+    expect(plan.creates[0].notes).toBe(MF_INVOICE_PAYMENT_NOTE);
+  });
+});

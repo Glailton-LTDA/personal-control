@@ -11,7 +11,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
   mfMutate: vi.fn(),
 }));
 
-import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle, formatMonthNavLabel } from './useMinhasFinancas';
+import { countableRows, groupTotalsByCurrency, computeMovementSplit, computeStatement, mfInstallmentSuffix, installmentHeadId, orderSeries, isRecurrentTx, formatMoney, planAutoSettle, formatMonthNavLabel, parseSearchAmount } from './useMinhasFinancas';
 
 describe('formatMoney', () => {
   it('escopo "all" da tela não é moeda — cai no padrão BRL (não Lek albanês)', () => {
@@ -263,5 +263,21 @@ describe('planAutoSettle — efetivação automática (auto_settle, default fals
       today
     );
     expect(item.patch.effective_date).toBe(iso(-5));
+  });
+});
+
+describe('parseSearchAmount � busca por valor no extrato', () => {
+  it('aceita inteiro, decimal com v�rgula e milhar pt-BR', () => {
+    expect(parseSearchAmount('100')).toBe(100);
+    expect(parseSearchAmount('100,00')).toBe(100);
+    expect(parseSearchAmount('1.234,56')).toBe(1234.56);
+    expect(parseSearchAmount('1.234')).toBe(1234);
+    expect(parseSearchAmount('R$ 45,90')).toBe(45.9);
+  });
+
+  it('texto n�o num�rico continua sendo busca por nome', () => {
+    expect(parseSearchAmount('mercado')).toBeNull();
+    expect(parseSearchAmount('')).toBeNull();
+    expect(parseSearchAmount('100 reais')).toBeNull();
   });
 });

@@ -40,6 +40,7 @@ import {
   currentMonthKey,
   toISODate,
   useMFNarrowScreen,
+  parseSearchAmount,
 } from '../../hooks/useMinhasFinancas';
 import MFMonthNav from './MFMonthNav';
 import MFAccountIcon from './MFAccountIcon';
@@ -230,6 +231,7 @@ export default function MFTransacoes({
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const amountTerm = parseSearchAmount(term);
     // categoria pai inclui os filhos no filtro
     const categoryIds =
       categoryFilter === 'all'
@@ -249,7 +251,13 @@ export default function MFTransacoes({
         if (type !== 'all' && tx.type !== type) return false;
         if (categoryIds && !categoryIds.has(tx.category_id)) return false;
         if (tagFilter !== 'all' && !(tagIdsByTx[tx.id] || []).includes(tagFilter)) return false;
-        if (term && !String(tx.description).toLowerCase().includes(term)) return false;
+        if (term) {
+          if (amountTerm !== null) {
+            if (Math.abs(Number(tx.amount) || 0) !== amountTerm) return false;
+          } else if (!String(tx.description).toLowerCase().includes(term)) {
+            return false;
+          }
+        }
         return true;
       })
       .sort((a, b) => String(a.payment_date).localeCompare(String(b.payment_date)));

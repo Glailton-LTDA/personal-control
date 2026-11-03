@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-11-03
+
+### Adicionado
+- **Busca por valor no extrato e nos lançamentos**: o filtro agora aceita nome ou valor monetário (`100`, `100,00`, `1.234,56`). O valor é comparado com o montante do lançamento; o nome continua funcionando. Placeholder atualizado em pt-BR, en e es.
+- **Calculadora com `=`**: a tecla `=` calcula a expressão sem fechar a calculadora. O botão de confirmar (check) aplica o resultado e fecha. Dá para continuar a conta a partir do resultado ou começar uma nova ao digitar depois do `=`.
+
+### Corrigido
+- **Agendador de faturas não reescreve histórico**: o planner só sincroniza faturas do mês corrente e futuras. Faturas fechadas antes do mês corrente não geram mais `Ajuste de fatura` automático. O vínculo do cartão Nubank foi restaurado.
+
 ## [1.31.0] - 2026-11-03
 
 ### Corrigido

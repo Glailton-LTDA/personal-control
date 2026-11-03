@@ -216,6 +216,26 @@ describe('MFStatementTimeline', () => {
     expect(screen.getByTestId('mf-timeline-empty')).toBeInTheDocument();
   });
 
+  it('busca por valor numérico filtra pelo montante', async () => {
+    renderTimeline();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('mf-timeline-search'), {
+      target: { value: '100' },
+    });
+    expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-timeline-item-tx-p')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mf-timeline-item-tx-r')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('mf-timeline-search'), {
+      target: { value: '100,00' },
+    });
+    expect(screen.getByTestId('mf-timeline-item-tx-d')).toBeInTheDocument();
+  });
+
   it('x limpa a busca e mostra tudo de novo', async () => {
     renderTimeline();
 

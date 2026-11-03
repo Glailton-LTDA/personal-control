@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Delete } from 'lucide-react';
+import { Check, Delete } from 'lucide-react';
 import { parseMoney } from '../../hooks/useMinhasFinancas';
 
 /**
@@ -48,7 +48,7 @@ const KEY_ROWS = [
   ['7', '8', '9', '×'],
   ['4', '5', '6', '−'],
   ['1', '2', '3', '+'],
-  ['00', '0', ',', '✓'],
+  ['00', '0', ',', '='],
 ];
 
 const OP_TEST = { '÷': 'div', '×': 'mul', '−': 'sub', '+': 'add' };
@@ -57,7 +57,7 @@ const keyTestId = (key) => {
   if (key === 'C') return 'mf-calc-clear';
   if (key === '⌫') return 'mf-calc-backspace';
   if (key === '%') return 'mf-calc-percent';
-  if (key === '✓') return 'mf-calc-confirm';
+  if (key === '=') return 'mf-calc-equals';
   if (key === ',') return 'mf-calc-comma';
   if (OP_TEST[key]) return `mf-calc-op-${OP_TEST[key]}`;
   return `mf-calc-${key}`;
@@ -75,13 +75,22 @@ export default function MFCalculator({
     acc: null,
     op: null,
     entry: initial || '',
+    justEvaluated: false,
   }));
 
-  const { acc, op, entry } = calc;
+  const { acc, op, entry, justEvaluated } = calc;
   const canConfirm = entry !== '' || acc !== null;
 
   const pressDigit = (d) =>
     setCalc((prev) => {
+      if (prev.justEvaluated) {
+        return {
+          acc: null,
+          op: null,
+          entry: d === '00' ? '0' : d,
+          justEvaluated: false,
+        };
+      }
       if (prev.entry.replace(/\D/g, '').length >= 12) return prev;
       let next = prev.entry;
       if (d === '00') {
@@ -91,27 +100,40 @@ export default function MFCalculator({
       } else {
         next = `${next}${d}`;
       }
-      return { ...prev, entry: next };
+      return { ...prev, entry: next, justEvaluated: false };
     });
 
   const pressComma = () =>
-    setCalc((prev) =>
-      prev.entry.includes(',')
-        ? prev
-        : { ...prev, entry: prev.entry === '' ? '0,' : `${prev.entry},` }
-    );
+    setCalc((prev) => {
+      if (prev.justEvaluated) {
+        return { acc: null, op: null, entry: '0,', justEvaluated: false };
+      }
+      if (prev.entry.includes(',')) return prev;
+      return {
+        ...prev,
+        entry: prev.entry === '' ? '0,' : `${prev.entry},`,
+        justEvaluated: false,
+      };
+    });
 
   const pressOperator = (o) =>
     setCalc((prev) => {
       if (prev.entry !== '') {
         const value = parseMoney(prev.entry);
         if (prev.acc !== null && prev.op) {
-          return { acc: calcApply(prev.acc, prev.op, value), op: o, entry: '' };
+          return {
+            acc: calcApply(prev.acc, prev.op, value),
+            op: o,
+            entry: '',
+            justEvaluated: false,
+          };
         }
-        return { acc: value, op: o, entry: '' };
+        return { acc: value, op: o, entry: '', justEvaluated: false };
       }
-      if (prev.acc === null) return { acc: 0, op: o, entry: '' };
-      return { ...prev, op: o }; // troca o operador pendente
+      if (prev.acc === null) {
+        return { acc: 0, op: o, entry: '', justEvaluated: false };
+      }
+      return { ...prev, op: o, justEvaluated: false }; // troca o operador pendente
     });
 
   const pressPercent = () =>
@@ -119,13 +141,38 @@ export default function MFCalculator({
       const current = parseMoney(prev.entry || '0');
       const relative = prev.acc !== null && (prev.op === '+' || prev.op === '−');
       const out = relative ? (prev.acc * current) / 100 : current / 100;
-      return { ...prev, entry: fmtEntry(out) };
+      return { ...prev, entry: fmtEntry(out), justEvaluated: false };
     });
 
   const pressBackspace = () =>
-    setCalc((prev) => ({ ...prev, entry: prev.entry.slice(0, -1) }));
+    setCalc((prev) => ({
+      ...prev,
+      entry: prev.entry.slice(0, -1),
+      justEvaluated: false,
+    }));
 
-  const pressClear = () => setCalc({ acc: null, op: null, entry: '' });
+  const pressClear = () =>
+    setCalc({ acc: null, op: null, entry: '', justEvaluated: false });
+
+  /** `=` calcula e mantém a calculadora aberta; o check aplica e fecha. */
+  const pressEquals = () =>
+    setCalc((prev) => {
+      let result = null;
+      if (prev.entry !== '' && prev.acc !== null && prev.op) {
+        result = calcApply(prev.acc, prev.op, parseMoney(prev.entry));
+      } else if (prev.entry !== '') {
+        result = parseMoney(prev.entry);
+      } else if (prev.acc !== null) {
+        result = prev.acc;
+      }
+      if (result === null || !Number.isFinite(result)) return prev;
+      return {
+        acc: null,
+        op: null,
+        entry: fmtEntry(result),
+        justEvaluated: true,
+      };
+    });
 
   const pressConfirm = () => {
     let result = null;
@@ -145,19 +192,23 @@ export default function MFCalculator({
     if (key === '%') return pressPercent();
     if (key === '⌫') return pressBackspace();
     if (key === ',') return pressComma();
-    if (key === '✓') return pressConfirm();
+    if (key === '=') return pressEquals();
     if (OP_TEST[key]) return pressOperator(key);
     return pressDigit(key);
   };
 
   const display = entry !== '' ? entry : acc !== null ? fmtPreview(acc) : '0';
-  const expr = op && acc !== null ? `${fmtPreview(acc)} ${op}` : ' ';
+  const expr = justEvaluated
+    ? '='
+    : op && acc !== null
+      ? `${fmtPreview(acc)} ${op}`
+      : ' ';
 
   const keyAria = (key) => {
     if (key === 'C') return t('minhasfinancas.calc_clear');
     if (key === '⌫') return t('minhasfinancas.calc_backspace');
     if (key === '%') return t('minhasfinancas.calc_percent');
-    if (key === '✓') return t('minhasfinancas.calc_confirm');
+    if (key === '=') return t('minhasfinancas.calc_equals');
     return key;
   };
 
@@ -198,17 +249,16 @@ export default function MFCalculator({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
           {KEY_ROWS.flat().map((key) => {
-            const isConfirm = key === '✓';
             const isOperator = Boolean(OP_TEST[key]);
+            const isEquals = key === '=';
             return (
               <button
                 key={key}
                 type="button"
-                className={isConfirm ? 'btn-primary' : 'btn-cancel'}
+                className={isEquals ? 'btn-primary' : 'btn-cancel'}
                 data-testid={keyTestId(key)}
                 aria-label={keyAria(key)}
                 title={keyAria(key)}
-                disabled={isConfirm && !canConfirm}
                 onClick={() => onKey(key)}
                 style={{
                   padding: '0.7rem 0',
@@ -225,6 +275,29 @@ export default function MFCalculator({
             );
           })}
         </div>
+
+        <button
+          type="button"
+          className="btn-primary"
+          data-testid="mf-calc-confirm"
+          aria-label={t('minhasfinancas.calc_confirm')}
+          title={t('minhasfinancas.calc_confirm')}
+          disabled={!canConfirm}
+          onClick={pressConfirm}
+          style={{
+            marginTop: '0.5rem',
+            width: '100%',
+            padding: '0.7rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.4rem',
+            fontWeight: 800,
+          }}
+        >
+          <Check size={16} />
+          {t('minhasfinancas.calc_confirm')}
+        </button>
       </div>
     </div>,
     document.body

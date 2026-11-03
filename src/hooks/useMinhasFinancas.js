@@ -357,6 +357,28 @@ export const parseMoney = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Interpreta a busca do extrato/lançamentos como valor monetário.
+ * Retorna `null` quando o texto não é puramente numérico (aí a busca é por
+ * nome). Aceita "100", "100,00", "1.234,56" e "1.234" (milhar pt-BR).
+ */
+export const parseSearchAmount = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw || !/\d/.test(raw)) return null;
+  const cleaned = raw.replace(/R\$\s?/gi, '').replace(/\s/g, '');
+  if (!/^[-+]?\d[\d.,]*$/.test(cleaned)) return null;
+
+  let normalized = cleaned;
+  if (normalized.includes(',')) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (/^[-+]?\d{1,3}(\.\d{3})+$/.test(normalized)) {
+    normalized = normalized.replace(/\./g, '');
+  }
+
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : null;
+};
+
 /** Máscara de valor monetário (centavos inteiros → '0,00'). */
 export const maskAmount = (raw) => {
   const digits = raw.replace(/\D/g, '');
@@ -1030,6 +1052,8 @@ export function useMFLancamentos(
   const profileId = useMFProfileScope();
   const { data: accounts = [] } = useMFAccounts(user);
   const term = String(search ?? '').trim();
+  const amountTerm = parseSearchAmount(term);
+  const isAmountSearch = amountTerm !== null;
   const categoryKey = (categoryIds ?? []).slice().sort().join(',');
   const currencyKey = accounts.map((account) => account.currency || 'BRL').join(',');
 
@@ -1126,8 +1150,14 @@ export function useMFLancamentos(
         if (type !== 'all' && tx.type !== type) return false;
         if (categorySet && !categorySet.has(tx.category_id)) return false;
         if (tagTxIds && !tagTxIds.has(tx.id)) return false;
-        if (term && !String(tx.description ?? '').toLowerCase().includes(term.toLowerCase())) {
-          return false;
+        if (term) {
+          if (isAmountSearch) {
+            if (Math.abs(Number(tx.amount) || 0) !== amountTerm) return false;
+          } else if (
+            !String(tx.description ?? '').toLowerCase().includes(term.toLowerCase())
+          ) {
+            return false;
+          }
         }
         return true;
       };
@@ -1149,7 +1179,9 @@ export function useMFLancamentos(
         if (type !== 'all') query = query.eq('type', type);
         if (categorySet) query = query.in('category_id', [...categorySet]);
         if (tagTxIds) query = query.in('id', [...tagTxIds]);
-        if (term && typeof query.ilike === 'function') {
+        if (isAmountSearch) {
+          query = query.in('amount', [amountTerm, -amountTerm]);
+        } else if (term && typeof query.ilike === 'function') {
           query = query.ilike('description', `%${term}%`);
         }
         query = query.order('payment_date').order('id');
@@ -1197,7 +1229,7 @@ export function useMFLancamentos(
         : rawPage.filter(matches)
       );
       const allRows = rawTotals.filter((row) =>
-        row.description !== undefined ? matches(row) : true
+        isAmountSearch || row.description !== undefined ? matches(row) : true
       );
 
       const totals = { receitas: {}, despesas: {}, transferencias: {} };
@@ -3193,7 +3225,14 @@ const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
  *   não duplica e não revaloriza;
  * - fatura zerada (só estornos) → apaga o espelho.
  */
-export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, today }) => {
+export const planInvoicePaymentSync = ({
+  userId,
+  card,
+  invoices,
+  transactions,
+  today,
+  minCloseMonth = null,
+}) => {
   const creates = [];
   const updates = [];
   const deletes = [];
@@ -3213,6 +3252,10 @@ export const planInvoicePaymentSync = ({ userId, card, invoices, transactions, t
   });
   (invoices || []).forEach((invoice) => {
     if (!invoice?.closeISO || !invoice?.dueISO) return;
+    // Histórico fechado não é reescrito pelo agendador: o backfill mudou
+    // totais antigos e o planner recriava "Ajuste de fatura" em cima de
+    // faturas já pagas. Só o mês corrente e os futuros são sincronizados.
+    if (minCloseMonth && String(invoice.closeISO).slice(0, 7) < minCloseMonth) return;
     if (seen.has(invoice.closeISO)) return;
     seen.add(invoice.closeISO);
     const billable = Math.max(0, Number(invoice.total) || 0);
@@ -3412,6 +3455,7 @@ export function useMFScheduleCardPayments(user) {
             invoices: [current, ...invoices, ...upcomingInvoices],
             transactions,
             today,
+            minCloseMonth: currentMonthKey(),
           });
           creates.push(...plan.creates);
           updates.push(...plan.updates);

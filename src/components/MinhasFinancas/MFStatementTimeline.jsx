@@ -14,6 +14,7 @@ import {
   toISODate,
   monthBounds,
   mfInstallmentSuffix,
+  parseSearchAmount,
 } from '../../hooks/useMinhasFinancas';
 import MFCategoryAvatar from './MFCategoryAvatar';
 import MFEmailModal from './MFEmailModal';
@@ -121,7 +122,8 @@ export default function MFStatementTimeline({
     }
   };
 
-  const searching = mfNormalize(search).trim() !== '';
+  const amountNeedle = parseSearchAmount(search);
+  const searching = amountNeedle !== null || mfNormalize(search).trim() !== '';
   const days = useMemo(() => {
     const groups = [...(data?.groups ?? [])].reverse(); // mais recente primeiro
     if (!searching) return groups;
@@ -130,6 +132,9 @@ export default function MFStatementTimeline({
       .map((group) => ({
         ...group,
         items: group.items.filter((item) => {
+          if (amountNeedle !== null) {
+            return Math.abs(Number(item.tx.amount) || 0) === amountNeedle;
+          }
           const category = item.tx.category_id
             ? categoryById[item.tx.category_id]?.name ?? ''
             : '';
@@ -143,7 +148,7 @@ export default function MFStatementTimeline({
         }),
       }))
       .filter((group) => group.items.length > 0);
-  }, [data, searching, search, categoryById]);
+  }, [data, searching, search, amountNeedle, categoryById]);
 
   const opening = Number(data?.opening) || 0;
   // Cartão não tem saldo (só fatura): o extrato lista as compras, sem
