@@ -2784,9 +2784,19 @@ export const buildCardInvoices = ({
   // Pagamento = DESPESA na conta vinculada (modelo novo) ou TRANSFERENCIA
   // → cartão (histórico — segue contado). Só o vinculado quita fatura
   // certa; DESPESA sem vínculo é gasto normal da conta (nunca vai ao FIFO).
+  // Espelhos e ajustes automáticos de faturas JÁ FECHADAS são sintéticos:
+  // não podem entrar como pagamento real no cálculo derivado. O histórico
+  // oficial é a `mf_invoices` (baixa manual) + transferências/pagamentos
+  // reais. Os espelhos do mês corrente/futuro continuam valendo como
+  // projeção (AGENDADA).
+  const isSyntheticHistorical = (tx) =>
+    (tx.notes === MF_INVOICE_PAYMENT_NOTE || tx.notes === MF_INVOICE_DIFF_NOTE) &&
+    tx.invoice_close &&
+    String(tx.invoice_close).slice(0, 7) < currentMonthKey();
   const isPaymentTx = (tx) =>
-    (tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === card.id) ||
-    (tx.type === 'DESPESA' && linkedAccountIds.has(tx.account_id) && tx.invoice_close);
+    !isSyntheticHistorical(tx) &&
+    ((tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === card.id) ||
+      (tx.type === 'DESPESA' && linkedAccountIds.has(tx.account_id) && tx.invoice_close));
   const payments = transactions
     .filter(
       (tx) =>
@@ -3591,16 +3601,16 @@ export function useMFScheduleCardPayments(user) {
 /**
  * Confirmação do modal de pagamento (item 30): se já existe despesa PENDENTE
  * vinculada à fatura na conta do cartão (o espelho), ATUALIZA aquela linha —
- * um único débito por fatura. Valor total → marcador automático (o agendador
- * volta a sincronizar/promover); parcial → marcador sai: a linha é sua e o
- * em aberto continua mostrando o resto. O eq() estreita no servidor e a
+ * um único débito por fatura. O pagamento feito pelo usuário nunca leva o
+ * marcador do agendador: a linha é dele e o em aberto continua mostrando o
+ * resto. O eq() estreita no servidor e a
  * triagem repetida no cliente cobre o mock do E2E, que devolve a tabela
  * inteira no GET.
  */
 export function usePayCardInvoice() {
   const invalidate = useInvalidateAll();
   return useMutation({
-    mutationFn: async ({ card, invoice, payload, payable }) => {
+    mutationFn: async ({ card, invoice, payload }) => {
       const { data, error } = await supabase
         .from('mf_transactions')
         .select('*')
@@ -3625,8 +3635,10 @@ export function usePayCardInvoice() {
       const superseded = rows.filter(
         (row) => row.notes === MF_INVOICE_PAYMENT_NOTE && row.id !== (existing?.id ?? null)
       );
-      const isFull = (Number(payload.amount) || 0) >= (Number(payable) || 0) - 0.005;
-      const patch = { ...payload, notes: isFull ? MF_INVOICE_PAYMENT_NOTE : null };
+      // Pagamento feito pelo usuário não leva o marcador do agendador;
+      // assim o trigger histórico não o bloqueia e o planner o trata como
+      // pagamento seu (não cria espelho/diferença automática).
+      const patch = { ...payload, notes: null };
       const result = existing
         ? await mfMutate({
             table: 'mf_transactions',

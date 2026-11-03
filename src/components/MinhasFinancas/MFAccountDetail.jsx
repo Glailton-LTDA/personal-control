@@ -274,13 +274,6 @@ export default function MFAccountDetail({
         .map((row) => row.id),
     [accounts, account.id]
   );
-  const {
-    data: allTx = [],
-    isLoading: allTxLoading,
-    isError: allTxError,
-    refetch: refetchAllTx,
-  } = useMFAccountTransactions(user, account.id, linkedCardIds);
-
   const cardSettingsIds = useMemo(
     () => [
       ...linkedCardIds,
@@ -289,6 +282,32 @@ export default function MFAccountDetail({
     [linkedCardIds, account]
   );
   const { data: cardSettings = [] } = useMFCardSettings(user, cardSettingsIds);
+  // No detalhe do cartão, inclui a(s) conta(s) vinculada(s) no escopo das
+  // transações para os pagamentos reais (DESPESA com invoice_close) não
+  // ficarem invisíveis. Antes o cartão só carregava a si mesmo e toda
+  // fatura paga na conta aparecia em aberto.
+  const cardPaymentAccountIds = useMemo(() => {
+    if (account.account_type !== 'CARTAO') return [];
+    return [
+      ...new Set(
+        [
+          account.linked_account_id,
+          ...(cardSettings ?? [])
+            .filter((row) => row.card_id === account.id)
+            .map((row) => row.linked_account_id),
+        ].filter(Boolean)
+      ),
+    ];
+  }, [account, cardSettings]);
+  const {
+    data: allTx = [],
+    isLoading: allTxLoading,
+    isError: allTxError,
+    refetch: refetchAllTx,
+  } = useMFAccountTransactions(user, account.id, [
+    ...linkedCardIds,
+    ...cardPaymentAccountIds,
+  ]);
   const invoiceCardIds = useMemo(
     () => (account.account_type === 'CARTAO' ? [account.id] : linkedCardIds),
     [account.account_type, account.id, linkedCardIds]

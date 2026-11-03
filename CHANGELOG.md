@@ -7,6 +7,10 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Adicionado
 - **Faturas como entidade (em andamento)**: tabela `mf_invoices` (total, fonte, pago, status) e backfill dos cabeçalhos; views de auditoria `mf_invoice_audit`, `mf_invoice_audit_payments`, `mf_invoice_legacy_transfers` e `mf_invoice_audit_fifo`. Nenhum lançamento foi apagado; a limpeza dos espelhos/ajustes automáticos depende da auditoria.
 - **Baixa manual da fatura**: modal no detalhe do cartão e nos cartões vinculados da conta para informar total oficial/valor pago e marcar a fatura como paga **sem criar lançamento na conta**. A UI sobrepõe o registro de `mf_invoices` ao cálculo derivado.
+- **Detalhe do cartão vê a conta vinculada**: o escopo de transações inclui a(s) conta(s) vinculada(s), então pagamentos reais com `invoice_close` deixam de ficar invisíveis.
+- **Manual × automático**: pagamento manual não usa mais o marcador `Agendado automaticamente (fatura)`, deixando de ser bloqueado pelo trigger histórico.
+- **RPC `mf_card_cycle_totals`**: agora `RETURNS SETOF jsonb`, devolvendo todos os cartões (antes só o primeiro, C6).
+- **Cálculo derivado ignora espelhos/ajustes automáticos históricos**: eles continuam no banco para auditoria, mas não contam como pagamento real em faturas já fechadas.
 
 ## [1.33.0] - 2026-11-03
 
