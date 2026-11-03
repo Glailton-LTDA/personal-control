@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Wallet, Check, Clock, Lock, LockOpen, RotateCcw } from 'lucide-react';
+import { Wallet, Check, Clock, Lock, LockOpen, Pencil, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
   useMFCardTransactions,
   useMFCategories,
   useUpdateMFTransaction,
+  useMFInvoices,
   MF_INVOICE_PAYMENT_NOTE,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
+  getInvoiceRecord,
   formatMoney,
   formatMonthLabel,
   monthRefISO,
@@ -18,6 +22,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import MFPaymentModal from './MFPaymentModal';
 import MFAdjustBalanceModal from './MFAdjustBalanceModal';
+import MFInvoiceManualModal from './MFInvoiceManualModal';
 import MFCardBrandIcon from './MFCardBrandIcon';
 import { readInvoiceSel, writeInvoiceSel } from './mfViewState';
 
@@ -70,6 +75,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   );
   const [paying, setPaying] = useState(null); // invoice escolhida no modal
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
 
   const categoryById = useMemo(
     () => Object.fromEntries((categories || []).map((row) => [row.id, row])),
@@ -77,11 +83,23 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   );
 
   const refISO = monthRefISO(monthKey);
-  const { current, invoices, upcomingInvoices = [] } = useMemo(
+  const { data: invoiceRecords = [] } = useMFInvoices(user, [card.id]);
+  const builtInvoices = useMemo(
     // Limite comprometido (igual ao widget): futuras vinculadas contam
     // mesmo com data futura, para o detalhe reconciliar com o EM ABERTO.
     () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true, settings }),
     [card, transactions, refISO, monthKey, settings]
+  );
+  // Baixa manual: o cabeçalho oficial de `mf_invoices` sobrepõe o cálculo
+  // derivado. Registros `derived` do backfill ficam de fora do overlay.
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
+  const { current, invoices, upcomingInvoices } = useMemo(
+    () =>
+      applyCardInvoiceRecords(builtInvoices, invoiceRecordMap, card.id, refISO),
+    [builtInvoices, invoiceRecordMap, card.id, refISO]
   );
   /** Janela da lista: mês anterior, o mês da fatura corrente e o próximo.
    *  O chip da corrente é separado; os demais entram só se o vencimento
@@ -583,6 +601,27 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                 )}
                 <button
                   type="button"
+                  data-testid="mf-invoice-manual"
+                  onClick={() => setManualOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: 'var(--primary)',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Pencil size={15} />
+                  {t('minhasfinancas.inv_manual_button')}
+                </button>
+                <button
+                  type="button"
                   data-testid="mf-invoice-adjust"
                   onClick={() => setAdjustOpen(true)}
                   style={{
@@ -788,6 +827,17 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
           />
         );
       })()}
+
+      {/* Baixa manual: total oficial/pago sem lançamento na conta */}
+      {manualOpen && activeInvoice && (
+        <MFInvoiceManualModal
+          card={card}
+          invoice={activeInvoice}
+          record={getInvoiceRecord(invoiceRecordMap, card.id, activeInvoice.closeISO)}
+          user={user}
+          onClose={() => setManualOpen(false)}
+        />
+      )}
     </div>
   );
 }

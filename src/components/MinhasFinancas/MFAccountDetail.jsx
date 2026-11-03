@@ -38,9 +38,13 @@ import {
   useMFCategories,
   useMFAccountTransactions,
   useMFCardSettings,
+  useMFInvoices,
   useUpdateAccount,
   useDeleteAccount,
+  applyCardInvoiceRecords,
+  buildInvoiceRecordMap,
   buildCardInvoices,
+  getInvoiceRecord,
   monthRefISO,
   monthBounds,
   prevMonthKey,
@@ -62,6 +66,7 @@ import MFPaymentModal from './MFPaymentModal';
 import MFAddMenu from './MFAddMenu';
 import MFTransferModal from './MFTransferModal';
 import MFAdjustBalanceModal from './MFAdjustBalanceModal';
+import MFInvoiceManualModal from './MFInvoiceManualModal';
 import MFStatementTimeline from './MFStatementTimeline';
 import MFManageMenu from './MFManageMenu';
 
@@ -150,6 +155,7 @@ export default function MFAccountDetail({
   const [detailTx, setDetailTx] = useState(null);
   // Pagamento de fatura de cartão vinculado: { card, invoice } no modal.
   const [paying, setPaying] = useState(null);
+  const [manualInvoice, setManualInvoice] = useState(null);
   // Opção escolhida no menu "+" contextual (expense | income |
   // cardExpense | estorno) — transferência abre o modal dedicado.
   const [addKind, setAddKind] = useState(null);
@@ -246,13 +252,6 @@ export default function MFAccountDetail({
         .map((row) => row.id),
     [accounts, account.id]
   );
-  const {
-    data: allTx = [],
-    isLoading: allTxLoading,
-    isError: allTxError,
-    refetch: refetchAllTx,
-  } = useMFAccountTransactions(user, account.id, linkedCardIds);
-
   const cardSettingsIds = useMemo(
     () => [
       ...linkedCardIds,
@@ -261,6 +260,41 @@ export default function MFAccountDetail({
     [linkedCardIds, account]
   );
   const { data: cardSettings = [] } = useMFCardSettings(user, cardSettingsIds);
+  // No detalhe do cartão, inclui a(s) conta(s) vinculada(s) no escopo das
+  // transações para os pagamentos reais (DESPESA com invoice_close) não
+  // ficarem invisíveis. Antes o cartão só carregava a si mesmo e toda
+  // fatura paga na conta aparecia em aberto.
+  const cardPaymentAccountIds = useMemo(() => {
+    if (account.account_type !== 'CARTAO') return [];
+    return [
+      ...new Set(
+        [
+          account.linked_account_id,
+          ...(cardSettings ?? [])
+            .filter((row) => row.card_id === account.id)
+            .map((row) => row.linked_account_id),
+        ].filter(Boolean)
+      ),
+    ];
+  }, [account, cardSettings]);
+  const {
+    data: allTx = [],
+    isLoading: allTxLoading,
+    isError: allTxError,
+    refetch: refetchAllTx,
+  } = useMFAccountTransactions(user, account.id, [
+    ...linkedCardIds,
+    ...cardPaymentAccountIds,
+  ]);
+  const invoiceCardIds = useMemo(
+    () => (account.account_type === 'CARTAO' ? [account.id] : linkedCardIds),
+    [account.account_type, account.id, linkedCardIds]
+  );
+  const { data: invoiceRecords = [] } = useMFInvoices(user, invoiceCardIds);
+  const invoiceRecordMap = useMemo(
+    () => buildInvoiceRecordMap(invoiceRecords),
+    [invoiceRecords]
+  );
 
   const refISO = monthRefISO(monthKey);
   const linkedInvoices = useMemo(() => {
@@ -273,13 +307,18 @@ export default function MFAccountDetail({
           !row.archived_at
       )
       .map((card) => {
-        const { current, invoices } = buildCardInvoices({
-          card,
-          transactions: allTx,
-          refISO,
-          monthKey,
-          settings: cardSettings,
-        });
+        const { current, invoices } = applyCardInvoiceRecords(
+          buildCardInvoices({
+            card,
+            transactions: allTx,
+            refISO,
+            monthKey,
+            settings: cardSettings,
+          }),
+          invoiceRecordMap,
+          card.id,
+          refISO
+        );
         const active =
           // 1) fatura em aberto mais antiga (é o que falta pagar);
           // 2) corrente com movimento; 3) última fechada com valor
@@ -289,9 +328,13 @@ export default function MFAccountDetail({
           ((Number(current.total) || 0) > 0
             ? current
             : invoices.find((inv) => (Number(inv.total) || 0) > 0) ?? current);
-        return { card, active };
+        return {
+          card,
+          active,
+          record: getInvoiceRecord(invoiceRecordMap, card.id, active?.closeISO),
+        };
       });
-  }, [account, accounts, allTx, refISO, monthKey, cardSettings]);
+  }, [account, accounts, allTx, refISO, monthKey, cardSettings, invoiceRecordMap]);
 
   /** Abre o modal de pagamento (total ou parcial) da fatura do cartão vinculado. */
   const handlePayLinked = (card, invoice) => {
@@ -591,17 +634,22 @@ export default function MFAccountDetail({
   // chips de fatura) — sem fatura no mês, sem card.
   const cardQuick = useMemo(() => {
     if (account.account_type !== 'CARTAO') return null;
-    const { current, upcomingInvoices = [] } = buildCardInvoices({
-      card: account,
-      transactions: allTx ?? [],
-      refISO,
-      monthKey,
-      settings: cardSettings,
-    });
+    const { current, upcomingInvoices } = applyCardInvoiceRecords(
+      buildCardInvoices({
+        card: account,
+        transactions: allTx ?? [],
+        refISO,
+        monthKey,
+        settings: cardSettings,
+      }),
+      invoiceRecordMap,
+      account.id,
+      refISO
+    );
     if (!current) return null;
     const next = upcomingInvoices.find((row) => row.closeISO !== current.closeISO) ?? null;
     return { current, next };
-  }, [account, allTx, refISO, monthKey, cardSettings]);
+  }, [account, allTx, refISO, monthKey, cardSettings, invoiceRecordMap]);
   const quickStatus = cardQuick
     ? INVOICE_STATUS[cardQuick.current.status] ?? INVOICE_STATUS.CORRENTE
     : null;
@@ -1359,7 +1407,7 @@ export default function MFAccountDetail({
         <section data-testid="mf-acct-det-linked-cards">
           <h4 style={sectionTitle}>{t('minhasfinancas.cards_linked')}</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {linkedInvoices.map(({ card, active }) => {
+            {linkedInvoices.map(({ card, active, record: activeRecord }) => {
               const status = INVOICE_STATUS[active.status] ?? INVOICE_STATUS.CORRENTE;
               // Valor da fatura (bruto); o botão Pagar some quando não há
               // mais o que pagar — em aberto OU agendado (item 30: com o
@@ -1490,6 +1538,33 @@ export default function MFAccountDetail({
                       )}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    data-testid={`mf-linked-card-manual-${card.id}`}
+                    onClick={() =>
+                      setManualInvoice({ card, invoice: active, record: activeRecord })
+                    }
+                    style={{
+                      flexBasis: '100%',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      marginTop: '0.35rem',
+                      padding: '0.45rem',
+                      borderRadius: 10,
+                      border: '1px solid var(--glass-border)',
+                      background: 'transparent',
+                      color: 'var(--primary)',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Pencil size={14} />
+                    {t('minhasfinancas.inv_manual_button')}
+                  </button>
                 </div>
               );
             })}
@@ -1837,6 +1912,17 @@ export default function MFAccountDetail({
           user={user}
           onClose={() => setDetailTx(null)}
           onEditFull={openFullEdit}
+        />
+      )}
+
+      {/* Baixa manual de fatura (conta ou cartão vinculado) */}
+      {manualInvoice && (
+        <MFInvoiceManualModal
+          card={manualInvoice.card}
+          invoice={manualInvoice.invoice}
+          record={manualInvoice.record}
+          user={user}
+          onClose={() => setManualInvoice(null)}
         />
       )}
     </div>

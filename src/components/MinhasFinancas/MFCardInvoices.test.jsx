@@ -141,6 +141,17 @@ describe('MFCardInvoices — Reajustar saldo', () => {
     expect(screen.getByTestId('mf-adjust-target')).toBeInTheDocument();
   });
 
+  it('abre o modal de baixa manual da fatura', async () => {
+    renderInvoices();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-invoice-manual'));
+    expect(screen.getByTestId('mf-invoice-manual-modal')).toBeInTheDocument();
+  });
+
   it('manual e transferência chamam os callbacks da fatura', async () => {
     const onManualTx = vi.fn();
     const onOpenTransfer = vi.fn();

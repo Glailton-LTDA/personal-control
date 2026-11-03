@@ -196,6 +196,14 @@ describe('planMFInvoiceReminders — aviso de fatura fechada', () => {
     expect(rows[1].openAmount).toBe(0);
   });
 
+  it('fatura já paga (inclusive baixa manual) não vira lembrete', () => {
+    const rows = planMFInvoiceReminders(
+      [invoice({ status: 'PAGA', openAmount: 0 })],
+      TODAY
+    );
+    expect(rows).toEqual([]);
+  });
+
   it('limita a quantidade e ignora entrada inválida', () => {
     const rows = planMFInvoiceReminders(
       [invoice({ cardId: 'a' }), invoice({ cardId: 'b' })],

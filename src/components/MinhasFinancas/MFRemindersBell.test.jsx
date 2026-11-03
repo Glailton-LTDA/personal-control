@@ -69,6 +69,9 @@ vi.mock('../../hooks/useMinhasFinancas', () => ({
     },
     isLoading: false,
   }),
+  useMFInvoices: () => ({ data: [] }),
+  buildInvoiceRecordMap: () => ({}),
+  applyCardInvoiceRecords: (built) => built,
   buildCardInvoices: () => ({
     current: {
       closeISO: '2026-10-15',
