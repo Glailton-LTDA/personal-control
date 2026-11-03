@@ -6,6 +6,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ### Adicionado
 - **Faturas como entidade (em andamento)**: tabela `mf_invoices` (total, fonte, pago, status) e backfill dos cabeçalhos; views de auditoria `mf_invoice_audit`, `mf_invoice_audit_payments`, `mf_invoice_legacy_transfers` e `mf_invoice_audit_fifo`. Nenhum lançamento foi apagado; a limpeza dos espelhos/ajustes automáticos depende da auditoria.
+- **Baixa manual da fatura**: modal no detalhe do cartão e nos cartões vinculados da conta para informar total oficial/valor pago e marcar a fatura como paga **sem criar lançamento na conta**. A UI sobrepõe o registro de `mf_invoices` ao cálculo derivado.
 
 ## [1.33.0] - 2026-11-03
 

@@ -4212,6 +4212,48 @@ export function useMFCardSettings(user, cardIds) {
   });
 }
 
+/**
+ * Cabeçalhos de fatura (`mf_invoices`) dos cartões informados. A UI usa
+ * esse registro para sobrepor o total/status derivado quando existe uma
+ * baixa manual (total oficial informado pelo usuário).
+ */
+export function useMFInvoices(user, cardIds = null) {
+  const ids = useMemo(
+    () => [...new Set((cardIds ?? []).filter(Boolean))].sort(),
+    [cardIds]
+  );
+  return useQuery({
+    queryKey: ['mf-invoices', user?.id, ids.join(',')],
+    enabled: !!user?.id && ids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('mf_invoices')
+        .select('*')
+        .in('card_id', ids)
+        .order('close_date');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/** Cria/atualiza a baixa manual de uma fatura (sem lançamento na conta). */
+export function useUpsertMFInvoice() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: async (payload) => {
+      const { data, error } = await supabase
+        .from('mf_invoices')
+        .upsert(payload, { onConflict: 'card_id,close_date' })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
 /* ────────────────────────────────────────────────────────────
  * Fase 6: relatórios e exportação
  * ──────────────────────────────────────────────────────────── */

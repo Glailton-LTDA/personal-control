@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Wallet, Check, Clock, Lock, LockOpen, RotateCcw } from 'lucide-react';
+import { Wallet, Check, Clock, Lock, LockOpen, Pencil, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../../lib/toast';
 import {
   useMFCardTransactions,
   useMFCategories,
   useUpdateMFTransaction,
+  useMFInvoices,
   MF_INVOICE_PAYMENT_NOTE,
   buildCardInvoices,
   formatMoney,
@@ -18,6 +19,7 @@ import {
 } from '../../hooks/useMinhasFinancas';
 import MFPaymentModal from './MFPaymentModal';
 import MFAdjustBalanceModal from './MFAdjustBalanceModal';
+import MFInvoiceManualModal from './MFInvoiceManualModal';
 import MFCardBrandIcon from './MFCardBrandIcon';
 import { readInvoiceSel, writeInvoiceSel } from './mfViewState';
 
@@ -70,6 +72,7 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   );
   const [paying, setPaying] = useState(null); // invoice escolhida no modal
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
 
   const categoryById = useMemo(
     () => Object.fromEntries((categories || []).map((row) => [row.id, row])),
@@ -77,12 +80,55 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   );
 
   const refISO = monthRefISO(monthKey);
-  const { current, invoices, upcomingInvoices = [] } = useMemo(
+  const { data: invoiceRecords = [] } = useMFInvoices(user, [card.id]);
+  const builtInvoices = useMemo(
     // Limite comprometido (igual ao widget): futuras vinculadas contam
     // mesmo com data futura, para o detalhe reconciliar com o EM ABERTO.
     () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true, settings }),
     [card, transactions, refISO, monthKey, settings]
   );
+  // Baixa manual: o cabeçalho de `mf_invoices` sobrepõe o cálculo
+  // derivado. Sem registro manual, a fatura continua 100% derivada.
+  const recordByClose = useMemo(
+    () =>
+      Object.fromEntries(
+        (invoiceRecords ?? []).map((row) => [String(row.close_date).slice(0, 10), row])
+      ),
+    [invoiceRecords]
+  );
+  const { current, invoices, upcomingInvoices } = useMemo(() => {
+    const applyManual = (inv) => {
+      if (!inv) return inv;
+      const record = recordByClose[inv.closeISO];
+      if (!record) return inv;
+      const total = Number(record.total) || 0;
+      const paid = Number(record.paid_total) || 0;
+      const open = Math.max(0, Math.round((total - paid) * 100) / 100);
+      const isPaid = record.status === 'PAID' || (total > 0 && open < 0.005);
+      const status = isPaid
+        ? 'PAGA'
+        : record.status === 'OVERDUE' || (inv.dueISO && inv.dueISO < refISO)
+          ? 'VENCIDA'
+          : record.status === 'SCHEDULED'
+            ? 'AGENDADA'
+            : 'EM_ABERTO';
+      return {
+        ...inv,
+        total,
+        paid,
+        openAmount: open,
+        pendingBound: isPaid ? 0 : inv.pendingBound,
+        refunds: 0,
+        status,
+        manual: true,
+      };
+    };
+    return {
+      current: applyManual(builtInvoices.current),
+      invoices: (builtInvoices.invoices ?? []).map(applyManual),
+      upcomingInvoices: (builtInvoices.upcomingInvoices ?? []).map(applyManual),
+    };
+  }, [builtInvoices, recordByClose, refISO]);
   /** Janela da lista: mês anterior, o mês da fatura corrente e o próximo.
    *  O chip da corrente é separado; os demais entram só se o vencimento
    *  cair nessa janela (evita a lista de parcelas até 2027). */
@@ -583,6 +629,27 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                 )}
                 <button
                   type="button"
+                  data-testid="mf-invoice-manual"
+                  onClick={() => setManualOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: 'var(--primary)',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Pencil size={15} />
+                  {t('minhasfinancas.inv_manual_button')}
+                </button>
+                <button
+                  type="button"
                   data-testid="mf-invoice-adjust"
                   onClick={() => setAdjustOpen(true)}
                   style={{
@@ -788,6 +855,17 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
           />
         );
       })()}
+
+      {/* Baixa manual: total oficial/pago sem lançamento na conta */}
+      {manualOpen && activeInvoice && (
+        <MFInvoiceManualModal
+          card={card}
+          invoice={activeInvoice}
+          record={recordByClose[activeInvoice.closeISO] ?? null}
+          user={user}
+          onClose={() => setManualOpen(false)}
+        />
+      )}
     </div>
   );
 }
