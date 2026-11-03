@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { mfMutate } from '../../lib/offline/mfOffline';
 import {
   useMFAccounts,
+  useMFAccountBalances,
   useMFCategories,
   useMFTags,
   useCreateMFCategory,
@@ -169,6 +170,10 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
     [categories]
   );
   const account = tx ? (accountById[tx.account_id] ?? null) : null;
+  const { data: calcBalances = {} } = useMFAccountBalances(
+    user,
+    calcOpen && account && account.account_type !== 'CARTAO' ? [account.id] : []
+  );
   // Escopo enxuto: conta do lançamento + contrapartes (vinculada e
   // cartões ligados) em vez das ~13 mil linhas. Cobre a série (mesma
   // conta), as fixas e a fatura do cartão; séries hipotéticas em outra
@@ -1622,6 +1627,9 @@ export default function MFTxDetailModal({ tx, tagIds = [], user, onClose, onEdit
               value: money(Math.abs(Number(viewTx.amount) || 0)),
             })}
             initial={Math.abs(Number(viewTx.amount) || 0).toFixed(2).replace('.', ',')}
+            balance={!isCard ? calcBalances[account?.id] : null}
+            balanceLabel={account?.name}
+            balanceCurrency={account?.currency || 'BRL'}
             onConfirm={onValueConfirm}
             onClose={() => setCalcOpen(false)}
           />

@@ -19,6 +19,7 @@ import { MF_ADD_FAB } from './mfAddMenuData';
 import MFTransacaoScreen from './MFTransacaoScreen';
 import MFTransferModal from './MFTransferModal';
 import MFAccountDetail from './MFAccountDetail';
+import MFGlobalCalculator from './MFGlobalCalculator';
 import {
   currentMonthKey,
   useMFProfiles,
@@ -203,19 +204,39 @@ export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', de
     }
     return (
       <MFProfileContext.Provider value={activeProfile}>
-        <MFAccountDetail
-          account={target}
-          user={user}
-          monthKey={monthKey}
-          onChangeMonth={setMonthKey}
-          showValues={showValues}
-          onClose={() => {
-            writeDrill(null);
-            navigateMf(`minhasfinancas/${screen}`);
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            height: '100%',
           }}
-          onOpenAccount={(row) => navigateMf(`minhasfinancas/accounts/${row.id}`)}
-          onOpenCard={(row) => navigateMf(`minhasfinancas/cards/${row.id}`)}
-        />
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              padding: '0 0 0.5rem',
+              flexShrink: 0,
+            }}
+          >
+            <MFGlobalCalculator user={user} accounts={accounts} />
+          </div>
+          <MFAccountDetail
+            account={target}
+            user={user}
+            monthKey={monthKey}
+            onChangeMonth={setMonthKey}
+            showValues={showValues}
+            onClose={() => {
+              writeDrill(null);
+              navigateMf(`minhasfinancas/${screen}`);
+            }}
+            onOpenAccount={(row) => navigateMf(`minhasfinancas/accounts/${row.id}`)}
+            onOpenCard={(row) => navigateMf(`minhasfinancas/cards/${row.id}`)}
+          />
+        </div>
       </MFProfileContext.Provider>
     );
   }
@@ -226,32 +247,37 @@ export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', de
         key={key}
         style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' }}
       >
-        {/* Trocador de perfil: só aparece quando há perfis cadastrados */}
-        {profiles.length > 0 && (
-          <div
-            data-testid="mf-profile-bar"
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              padding: '0 0 0.75rem',
-              flexShrink: 0,
-            }}
-          >
-            <MFSelect
-              testId="mf-profile-switch"
-              value={activeProfile ?? ''}
-              onChange={(next) => persistProfile(next || null)}
-              ariaLabel={t('minhasfinancas.pf_section')}
-              placeholder={t('minhasfinancas.pf_all')}
-              searchable={profiles.length > 5}
-              options={[
-                { value: '', label: t('minhasfinancas.pf_all') },
-                ...profiles.map((profile) => ({ value: profile.id, label: profile.name })),
-              ]}
-              style={{ width: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.82rem' }}
-            />
-          </div>
-        )}
+        {/* Barra global: calculadora sempre; trocador de perfil se houver */}
+        <div
+          data-testid="mf-global-bar"
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0 0 0.75rem',
+            flexShrink: 0,
+          }}
+        >
+          <MFGlobalCalculator user={user} accounts={accounts} />
+          {profiles.length > 0 && (
+            <div data-testid="mf-profile-bar" style={{ display: 'flex' }}>
+              <MFSelect
+                testId="mf-profile-switch"
+                value={activeProfile ?? ''}
+                onChange={(next) => persistProfile(next || null)}
+                ariaLabel={t('minhasfinancas.pf_section')}
+                placeholder={t('minhasfinancas.pf_all')}
+                searchable={profiles.length > 5}
+                options={[
+                  { value: '', label: t('minhasfinancas.pf_all') },
+                  ...profiles.map((profile) => ({ value: profile.id, label: profile.name })),
+                ]}
+                style={{ width: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.82rem' }}
+              />
+            </div>
+          )}
+        </div>
         {/* FAB "+" do módulo (Nova conta · Despesa · Despesa cartão ·
             Receita · Transferência) — escondido em detalhe/2ª tela */}
         {!fabHidden && (

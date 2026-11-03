@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, ArrowLeftRight, Calculator } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { useCreateTransfer, useCreateMFTransaction, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney, FIXED_SERIES_COUNT } from '../../hooks/useMinhasFinancas';
+import { useCreateTransfer, useCreateMFTransaction, useMFAccountBalances, parseMoney, maskAmount, toISODate, addMonthsISO, shiftRecurrenceDate, formatMoney, FIXED_SERIES_COUNT } from '../../hooks/useMinhasFinancas';
 import MFSelect from './MFSelect';
 import MFRepeatModal from './MFRepeatModal';
 import MFCalculator from './MFCalculator';
@@ -35,6 +35,10 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
     // PENDENTE (fixa/parceladas) nunca viram PAGO sozinhas.
     auto_settle: false,
   });
+  const { data: calcBalances = {} } = useMFAccountBalances(
+    user,
+    isOpen && amountCalcOpen && form.from ? [form.from] : []
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -305,6 +309,11 @@ export default function MFTransferModal({ isOpen, onClose, accounts = [], user, 
                     testId="mf-transfer-calc"
                     title={t('minhasfinancas.calc_title')}
                     initial={form.amount}
+                    balance={
+                      origin?.account_type !== 'CARTAO' ? calcBalances[origin?.id] : null
+                    }
+                    balanceLabel={origin?.name}
+                    balanceCurrency={originCurrency}
                     onConfirm={(value) => {
                       setForm((prev) => ({ ...prev, amount: value }));
                       setAmountCalcOpen(false);

@@ -15,6 +15,7 @@ import {
   monthBounds,
   mfInstallmentSuffix,
   parseSearchAmount,
+  amountMatchesSearch,
 } from '../../hooks/useMinhasFinancas';
 import MFCategoryAvatar from './MFCategoryAvatar';
 import MFEmailModal from './MFEmailModal';
@@ -133,7 +134,7 @@ export default function MFStatementTimeline({
         ...group,
         items: group.items.filter((item) => {
           if (amountNeedle !== null) {
-            return Math.abs(Number(item.tx.amount) || 0) === amountNeedle;
+            return amountMatchesSearch(item.tx.amount, search);
           }
           const category = item.tx.category_id
             ? categoryById[item.tx.category_id]?.name ?? ''

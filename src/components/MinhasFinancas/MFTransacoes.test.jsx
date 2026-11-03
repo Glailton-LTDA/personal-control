@@ -330,6 +330,14 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     fireEvent.change(screen.getByTestId('mf-tx-search'), { target: { value: 'super' } });
     expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(1);
     expect(screen.getByText('Supermercado Extra')).toBeInTheDocument();
+
+    // Valor por prefixo: "10" encontra 100; "10,0" não.
+    fireEvent.change(screen.getByTestId('mf-tx-search'), { target: { value: '10' } });
+    expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(1);
+    expect(screen.getByText('Curso online 2/12')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('mf-tx-search'), { target: { value: '10,0' } });
+    expect(screen.queryAllByTestId('mf-tx-row')).toHaveLength(0);
+
     fireEvent.change(screen.getByTestId('mf-tx-search'), { target: { value: '' } });
 
     // Categoria pai Alimentação → inclui o filho Supermercado (tx-2)

@@ -11,6 +11,7 @@ import { useMFProfileScope } from '../../hooks/mfProfileContext';
 import {
   useMFSuggestionRows,
   useMFAccounts,
+  useMFAccountBalances,
   useMFCategories,
   useMFTags,
   useCreateMFTransaction,
@@ -193,6 +194,16 @@ export default function MFTransacaoScreen({
   const [tagsOpen, setTagsOpen] = useState(false);
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [amountCalcOpen, setAmountCalcOpen] = useState(false);
+  const calcAccount = useMemo(
+    () => accounts.find((account) => account.id === form.account_id) ?? null,
+    [accounts, form.account_id]
+  );
+  const { data: calcBalances = {} } = useMFAccountBalances(
+    user,
+    amountCalcOpen && calcAccount && calcAccount.account_type !== 'CARTAO'
+      ? [calcAccount.id]
+      : []
+  );
   // Autocomplete da descrição (só na criação): lista aberta + destaque.
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(0);
@@ -1582,6 +1593,13 @@ export default function MFTransacaoScreen({
                 testId="mf-tx-calc"
                 title={t('minhasfinancas.calc_title')}
                 initial={form.amount}
+                balance={
+                  calcAccount?.account_type !== 'CARTAO'
+                    ? calcBalances[calcAccount?.id]
+                    : null
+                }
+                balanceLabel={calcAccount?.name}
+                balanceCurrency={calcAccount?.currency || 'BRL'}
                 onConfirm={(value) => {
                   setForm((prev) => ({ ...prev, amount: value }));
                   setAmountCalcOpen(false);
