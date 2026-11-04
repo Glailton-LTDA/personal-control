@@ -367,7 +367,10 @@ async function callGemini(opts: {
 }
 
 /** Motivo do erro do Gemini, para o cliente traduzir numa mensagem útil. */
-function geminiFailure(status: number, data: unknown): 'auth' | 'model' | 'quota' | 'other' {
+function geminiFailure(
+  status: number,
+  data: unknown,
+): 'auth' | 'model' | 'quota' | 'busy' | 'other' {
   const message = String(
     (data as { error?: { message?: string } } | null)?.error?.message ?? '',
   )
@@ -375,6 +378,9 @@ function geminiFailure(status: number, data: unknown): 'auth' | 'model' | 'quota
   if (/api key not valid|api_key_invalid|invalid api key/i.test(message)) return 'auth'
   if (status === 404 || /not found|not supported|does not exist/i.test(message)) return 'model'
   if (status === 429) return 'quota'
+  // 503 "high demand" é transitório e o alias gemini-flash-latest pode
+  // ficar indisponível enquanto os modelos nomeados respondem.
+  if (status === 500 || status === 502 || status === 503 || status === 504) return 'busy'
   return 'other'
 }
 
@@ -388,8 +394,9 @@ function geminiDetail(data: unknown): string {
 
 /**
  * Chama o Gemini com fallback de modelo: se o modelo configurado não
- * existir, tenta os da lista. Erros de chave/cota não adiantam trocar de
- * modelo — devolve na hora.
+ * existir (404) ou estiver sobrecarregado (500/502/503/504), tenta os da
+ * lista. Erros de chave/cota não adiantam trocar de modelo — devolve na
+ * hora. O 503 do alias `gemini-flash-latest` é comum e transitório.
  */
 async function callGeminiWithFallback(opts: {
   apiKey: string
@@ -404,8 +411,15 @@ async function callGeminiWithFallback(opts: {
     const res = await callGemini({ ...opts, model })
     if (res.ok) return res
     last = res
-    if (geminiFailure(res.status, res.data) !== 'model') return res
-    console.warn(`Gemini: modelo ${model} indisponível (${res.status}); tentando o próximo`)
+    const reason = geminiFailure(res.status, res.data)
+    if (reason !== 'model' && reason !== 'busy') return res
+    console.warn(
+      `Gemini: ${reason === 'busy' ? 'sobrecarga' : 'modelo indisponível'} em ${model} (${res.status}); tentando o próximo`,
+    )
+    if (reason === 'busy') {
+      // Pequena pausa antes de tentar outro modelo (evita rajada).
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
   }
   return last as Awaited<ReturnType<typeof callGemini>>
 }

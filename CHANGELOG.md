@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.1] - 2026-11-04
+
+### Corrigido
+- **Felix com Gemini sobrecarregado (503)**: o fallback só trocava de modelo em 404; agora também tenta os modelos seguintes em 500/502/503/504 (com pausa curta), cobrindo a indisponibilidade temporária do alias `gemini-flash-latest`.
+- **Mensagem de erro do Felix**: 503 agora aparece como “Gemini sobrecarregado, tente novamente em instantes” em vez do erro genérico.
+
 ## [1.35.0] - 2026-11-03
 
 ### Adicionado

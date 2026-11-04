@@ -184,6 +184,34 @@ describe('MFFelix — Assistente Felix (Fase 8)', () => {
     );
   });
 
+  it('Gemini sobrecarregado (503) vira mensagem de "tente novamente"', async () => {
+    const { supabase } = await import('../../lib/supabase');
+    supabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: {
+          clone: () => ({
+            json: async () => ({
+              code: 'busy',
+              status: 503,
+              detail: 'This model is currently experiencing high demand.',
+            }),
+          }),
+        },
+      },
+    });
+    await renderScreen();
+
+    await typeAndSend('Oi');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('felix-msg-error')).toHaveTextContent(
+        'minhasfinancas.felix_error_busy'
+      )
+    );
+    expect(screen.getByTestId('felix-msg-error')).toHaveTextContent('high demand');
+  });
+
   it('chave recusada (401/403) vira mensagem de chave', async () => {
     const { supabase } = await import('../../lib/supabase');
     supabase.functions.invoke.mockResolvedValue({
