@@ -847,6 +847,8 @@ i18n
               'A chave do Gemini foi recusada. Verifique a secret GEMINI_API_KEY.',
             felix_error_quota:
               'Limite de uso do Gemini atingido. Tente novamente mais tarde.',
+            felix_error_busy:
+              'O Gemini está sobrecarregado agora. Tente novamente em alguns instantes.',
             felix_not_configured:
               'A IA ainda não foi ativada neste projeto — defina a secret GEMINI_API_KEY no Supabase.',
             felix_empty_reply: 'O Felix ficou sem resposta. Tente reformular.',
@@ -2978,6 +2980,8 @@ i18n
               'The Gemini key was rejected. Check the GEMINI_API_KEY secret.',
             felix_error_quota:
               'Gemini usage limit reached. Please try again later.',
+            felix_error_busy:
+              'Gemini is overloaded right now. Please try again in a moment.',
             felix_not_configured:
               'AI is not enabled on this project yet — set the GEMINI_API_KEY secret in Supabase.',
             felix_empty_reply: 'Felix ran out of answers. Try rephrasing.',
@@ -5055,6 +5059,8 @@ i18n
               'La clave de Gemini fue rechazada. Revisa el secret GEMINI_API_KEY.',
             felix_error_quota:
               'Límite de uso de Gemini alcanzado. Inténtalo más tarde.',
+            felix_error_busy:
+              'Gemini está sobrecargado ahora. Inténtalo de nuevo en unos instantes.',
             felix_not_configured:
               'La IA aún no está activada en este proyecto — define el secret GEMINI_API_KEY en Supabase.',
             felix_empty_reply: 'Felix se quedó sin respuesta. Reformula la pregunta.',

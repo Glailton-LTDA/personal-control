@@ -74,6 +74,7 @@ export default function MFFelix({ user }) {
         model: 'felix_error_model',
         auth: 'felix_error_key',
         quota: 'felix_error_quota',
+        busy: 'felix_error_busy',
       };
       const key = byCode[payload?.code] ?? 'felix_error';
       const detail = payload?.detail ? ` — ${payload.detail}` : '';
