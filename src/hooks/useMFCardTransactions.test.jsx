@@ -15,7 +15,7 @@ vi.mock('../lib/offline/mfOffline', () => ({
 
 import { mfSelectAll } from '../lib/offline/mfOffline';
 import { supabase } from '../lib/supabase';
-import { useMFCardTransactions } from './useMinhasFinancas';
+import { useMFCardTransactions, useMFCardSettings } from './useMinhasFinancas';
 
 const CARD = {
   id: 'card-1',
@@ -148,6 +148,38 @@ describe('useMFCardTransactions — agregados do servidor + janela de exibição
     expect(
       result.current.data.transactions.filter((row) => row.id === 'tx-buy')
     ).toHaveLength(1);
+  });
+
+  it('compartilha configurações entre telas e atualiza depois de invalidar', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => ({
+      cards: useMFCardTransactions({ id: 'u1' }, [CARD]),
+      settings: useMFCardSettings({ id: 'u1' }, [CARD.id]),
+    }), { wrapper });
+    const settingsReads = () => mfSelectAll.mock.calls.filter(([table]) => table === 'mf_card_settings');
+    await waitFor(() => expect(result.current.cards.isSuccess).toBe(true));
+    expect(settingsReads()).toHaveLength(1);
+    await client.invalidateQueries({ queryKey: ['mf-card-settings', 'u1'] });
+    await waitFor(() => expect(settingsReads()).toHaveLength(2));
+    expect(result.current.settings.isSuccess).toBe(true);
+    client.clear();
+  });
+
+  it('isola configurações por usuário', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => [
+      useMFCardSettings({ id: 'u1' }, [CARD.id]),
+      useMFCardSettings({ id: 'u2' }, [CARD.id]),
+    ], { wrapper });
+    await waitFor(() => expect(result.current.every((query) => query.isSuccess)).toBe(true));
+    expect(mfSelectAll.mock.calls.filter(([table]) => table === 'mf_card_settings')).toHaveLength(2);
+    client.clear();
   });
 
   it('sem cartão no escopo a query não busca nada', async () => {

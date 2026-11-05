@@ -149,10 +149,33 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
 
     expect(error).toBeNull();
     expect(data).toHaveLength(2500);
-    // 1ª chamada sonda o `.range` (sem rede) + 1ª página sequencial (cheia)
-    // + onda paralela de 8 (2ª cheia, 3ª curta aborta o resto) + sonda final
-    // vazia que encerra = 11 chamadas — antes eram 14 sequenciais em prod.
-    expect(buildQuery).toHaveBeenCalledTimes(11);
+    // Probe sem rede + três páginas úteis + confirmação vazia.
+    expect(buildQuery).toHaveBeenCalledTimes(5);
+    expect(data.map((row) => row.id)).toEqual(allRows.map((row) => row.id));
+  });
+
+  it('online: não salta registros quando o servidor limita cada resposta abaixo de 1000', async () => {
+    const allRows = Array.from({ length: 661 }, (_, i) => ({ id: `tx-${i}` }));
+    const offsets = [];
+    const buildQuery = () => ({
+      range: (from) => {
+        offsets.push(from);
+        return Promise.resolve({ data: allRows.slice(from, from + 200), error: null });
+      },
+    });
+    const { data } = await mfSelectAll('mf_transactions', buildQuery);
+    expect(data).toEqual(allRows);
+    expect(offsets).toEqual([0, 200, 400, 600, 661]);
+  });
+
+  it('online: não devolve resultado parcial se uma página falhar', async () => {
+    const failure = new Error('falha na segunda página');
+    const buildQuery = () => ({
+      range: (from) => Promise.resolve(from === 0
+        ? { data: [{ id: 'tx-1' }], error: null }
+        : { data: null, error: failure }),
+    });
+    await expect(mfSelectAll('mf_transactions', buildQuery)).rejects.toThrow(failure);
   });
 
   it('online: deduplica por id e termina mesmo com servidor que nunca devolve página vazia', async () => {

@@ -72,7 +72,6 @@ function cacheRows(tableDb, data, local) {
 
 const PAGE_SIZE = 1000; // db.max_rows da REST do Supabase (medido em produção: 1000)
 const MAX_PAGES = 500; // trava de segurança (500k linhas) — nunca pendurar a tela
-const WAVE_SIZE = 8; // requisições de página em paralelo (14 sequenciais ≈ 14 idas e voltas)
 
 /**
  * Leitura paginada da REST do Supabase.
@@ -84,13 +83,9 @@ const WAVE_SIZE = 8; // requisições de página em paralelo (14 sequenciais ≈
  * `.range()` até a página VAZIA (funciona com qualquer `max_rows` do
  * servidor) e deduplica por `id` entre páginas.
  *
- * As páginas avançam em ONDAS paralelas (`WAVE_SIZE`): a primeira é
- * sequencial (mede se existe mais dado — tabela pequena não gasta nada
- * extra); se cheia, o resto voa em ondas de 8. 13.318 linhas = 14 páginas,
- * que em sequência custavam 14 idas e vindas (~segundos) — agora 4 rodadas.
- * O avanço é pelo tamanho REAL de cada resposta (compatível com `max_rows`
- * menor que a página) e uma resposta curta aborta o resto da onda (as
- * páginas especulativas seguintes teriam offsets inválidos).
+ * Busca uma página por vez para não transferir páginas especulativas.
+ * Avança pelo tamanho REAL da resposta e confirma o fim com uma página
+ * vazia: uma resposta curta também pode ser o limite do servidor.
  *
  * `buildQuery` deve criar uma query NOVA a cada chamada e ordenar de forma
  * estável (ex.: `.order('payment_date').order('id')`) para que as páginas
@@ -117,49 +112,25 @@ export async function mfSelectAll(table, buildQuery, local = {}) {
   const rows = [];
   const seen = new Set();
   let from = 0;
-  let done = false;
-  let wave = 1; // 1ª página é sequencial (mede o resto); depois, ondas de 8
-  for (let page = 0; page < MAX_PAGES && !done; ) {
-    const size = Math.min(wave, MAX_PAGES - page);
-    const results = await Promise.all(
-      Array.from({ length: size }, (_, k) =>
-        buildQuery().range(from + k * PAGE_SIZE, from + k * PAGE_SIZE + PAGE_SIZE - 1)
-      )
-    );
-    wave = WAVE_SIZE;
-    for (let k = 0; k < results.length; k += 1) {
-      const { data, error } = results[k];
-      if (error) throw error;
-      const chunk = Array.isArray(data) ? data : [];
-      if (chunk.length === 0) {
-        // Página vazia = fim dos dados.
-        done = true;
-        break;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const chunk = Array.isArray(data) ? data : [];
+    if (chunk.length === 0) break;
+    let added = 0;
+    for (const row of chunk) {
+      if (row.id !== undefined && row.id !== null) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
       }
-      let added = 0;
-      chunk.forEach((row) => {
-        if (row.id !== undefined && row.id !== null) {
-          if (seen.has(row.id)) return;
-          seen.add(row.id);
-        }
-        rows.push(row);
-        added += 1;
-      });
-      // Página só de repetições = o ambiente ignorou o range; encerra sem
-      // repetir o trabalho (dedupe acima garante dados corretos de qualquer forma).
-      if (added === 0) {
-        done = true;
-        break;
-      }
-      from += chunk.length;
-      page += 1;
-      if (chunk.length < PAGE_SIZE) {
-        // Resposta curta: fim dos dados ou clip do servidor. Abandona as
-        // páginas especulativas da onda e sonda a próxima contínua de 1 em 1.
-        wave = 1;
-        break;
-      }
+      rows.push(row);
+      added += 1;
     }
+    // Protege contra servidores que ignoram Range.
+    if (added === 0) break;
+    from += chunk.length;
+    // Nunca entregar totais silenciosamente incompletos ao atingir a trava.
+    if (page === MAX_PAGES - 1) throw new Error('Limite de paginação financeira atingido');
   }
   cacheRows(tableDb, rows, local);
   return { data: rows, error: null };
