@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.2] - 2026-11-04
+
+### Corrigido
+- **Refresh indevido no mobile/PWA**: o gesto de puxar para atualizar reinicia as coordenadas a cada toque, evitando que tocar em “Resumo” provoque um reload e volte para “Transações”. Interações com botões, abas e campos não iniciam o gesto; movimentos horizontais, multitoque e cancelamentos interrompem a atualização.
+- **Paginação financeira**: busca páginas sob demanda em vez de disparar páginas especulativas, preservando todos os registros mesmo com limite do servidor abaixo de 1.000. Ao atingir a trava de paginação, informa erro em vez de entregar totais incompletos.
+
+### Alterado
+- **Cache das configurações dos cartões**: compartilhado entre as telas de cartões e detalhe da conta, separado por usuário e conjunto de cartões, com invalidação após alterações para reduzir consultas repetidas.
+
 ## [1.35.1] - 2026-11-04
 
 ### Corrigido
