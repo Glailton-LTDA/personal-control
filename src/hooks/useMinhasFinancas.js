@@ -4071,6 +4071,7 @@ export function useMFAccountTransactions(user, accountId, extraAccountIds = []) 
  * época (mês navegado) — como nas faturas.
  */
 export function useMFCardTransactions(user, cards, monthKey = null) {
+  const queryClient = useQueryClient();
   const cardIds = useMemo(
     () => [...new Set((cards ?? []).map((card) => card?.id).filter(Boolean))].sort(),
     [cards]
@@ -4125,24 +4126,7 @@ export function useMFCardTransactions(user, cards, monthKey = null) {
       let settings = [];
       if (cardIds.length > 0) {
         try {
-          const result = await mfSelectAll(
-            'mf_card_settings',
-            () =>
-              supabase
-                .from('mf_card_settings')
-                .select('*')
-                .in('card_id', cardIds)
-                .order('effective_from'),
-            {
-              filter: (rows) => rows.filter((row) => cardIds.includes(row.card_id)),
-              sort: (rows) =>
-                [...rows].sort((a, b) =>
-                  String(a.effective_from ?? '').localeCompare(String(b.effective_from ?? ''))
-                ),
-            }
-          );
-          if (result.error) throw result.error;
-          settings = Array.isArray(result.data) ? result.data : [];
+          settings = await queryClient.fetchQuery(cardSettingsQuery(user.id, cardIds));
         } catch (err) {
           if (import.meta.env.DEV) {
             console.warn('[MF] histórico de cartão indisponível; usando o cartão atual', err);
@@ -4233,14 +4217,9 @@ export function useMFCardTransactions(user, cards, monthKey = null) {
  * uma linha por cartão/mês em que fechamento, vencimento, limite, flags
  * ou conta vinculada mudaram.
  */
-export function useMFCardSettings(user, cardIds) {
-  const ids = useMemo(
-    () => [...new Set((cardIds ?? []).filter(Boolean))].sort(),
-    [cardIds]
-  );
-  return useQuery({
-    queryKey: ['mf-card-settings', user?.id, ids.join(',')],
-    enabled: !!user?.id && ids.length > 0,
+const cardSettingsQuery = (userId, ids) => {
+  return {
+    queryKey: ['mf-card-settings', userId, ids.join(',')],
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await mfSelectAll(
@@ -4262,6 +4241,17 @@ export function useMFCardSettings(user, cardIds) {
       if (error) throw error;
       return data ?? [];
     },
+  };
+};
+
+export function useMFCardSettings(user, cardIds) {
+  const ids = useMemo(
+    () => [...new Set((cardIds ?? []).filter(Boolean))].sort(),
+    [cardIds]
+  );
+  return useQuery({
+    ...cardSettingsQuery(user?.id, ids),
+    enabled: !!user?.id && ids.length > 0,
   });
 }
 
