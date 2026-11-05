@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.3] - 2026-11-04
+
+### Alterado
+- **Descrição da transferência**: preenchida automaticamente com “Transferência” e o nome da conta de destino, acompanhando a seleção da conta. Descrições editadas manualmente são preservadas ao trocar o destino.
+
 ## [1.35.2] - 2026-11-04
 
 ### Corrigido

@@ -40,7 +40,8 @@ export default function MFTransferModal({
     to: '',
     amount: '',
     payment_date: toISODate(new Date()),
-    description: '',
+    // null mantém a descrição automática; texto digitado é preservado.
+    description: null,
     // Efetivação automática: default false — sem a opção, as filhas
     // PENDENTE (fixa/parceladas) nunca viram PAGO sozinhas.
     auto_settle: false,
@@ -76,7 +77,7 @@ export default function MFTransferModal({
       to: pickDestinationId(origin?.id, prefs.defaultTransferAccountId),
       amount: '',
       payment_date: toISODate(new Date()),
-      description: t('minhasfinancas.transfer_default'),
+      description: null,
       auto_settle: false,
     });
     setRepeat(null);
@@ -93,6 +94,8 @@ export default function MFTransferModal({
 
   const origin = accounts.find((account) => account.id === form.from);
   const originCurrency = origin?.currency || 'BRL';
+  const destinationName = accounts.find((account) => account.id === form.to)?.name;
+  const defaultDescription = [t('minhasfinancas.transfer_default'), destinationName].filter(Boolean).join(' ');
   // Sem cotação: transferências só acontecem entre contas da mesma moeda.
   const destinationOptions = accounts.filter(
     (account) => account.id !== form.from && (account.currency || 'BRL') === originCurrency
@@ -140,7 +143,7 @@ export default function MFTransferModal({
         account_id: form.from,
         transfer_account_id: form.to,
         type: 'TRANSFERENCIA',
-        description: form.description?.trim() || t('minhasfinancas.transfer_default'),
+        description: form.description?.trim() || defaultDescription,
         amount,
         payment_date: form.payment_date,
         status: 'PAGO',
@@ -360,7 +363,7 @@ export default function MFTransferModal({
 
             <div className="input-group">
               <label>{t('minhasfinancas.transfer_description')}</label>
-              <input type="text" value={form.description} onChange={set('description')} />
+              <input type="text" data-testid="mf-transfer-description" value={form.description ?? defaultDescription} onChange={set('description')} />
             </div>
 
             {/* Efetivação automática (default false): só interessa às

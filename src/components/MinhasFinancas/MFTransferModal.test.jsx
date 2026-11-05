@@ -117,12 +117,35 @@ describe('MFTransferModal — transferência recorrente (Fase D)', () => {
       account_id: 'acc-1',
       transfer_account_id: 'acc-2',
       type: 'TRANSFERENCIA',
+      description: 'minhasfinancas.transfer_default Itaú',
       amount: 300,
       status: 'PAGO',
       auto_settle: false, // default: nunca vira PAGO sozinha depois
     });
     expect(payload).not.toHaveProperty('installments_total');
     expect(payload).not.toHaveProperty('parent_transaction_id');
+  });
+
+  it('descrição automática acompanha o destino e a troca de origem', () => {
+    const c6 = { id: 'acc-3', name: 'C6 Bank', currency: 'BRL' };
+    renderModal({ accounts: [...accounts, c6] });
+    const description = screen.getByTestId('mf-transfer-description');
+    expect(description).toHaveValue('minhasfinancas.transfer_default Itaú');
+    fireEvent.click(screen.getByTestId('mf-transfer-to'));
+    fireEvent.click(screen.getByTestId('mf-transfer-to-option-acc-3'));
+    expect(description).toHaveValue('minhasfinancas.transfer_default C6 Bank');
+    fireEvent.click(screen.getByTestId('mf-transfer-from'));
+    fireEvent.click(screen.getByTestId('mf-transfer-from-option-acc-3'));
+    expect(description).toHaveValue('minhasfinancas.transfer_default Nubank');
+  });
+
+  it('preserva descrição manual ao trocar de destino', () => {
+    renderModal({ accounts: [...accounts, { id: 'acc-3', name: 'C6 Bank', currency: 'BRL' }] });
+    const description = screen.getByTestId('mf-transfer-description');
+    fireEvent.change(description, { target: { value: 'Reserva da viagem' } });
+    fireEvent.click(screen.getByTestId('mf-transfer-to'));
+    fireEvent.click(screen.getByTestId('mf-transfer-to-option-acc-3'));
+    expect(description).toHaveValue('Reserva da viagem');
   });
 
   it('abre com a conta contextual como origem (detalhe da conta)', () => {
