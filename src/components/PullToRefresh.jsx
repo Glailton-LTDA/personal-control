@@ -14,22 +14,35 @@ function PullToRefresh() {
 
     if (!isStandalone) return;
 
+    let startX = 0;
     let startY = 0;
+    let refreshTimer;
     let currentY = 0;
     let pulling = false;
     const threshold = 70; // pixels para acionar o reload
     const maxPull = 120;  // pixels máximos de resistência visual
 
     const handleTouchStart = (e) => {
-      // Somente inicia se estiver exatamente no topo da página
-      if (window.scrollY === 0) {
-        startY = e.touches[0].clientY;
+      // Cada toque começa um gesto novo. Sem isso, um tap reutilizava
+      // currentY do gesto anterior e podia disparar reload ao trocar de aba.
+      pulling = false;
+      setIsPulling(false);
+      setPullProgress(0);
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      currentY = startY;
+      if (window.scrollY === 0 && !e.target.closest?.('button, a, input, select, textarea, [role="tab"], [contenteditable="true"]')) {
         pulling = true;
       }
     };
 
     const handleTouchMove = (e) => {
       if (!pulling) return;
+      if (e.touches.length !== 1 || Math.abs(e.touches[0].clientX - startX) > Math.abs(e.touches[0].clientY - startY)) {
+        handleTouchCancel();
+        return;
+      }
       currentY = e.touches[0].clientY;
       const diff = currentY - startY;
 
@@ -61,7 +74,7 @@ function PullToRefresh() {
       if (diff >= threshold && window.scrollY === 0) {
         setIsRefreshing(true);
         // Delay para o usuário ver a animação de atualização antes do reload
-        setTimeout(() => {
+        refreshTimer = setTimeout(() => {
           window.location.reload();
         }, 800);
       } else {
@@ -69,14 +82,24 @@ function PullToRefresh() {
       }
     };
 
+    const handleTouchCancel = () => {
+      pulling = false;
+      currentY = startY;
+      setIsPulling(false);
+      setPullProgress(0);
+    };
+
     window.addEventListener('touchstart', handleTouchStart, { passive: false });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchCancel);
 
     return () => {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchCancel);
+      clearTimeout(refreshTimer);
     };
   }, []);
 
