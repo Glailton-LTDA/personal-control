@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.5] - 2026-11-04
+
+### Adicionado
+- **Faturas anteriores no extrato do cartão**: exibe o valor da fatura anterior como débito e os pagamentos recebidos como créditos, com o restante das faturas anteriores e o total a pagar incluindo as compras do mês. Pagamentos agendados não viram créditos recebidos. A ação de pagar a anterior mantém o vínculo com o ciclo original, sem duplicar despesas na conta ou no saldo devedor do cartão.
+
+## [1.35.4] - 2026-11-04
+
+### Corrigido
+- **Toasts presos no mobile**: os avisos expiram sem depender de retirar o toque/mouse da notificação. Botão de fechar com área de toque maior permite dispensar cada aviso individualmente; confirmações continuam interativas e mensagens de carregamento permanecem até a operação terminar.
+
 ## [1.35.3] - 2026-11-04
 
 ### Alterado
