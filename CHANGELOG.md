@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.4] - 2026-11-04
+
+### Corrigido
+- **Toasts presos no mobile**: os avisos expiram sem depender de retirar o toque/mouse da notificação. Botão de fechar com área de toque maior permite dispensar cada aviso individualmente; confirmações continuam interativas e mensagens de carregamento permanecem até a operação terminar.
+
 ## [1.35.3] - 2026-11-04
 
 ### Alterado
