@@ -3181,6 +3181,8 @@ export const buildCardInvoices = ({
 
   return {
     current,
+    // Histórico completo para o extrato de dívida anterior, sem ampliar o picker.
+    historyInvoices: displayInvoices,
     invoices: [
       ...displayInvoices.slice(0, count),
       // Vinculadas antigas fora da janela de exibição: têm movimento e
@@ -4330,6 +4332,7 @@ export function applyCardInvoiceRecords(built, recordMap, cardId, refISO = null)
     ...built,
     current,
     invoices,
+    historyInvoices: (built.historyInvoices ?? built.invoices ?? []).map(apply),
     upcomingInvoices,
     openTotal: roundMoney(
       sum(invoices, 'openAmount') +

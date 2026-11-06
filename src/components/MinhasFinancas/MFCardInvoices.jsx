@@ -9,6 +9,8 @@ import {
   useUpdateMFTransaction,
   useMFInvoices,
   MF_INVOICE_PAYMENT_NOTE,
+  MF_INVOICE_DIFF_NOTE,
+  cardLinkedAccountIds,
   applyCardInvoiceRecords,
   buildInvoiceRecordMap,
   buildCardInvoices,
@@ -21,6 +23,7 @@ import {
   currentMonthKey,
 } from '../../hooks/useMinhasFinancas';
 import MFPaymentModal from './MFPaymentModal';
+import MFInvoiceCarry from './MFInvoiceCarry';
 import MFAdjustBalanceModal from './MFAdjustBalanceModal';
 import MFInvoiceManualModal from './MFInvoiceManualModal';
 import MFCardBrandIcon from './MFCardBrandIcon';
@@ -87,8 +90,8 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
   const builtInvoices = useMemo(
     // Limite comprometido (igual ao widget): futuras vinculadas contam
     // mesmo com data futura, para o detalhe reconciliar com o EM ABERTO.
-    () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true, settings }),
-    [card, transactions, refISO, monthKey, settings]
+    () => buildCardInvoices({ card, transactions, refISO, monthKey, includeFutureBound: true, settings, aggregates: cardData?.aggregates }),
+    [card, transactions, refISO, monthKey, settings, cardData?.aggregates]
   );
   // Baixa manual: o cabeçalho oficial de `mf_invoices` sobrepõe o cálculo
   // derivado. Registros `derived` do backfill ficam de fora do overlay.
@@ -96,11 +99,22 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
     () => buildInvoiceRecordMap(invoiceRecords),
     [invoiceRecords]
   );
-  const { current, invoices, upcomingInvoices } = useMemo(
+  const { current, invoices, upcomingInvoices, historyInvoices } = useMemo(
     () =>
       applyCardInvoiceRecords(builtInvoices, invoiceRecordMap, card.id, refISO),
     [builtInvoices, invoiceRecordMap, card.id, refISO]
   );
+  const carryPayments = useMemo(() => {
+    const linkedIds = cardLinkedAccountIds(card, settings);
+    return transactions.filter((tx) => {
+      const syntheticHistorical =
+        (tx.notes === MF_INVOICE_PAYMENT_NOTE || tx.notes === MF_INVOICE_DIFF_NOTE) &&
+        tx.invoice_close && tx.invoice_close.slice(0, 7) < currentMonthKey();
+      return !syntheticHistorical &&
+        ((tx.type === 'TRANSFERENCIA' && tx.transfer_account_id === card.id) ||
+          (tx.type === 'DESPESA' && linkedIds.has(tx.account_id) && tx.invoice_close));
+    });
+  }, [transactions, card, settings]);
   /** Janela da lista: mês anterior, o mês da fatura corrente e o próximo.
    *  O chip da corrente é separado; os demais entram só se o vencimento
    *  cair nessa janela (evita a lista de parcelas até 2027). */
@@ -643,6 +657,16 @@ export default function MFCardInvoices({ card, user, showValues = true, monthKey
                 </span>
               </div>
             </div>
+
+            <MFInvoiceCarry
+              activeInvoice={activeInvoice}
+              invoices={[...(historyInvoices ?? invoices), current, ...upcomingInvoices]}
+              payments={carryPayments}
+              refISO={refISO}
+              currency={card.currency}
+              showValues={showValues}
+              onPay={handlePay}
+            />
 
             {/* Lançamentos da fatura */}
             {activeInvoice.transactions.length === 0 ? (
