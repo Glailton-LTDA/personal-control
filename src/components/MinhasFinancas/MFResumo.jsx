@@ -144,17 +144,19 @@ const dayMonthLabel = (iso, language) => {
 
 /** Estado visual da fatura corrente: paga (check verde), fechada (cadeado
  *  âmbar — período travado aguardando vencimento/pagamento) ou aberta
- *  (cadeado azul — ciclo ainda acumulando compras). */
+ *  (cadeado azul — ciclo ainda acumulando compras). Agendamento é um
+ *  indicador separado: não determina se o ciclo já fechou. */
 const cardInvoiceState = (current) => {
   if (!current) return null;
   if (current.status === 'PAGA')
     return { icon: 'paid', color: '#10b981', labelKey: 'card_status_paid' };
-  if (current.status === 'AGENDADA')
-    return { icon: 'closed', color: '#f59e0b', labelKey: 'card_status_scheduled' };
   // CORRENTE: fechada quando o ciclo já virou (closeISO hoje ou antes).
-  return current.closed
-    ? { icon: 'closed', color: '#f59e0b', labelKey: 'inv_status_closed' }
-    : { icon: 'open', color: 'var(--primary)', labelKey: 'card_status_open' };
+  return {
+    ...(current.closed
+      ? { icon: 'closed', color: '#f59e0b', labelKey: 'inv_status_closed' }
+      : { icon: 'open', color: 'var(--primary)', labelKey: 'card_status_open' }),
+    scheduled: current.status === 'AGENDADA',
+  };
 };
 
 /** Percentual de variação vs mês anterior (null quando não há base). */
@@ -1619,6 +1621,7 @@ export default function MFResumo({
                                     {invoiceState.icon === 'paid' && <CheckCircle2 size={15} />}
                                     {invoiceState.icon === 'closed' && <Lock size={15} />}
                                     {invoiceState.icon === 'open' && <LockOpen size={15} />}
+                                    {invoiceState.scheduled && <CalendarClock size={15} aria-label={t('minhasfinancas.card_status_scheduled')} style={{ color: '#f59e0b' }} />}
                                   </span>
                                 )}
                               </span>
@@ -2008,6 +2011,7 @@ export default function MFResumo({
                                     {invoiceState.icon === 'paid' && <CheckCircle2 size={14} />}
                                     {invoiceState.icon === 'closed' && <Lock size={14} />}
                                     {invoiceState.icon === 'open' && <LockOpen size={14} />}
+                                    {invoiceState.scheduled && <CalendarClock size={14} aria-label={t('minhasfinancas.card_status_scheduled')} style={{ color: '#f59e0b' }} />}
                                   </span>
                                 )}
                                 <span data-testid={`mf-resumo-card-total-${row.id}`}>
