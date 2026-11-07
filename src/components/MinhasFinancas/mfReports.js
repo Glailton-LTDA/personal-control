@@ -133,7 +133,14 @@ export const reportCategoryRanking = (rows, categoriesById = {}, limit = 6) => {
 
 /** CSV (;) com escape de aspas — cabeçalhos vêm da i18n. */
 export const buildCsv = (rows, { accountsById = {}, categoriesById = {} } = {}, headers) => {
-  const esc = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const esc = (value) => {
+    let text = String(value ?? '');
+    // Aspas CSV não impedem Excel/LibreOffice de interpretar fórmulas.
+    let prefix = 0;
+    while (prefix < text.length && (text.charCodeAt(prefix) < 32 || /\s/.test(text[prefix]))) prefix += 1;
+    if (/^[=+@-]/.test(text.slice(prefix)) && typeof value !== 'number') text = "'" + text;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
   const cols = headers ?? ['Data', 'Descrição', 'Tipo', 'Categoria', 'Conta', 'Valor', 'Status'];
   const lines = [cols.map(esc).join(';')];
   rows.forEach((tx) => {
@@ -144,10 +151,10 @@ export const buildCsv = (rows, { accountsById = {}, categoriesById = {} } = {}, 
         tx.type,
         tx.category_id ? categoriesById[tx.category_id]?.name ?? '' : '',
         accountsById[tx.account_id]?.name ?? '',
-        (Number(tx.amount) || 0).toFixed(2).replace('.', ','),
+        { csvNumber: (Number(tx.amount) || 0).toFixed(2).replace('.', ',') },
         tx.status,
       ]
-        .map(esc)
+        .map((value) => value?.csvNumber !== undefined ? `"${value.csvNumber}"` : esc(value))
         .join(';')
     );
   });

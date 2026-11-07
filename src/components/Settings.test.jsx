@@ -55,9 +55,7 @@ vi.mock('../lib/offline/db', () => ({
 const mockSyncFn = vi.fn().mockResolvedValue(undefined);
 vi.mock('../lib/offline/SyncEngine', () => {
   return {
-    SyncEngine: vi.fn().mockImplementation(() => ({
-      sync: mockSyncFn
-    }))
+    SyncEngine: vi.fn().mockImplementation(function () { return { sync: mockSyncFn }; })
   };
 });
 

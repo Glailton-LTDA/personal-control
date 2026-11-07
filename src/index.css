@@ -4211,7 +4211,7 @@ select.glass-input {
 .mf-accounts-sheet-items button:last-child { border-bottom: none; }
 .mf-accounts-sheet .btn-cancel { width: 100%; margin-top: 0.5rem; }
 
-/* -- Gr·ficos interativos do Resumo (cards + tela cheia) -- */
+/* -- Gr√°ficos interativos do Resumo (cards + tela cheia) -- */
 .mf-chart-card {
   overflow: visible;
   min-width: 0;
@@ -4478,7 +4478,7 @@ select.glass-input {
   .mf-charts-screen { padding-bottom: 0.5rem; }
 }
 
-/* Extrato/timeline: descriÁ„o longa legÌvel no mobile. */
+/* Extrato/timeline: descri√ß√£o longa leg√≠vel no mobile. */
 .mf-timeline-desc-row {
   display: flex;
   align-items: center;

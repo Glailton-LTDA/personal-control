@@ -19,6 +19,7 @@ import { MF_ADD_FAB } from './mfAddMenuData';
 import MFTransacaoScreen from './MFTransacaoScreen';
 import MFTransferModal from './MFTransferModal';
 import MFAccountDetail from './MFAccountDetail';
+import MFOfflineQueueNotice from './MFOfflineQueueNotice';
 import MFGlobalCalculator from './MFGlobalCalculator';
 import {
   currentMonthKey,
@@ -198,12 +199,14 @@ export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', de
     if (!target) {
       return (
         <MFProfileContext.Provider value={activeProfile}>
+        <MFOfflineQueueNotice userId={user?.id} />
           <MFPlaceholder mode={screen} />
         </MFProfileContext.Provider>
       );
     }
     return (
       <MFProfileContext.Provider value={activeProfile}>
+        <MFOfflineQueueNotice userId={user?.id} />
         <div
           style={{
             display: 'flex',
@@ -249,6 +252,7 @@ export default function MinhasFinancas({ user, refreshKey, screen = 'resumo', de
 
   return (
     <MFProfileContext.Provider value={activeProfile}>
+        <MFOfflineQueueNotice userId={user?.id} />
       <div
         key={key}
         style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%' }}

@@ -8,7 +8,9 @@
 // Tools: buscar_lancamentos, resumo_mes, criar_lancamento,
 // efetivar_lancamento.
 // -------------------------------------------------------------
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0"
+
+import { readFelixBody, validFelixPayload } from './requestLimits.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -354,7 +356,7 @@ async function callGemini(opts: {
           contents: opts.contents,
           tools: [{ functionDeclarations: toolDeclarations }],
           systemInstruction: { parts: [{ text: opts.systemInstruction }] },
-          generationConfig: { temperature: 0.4 },
+          generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
         }),
         signal: controller.signal,
       },
@@ -436,6 +438,7 @@ function json(obj: Record<string, unknown>, status = 200): Response {
 // -------------------------------------------------------------
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405)
 
   try {
     const authHeader = req.headers.get('Authorization')
@@ -451,7 +454,13 @@ Deno.serve(async (req: Request) => {
     } = await client.auth.getUser()
     if (!user) return json({ error: 'Não autenticado' }, 401)
 
-    const payload: RequestPayload = await req.json()
+    let raw: unknown
+    try { raw = await readFelixBody(req) } catch { return json({ code: 'input', error: 'Corpo inválido ou maior que 64 KiB' }, 413) }
+    if (!validFelixPayload(raw)) return json({ code: 'input', error: 'Histórico/contexto inválido ou acima dos limites' }, 400)
+    const payload = raw as RequestPayload
+    const { data: allowed, error: budgetError } = await client.rpc('mf_consume_ai_budget')
+    if (budgetError) return json({ code: 'unavailable', error: 'Controle de uso indisponível' }, 503)
+    if (allowed !== true) return json({ code: 'rate', error: 'Limite de uso atingido: até 10 solicitações/minuto e 100/dia.' }, 429)
     const messages = (payload.messages ?? []).filter(
       (m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
     )

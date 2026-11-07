@@ -1,4 +1,5 @@
 import { db, generateUUID, MF_OFFLINE_TABLES } from './db';
+import { requireOfflineIdentity, offlineIdentity, queueOwner } from './owner';
 
 /**
  * Offline do módulo Minhas Finanças (Fase 9).
@@ -23,8 +24,9 @@ const nowIso = () => new Date().toISOString();
  */
 const isJunction = (table) => table === 'mf_transaction_tags';
 
-const enqueue = (table, recordId, action, payload) =>
+const enqueue = async (table, recordId, action, payload, owner) =>
   db.sync_queue.add({
+    owner_id: owner,
     table_name: table,
     record_id: recordId,
     action,
@@ -43,7 +45,9 @@ const enqueue = (table, recordId, action, payload) =>
 export async function mfSelect(table, buildQuery, local = {}) {
   const tableDb = db[table];
   if (isOffline()) {
-    let rows = tableDb ? await tableDb.toArray() : [];
+    const owner = await requireOfflineIdentity();
+    let rows = tableDb ? await tableDb.where('user_id').equals(owner).toArray() : [];
+    if (await offlineIdentity() !== owner) throw new Error('offline_session_changed');
     if (typeof local.filter === 'function') rows = local.filter(rows);
     if (typeof local.sort === 'function') rows = local.sort(rows);
     return { data: rows, error: null };
@@ -95,7 +99,9 @@ const MAX_PAGES = 500; // trava de segurança (500k linhas) — nunca pendurar a
 export async function mfSelectAll(table, buildQuery, local = {}) {
   const tableDb = db[table];
   if (isOffline()) {
-    let rows = tableDb ? await tableDb.toArray() : [];
+    const owner = await requireOfflineIdentity();
+    let rows = tableDb ? await tableDb.where('user_id').equals(owner).toArray() : [];
+    if (await offlineIdentity() !== owner) throw new Error('offline_session_changed');
     if (typeof local.filter === 'function') rows = local.filter(rows);
     if (typeof local.sort === 'function') rows = local.sort(rows);
     return { data: rows, error: null };
@@ -142,10 +148,22 @@ const putRow = async (table, row) => {
   await db[table].put(local);
 };
 
-const takeOffline = async ({ table, action, id, ids, payload }) => {
+const takeOffline = async ({ table, action, id, ids, payload, owner }) => {
+  for (const row of (Array.isArray(payload) ? payload : [payload]).filter(Boolean)) {
+    if (row.user_id && row.user_id !== owner) throw new Error('offline_owner_mismatch');
+  }
+  if (action !== 'insert') {
+    const keys = ids || [id];
+    for (const key of keys) {
+      const rows = action === 'deleteLinks'
+        ? await db[table].where('transaction_id').equals(key).toArray()
+        : [await db[table].get(key)];
+      if (rows.some((row) => !row || row.user_id !== owner)) throw new Error('offline_owner_mismatch');
+    }
+  }
   if (action === 'delete') {
     await db[table].delete(id);
-    await enqueue(table, id, 'delete', null);
+    await enqueue(table, id, 'delete', null, owner);
     return id;
   }
   if (action === 'deleteLinks') {
@@ -153,14 +171,14 @@ const takeOffline = async ({ table, action, id, ids, payload }) => {
     // (record_id da fila = id da transação; drain apaga por transaction_id).
     for (const txId of ids) {
       await db[table].where('transaction_id').equals(txId).delete();
-      await enqueue(table, txId, 'delete', null);
+      await enqueue(table, txId, 'delete', null, owner);
     }
     return ids;
   }
   if (action === 'deleteMany') {
     for (const oneId of ids) {
       await db[table].delete(oneId);
-      await enqueue(table, oneId, 'delete', null);
+      await enqueue(table, oneId, 'delete', null, owner);
     }
     return ids;
   }
@@ -169,7 +187,7 @@ const takeOffline = async ({ table, action, id, ids, payload }) => {
       const old = (await db[table].get(oneId)) || {};
       const row = { ...old, ...payload, id: oneId, updated_at: nowIso() };
       await putRow(table, row);
-      await enqueue(table, oneId, 'update', row);
+      await enqueue(table, oneId, 'update', row, owner);
     }
     return ids;
   }
@@ -177,12 +195,12 @@ const takeOffline = async ({ table, action, id, ids, payload }) => {
     const old = (await db[table].get(id)) || {};
     const row = { ...old, ...payload, id, updated_at: nowIso() };
     await putRow(table, row);
-    await enqueue(table, id, 'update', row);
+    await enqueue(table, id, 'update', row, owner);
     return row;
   }
   // insert (aceita objeto ou array — parcelas/recorrência)
   const rows = (Array.isArray(payload) ? payload : [payload]).map((raw) => {
-    const row = { ...raw, created_at: raw.created_at || nowIso() };
+    const row = { ...raw, user_id: owner, created_at: raw.created_at || nowIso() };
     if (!isJunction(table)) {
       row.id = raw.id || generateUUID();
       row.updated_at = nowIso();
@@ -194,7 +212,7 @@ const takeOffline = async ({ table, action, id, ids, payload }) => {
     const recordId = isJunction(table)
       ? `${row.transaction_id}:${row.tag_id}`
       : row.id;
-    await enqueue(table, recordId, 'insert', row);
+    await enqueue(table, recordId, 'insert', row, owner);
   }
   return Array.isArray(payload) ? rows : rows[0];
 };
@@ -256,10 +274,24 @@ export async function mfMutate({ table, action, id = null, ids = null, payload =
     // Tabela fora do cache (ex.: import): exige conexão.
     return run();
   }
-  return takeOffline(args);
+  const owner = await requireOfflineIdentity();
+  return db.transaction('rw', db[table], db.sync_queue, () => takeOffline({ ...args, owner }));
 }
 
 /** Zera o cache local do Minhas Finanças (troca de usuário, etc.). */
-export function clearMfCache() {
-  return Promise.all(MF_OFFLINE_TABLES.map((table) => db[table].clear()));
+export async function clearMfCache() {
+  const owner = await requireOfflineIdentity();
+  const pending = await db.sync_queue.toArray();
+  if (pending.some((entry) => queueOwner(entry) === owner)) throw new Error('mf_pending_offline_changes');
+  return Promise.all(MF_OFFLINE_TABLES.map((table) => db[table].where('user_id').equals(owner).delete()));
+}
+
+/** Backups representam dados confirmados no servidor, nunca uma fila local pendente. */
+export async function assertNoPendingMfWrites() {
+  if (isOffline()) throw new Error('mf_online_required');
+  const owner = await requireOfflineIdentity();
+  const pending = await db.sync_queue.toArray();
+  if (pending.some((entry) => entry.table_name?.startsWith('mf_') && queueOwner(entry) === owner)) {
+    throw new Error('mf_pending_offline_changes');
+  }
 }
