@@ -3,9 +3,12 @@ import { supabase } from './lib/supabase';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import PullToRefresh from './components/PullToRefresh';
+import { useTranslation } from 'react-i18next';
+import { reconcilePushAccount, unsubscribeDevicePush } from './lib/push';
 
 
 function App() {
+  const { i18n } = useTranslation();
   const [session, setSession] = useState(null);
   const [isRecovering, setIsRecovering] = useState(false);
 
@@ -26,6 +29,7 @@ function App() {
         setIsRecovering(true);
       }
       if (event === 'SIGNED_OUT') {
+        unsubscribeDevicePush().catch(() => {});
         window.history.pushState(null, '', '/');
       }
       setSession(session);
@@ -33,6 +37,11 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const userId = session?.user?.id;
+  useEffect(() => {
+    if (userId) reconcilePushAccount(userId, i18n.resolvedLanguage || i18n.language).catch(() => {});
+  }, [userId, i18n.resolvedLanguage, i18n.language]);
 
   // Se estiver em modo de recuperação ou não tiver sessão, mostra Login
   if (isRecovering || !session) {
@@ -55,7 +64,7 @@ function App() {
   return (
     <>
       <PullToRefresh />
-      <Dashboard user={session.user} />
+      <Dashboard key={session.user.id} user={session.user} />
     </>
   );
 }

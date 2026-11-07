@@ -1,3 +1,7 @@
+import {
+  financeTransactionCopy,
+  financeInvoiceCopy,
+} from "../_shared/finance-push-copy.ts";
 // Lembretes com push do Minhas Finanças (Fase 2) — cron diário.
 // Adaptada da `send-push` do Babylog (web-push/VAPID, Bearer CRON_SECRET,
 // verify_jwt=false no deploy, limpeza de inscrições 404/410).
@@ -10,9 +14,13 @@
 // Env necessária: CRON_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
 // (base64url, sem padding — normalizadas aqui como no Babylog) e
 // MF_VAPID_MAILTO (ex.: mailto:voce@exemplo.com).
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-import webpush from "npm:web-push";
+import { createClient } from "npm:@supabase/supabase-js@2.103.3";
+import {
+  configurePush,
+  globalPushPages,
+  sendGlobalPush,
+  type PushSubscriptionRow,
+} from "../_shared/push.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,14 +172,11 @@ function closeCandidates(
   const out = new Set<string>();
   for (const delta of [-1, 0]) {
     const date = new Date(Date.UTC(year, month - 1 + delta, 1));
-    out.add(closeForMonth(account, date.getUTCFullYear(), date.getUTCMonth() + 1));
+    out.add(
+      closeForMonth(account, date.getUTCFullYear(), date.getUTCMonth() + 1),
+    );
   }
   return [...out];
-}
-
-/** Data dd/mm para o corpo do push. */
-function shortDate(iso: string): string {
-  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 }
 
 const isDateISO = (value: unknown): value is string =>
@@ -192,28 +197,20 @@ function reminderDueISO(
     const due = invoiceDueISO(account, tx.invoice_close as string);
     if (due) return due;
   }
-  if (isDateISO(tx.payment_date)) return (tx.payment_date as string).slice(0, 10);
+  if (isDateISO(tx.payment_date))
+    return (tx.payment_date as string).slice(0, 10);
   return null;
 }
 
 function diffDays(dueISO: string, todayISO: string): number {
   const [y1, m1, d1] = dueISO.split("-").map(Number);
   const [y2, m2, d2] = todayISO.split("-").map(Number);
-  return Math.round((Date.UTC(y1, m1 - 1, d1) - Date.UTC(y2, m2 - 1, d2)) / 86400000);
+  return Math.round(
+    (Date.UTC(y1, m1 - 1, d1) - Date.UTC(y2, m2 - 1, d2)) / 86400000,
+  );
 }
 
-function money(value: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: currency || "BRL",
-    }).format(value);
-  } catch {
-    return `${(currency || "BRL")}$ ${value.toFixed(2)}`;
-  }
-}
-
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -228,10 +225,13 @@ serve(async (req) => {
     }
     const secret = Deno.env.get("CRON_SECRET");
     if (!secret) {
-      return new Response(JSON.stringify({ error: "CRON_SECRET not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "CRON_SECRET not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
     if (authHeader.split(" ")[1] !== secret) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
@@ -243,20 +243,17 @@ serve(async (req) => {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      },
     );
 
-    const toBase64Url = (value: string): string =>
-      value.replace(/\s+/g, "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const mailto = Deno.env.get("MF_VAPID_MAILTO") ?? "";
-    const vapidPublicKey = toBase64Url(Deno.env.get("VAPID_PUBLIC_KEY") ?? "");
-    const vapidPrivateKey = toBase64Url(Deno.env.get("VAPID_PRIVATE_KEY") ?? "");
-    if (!mailto || !vapidPublicKey || !vapidPrivateKey) {
-      return new Response(
-        JSON.stringify({ error: "VAPID not configured (MF_VAPID_MAILTO/VAPID_*)" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-    webpush.setVapidDetails(mailto, vapidPublicKey, vapidPrivateKey);
+    if (!configurePush())
+      return new Response("Push configuration missing", { status: 503 });
 
     const todayISO = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
@@ -265,31 +262,29 @@ serve(async (req) => {
       day: "2-digit",
     }).format(new Date());
 
-    const { data: subs, error: subsError } = await supabase
-      .from("mf_push_subscriptions")
-      .select("id,user_id,endpoint,p256dh,auth");
-    if (subsError) throw subsError;
-    if (!subs || subs.length === 0) {
-      return new Response(JSON.stringify({ success: true, sent: 0 }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const byUser = new Map<string, typeof subs>();
-    for (const sub of subs) {
-      const list = byUser.get(sub.user_id) ?? [];
-      list.push(sub);
-      byUser.set(sub.user_id, list);
+    const byUser = new Map<string, PushSubscriptionRow[]>();
+    for await (const page of globalPushPages(supabase)) {
+      for (const sub of page) {
+        const list = byUser.get(sub.user_id) || [];
+        list.push(sub);
+        byUser.set(sub.user_id, list);
+      }
     }
 
     let sent = 0;
     for (const [userId, userSubs] of byUser) {
       const [{ data: accounts }, { data: txs }] = await Promise.all([
-        supabase.from("mf_accounts").select("*").eq("user_id", userId),
+        supabase
+          .from("mf_accounts")
+          .select(
+            "id,name,currency,linked_account_id,closing_day,due_day,closing_dynamic,due_business_days,account_type,archived_at",
+          )
+          .eq("user_id", userId),
         supabase
           .from("mf_transactions")
-          .select("id,account_id,type,description,amount,status,payment_date,due_date,invoice_close,installments_current,installments_total")
+          .select(
+            "id,account_id,type,description,amount,status,payment_date,due_date,invoice_close,installments_current,installments_total",
+          )
           .eq("user_id", userId)
           .eq("status", "PENDENTE"),
       ]);
@@ -300,11 +295,15 @@ serve(async (req) => {
         txId: string;
         kind: string;
         dueISO: string;
-        title: string;
-        body: string;
+        description: string;
+        suffix: string;
+        amount: number;
+        currency: string;
+        accountName: string;
       }> = [];
       for (const tx of txs ?? []) {
-        if (!tx?.id || tx.status === "CANCELADO" || tx.type === "TRANSFERENCIA") continue;
+        if (!tx?.id || tx.status === "CANCELADO" || tx.type === "TRANSFERENCIA")
+          continue;
         const dueISO = reminderDueISO(tx, accountById);
         if (!dueISO) continue;
         const diff = diffDays(dueISO, todayISO);
@@ -316,29 +315,27 @@ serve(async (req) => {
         const account = accountById[tx.account_id] ?? null;
         const total = Number(tx.installments_total) || 0;
         const suffix =
-          total > 1 ? ` ${Number(tx.installments_current) || "?"}/${total}` : "";
-        const when =
-          kind === "upcoming"
-            ? "vence em 3 dias"
-            : kind === "today"
-              ? "vence hoje"
-              : "venceu há 3 dias";
+          total > 1
+            ? ` ${Number(tx.installments_current) || "?"}/${total}`
+            : "";
         reminders.push({
           txId: tx.id,
           kind,
           dueISO,
-          title: `${tx.description ?? "Lançamento"}${suffix} ${when}`,
-          body: `${money(Number(tx.amount) || 0, account?.currency ?? "BRL")}${
-            account?.name ? ` · ${account.name}` : ""
-          }`,
+          description: String(tx.description || ""),
+          suffix,
+          amount: Number(tx.amount) || 0,
+          currency: String(account?.currency || "BRL"),
+          accountName: String(account?.name || ""),
         });
       }
       reminders.sort((a, b) => a.dueISO.localeCompare(b.dueISO));
-      const picked = reminders.slice(0, 5).map((row, index, list) =>
-        list.length === 5 && reminders.length > 5 && index === 4
-          ? { ...row, body: `${row.body} (+${reminders.length - 5} lembretes)` }
-          : row,
-      );
+      const picked = reminders
+        .slice(0, 5)
+        .map((row, index) => ({
+          ...row,
+          extra: index === 4 && reminders.length > 5 ? reminders.length - 5 : 0,
+        }));
 
       // ── Faturas que fecharam hoje ────────────────────────────────
       // Um aviso por cartão/fechamento, com total, em aberto e vencimento.
@@ -351,17 +348,23 @@ serve(async (req) => {
       const closing = cards
         .map((card) => ({
           card,
-          closeISO: closeCandidates(card, todayISO).find((iso) => iso === todayISO) ?? null,
+          closeISO:
+            closeCandidates(card, todayISO).find((iso) => iso === todayISO) ??
+            null,
         }))
         .filter((row): row is { card: CardAccount; closeISO: string } =>
-          Boolean(row.closeISO)
+          Boolean(row.closeISO),
         );
 
       const invoiceAlerts: Array<{
         cardId: string;
         closeISO: string;
-        title: string;
-        body: string;
+        cardName: string;
+        total: number;
+        currency: string;
+        open: number;
+        pending: number;
+        dueISO: string;
         tag: string;
       }> = [];
 
@@ -375,38 +378,49 @@ serve(async (req) => {
           ),
         ];
         const closes = [...new Set(closing.map((row) => row.closeISO))];
-        const [{ data: cardExpenses }, { data: depPayments }, { data: transfPayments }] =
-          await Promise.all([
-            supabase
-              .from("mf_transactions")
-              .select("id,account_id,type,amount,status,payment_date,invoice_close")
-              .in("account_id", cardIds)
-              .eq("type", "DESPESA")
-              .neq("status", "CANCELADO"),
-            linkedIds.length
-              ? supabase
-                  .from("mf_transactions")
-                  .select("id,account_id,type,amount,status,invoice_close")
-                  .in("account_id", linkedIds)
-                  .in("invoice_close", closes)
-                  .neq("status", "CANCELADO")
-              : Promise.resolve({ data: [] }),
-            supabase
-              .from("mf_transactions")
-              .select("id,account_id,transfer_account_id,type,amount,status,invoice_close")
-              .in("transfer_account_id", cardIds)
-              .in("invoice_close", closes)
-              .neq("status", "CANCELADO"),
-          ]);
+        const [
+          { data: cardExpenses },
+          { data: depPayments },
+          { data: transfPayments },
+        ] = await Promise.all([
+          supabase
+            .from("mf_transactions")
+            .select(
+              "id,account_id,type,amount,status,payment_date,invoice_close",
+            )
+            .eq("user_id", userId)
+            .in("account_id", cardIds)
+            .eq("type", "DESPESA")
+            .neq("status", "CANCELADO"),
+          linkedIds.length
+            ? supabase
+                .from("mf_transactions")
+                .select("id,account_id,type,amount,status,invoice_close")
+                .eq("user_id", userId)
+                .in("account_id", linkedIds)
+                .in("invoice_close", closes)
+                .neq("status", "CANCELADO")
+            : Promise.resolve({ data: [] }),
+          supabase
+            .from("mf_transactions")
+            .select(
+              "id,account_id,transfer_account_id,type,amount,status,invoice_close",
+            )
+            .eq("user_id", userId)
+            .in("transfer_account_id", cardIds)
+            .in("invoice_close", closes)
+            .neq("status", "CANCELADO"),
+        ]);
 
         const seenPay = new Set<string>();
-        const paymentRows = [...(depPayments ?? []), ...(transfPayments ?? [])].filter(
-          (row) => {
-            if (!row?.id || seenPay.has(row.id)) return false;
-            seenPay.add(row.id);
-            return true;
-          },
-        );
+        const paymentRows = [
+          ...(depPayments ?? []),
+          ...(transfPayments ?? []),
+        ].filter((row) => {
+          if (!row?.id || seenPay.has(row.id)) return false;
+          seenPay.add(row.id);
+          return true;
+        });
 
         for (const { card, closeISO } of closing) {
           const dueISO = invoiceDueISO(card, closeISO);
@@ -426,8 +440,11 @@ serve(async (req) => {
           const bound = paymentRows.filter(
             (tx) =>
               tx.invoice_close === closeISO &&
-              ((tx.type === "DESPESA" && tx.account_id === card.linked_account_id) ||
-                (tx.type === "TRANSFERENCIA" && tx.transfer_account_id === card.id)),
+              ((tx.type === "DESPESA" &&
+                tx.account_id === card.linked_account_id) ||
+                (tx.type === "TRANSFERENCIA" &&
+                  "transfer_account_id" in tx &&
+                  tx.transfer_account_id === card.id)),
           );
           const paid = bound
             .filter((tx) => tx.status === "PAGO")
@@ -435,15 +452,11 @@ serve(async (req) => {
           const pending = bound
             .filter((tx) => tx.status === "PENDENTE")
             .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
-          const open = Math.max(0, Math.round((total - paid - pending) * 100) / 100);
+          const open = Math.max(
+            0,
+            Math.round((total - paid - pending) * 100) / 100,
+          );
           const currency = String(card.currency ?? "BRL");
-          const statusLabel =
-            open > 0.005
-              ? `em aberto ${money(open, currency)}`
-              : pending > 0.005
-                ? "pagamento agendado"
-                : "fatura paga";
-
           // Claim atômico: só o primeiro run do dia envia esta fatura.
           const { data: claimed, error: claimError } = await supabase
             .from("mf_invoice_notifications")
@@ -467,62 +480,44 @@ serve(async (req) => {
           invoiceAlerts.push({
             cardId: String(card.id),
             closeISO,
-            title: `Fatura ${card.name ?? "do cartão"} fechou`,
-            body: `Total ${money(total, currency)} · vence ${shortDate(dueISO)} · ${statusLabel}`,
+            cardName: String(card.name || ""),
+            total,
+            currency,
+            open,
+            pending,
+            dueISO,
             tag: `mf-invoice-${card.id}-${closeISO}`,
           });
         }
       }
 
       for (const sub of userSubs) {
-        const pushSubscription = {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
-        };
         for (const row of invoiceAlerts) {
-          try {
-            await webpush.sendNotification(
-              pushSubscription,
-              JSON.stringify({
-                type: "mf-reminder",
-                tag: row.tag,
-                title: row.title,
-                body: row.body,
-                url: "/minhasfinancas/cards",
-                kind: "invoice_closed",
-                cardId: row.cardId,
-                invoiceClose: row.closeISO,
-              }),
-            );
-            sent += 1;
-          } catch (err) {
-            console.error(`Failed push ${sub.id}:`, err);
-            if (err.statusCode === 404 || err.statusCode === 410) {
-              await supabase.from("mf_push_subscriptions").delete().eq("id", sub.id);
-            }
-          }
+          if (
+            await sendGlobalPush(supabase, sub, {
+              type: "mf-reminder",
+              tag: row.tag,
+              ...financeInvoiceCopy(row, sub.language),
+              url: "/minhasfinancas/cards",
+              kind: "invoice_closed",
+              cardId: row.cardId,
+              invoiceClose: row.closeISO,
+            })
+          )
+            sent++;
         }
         for (const row of picked) {
-          try {
-            await webpush.sendNotification(
-              pushSubscription,
-              JSON.stringify({
-                type: "mf-reminder",
-                tag: `mf-${row.txId}-${row.kind}`,
-                title: row.title,
-                body: row.body,
-                url: "/?tab=minhasfinancas-transactions",
-                txId: row.txId,
-                kind: row.kind,
-              }),
-            );
-            sent += 1;
-          } catch (err) {
-            console.error(`Failed push ${sub.id}:`, err);
-            if (err.statusCode === 404 || err.statusCode === 410) {
-              await supabase.from("mf_push_subscriptions").delete().eq("id", sub.id);
-            }
-          }
+          if (
+            await sendGlobalPush(supabase, sub, {
+              type: "mf-reminder",
+              tag: `mf-${row.txId}-${row.kind}`,
+              ...financeTransactionCopy(row, sub.language),
+              url: "/minhasfinancas/transactions",
+              txId: row.txId,
+              kind: row.kind,
+            })
+          )
+            sent++;
         }
       }
     }
@@ -531,10 +526,13 @@ serve(async (req) => {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch {
+    return new Response(
+      JSON.stringify({ error: "Reminder processing failed" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

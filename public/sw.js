@@ -11,12 +11,12 @@ self.addEventListener('push', (event) => {
   } catch {
     payload = {};
   }
-  if (payload.type && payload.type !== 'mf-reminder') return;
+  if (payload.type && !['mf-reminder', 'health-reminder'].includes(payload.type)) return;
   const title = payload.title || 'Minhas Finanças';
   const options = {
     body: payload.body || '',
     tag: payload.tag || 'mf-reminder',
-    renotify: true,
+    renotify: payload.type !== 'health-reminder',
     data: { url: payload.url || '/?tab=minhasfinancas-transactions' },
   };
   event.waitUntil(self.registration.showNotification(title, options));

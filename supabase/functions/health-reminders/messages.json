@@ -1,0 +1,14 @@
+{
+  "pt": {
+    "title": "Guia médico",
+    "body": "Você tem um lembrete de saúde. Abra seu guia para conferir."
+  },
+  "en": {
+    "title": "Medical guide",
+    "body": "You have a health reminder. Open your guide to check it."
+  },
+  "es": {
+    "title": "Guía médica",
+    "body": "Tienes un recordatorio de salud. Abre tu guía para consultarlo."
+  }
+}

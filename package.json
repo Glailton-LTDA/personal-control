@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "playwright test && playwright test --config=playwright.push.config.js",
+    "test:e2e:push": "playwright test --config=playwright.push.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",

@@ -42,7 +42,8 @@ import {
   Target,
   Music as MusicIcon,
   Upload,
-  MessageCircle
+  MessageCircle,
+  HeartPulse
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
@@ -59,6 +60,7 @@ import MarkdownNotes from './CustomLists/MarkdownNotes';
 import Music from './Music/Music';
 import MinhasFinancas from './MinhasFinancas/MinhasFinancas';
 import Launchpad from './Launchpad';
+import HealthGuide from './Health/HealthGuide';
 import Footer from './Footer';
 import { useRouter, parsePath } from '../hooks/useRouter';
 
@@ -71,6 +73,7 @@ const defaultMenuItems = [
   { id: 'trips', icon: Plane, key: 'trips' },
   { id: 'lists', icon: List, key: 'lists' },
   { id: 'music', icon: MusicIcon, key: 'music' },
+  { id: 'health', icon: HeartPulse, key: 'health' },
   { id: 'settings', icon: Settings, key: 'settings' },
 ];
 
@@ -133,6 +136,7 @@ const getModuleInitialTab = (id) => {
   if (id === 'trips') return 'trips/list';
   if (id === 'lists') return 'lists/manager';
   if (id === 'music') return 'music/repertoire';
+  if (id === 'health') return 'health/today';
   if (id === 'settings') return 'settings/general';
   return id;
 };
@@ -173,7 +177,10 @@ export default function Dashboard({ user }) {
   });
   const [visibleModules, setVisibleModules] = useState(() => {
     const saved = localStorage.getItem('personal-control-visible-modules');
-    return saved ? JSON.parse(saved) : defaultMenuItems.map(i => i.id);
+    if (!saved) return defaultMenuItems.map(i => i.id);
+    const visible = JSON.parse(saved);
+    const priorOrder = JSON.parse(localStorage.getItem('personal-control-menu-order') || '[]');
+    return priorOrder.includes('health') ? visible : [...new Set([...visible, 'health'])];
   });
   const [menuOrder, setMenuOrder] = useState(() => {
     const saved = localStorage.getItem('personal-control-menu-order');
@@ -282,6 +289,7 @@ export default function Dashboard({ user }) {
       const currentVisible = new Set(data.visible_modules);
       currentVisible.add('launchpad');
       currentVisible.add('settings');
+      if (!data.menu_order?.includes('health')) currentVisible.add('health');
       setVisibleModules(Array.from(currentVisible));
     }
   }, []);
@@ -579,6 +587,7 @@ export default function Dashboard({ user }) {
                 activeTab.startsWith('trips') ? t('nav.trips') :
                 activeTab.startsWith('lists') ? t('nav.lists') :
                 activeTab.startsWith('music') ? t('nav.music') :
+                activeTab.startsWith('health') ? t('nav.health') :
                 activeTab.startsWith('settings') ? t('nav.settings') : ''}
             </span>
           </div>
@@ -633,7 +642,8 @@ export default function Dashboard({ user }) {
         const isScrollLockedTab = ['investments/list', 'trips/list', 'trips/itinerary', 'music/repertoire', 'music/setlists'].includes(activeTab);
         return (
           <main style={{ 
-            flex: 1, 
+            flex: 1,
+            minWidth: 0,
             padding: activeTab === 'launchpad' ? 0 : isMobile ? '1rem' : '2rem', 
             overflowY: isScrollLockedTab ? 'hidden' : 'auto', 
             position: 'relative',
@@ -715,6 +725,9 @@ export default function Dashboard({ user }) {
                     />
                   )
                 )}
+                {activeRoute.module === 'health' && (
+                  <HealthGuide key={user.id} user={user} screen={activeRoute.screen} detailId={activeRoute.params.id} navigate={navigate} />
+                )}
                 {activeRoute.module === 'music' && (
                   <Music
                     user={user}
@@ -745,6 +758,7 @@ export default function Dashboard({ user }) {
                   activeRoute.module !== 'trips' &&
                   activeRoute.module !== 'lists' &&
                   activeRoute.module !== 'music' &&
+                  activeRoute.module !== 'health' &&
                   activeRoute.module !== 'investments' &&
                   activeRoute.module !== 'minhasfinancas' && (
                     <div className="glass-card" style={{ padding: '4rem', textAlign: 'center' }}>
