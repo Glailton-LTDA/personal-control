@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [1.35.6] - 2026-11-04
+
+### Corrigido
+- **Status das faturas no Resumo**: pagamento agendado não exibe mais cadeado fechado antes da data de fechamento. O cadeado respeita o ciclo da fatura e o agendamento aparece separadamente com um relógio, nos layouts mobile e desktop.
+
 ## [1.35.5] - 2026-11-04
 
 ### Adicionado
