@@ -1,4 +1,4 @@
-# Segurança do Minhas Finanças — versão 1.36.0
+# Segurança do Minhas Finanças — versão 2.0.0
 
 As migrations desta alteração não removem nem reescrevem lançamentos, contas, faturas, investimentos ou despesas de viagens. Alteram permissões e funções, adicionam validações para gravações futuras e criam o contador de uso do Felix. Referências legadas não são “corrigidas” automaticamente.
 

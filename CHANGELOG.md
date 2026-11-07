@@ -4,7 +4,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
-## [1.36.0] - 2026-11-04
+## [2.0.0] - 2026-11-07
 
 ### Segurança
 - **Autorização de vínculos financeiros**: valida referências entre usuários no banco, restringe a escrita de vínculos à RPC e impede que a limpeza de lançamentos altere despesas de viagens ou investimentos de terceiros, inclusive por vínculos legados adulterados.
