@@ -61,7 +61,7 @@ Personal Control is a high-performance personal management platform, developed w
 
 Desenvolver contra produção é a maior fonte de egress do projeto (o dev server sozinho chegou a ~148 MB em 24 h). O repositório já traz a configuração do Supabase local (`supabase/config.toml`), o schema completo (`supabase/migrations/20200101000000_baseline_schema.sql`) e um seed mínimo (`supabase/seed.sql`).
 
-**Pré-requisitos:** Docker Desktop rodando e Node 18+.
+**Pré-requisitos:** Docker Desktop rodando e Node 24 LTS (mínimo 24.15; Node 22.22.2+ também é suportado).
 
 #### Passo a passo
 
@@ -164,3 +164,7 @@ The project follows the **Orbit Design System** philosophy:
 
 ---
 Developed by **Glailton LTDA** | Orbit Style 🌌
+
+### Atualizações de segurança do Minhas Finanças
+
+Veja [o roteiro de aplicação e validação](docs/security-minhas-financas.md). Em um banco de Dev existente, aplique somente migrations pendentes; não execute `db reset`, `--include-seed` ou recrie volumes para atualizar.

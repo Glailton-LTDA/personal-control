@@ -258,4 +258,11 @@ describe('MFFelix — Assistente Felix (Fase 8)', () => {
     expect(screen.queryByTestId('felix-msg-user')).not.toBeInTheDocument();
     expect(screen.getByTestId('felix-input')).toHaveValue('');
   });
+  it.each(['rate','input','unavailable'])('mostra bloqueio de segurança do tipo %s', async (code) => {
+    const { supabase } = await import('../../lib/supabase');
+    supabase.functions.invoke.mockResolvedValue({ data: null, error: { context: { clone: () => ({ json: async () => ({ code }) }) } } });
+    await renderScreen(); await typeAndSend('Resumo');
+    await waitFor(() => expect(screen.getByTestId('felix-msg-error')).toHaveTextContent(`minhasfinancas.felix_error_${code}`));
+  });
+
 });

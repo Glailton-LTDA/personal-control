@@ -258,7 +258,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
 
                   <div className="actions-cell" style={{ marginTop: '0.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1.25rem' }}>
                     <div className="actions-row" style={{ justifyContent: 'center', width: '100%' }}>
-                      {(trip.user_id === user.id || localStorage.getItem('pc_e2e_test') === 'true') ? (
+                      {(trip.user_id === user.id || (import.meta.env.DEV && localStorage.getItem('pc_e2e_test') === 'true')) ? (
                         <>
                           <button className="action-btn" data-testid="edit-trip-btn" onClick={() => onEditTrip(trip)} title={t('trips.edit')}>
                             <Edit size={18} />

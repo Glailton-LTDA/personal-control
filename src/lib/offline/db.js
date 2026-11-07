@@ -159,14 +159,9 @@ export const MF_SYNC_TABLES = MF_OFFLINE_TABLES.filter(
   (table) => table !== 'mf_restore_points'
 );
 
-db.open().catch(async (err) => {
-  if (/UpgradeError/i.test(err.message) || err.name === 'DatabaseClosedError') {
-    console.warn('Dexie upgrade failed, deleting database and reloading', err);
-    if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function' && !(typeof globalThis.process !== 'undefined' && globalThis.process.env?.VITEST)) {
-      await db.delete();
-      window.location.reload();
-    }
-  }
+db.open().catch((err) => {
+  // Nunca apagar automaticamente um banco que pode conter escritas não sincronizadas.
+  console.error('Offline database unavailable; existing data preserved', err);
 });
 
 // Helpers - Music

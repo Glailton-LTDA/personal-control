@@ -299,8 +299,13 @@ export default function MFConfig({ user }) {
         try {
           await restoreMutation.mutateAsync(point);
           toast.success(t('minhasfinancas.rp_restored'));
-        } catch {
-          toast.error(t('minhasfinancas.save_error'));
+        } catch (error) {
+          const message = String(error?.message || '');
+          const key = message.includes('mf_legacy_snapshot') ? 'rp_legacy_blocked'
+            : message.includes('mf_restore_linked_changes') ? 'rp_linked_blocked'
+            : message.includes('mf_pending_offline') ? 'rp_pending_blocked'
+            : message.includes('mf_online_required') ? 'rp_online_required' : 'save_error';
+          toast.error(t(`minhasfinancas.${key}`));
         }
       },
       { danger: true, confirmText: t('minhasfinancas.rp_restore') }

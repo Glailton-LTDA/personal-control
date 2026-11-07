@@ -4,6 +4,21 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-07
+
+### Segurança
+- **Autorização de vínculos financeiros**: valida referências entre usuários no banco, restringe a escrita de vínculos à RPC e impede que a limpeza de lançamentos altere despesas de viagens ou investimentos de terceiros, inclusive por vínculos legados adulterados.
+- **Offline por usuário**: leituras, alterações e filas de sincronização respeitam a identidade ativa. Operações antigas sem dono identificável são preservadas em quarentena; a interface informa pendências. Logout/troca de conta limpam o cache em memória, sem apagar escritas locais pendentes. Escrita local e enfileiramento são atômicos.
+- **Backups completos**: criação no servidor sem o limite de 1.000 linhas da API. Restauração transacional com backup automático anterior, sem apagar registros novos. Pontos legados incompletos e alterações divergentes em integrações externas exigem revisão.
+- **CSV seguro**: campos textuais com prefixos de fórmulas são neutralizados, preservando valores numéricos negativos.
+- **Felix**: limites por usuário de 10 solicitações/minuto e 100/dia, corpo de até 64 KiB, até 40 mensagens e limite de saída do modelo. Falha no controle de consumo bloqueia a chamada ao provedor.
+- **Funções SQL**: search_path fixado e privilégios públicos/anon removidos das rotinas financeiras; triggers não ficam expostos como RPCs.
+- **Dependências**: atualização do cliente Supabase, mapas e ferramentas de testes/build; correções transitivas em DOMPurify, fflate, ws, js-yaml e brace-expansion. Auditoria npm sem vulnerabilidades conhecidas no momento da validação.
+- **Preservação local**: removida a exclusão automática do IndexedDB em caso de falha de upgrade. O service worker renova o shell sem remover caches de outros aplicativos nem o banco offline.
+
+### Alterado
+- A restauração passa a atualizar os registros presentes no ponto e preservar registros posteriores. Cópia automática e rollback integral protegem contra falhas; integrações com Viagens/Investimentos não são reescritas sem revisão.
+
 ## [1.35.6] - 2026-11-04
 
 ### Corrigido
