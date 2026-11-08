@@ -53,6 +53,14 @@ A implementação foi testada com PostgreSQL descartável, inscrições fictíci
 
 Para repetir os testes de navegador, use `npm run test:e2e:push`. A configuração versionada `playwright.push.config.js` sobe um servidor isolado na porta 5174 com chave pública fictícia e sem envio real. O script `npm run test:e2e` executa os testes gerais e depois essa suíte específica. A chave de teste não é adicionada aos arquivos de ambiente do aplicativo.
 
+### Pipeline de publicação
+
+O workflow `validate.yml` verifica cada PR para `main`: lint, todos os testes Vitest, build, testes de navegador do Guia médico/push, testes Deno dos dois workers e testes PostgreSQL de migração, isolamento e planos de consulta. O Vitest exclui os arquivos Deno, que são executados pelo runtime próprio em um job separado. Nenhum desses jobs recebe credenciais de produção.
+
+Depois do merge, `supabase-migrations.yml` aplica primeiro as migrações, confere o histórico e publica `mf-reminders` e `health-reminders` com o helper compartilhado. Ambos validam `CRON_SECRET` no handler. O deploy usa as chaves e os secrets já configurados no projeto; não cria novas chaves VAPID. O agendamento médico precisa ser conferido após essa primeira publicação; o agendamento financeiro existente é preservado.
+
+O deploy automático do frontend pela Vercel é independente do workflow do banco. Durante a primeira publicação, o Guia médico só fica operacional quando as migrações terminarem. Deve-se acompanhar os dois deploys antes de considerar a publicação concluída.
+
 ### Resultado da validação
 
 Passaram lint sem avisos, build, 56 testes Vitest, 19 testes Playwright (12 de regressão do Guia médico e 7 dos Ajustes globais) e 7 testes Deno. Os testes SQL de migração/consentimento global e de segurança do Guia médico também passaram. Foram verificadas as larguras de 320, 768 e 1440 pixels nos Ajustes, incluindo seus contêineres. O build mantém os avisos de chunks grandes/imports dinâmicos já existentes no projeto.
