@@ -119,6 +119,7 @@ export function parsePath(path) {
     trips: 'list',
     lists: 'manager',
     music: 'repertoire',
+    health: 'today',
     settings: 'general',
   };
 

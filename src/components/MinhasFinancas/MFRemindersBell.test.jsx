@@ -3,7 +3,6 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MFRemindersBell from './MFRemindersBell';
-import toast from 'react-hot-toast';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -33,8 +32,18 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../../hooks/useMinhasFinancas', () => ({
   useMFAccounts: () => ({
     data: [
-      { id: 'acc-1', name: 'Nuconta', account_type: 'CORRENTE', currency: 'BRL' },
-      { id: 'acc-card', name: 'Nubank', account_type: 'CARTAO', currency: 'BRL' },
+      {
+        id: 'acc-1',
+        name: 'Nuconta',
+        account_type: 'CORRENTE',
+        currency: 'BRL',
+      },
+      {
+        id: 'acc-card',
+        name: 'Nubank',
+        account_type: 'CARTAO',
+        currency: 'BRL',
+      },
     ],
   }),
   useMFReminderRows: () => ({
@@ -97,11 +106,16 @@ vi.mock('../../hooks/useMinhasFinancas', () => ({
 vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 15, 12, 0, 0) });
 
 const renderBell = (onChangeMonth = vi.fn()) => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   render(
     <QueryClientProvider client={queryClient}>
-      <MFRemindersBell user={{ id: 'test-user' }} onChangeMonth={onChangeMonth} />
-    </QueryClientProvider>
+      <MFRemindersBell
+        user={{ id: 'test-user' }}
+        onChangeMonth={onChangeMonth}
+      />
+    </QueryClientProvider>,
   );
   return onChangeMonth;
 };
@@ -121,8 +135,12 @@ describe('MFRemindersBell — sino de lembretes', () => {
 
     fireEvent.click(screen.getByTestId('mf-reminders-bell'));
     expect(screen.getByTestId('mf-reminders-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('mf-reminders-item-tx-rem')).toHaveTextContent('Aluguel');
-    expect(screen.getByTestId('mf-reminders-invoice-acc-card')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-reminders-item-tx-rem')).toHaveTextContent(
+      'Aluguel',
+    );
+    expect(
+      screen.getByTestId('mf-reminders-invoice-acc-card'),
+    ).toBeInTheDocument();
   });
 
   it('fatura fechada hoje leva aos Cartões no mês do vencimento', async () => {
@@ -161,18 +179,20 @@ describe('MFRemindersBell — sino de lembretes', () => {
     expect(screen.queryByTestId('mf-reminders-panel')).not.toBeInTheDocument();
   });
 
-  it('sem suporte a push (jsdom / http) o clique explica o motivo em vez de ficar mudo', async () => {
+  it('centraliza a ativação nos ajustes, sem controle de push por módulo', async () => {
     renderBell();
-    await waitFor(() => {
-      expect(screen.getByTestId('mf-reminders-count')).toBeInTheDocument();
-    });
+    await waitFor(() =>
+      expect(screen.getByTestId('mf-reminders-count')).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByTestId('mf-reminders-bell'));
-    // 'unsupported' não desativa mais o botão: o clique avisa por que não
-    // funciona (http sem service worker / notificação)
-    const toggle = screen.getByTestId('mf-reminders-push-toggle');
-    await waitFor(() => expect(toggle).not.toBeDisabled());
-    fireEvent.click(toggle);
-    expect(toast.error).toHaveBeenCalledWith('minhasfinancas.rem_push_unavailable');
+    expect(
+      screen.queryByTestId('mf-reminders-push-toggle'),
+    ).not.toBeInTheDocument();
+    const listener = vi.fn();
+    window.addEventListener('set-active-tab', listener);
+    fireEvent.click(screen.getByTestId('mf-reminders-push-settings'));
+    expect(listener.mock.calls[0][0].detail.tab).toBe('settings/general');
+    window.removeEventListener('set-active-tab', listener);
   });
 
   it('no estreito o painel abre como bottom-sheet com overlay que fecha', async () => {
@@ -193,7 +213,9 @@ describe('MFRemindersBell — sino de lembretes', () => {
       expect(screen.getByTestId('mf-reminders-overlay')).toBeInTheDocument();
       // tocar no overlay escuro fecha o painel
       fireEvent.click(screen.getByTestId('mf-reminders-overlay'));
-      expect(screen.queryByTestId('mf-reminders-panel')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('mf-reminders-panel'),
+      ).not.toBeInTheDocument();
     } finally {
       delete window.matchMedia;
     }

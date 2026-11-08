@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/functions/**'
       - '.github/workflows/supabase-migrations.yml'
   workflow_dispatch:
 
@@ -51,3 +52,8 @@ jobs:
 
       - name: Confirm migration history
         run: supabase migration list --project-ref "$SUPABASE_PROJECT_REF"
+
+      # These workers authenticate with CRON_SECRET in their handlers. Publishing
+      # happens only after the tables and compatibility views are available.
+      - name: Deploy reminder functions
+        run: supabase functions deploy mf-reminders health-reminders --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api

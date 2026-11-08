@@ -1,0 +1,26 @@
+{
+  "push": {
+    "title": "Notificações do aplicativo",
+    "description": "Receba os lembretes de todos os módulos em um só lugar.",
+    "device_hint": "Esta ativação vale para todos os módulos neste aparelho. Seus outros aparelhos mantêm suas próprias ativações.",
+    "privacy_hint": "Os avisos do Guia médico não exibem medicamentos, condições ou resultados na tela bloqueada.",
+    "enable": "Ativar neste aparelho",
+    "disable": "Desativar neste aparelho",
+    "saving": "Salvando…",
+    "state_loading": "Verificando notificações…",
+    "state_on": "Ativadas neste aparelho",
+    "state_off": "Desativadas neste aparelho",
+    "state_blocked": "Bloqueadas pelo navegador",
+    "state_unsupported": "Indisponíveis neste navegador",
+    "state_unconfigured": "Configuração de notificações indisponível",
+    "state_error": "Não foi possível verificar as notificações",
+    "blocked": "Permita as notificações nas configurações do navegador para ativá-las neste aparelho.",
+    "unconfigured": "As notificações ainda não estão disponíveis neste ambiente. Seus lembretes continuam nos módulos.",
+    "error": "Não foi possível salvar a preferência. Tente novamente.",
+    "enabled_feedback": "Notificações de todos os módulos ativadas neste aparelho.",
+    "disabled_feedback": "Notificações de todos os módulos desativadas neste aparelho.",
+    "retry": "Tentar novamente",
+    "open_settings": "Ajustar notificações",
+    "manage_hint": "As notificações são ativadas nos Ajustes do aplicativo e valem para todos os módulos."
+  }
+}

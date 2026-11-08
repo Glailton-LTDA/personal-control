@@ -1,7 +1,7 @@
 {
   "name": "personalcontrol",
   "private": true,
-  "version": "2.0.1",
+  "version": "2.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "npx playwright test",
+    "test:e2e": "playwright test && playwright test --config=playwright.push.config.js",
+    "test:e2e:push": "playwright test --config=playwright.push.config.js",
     "test:security": "vitest run src/tests/mfSecurity.database.test.js src/tests/authIsolation.test.jsx src/tests/financeAiLimits.test.js src/lib/offline/ownership.test.js src/components/MinhasFinancas/mfCsvSecurity.test.js"
   },
   "dependencies": {

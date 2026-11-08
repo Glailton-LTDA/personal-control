@@ -1,0 +1,26 @@
+{
+  "push": {
+    "title": "Notificaciones de la aplicación",
+    "description": "Recibe los recordatorios de todos los módulos en un solo lugar.",
+    "device_hint": "Esta activación se aplica a todos los módulos en este dispositivo. Los demás dispositivos conservan sus propias activaciones.",
+    "privacy_hint": "Los avisos de la guía médica no muestran medicamentos, condiciones ni resultados en la pantalla bloqueada.",
+    "enable": "Activar en este dispositivo",
+    "disable": "Desactivar en este dispositivo",
+    "saving": "Guardando…",
+    "state_loading": "Verificando notificaciones…",
+    "state_on": "Activadas en este dispositivo",
+    "state_off": "Desactivadas en este dispositivo",
+    "state_blocked": "Bloqueadas por el navegador",
+    "state_unsupported": "No disponibles en este navegador",
+    "state_unconfigured": "Configuración de notificaciones no disponible",
+    "state_error": "No se pudieron verificar las notificaciones",
+    "blocked": "Permite las notificaciones en la configuración del navegador para activarlas en este dispositivo.",
+    "unconfigured": "Las notificaciones aún no están disponibles en este entorno. Tus recordatorios siguen disponibles en los módulos.",
+    "error": "No se pudo guardar la preferencia. Inténtalo de nuevo.",
+    "enabled_feedback": "Notificaciones de todos los módulos activadas en este dispositivo.",
+    "disabled_feedback": "Notificaciones de todos los módulos desactivadas en este dispositivo.",
+    "retry": "Intentar de nuevo",
+    "open_settings": "Ajustar notificaciones",
+    "manage_hint": "Activa las notificaciones en los ajustes de la aplicación para todos los módulos."
+  }
+}

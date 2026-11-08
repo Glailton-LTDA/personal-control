@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Coins,
   Music,
-  Wallet
+  Wallet,
+  HeartPulse
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -23,6 +24,7 @@ const moduleData = {
   trips: { color: '#a855f7', icon: Plane },
   lists: { color: '#f59e0b', icon: List },
   music: { color: '#f43f5e', icon: Music },
+  health: { color: '#14b8a6', icon: HeartPulse },
   settings: { color: '#94a3b8', icon: Settings },
 };
 
@@ -35,6 +37,7 @@ const getModuleInitialTab = (id) => {
   if (id === 'trips') return 'trips/list';
   if (id === 'lists') return 'lists/manager';
   if (id === 'music') return 'music/repertoire';
+  if (id === 'health') return 'health/today';
   if (id === 'settings') return 'settings/general';
   return id;
 };
@@ -94,7 +97,7 @@ export default function Launchpad({ user, onNavigate, onLogout, menuItems }) {
 
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
         gap: '1.5rem' 
       }}>
         {menuItems.map((menuItem) => {

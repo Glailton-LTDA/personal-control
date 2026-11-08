@@ -53,6 +53,7 @@ vi.mock('lucide-react', () => {
   const mockIcon = (name) => ({ ...props }) => <div data-testid={`icon-${name}`} {...props} />;
   return {
     Coins: mockIcon('coins'),
+    HeartPulse: mockIcon('heart-pulse'),
     TrendingUp: mockIcon('trending-up'),
     Plane: mockIcon('plane'),
     Wrench: mockIcon('wrench'),
@@ -105,6 +106,7 @@ vi.mock('lucide-react', () => {
 });
 
 // Mock sub-components
+vi.mock('./Health/HealthGuide', () => ({ default: () => <div data-testid="health-guide" /> }));
 vi.mock('./Finance/FinanceList', () => ({ default: () => <div data-testid="finance-list" /> }));
 vi.mock('./Finance/SummaryDashboard', () => ({ default: () => <div data-testid="summary-dashboard" /> }));
 vi.mock('./Finance/FinanceSettings', () => ({ default: () => <div data-testid="finance-settings" /> }));
