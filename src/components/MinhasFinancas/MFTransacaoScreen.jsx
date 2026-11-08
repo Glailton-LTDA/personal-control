@@ -941,17 +941,12 @@ export default function MFTransacaoScreen({
       return;
     }
 
-    // Fatura fechada: salvar despesa de cartão numa fatura mais antiga
-    // que a do mês (vencimento anterior ao mês atual) pede confirmação
-    // ("Fatura fechada!"). A corrente nunca avisa (é o default).
-    const chosenDueMonth = expenseCycles.find(
-      (cycle) => cycle.closeISO === expenseInvoiceClose
-    )?.dueISO?.slice(0, 7);
+    // O ciclo fecha na própria data de fechamento, independentemente
+    // do mês de vencimento ou de ser a fatura selecionada por padrão.
     if (
       isCardExpense &&
       expenseInvoiceClose &&
-      chosenDueMonth &&
-      chosenDueMonth < toISODate(new Date()).slice(0, 7) &&
+      expenseInvoiceClose <= toISODate(new Date()) &&
       !warnAccepted.current &&
       localStorage.getItem('mf_closed_invoice_warn_off') !== '1'
     ) {

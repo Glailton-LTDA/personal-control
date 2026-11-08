@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-08
+
+### Corrigido
+- **Aviso de fatura fechada**: a confirmação ao salvar despesas de cartão considera a data real de fechamento, inclusive no dia do fechamento e quando a fatura vence no mês atual ou seguinte. Mantida a opção existente de não perguntar novamente.
+
 ## [2.0.0] - 2026-11-07
 
 ### Segurança
