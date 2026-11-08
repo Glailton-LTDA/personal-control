@@ -20,6 +20,7 @@ vi.mock('../lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -91,6 +92,7 @@ describe('Settings Component', () => {
     
     vi.mocked(supabase.from).mockReturnValue({
       select: mockSelect,
+      eq: vi.fn().mockReturnThis(),
       single: mockSingle,
     });
 
@@ -123,6 +125,7 @@ describe('Settings Component', () => {
     
     vi.mocked(supabase.from).mockReturnValue({
       select: mockSelect,
+      eq: vi.fn().mockReturnThis(),
       single: mockSingle,
     });
 
@@ -154,6 +157,7 @@ describe('Settings Component', () => {
     
     vi.mocked(supabase.from).mockReturnValue({
       select: mockSelect,
+      eq: vi.fn().mockReturnThis(),
       single: mockSingle,
     });
 
@@ -192,6 +196,7 @@ describe('Settings Component', () => {
     
     vi.mocked(supabase.from).mockReturnValue({
       select: mockSelect,
+      eq: vi.fn().mockReturnThis(),
       single: mockSingle,
       upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
     });

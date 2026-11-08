@@ -12,7 +12,7 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: './src/tests/setup.js',
     css: true,
-    exclude: ['**/node_modules/**', '**/dist/**', '**/tests-e2e/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/tests-e2e/**', '**/supabase/functions/**'],
   },
   resolve: {
     alias: {

@@ -1,0 +1,26 @@
+{
+  "push": {
+    "title": "App notifications",
+    "description": "Receive reminders from all modules in one place.",
+    "device_hint": "This setting applies to every module on this device. Other devices keep their own settings.",
+    "privacy_hint": "Medical guide alerts do not show medications, conditions or results on the lock screen.",
+    "enable": "Enable on this device",
+    "disable": "Disable on this device",
+    "saving": "Saving…",
+    "state_loading": "Checking notifications…",
+    "state_on": "Enabled on this device",
+    "state_off": "Disabled on this device",
+    "state_blocked": "Blocked by the browser",
+    "state_unsupported": "Unavailable in this browser",
+    "state_unconfigured": "Notification configuration unavailable",
+    "state_error": "Could not check notifications",
+    "blocked": "Allow notifications in your browser settings to enable them on this device.",
+    "unconfigured": "Notifications are not available in this environment yet. Your reminders remain available in the modules.",
+    "error": "Could not save the preference. Try again.",
+    "enabled_feedback": "Notifications from all modules enabled on this device.",
+    "disabled_feedback": "Notifications from all modules disabled on this device.",
+    "retry": "Try again",
+    "open_settings": "Notification settings",
+    "manage_hint": "Enable notifications in the app settings for all modules."
+  }
+}

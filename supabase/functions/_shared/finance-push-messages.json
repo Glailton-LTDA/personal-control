@@ -1,0 +1,44 @@
+{
+  "pt": {
+    "transaction": "Lançamento",
+    "upcoming": "vence em 3 dias",
+    "today": "vence hoje",
+    "overdue": "venceu há 3 dias",
+    "extra": "(+{{count}} lembretes)",
+    "invoice_title": "Fatura {{name}} fechou",
+    "card": "do cartão",
+    "total": "Total {{amount}}",
+    "due": "vence {{date}}",
+    "open": "em aberto {{amount}}",
+    "scheduled": "pagamento agendado",
+    "paid": "fatura paga"
+  },
+  "en": {
+    "transaction": "Transaction",
+    "upcoming": "is due in 3 days",
+    "today": "is due today",
+    "overdue": "was due 3 days ago",
+    "extra": "(+{{count}} reminders)",
+    "invoice_title": "{{name}} statement closed",
+    "card": "Card",
+    "total": "Total {{amount}}",
+    "due": "due {{date}}",
+    "open": "outstanding {{amount}}",
+    "scheduled": "payment scheduled",
+    "paid": "statement paid"
+  },
+  "es": {
+    "transaction": "Movimiento",
+    "upcoming": "vence en 3 días",
+    "today": "vence hoy",
+    "overdue": "venció hace 3 días",
+    "extra": "(+{{count}} recordatorios)",
+    "invoice_title": "Cerró el resumen de {{name}}",
+    "card": "la tarjeta",
+    "total": "Total {{amount}}",
+    "due": "vence {{date}}",
+    "open": "pendiente {{amount}}",
+    "scheduled": "pago programado",
+    "paid": "resumen pagado"
+  }
+}

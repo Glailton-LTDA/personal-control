@@ -1,0 +1,122 @@
+name: Validate application
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    name: Lint, unit tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: http://127.0.0.1:54421
+      VITE_SUPABASE_ANON_KEY: ci-public-placeholder
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run --maxWorkers=2
+      - run: npm run build
+
+  browser:
+    name: Application and global push browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: http://127.0.0.1:54421
+      VITE_SUPABASE_ANON_KEY: ci-public-placeholder
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --workers=2
+      - run: npm run test:e2e:push
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results/
+          retention-days: 7
+
+  functions:
+    name: Reminder function tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+      - run: >-
+          deno test --allow-env --no-config --node-modules-dir=none --no-lock
+          supabase/functions/_shared/push.test.ts
+          supabase/functions/health-reminders/index.test.ts
+          supabase/functions/mf-reminders/index.test.ts
+
+  database:
+    name: Medical ownership, push migration and query plans
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: disposable-ci-password
+          POSTGRES_DB: medical_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-password
+      PGDATABASE: medical_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply fixtures, migrations and security assertions
+        shell: bash
+        run: |
+          for sql in \
+            supabase/tests/health_bootstrap.sql \
+            supabase/migrations/20261015000000_mf_push_subscriptions.sql \
+            supabase/migrations/20261107112044_health_guide.sql \
+            supabase/tests/global_push_legacy_seed.sql \
+            supabase/migrations/20261107121840_global_push_notifications.sql \
+            supabase/migrations/20261107161433_health_scheduler_auth_resolution.sql \
+            supabase/tests/health_security.sql \
+            supabase/tests/global_push_security.sql \
+            supabase/tests/health_query_plans.sql
+          do
+            psql -v ON_ERROR_STOP=1 -f "$sql"
+          done

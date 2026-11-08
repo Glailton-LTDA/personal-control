@@ -1,3 +1,9 @@
+import pushPt from './locales/push-pt.json';
+import pushEn from './locales/push-en.json';
+import pushEs from './locales/push-es.json';
+import healthPt from './locales/health-pt.json';
+import healthEn from './locales/health-en.json';
+import healthEs from './locales/health-es.json';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
@@ -6265,5 +6271,13 @@ i18n
       escapeValue: false
     }
   });
+
+for (const [language, resource] of Object.entries({ pt: healthPt, en: healthEn, es: healthEs })) {
+  i18n.addResourceBundle(language, 'translation', resource, true, true);
+}
+
+for (const [language, resource] of Object.entries({ pt: pushPt, en: pushEn, es: pushEs })) {
+  i18n.addResourceBundle(language, 'translation', resource, true, true);
+}
 
 export default i18n;

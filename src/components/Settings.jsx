@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import PushSettings from './PushSettings';
 import { Mail, Save, ShieldCheck, Bell, ChevronUp, ChevronDown, Layout, Lock, Eye, EyeOff, KeyRound, CheckCircle, Loader2, LayoutGrid, Sun, Moon, Globe, User, Info, Database, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -80,28 +81,13 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
     }
   }
 
-  useEffect(() => {
-    fetchSettings();
-    if (user?.id) {
-      updateQueueCount();
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  async function fetchSettings() {
+  const fetchSettings = useCallback(async () => {
+    const ownerId = user?.id;
+    if (!ownerId) { setLoading(false); return; }
     const { data } = await supabase
       .from('notification_settings')
-      .select('*')
+      .select('recipient_email,bcc_email,skip_email_modal,auto_send_on_paid,skip_confirmations')
+      .eq('user_id', ownerId)
       .single();
 
     if (data) {
@@ -115,7 +101,25 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
       localStorage.setItem('pc_skip_confirmations', data.skip_confirmations ?? (localStorage.getItem('pc_skip_confirmations') === 'true'));
     }
     setLoading(false);
-  }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchSettings();
+    if (user?.id) {
+      updateQueueCount();
+    }
+  }, [user?.id, fetchSettings]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -224,7 +228,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
   if (loading) return <div style={{ padding: '4rem', textAlign: 'center' }}><Loader2 className="animate-spin" style={{ color: 'var(--primary)', margin: '0 auto' }} /></div>;
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+    <div className="app-settings-view" data-testid="app-settings" style={{ maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
       
       {/* ── GENERAL TAB ── */}
       {activeTab === 'settings-general' && (
@@ -237,7 +241,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
           
           {/* Card 0: Profile */}
           <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
                 <User size={24} />
               </div>
@@ -272,7 +276,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
           </Motion.div>
           {/* Card 1: Theme Selection */}
           <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
                 <Layout size={24} />
               </div>
@@ -344,7 +348,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
 
           {/* Card 2: Language Selector */}
           <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)' }}>
                 <Globe size={24} />
               </div>
@@ -502,10 +506,12 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
             </div>
           </Motion.div>
 
+          <PushSettings userId={user?.id} />
+
           {/* Card 4: Email & System Notifications */}
           <Motion.div data-testid="section-notifications" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card" style={{ padding: '2rem' }}>
             <div className="settings-card-header" style={{ marginBottom: '2.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '250px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: '1 1 250px', minWidth: 0 }}>
                 <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '1rem', color: 'var(--primary)', flexShrink: 0 }}>
                   <Bell size={24} />
                 </div>
@@ -528,7 +534,7 @@ export default function Settings({ user, menuOrder, setMenuOrder, menuItems, act
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '2rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div className="input-group">
                   <label><Mail size={14} style={{ marginRight: '6px' }} /> {t('settings.recipient')}</label>
