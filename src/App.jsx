@@ -5,10 +5,12 @@ import Dashboard from './components/Dashboard';
 import PullToRefresh from './components/PullToRefresh';
 import { useTranslation } from 'react-i18next';
 import { reconcilePushAccount, unsubscribeDevicePush } from './lib/push';
-
+import { useQueryClient } from '@tanstack/react-query';
+import { setOfflineIdentity } from './lib/offline/owner';
 
 function App() {
   const { i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const [session, setSession] = useState(null);
   const [isRecovering, setIsRecovering] = useState(false);
 
@@ -18,13 +20,24 @@ function App() {
       setIsRecovering(true);
     }
 
+    let currentUser;
+    let authEventReceived = false;
+    let active = true;
+    const acceptSession = (next) => {
+      const nextUser = next?.user?.id || null;
+      setOfflineIdentity(nextUser);
+      if (currentUser !== undefined && currentUser !== nextUser) queryClient.clear();
+      currentUser = nextUser;
+      setSession(next);
+    };
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      if (active && !authEventReceived) acceptSession(session);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      authEventReceived = true;
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovering(true);
       }
@@ -32,11 +45,11 @@ function App() {
         unsubscribeDevicePush().catch(() => {});
         window.history.pushState(null, '', '/');
       }
-      setSession(session);
+      acceptSession(session);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [queryClient]);
 
   const userId = session?.user?.id;
   useEffect(() => {
@@ -48,8 +61,8 @@ function App() {
     return (
       <>
         <PullToRefresh />
-        <Login 
-          onLogin={(user) => setSession({ user })} 
+        <Login
+          onLogin={(user) => { setOfflineIdentity(user.id); setSession({ user }); }}
           recoveryMode={isRecovering}
           onRecoveryComplete={() => {
             setIsRecovering(false);

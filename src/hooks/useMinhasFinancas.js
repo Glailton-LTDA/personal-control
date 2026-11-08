@@ -7,7 +7,7 @@ import { readPrefsLocal, writePrefsLocal } from '../lib/mfPrefs';
 import { nextBusinessDay } from '../lib/mfBusinessDays';
 import { useMFProfileScope } from './mfProfileContext';
 import { useNotificationSettings } from './useFinance';
-import { mfSelect, mfSelectAll, mfMutate, isOffline } from '../lib/offline/mfOffline';
+import { mfSelect, mfSelectAll, mfMutate, isOffline, assertNoPendingMfWrites } from '../lib/offline/mfOffline';
 
 /** Evento interno: uma instância de `useMFPrefs` avisa as outras. */
 const MF_PREFS_EVENT = 'mf-prefs-changed';
@@ -5035,51 +5035,11 @@ export const goalCurrentAmount = (goal, contributions, accountBalance) => {
  * Fase 9: pontos de restauração (snapshot → JSONB)
  * ──────────────────────────────────────────────────────────── */
 
-/**
- * Tabelas do snapshot na ordem de leitura/INSERT (pais → filhos).
- * Fora do escopo: mf_import_* (log histórico) e mf_restore_points
- * (os pontos não são apagados por um restore).
- */
-export const MF_SNAPSHOT_TABLES = [
-  'mf_account_types',
-  'mf_account_groups',
-  'mf_accounts',
-  'mf_categories',
-  'mf_tags',
-  'mf_responsibles',
-  'mf_transactions',
-  'mf_transaction_tags',
-  'mf_budgets',
-  'mf_goals',
-  'mf_goal_contributions',
-  'mf_saved_reports',
-];
-
-/** Ordem de DELETE do restore (filhos → pais, respeitando FKs). */
-export const MF_RESTORE_DELETE_ORDER = [
-  'mf_transaction_tags',
-  'mf_goal_contributions',
-  'mf_goals',
-  'mf_budgets',
-  'mf_transactions',
-  'mf_responsibles',
-  'mf_tags',
-  'mf_categories',
-  'mf_accounts',
-  'mf_account_groups',
-  'mf_account_types',
-  'mf_saved_reports',
-];
-
-/** Lê todas as tabelas do snapshot (payload de um ponto). */
+/** Snapshot completo gerado no servidor, sem o limite de linhas da REST. */
 export const readMFSnapshot = async () => {
-  const payload = {};
-  for (const table of MF_SNAPSHOT_TABLES) {
-    const { data, error } = await supabase.from(table).select('*');
-    if (error) throw error;
-    payload[table] = data ?? [];
-  }
-  return payload;
+  const { data, error } = await supabase.rpc('mf_read_snapshot');
+  if (error) throw error;
+  return data;
 };
 
 /** Lista de pontos do usuário (mais recentes primeiro). */
@@ -5091,7 +5051,7 @@ export function useMFRestorePoints(user) {
       const { data, error } = await mfSelect(
         'mf_restore_points',
         () =>
-          supabase.from('mf_restore_points').select('*').order('created_at', { ascending: false }),
+          supabase.from('mf_restore_points').select('id,label,created_at').order('created_at', { ascending: false }),
         { sort: byDateDesc('created_at') }
       );
       if (error) throw error;
@@ -5107,12 +5067,8 @@ export function useSaveMFRestorePoint() {
     mutationFn: async (label) => {
       const trimmed = String(label ?? '').trim();
       if (!trimmed) throw new Error('empty-label');
-      const payload = await readMFSnapshot();
-      const { data, error } = await supabase
-        .from('mf_restore_points')
-        .insert({ label: trimmed, payload })
-        .select()
-        .single();
+      await assertNoPendingMfWrites();
+      const { data, error } = await supabase.rpc('mf_create_restore_point', { p_label: trimmed });
       if (error) throw error;
       return data;
     },
@@ -5120,27 +5076,15 @@ export function useSaveMFRestorePoint() {
   });
 }
 
-/**
- * Restaura um ponto: apaga os dados atuais do usuário (filhos → pais)
- * e reinsere o snapshot (pais → filhos). Os próprios pontos de
- * restauração ficam intactos.
- */
+/** Restauração transacional e não destrutiva; cria backup automático antes. */
 export function useRestoreMFRestorePoint() {
   const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: async (point) => {
-      const payload = point?.payload ?? {};
-      for (const table of MF_RESTORE_DELETE_ORDER) {
-        const { error } = await supabase.from(table).delete().not('id', 'is', null);
-        if (error) throw error;
-      }
-      for (const table of MF_SNAPSHOT_TABLES) {
-        const rows = payload[table];
-        if (!Array.isArray(rows) || rows.length === 0) continue;
-        const { error } = await supabase.from(table).insert(rows);
-        if (error) throw error;
-      }
-      return point;
+      await assertNoPendingMfWrites();
+      const { data, error } = await supabase.rpc('mf_restore_snapshot', { p_point: point.id });
+      if (error) throw error;
+      return data;
     },
     onSuccess: invalidate,
   });

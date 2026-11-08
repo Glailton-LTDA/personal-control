@@ -61,3 +61,6 @@ docs/Extratos/
 
 opencode.json
 
+
+# Intermediate audit files, local tools and caches
+work/

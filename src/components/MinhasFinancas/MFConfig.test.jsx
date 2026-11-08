@@ -96,8 +96,10 @@ vi.mock('../../lib/supabase', () => {
         // tabelas do snapshot (restore): vazias por padrão
         return empty;
       }),
+      rpc: vi.fn().mockResolvedValue({ data: { id: 'server-point' }, error: null }),
       storage: { from: vi.fn(() => ({ upload: vi.fn().mockResolvedValue({ error: null }) })) },
       auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'test-user' } } }, error: null }),
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
         signOut: vi.fn().mockResolvedValue({ error: null }),
       },
@@ -246,15 +248,9 @@ describe('MFConfig — Ajustes (categorias, tags, responsáveis)', () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith('minhasfinancas.rp_saved')
     );
-    const { __mfChains } = await import('../../lib/supabase');
-    expect(__mfChains.restorePoints.insert).toHaveBeenCalledTimes(1);
-    const arg = __mfChains.restorePoints.insert.mock.calls[0][0];
-    expect(arg.label).toBe('Antes da viagem');
-    // payload com as tabelas do snapshot (pais → filhos)
-    expect(Object.keys(arg.payload)).toContain('mf_accounts');
-    expect(Object.keys(arg.payload)).toContain('mf_transactions');
-    expect(Object.keys(arg.payload)).toContain('mf_goal_contributions');
-    expect(arg.payload).not.toHaveProperty('mf_restore_points');
+    const { supabase, __mfChains } = await import('../../lib/supabase');
+    expect(supabase.rpc).toHaveBeenCalledWith('mf_create_restore_point', { p_label: 'Antes da viagem' });
+    expect(__mfChains.restorePoints.insert).not.toHaveBeenCalled();
     expect(screen.getByTestId('mf-rp-label')).toHaveValue('');
   });
 
@@ -307,7 +303,7 @@ describe('MFConfig — Ajustes (categorias, tags, responsáveis)', () => {
     });
   });
 
-  it('restaura um ponto: apaga filhos→pais e reinsere o snapshot', async () => {
+  it('restaura um ponto pela RPC sem excluir tabelas no navegador', async () => {
     const { __mfState, __mfChains } = await import('../../lib/supabase');
     __mfState.points = [
       {
@@ -331,18 +327,9 @@ describe('MFConfig — Ajustes (categorias, tags, responsáveis)', () => {
       expect(toast.success).toHaveBeenCalledWith('minhasfinancas.rp_restored')
     );
 
+    expect(supabase.rpc).toHaveBeenCalledWith('mf_restore_snapshot', { p_point: 'pt-1' });
     const calls = supabase.from.mock.calls.slice(baseline).map((entry) => entry[0]);
-    // deletes na ordem filhos → pais (FK)
-    expect(calls.indexOf('mf_transaction_tags')).toBeGreaterThan(-1);
-    expect(calls.indexOf('mf_transaction_tags')).toBeLessThan(
-      calls.indexOf('mf_account_types')
-    );
-    expect(calls.indexOf('mf_transactions')).toBeLessThan(calls.indexOf('mf_accounts'));
-    expect(calls.indexOf('mf_budgets')).toBeLessThan(calls.indexOf('mf_accounts'));
-    // snapshot reinserido DEPOIS de toda a limpeza
-    expect(calls.lastIndexOf('mf_accounts')).toBeGreaterThan(
-      calls.indexOf('mf_saved_reports')
-    );
+    expect(calls).not.toContain('mf_transactions');
     // os próprios pontos de restauração não são apagados
     expect(__mfChains.restorePoints.delete).not.toHaveBeenCalled();
   });

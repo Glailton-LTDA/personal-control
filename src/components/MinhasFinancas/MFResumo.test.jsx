@@ -1013,6 +1013,36 @@ describe('MFResumo — cartões em seção separada', () => {
     expect(screen.getByTestId('mf-resumo-cards-next-total')).toHaveTextContent('250,00');
   });
 
+  it.each([
+    ['2026-11-06T12:00:00', 'card_status_open', 'inv_status_closed', false],
+    ['2026-11-15T12:00:00', 'inv_status_closed', 'card_status_open', false],
+    ['2026-11-06T12:00:00', 'card_status_open', 'inv_status_closed', true],
+    ['2026-11-15T12:00:00', 'inv_status_closed', 'card_status_open', true],
+  ])('agendamento mantém o fechamento independente da data: %s (%s / %s, mobile=%s)', async (now, expected, absent, mobile) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(now));
+    const originalMatchMedia = window.matchMedia;
+    if (mobile) window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      Object.assign(mockData.accounts.find((row) => row.id === 'acc-card'), {
+        closing_day: 14, due_day: 23, linked_account_id: 'acc-linked',
+      });
+      mockData.accounts.push({ id: 'acc-linked', name: 'Pagamento', account_type: 'CORRENTE', currency: 'BRL', initial_balance: 0 });
+      mockData.transactions.splice(0, mockData.transactions.length,
+        { id: 'purchase', account_id: 'acc-card', type: 'DESPESA', amount: 1000, status: 'PAGO', payment_date: '2026-11-02', invoice_close: '2026-11-14' },
+        { id: 'scheduled', account_id: 'acc-linked', type: 'DESPESA', amount: 1000, status: 'PENDENTE', payment_date: '2026-11-23', invoice_close: '2026-11-14' },
+      );
+      renderScreen({ monthKey: '2026-11' });
+      expect(await screen.findByLabelText('minhasfinancas.card_status_scheduled')).toBeInTheDocument();
+      expect(screen.getByLabelText(`minhasfinancas.${expected}`)).toBeInTheDocument();
+      expect(screen.queryByLabelText(`minhasfinancas.${absent}`)).not.toBeInTheDocument();
+    } finally {
+      if (originalMatchMedia) window.matchMedia = originalMatchMedia;
+      else delete window.matchMedia;
+      vi.useRealTimers();
+    }
+  });
+
   it('fatura corrente quitada mostra o check verde de paga', async () => {
     // Pagamento como cria o modal "Pagar fatura": DESPESA na CONTA
     // VINCULADA com invoice_close = fechamento da fatura corrente (dia 1).

@@ -300,16 +300,23 @@ i18n
             dash_accts_none: 'Nenhuma',
             dash_accts_none_msg:
               'Nenhuma conta exibida. Ajuste a moeda ou reative contas em "Personalizar painel".',
+            offline_legacy_queue: 'Existem operações offline antigas sem identificação neste navegador. Elas foram preservadas e não serão enviadas por outra conta. É necessária revisão para recuperá-las.',
+            offline_failed_queue: 'Há operações desta conta que não foram sincronizadas. Os dados locais foram preservados.',
+            offline_retry_queue: 'Tentar sincronizar novamente',
+            rp_legacy_blocked: 'Este ponto antigo pode estar incompleto. Ele foi preservado, mas a restauração automática exige revisão.',
+            rp_linked_blocked: 'Há integrações com Viagens ou Investimentos alteradas desde o ponto. Nenhum dado foi restaurado; revise as integrações primeiro.',
+            rp_pending_blocked: 'Sincronize as alterações offline desta conta antes de criar ou restaurar um ponto.',
+            rp_online_required: 'Conecte-se à internet para criar ou restaurar pontos.',
             rp_title: 'Pontos de restauração',
             rp_desc:
-              'Salve instantâneas dos seus dados e restaure quando quiser — útil antes de importações ou mudanças grandes.',
+              'Salve cópias completas dos registros financeiros sincronizados. A restauração atualiza os registros do ponto sem apagar registros novos e cria um backup automático antes.',
             rp_label: 'Nome do ponto',
             rp_placeholder: 'ex.: Antes da viagem',
             rp_save: 'Salvar ponto',
             rp_empty: 'Nenhum ponto de restauração ainda.',
             rp_restore: 'Restaurar',
             rp_restore_confirm:
-              'Restaurar o ponto "{{label}}"? Os dados atuais serão substituídos pelos do ponto.',
+              'Restaurar o ponto "{{label}}"? Os registros do ponto serão atualizados, preservando registros novos. Uma cópia de segurança será criada antes. Pontos antigos ou integrações divergentes exigem revisão.',
             rp_restored: 'Dados restaurados.',
             rp_saved: 'Ponto salvo.',
             rp_del_confirm: 'Excluir o ponto "{{label}}"?',
@@ -851,6 +858,9 @@ i18n
               'O modelo do Gemini configurado não está disponível. Ajuste a secret GEMINI_MODEL (ex.: gemini-2.5-flash).',
             felix_error_key:
               'A chave do Gemini foi recusada. Verifique a secret GEMINI_API_KEY.',
+            felix_error_rate: 'Limite de uso atingido (10 solicitações/minuto e 100/dia). Aguarde para tentar novamente.',
+            felix_error_input: 'A conversa ou mensagem ultrapassou o limite. Encurte a mensagem ou limpe a conversa para continuar.',
+            felix_error_unavailable: 'O controle de uso está temporariamente indisponível. Tente novamente mais tarde.',
             felix_error_quota:
               'Limite de uso do Gemini atingido. Tente novamente mais tarde.',
             felix_error_busy:
@@ -2443,16 +2453,23 @@ i18n
             dash_accts_none: 'None',
             dash_accts_none_msg:
               'No accounts shown. Adjust the currency or re-enable accounts in "Customize panel".',
+            offline_legacy_queue: 'Legacy offline operations without an identified owner were preserved on this browser and will not be sent by another account. Recovery requires review.',
+            offline_failed_queue: 'Some operations for this account could not be synced. Local data was preserved.',
+            offline_retry_queue: 'Retry sync',
+            rp_legacy_blocked: 'This legacy snapshot may be incomplete. It was preserved, but automatic restoration requires review.',
+            rp_linked_blocked: 'Trip or investment integrations changed since this snapshot. Nothing was restored; review the integrations first.',
+            rp_pending_blocked: 'Sync this account’s offline changes before creating or restoring a snapshot.',
+            rp_online_required: 'Connect to the internet to create or restore snapshots.',
             rp_title: 'Restore points',
             rp_desc:
-              'Save snapshots of your data and restore them whenever you want — useful before imports or big changes.',
+              'Save complete snapshots of synced financial records. Restoration updates snapshot records, preserves newer records and creates an automatic backup first.',
             rp_label: 'Point name',
             rp_placeholder: 'e.g.: Before the trip',
             rp_save: 'Save point',
             rp_empty: 'No restore points yet.',
             rp_restore: 'Restore',
             rp_restore_confirm:
-              'Restore the "{{label}}" point? Current data will be replaced by the point snapshot.',
+              'Restore "{{label}}"? Snapshot records will be updated and newer records preserved. An automatic backup is created first. Legacy snapshots or changed integrations require review.',
             rp_restored: 'Data restored.',
             rp_saved: 'Point saved.',
             rp_del_confirm: 'Delete the "{{label}}" point?',
@@ -2990,6 +3007,9 @@ i18n
               'The configured Gemini model is unavailable. Adjust the GEMINI_MODEL secret (e.g. gemini-2.5-flash).',
             felix_error_key:
               'The Gemini key was rejected. Check the GEMINI_API_KEY secret.',
+            felix_error_rate: 'Usage limit reached (10 requests/minute and 100/day). Wait before trying again.',
+            felix_error_input: 'The conversation or message is too large. Shorten your message or clear the conversation to continue.',
+            felix_error_unavailable: 'Usage controls are temporarily unavailable. Please try again later.',
             felix_error_quota:
               'Gemini usage limit reached. Please try again later.',
             felix_error_busy:
@@ -4525,16 +4545,23 @@ i18n
             dash_accts_none: 'Ninguna',
             dash_accts_none_msg:
               'Ninguna cuenta mostrada. Ajusta la moneda o reactiva cuentas en "Personalizar panel".',
+            offline_legacy_queue: 'Se conservaron operaciones sin conexión antiguas sin propietario identificado. No se enviarán desde otra cuenta; su recuperación requiere revisión.',
+            offline_failed_queue: 'Algunas operaciones de esta cuenta no se sincronizaron. Se conservaron los datos locales.',
+            offline_retry_queue: 'Reintentar sincronización',
+            rp_legacy_blocked: 'Este punto antiguo puede estar incompleto. Se conservó, pero la restauración automática requiere revisión.',
+            rp_linked_blocked: 'Las integraciones con Viajes o Inversiones cambiaron. No se restauró ningún dato; revise las integraciones primero.',
+            rp_pending_blocked: 'Sincronice los cambios sin conexión antes de crear o restaurar un punto.',
+            rp_online_required: 'Conéctese a internet para crear o restaurar puntos.',
             rp_title: 'Puntos de restauración',
             rp_desc:
-              'Guarde instantáneas de sus datos y restáurelas cuando quiera — útil antes de importaciones o cambios grandes.',
+              'Guarde copias completas de los registros financieros sincronizados. La restauración conserva registros nuevos y crea una copia de seguridad antes.',
             rp_label: 'Nombre del punto',
             rp_placeholder: 'ej.: Antes del viaje',
             rp_save: 'Guardar punto',
             rp_empty: 'Aún no hay puntos de restauración.',
             rp_restore: 'Restaurar',
             rp_restore_confirm:
-              '¿Restaurar el punto "{{label}}"? Los datos actuales serán reemplazados por los del punto.',
+              '¿Restaurar "{{label}}"? Se actualizarán los registros del punto, conservando los nuevos. Se creará una copia de seguridad antes. Los puntos antiguos o integraciones modificadas requieren revisión.',
             rp_restored: 'Datos restaurados.',
             rp_saved: 'Punto guardado.',
             rp_del_confirm: '¿Eliminar el punto "{{label}}"?',
@@ -5075,6 +5102,9 @@ i18n
               'El modelo de Gemini configurado no está disponible. Ajusta el secret GEMINI_MODEL (ej.: gemini-2.5-flash).',
             felix_error_key:
               'La clave de Gemini fue rechazada. Revisa el secret GEMINI_API_KEY.',
+            felix_error_rate: 'Se alcanzó el límite (10 solicitudes/minuto y 100/día). Espere antes de reintentar.',
+            felix_error_input: 'La conversación o el mensaje supera el límite. Acorte el mensaje o borre la conversación para continuar.',
+            felix_error_unavailable: 'El control de uso no está disponible temporalmente. Inténtelo más tarde.',
             felix_error_quota:
               'Límite de uso de Gemini alcanzado. Inténtalo más tarde.',
             felix_error_busy:

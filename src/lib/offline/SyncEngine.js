@@ -1,6 +1,8 @@
 import { supabase } from '../supabase';
 import { db, MF_SYNC_TABLES } from './db';
 import { MUSIC_SONG_LIST_COLUMNS } from './musicQueries';
+import { offlineIdentity, queueOwner } from './owner';
+import { mfSelectAll } from './mfOffline';
 
 export class MusicSyncProvider {
   constructor(userId) {
@@ -137,13 +139,23 @@ export class MfSyncProvider {
   async pull() {
     const results = {};
     for (const table of MF_SYNC_TABLES) {
-      const { data, error } = await supabase.from(table).select('*');
+      if (await offlineIdentity() !== this.userId) return results;
+      const { data, error } = await mfSelectAll(table, () => {
+        const query = supabase.from(table).select('*').eq('user_id', this.userId);
+        return table === 'mf_transaction_tags'
+          ? query.order('transaction_id').order('tag_id')
+          : query.order('id');
+      }, { cache: false });
       if (error) throw error;
       const rows = data || [];
       const tableDb = db[table];
       if (!tableDb) continue;
+      // Sem apagar mudanças ainda na fila (nem o cache de outras contas).
+      const pending = await db.sync_queue.toArray();
+      if (pending.some((entry) => entry.table_name === table && queueOwner(entry) === this.userId)) continue;
+      if (await offlineIdentity() !== this.userId) return results;
       await db.transaction('rw', tableDb, async () => {
-        await tableDb.clear();
+        await tableDb.where('user_id').equals(this.userId).delete();
         for (const row of rows) {
           await tableDb.put({
             ...row,
@@ -168,6 +180,7 @@ export class SyncEngine {
    */
   constructor(userId, options = {}) {
     this.userId = userId;
+    this.destroyed = false;
     this.providers = [];
     this.onStatusChange = null;
     this._pullTimer = null;
@@ -255,9 +268,10 @@ export class SyncEngine {
   }
 
   async pullAll() {
-    if (!this._isOnline || !this.userId) return {};
+    if (!this._isOnline || !this.userId || this.destroyed || await offlineIdentity() !== this.userId) return {};
     const results = {};
     for (const provider of this.providers) {
+      if (this.destroyed || await offlineIdentity() !== this.userId) break;
       try {
         const res = await provider.pull(this);
         Object.assign(results, res);
@@ -269,20 +283,25 @@ export class SyncEngine {
   }
 
   async drainQueue() {
-    if (!this._isOnline) return;
+    if (!this._isOnline || !this.userId || this.destroyed || await offlineIdentity() !== this.userId) return 0;
     const queue = await db.sync_queue.toArray();
-    const activeQueue = queue.filter(entry => (entry.attempts || 0) < 5);
-    if (activeQueue.length === 0) return;
+    // Entradas legadas sem dono permanecem intactas, em quarentena.
+    const activeQueue = queue.filter((entry) => queueOwner(entry) === this.userId && (entry.attempts || 0) < 5);
+    let pushed = 0;
     for (const entry of activeQueue) {
+      if (this.destroyed || await offlineIdentity() !== this.userId) break;
+      if (entry.table_name?.startsWith('mf_') && entry.payload?.user_id && entry.payload.user_id !== this.userId) continue;
       try {
         await this._processQueueEntry(entry);
         await db.sync_queue.delete(entry.id);
+        pushed += 1;
       } catch (err) {
         console.error(`SyncEngine: failed to process queue entry ${entry.id}`, err);
         const currentAttempts = entry.attempts || 0;
         await db.sync_queue.update(entry.id, { attempts: currentAttempts + 1 });
       }
     }
+    return pushed;
   }
 
   async _processQueueEntry(entry) {
@@ -333,7 +352,9 @@ export class SyncEngine {
   }
 
   async enqueue(tableName, recordId, action, payload = null) {
+    if (!this.userId || (tableName.startsWith('mf_') && payload?.user_id && payload.user_id !== this.userId)) throw new Error('offline_owner_mismatch');
     await db.sync_queue.add({
+      owner_id: this.userId,
       table_name: tableName,
       record_id: recordId,
       action,
@@ -345,8 +366,7 @@ export class SyncEngine {
 
   async sync({ pull = true } = {}) {
     if (!this._isOnline) return { pulled: 0, pushed: 0 };
-    const queueSize = await db.sync_queue.count();
-    await this.drainQueue();
+    const pushed = await this.drainQueue();
     const pulled = pull ? await this.pullAll() : {};
     
     if (pull && typeof window !== 'undefined') {
@@ -355,7 +375,7 @@ export class SyncEngine {
       );
     }
     
-    return { pushed: queueSize, pulled: Object.values(pulled || {}).reduce((a, b) => a + (b?.length || 0), 0) };
+    return { pushed, pulled: Object.values(pulled || {}).reduce((a, b) => a + (b?.length || 0), 0) };
   }
 
   startPeriodicSync(intervalMs = 300000) {
@@ -371,6 +391,7 @@ export class SyncEngine {
   }
 
   destroy() {
+    this.destroyed = true;
     this.stopPeriodicSync();
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this._boundOnline);

@@ -1,7 +1,7 @@
 {
   "name": "personalcontrol",
   "private": true,
-  "version": "1.35.5",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,11 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test && playwright test --config=playwright.push.config.js",
-    "test:e2e:push": "playwright test --config=playwright.push.config.js"
+    "test:e2e:push": "playwright test --config=playwright.push.config.js",
+    "test:security": "vitest run src/tests/mfSecurity.database.test.js src/tests/authIsolation.test.jsx src/tests/financeAiLimits.test.js src/lib/offline/ownership.test.js src/components/MinhasFinancas/mfCsvSecurity.test.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.3",
+    "@supabase/supabase-js": "2.119.0",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-virtual": "^3.14.2",
     "d3-geo": "^3.1.1",
@@ -29,10 +30,11 @@
     "react-dom": "^19.2.4",
     "react-hot-toast": "^2.6.0",
     "react-i18next": "^17.0.7",
-    "react-simple-maps": "^3.0.0",
+    "react-simple-maps": "5.0.5",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.59.1",
     "@testing-library/dom": "^10.4.1",
@@ -41,17 +43,20 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/ui": "^2.1.8",
+    "@vitejs/plugin-react": "6.2.1",
+    "@vitest/ui": "5.1.0",
     "eslint": "^9.17.0",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "fake-indexeddb": "^6.2.5",
     "globals": "^15.14.0",
-    "happy-dom": "^20.9.0",
-    "jsdom": "^29.0.2",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "happy-dom": "21.0.4",
+    "jsdom": "31.0.0",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0"
   }
 }

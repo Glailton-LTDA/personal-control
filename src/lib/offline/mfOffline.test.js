@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { db, MF_OFFLINE_TABLES } from './db';
+import { setOfflineIdentity } from './owner';
 import { mfSelect, mfSelectAll, mfMutate, isOffline } from './mfOffline';
 import { MfSyncProvider, SyncEngine } from './SyncEngine';
 
 // Mock do Supabase para o MfSyncProvider (pull em bloco) e o drain da fila
 vi.mock('../supabase', () => {
   const serverData = {
-    mf_accounts: [{ id: 'srv-1', name: 'Conta do servidor', user_id: 'u1' }],
+    mf_accounts: [{ user_id: 'u1', id: 'srv-1', name: 'Conta do servidor' }],
   };
   const chains = {};
   const makeChain = (table) => ({
     select: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
     upsert: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -49,6 +51,7 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     goOnline();
+    setOfflineIdentity('u1');
     await Promise.all(MF_OFFLINE_TABLES.map((table) => db[table].clear()));
     await db.sync_queue.clear();
   });
@@ -69,13 +72,13 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   it('online: roda a query, devolve os dados e cacheia no Dexie', async () => {
     const buildQuery = vi
       .fn()
-      .mockResolvedValue({ data: [{ id: 'a1', name: 'Nubank' }], error: null });
+      .mockResolvedValue({ data: [{ user_id: 'u1', id: 'a1', name: 'Nubank' }], error: null });
 
     const { data, error } = await mfSelect('mf_accounts', buildQuery);
 
     expect(buildQuery).toHaveBeenCalledTimes(1);
     expect(error).toBeNull();
-    expect(data).toEqual([{ id: 'a1', name: 'Nubank' }]);
+    expect(data).toEqual([{ user_id: 'u1', id: 'a1', name: 'Nubank' }]);
 
     await vi.waitFor(async () => {
       expect(await db.mf_accounts.get('a1')).toMatchObject({ name: 'Nubank' });
@@ -92,8 +95,8 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   it('offline: não toca na rede e lê o cache com filtro/ordem locais', async () => {
     goOffline();
     await db.mf_accounts.bulkPut([
-      { id: 'a1', name: 'A', sort_order: 1, profile_id: 'p1' },
-      { id: 'a2', name: 'B', sort_order: 0, profile_id: 'p2' },
+      { user_id: 'u1', id: 'a1', name: 'A', sort_order: 1, profile_id: 'p1' },
+      { user_id: 'u1', id: 'a2', name: 'B', sort_order: 0, profile_id: 'p2' },
     ]);
     const buildQuery = vi.fn();
 
@@ -107,8 +110,8 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   });
 
   it('cache:false: select parcial não sobrescreve o cache completo', async () => {
-    await db.mf_accounts.put({ id: 'a1', name: 'Completa', currency: 'BRL' });
-    const buildQuery = vi.fn().mockResolvedValue({ data: [{ id: 'a1' }], error: null });
+    await db.mf_accounts.put({ user_id: 'u1', id: 'a1', name: 'Completa', currency: 'BRL' });
+    const buildQuery = vi.fn().mockResolvedValue({ data: [{ user_id: 'u1', id: 'a1' }], error: null });
 
     await mfSelect('mf_accounts', buildQuery, { cache: false });
     await settle();
@@ -172,14 +175,14 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
     const failure = new Error('falha na segunda página');
     const buildQuery = () => ({
       range: (from) => Promise.resolve(from === 0
-        ? { data: [{ id: 'tx-1' }], error: null }
+        ? { data: [{ user_id: 'u1', id: 'tx-1' }], error: null }
         : { data: null, error: failure }),
     });
     await expect(mfSelectAll('mf_transactions', buildQuery)).rejects.toThrow(failure);
   });
 
   it('online: deduplica por id e termina mesmo com servidor que nunca devolve página vazia', async () => {
-    const rows = [{ id: 'tx-1' }, { id: 'tx-2' }, { id: 'tx-3' }];
+    const rows = [{ user_id: 'u1', id: 'tx-1' }, { user_id: 'u1', id: 'tx-2' }, { user_id: 'u1', id: 'tx-3' }];
     const buildQuery = vi.fn(() => {
       const chain = {
         range: vi.fn(() => chain),
@@ -200,20 +203,20 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   it('online: builder sem .range (mock legado) faz uma única requisição', async () => {
     const buildQuery = vi
       .fn()
-      .mockResolvedValue({ data: [{ id: 'tx-1' }], error: null });
+      .mockResolvedValue({ data: [{ user_id: 'u1', id: 'tx-1' }], error: null });
 
     const { data, error } = await mfSelectAll('mf_transactions', buildQuery);
 
     expect(error).toBeNull();
-    expect(data).toEqual([{ id: 'tx-1' }]);
+    expect(data).toEqual([{ user_id: 'u1', id: 'tx-1' }]);
     expect(buildQuery).toHaveBeenCalledTimes(1);
   });
 
   it('offline: não toca na rede e lê o cache com filtro local', async () => {
     goOffline();
     await db.mf_transactions.bulkPut([
-      { id: 't1', payment_date: '2026-04-10' },
-      { id: 't2', payment_date: '2026-10-10' },
+      { user_id: 'u1', id: 't1', payment_date: '2026-04-10' },
+      { user_id: 'u1', id: 't2', payment_date: '2026-10-10' },
     ]);
     const buildQuery = vi.fn();
 
@@ -271,7 +274,7 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
 
   it('offline: update mescla o patch sobre a linha em cache', async () => {
     goOffline();
-    await db.mf_accounts.put({ id: 'a1', name: 'Antiga', color: '#fff' });
+    await db.mf_accounts.put({ user_id: 'u1', id: 'a1', name: 'Antiga', color: '#fff' });
 
     const out = await mfMutate({
       table: 'mf_accounts',
@@ -281,7 +284,7 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
       run: vi.fn(),
     });
 
-    expect(out).toMatchObject({ id: 'a1', name: 'Nova', color: '#fff' });
+    expect(out).toMatchObject({ user_id: 'u1', id: 'a1', name: 'Nova', color: '#fff' });
     expect(await db.mf_accounts.get('a1')).toMatchObject({
       name: 'Nova',
       color: '#fff',
@@ -295,8 +298,8 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   it('offline: deleteMany remove do cache e enfileira cada id', async () => {
     goOffline();
     await db.mf_transactions.bulkPut([
-      { id: 't1', description: 'A' },
-      { id: 't2', description: 'B' },
+      { user_id: 'u1', id: 't1', description: 'A' },
+      { user_id: 'u1', id: 't2', description: 'B' },
     ]);
 
     const out = await mfMutate({
@@ -314,7 +317,7 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   });
 
   it('online: roda a mutation, não enfileira e mantém o cache coerente', async () => {
-    const run = vi.fn().mockResolvedValue({ id: 'n1', name: 'Servidor' });
+    const run = vi.fn().mockResolvedValue({ user_id: 'u1', id: 'n1', name: 'Servidor' });
 
     const out = await mfMutate({
       table: 'mf_accounts',
@@ -324,7 +327,7 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
     });
 
     expect(run).toHaveBeenCalledTimes(1);
-    expect(out).toEqual({ id: 'n1', name: 'Servidor' });
+    expect(out).toEqual({ user_id: 'u1', id: 'n1', name: 'Servidor' });
     expect(await db.sync_queue.count()).toBe(0);
     await vi.waitFor(async () => {
       expect(await db.mf_accounts.get('n1')).toMatchObject({ name: 'Servidor' });
@@ -332,7 +335,7 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   });
 
   it('online: delete remove também do cache local', async () => {
-    await db.mf_accounts.put({ id: 'a1', name: 'Remover' });
+    await db.mf_accounts.put({ user_id: 'u1', id: 'a1', name: 'Remover' });
     const run = vi.fn().mockResolvedValue('a1');
 
     await mfMutate({ table: 'mf_accounts', action: 'delete', id: 'a1', run });
@@ -468,13 +471,13 @@ describe('mfOffline (Fase 9 — offline do Minhas Finanças)', () => {
   /* ── MfSyncProvider (pull em bloco) ────────────────────── */
 
   it('MfSyncProvider: baixa as tabelas e substitui o cache (clear + put)', async () => {
-    await db.mf_accounts.put({ id: 'old-1', name: 'Removida no servidor' });
+    await db.mf_accounts.put({ user_id: 'u1', id: 'old-1', name: 'Removida no servidor' });
 
     const provider = new MfSyncProvider('u1');
     const results = await provider.pull({});
 
     expect(results.mf_accounts).toEqual([
-      { id: 'srv-1', name: 'Conta do servidor', user_id: 'u1' },
+      { user_id: 'u1', id: 'srv-1', name: 'Conta do servidor' },
     ]);
     expect(await db.mf_accounts.get('old-1')).toBeUndefined();
     expect(await db.mf_accounts.get('srv-1')).toMatchObject({

@@ -44,7 +44,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-const CACHE = 'personalcontrol-shell-v1';
+const CACHE = 'personalcontrol-shell-v2';
 const SHELL = [
   '/',
   '/manifest.json',
@@ -68,7 +68,7 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+        Promise.all(keys.filter((key) => key.startsWith('personalcontrol-shell-') && key !== CACHE).map((key) => caches.delete(key)))
       )
       .then(() => self.clients.claim())
   );
