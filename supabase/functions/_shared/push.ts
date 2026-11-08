@@ -1,5 +1,5 @@
 import webpush from 'npm:web-push@3.6.7';
-import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.103.3';
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.119.0';
 
 export type PushSubscriptionRow = {
   id: string;

@@ -1,6 +1,6 @@
 // Private, discreet Web Push. Invoke every minute with Bearer CRON_SECRET.
 // Service role is server-only; this function never loads names, notes or results.
-import { createClient } from 'npm:@supabase/supabase-js@2.103.3';
+import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 import {
   configurePush,
   ownerPushSubscriptions,

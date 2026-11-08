@@ -55,7 +55,7 @@ Para repetir os testes de navegador, use `npm run test:e2e:push`. A configuraç�
 
 ### Pipeline de publicação
 
-O workflow `validate.yml` verifica cada PR para `main`: lint, todos os testes Vitest, build, testes de navegador do Guia médico/push, testes Deno dos dois workers e testes PostgreSQL de migração, isolamento e planos de consulta. O Vitest exclui os arquivos Deno, que são executados pelo runtime próprio em um job separado. Nenhum desses jobs recebe credenciais de produção.
+O workflow `validate.yml` verifica cada PR para `main`: lint, todos os testes Vitest, build, toda a suíte de navegador e push global, testes Deno dos dois workers e testes PostgreSQL de migração, isolamento e planos de consulta. O Vitest exclui os arquivos Deno, que são executados pelo runtime próprio em um job separado. Nenhum desses jobs recebe credenciais de produção.
 
 Depois do merge, `supabase-migrations.yml` aplica primeiro as migrações, confere o histórico e publica `mf-reminders` e `health-reminders` com o helper compartilhado. Ambos validam `CRON_SECRET` no handler. O deploy usa as chaves e os secrets já configurados no projeto; não cria novas chaves VAPID. O agendamento médico precisa ser conferido após essa primeira publicação; o agendamento financeiro existente é preservado.
 

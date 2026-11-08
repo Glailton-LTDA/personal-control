@@ -14,7 +14,7 @@ import {
 // Env necessária: CRON_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
 // (base64url, sem padding — normalizadas aqui como no Babylog) e
 // MF_VAPID_MAILTO (ex.: mailto:voce@exemplo.com).
-import { createClient } from "npm:@supabase/supabase-js@2.103.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import {
   configurePush,
   globalPushPages,
