@@ -4,6 +4,20 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-08
+
+### Adicionado
+- **Guia médico privado**: medicamentos, horários de dose e registro de tomadas; consultas, condições de saúde e exames com histórico, laudos e resultados, com relacionamentos entre os registros.
+- **Documentos médicos**: receitas, laudos e imagens em armazenamento privado, com visualização autenticada de PDFs e imagens.
+- **Lembretes médicos**: avisos de doses, consultas e exames, com agendamento de push a cada minuto e mensagens discretas em português, inglês e espanhol.
+
+### Alterado
+- **Notificações globais**: ativação e desativação por aparelho nos Ajustes do aplicativo, compartilhando a infraestrutura existente entre Guia médico e Minhas Finanças.
+- **Segurança e consultas**: dados médicos restritos ao proprietário autenticado, vínculos entre registros do mesmo dono, RLS, campos explícitos, paginação e índices para listas e histórico.
+
+### Corrigido
+- **Ajustes no celular**: cabeçalhos quebram em telas estreitas, evitando transbordamento horizontal em 320 px.
+
 ## [2.0.0] - 2026-11-07
 
 ### Segurança
