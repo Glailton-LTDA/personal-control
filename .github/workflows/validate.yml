@@ -114,6 +114,8 @@ jobs:
             supabase/tests/global_push_legacy_seed.sql \
             supabase/migrations/20261107121840_global_push_notifications.sql \
             supabase/migrations/20261107161433_health_scheduler_auth_resolution.sql \
+            supabase/migrations/20261109000149_health_appointment_followups.sql \
+            supabase/tests/health_followups_security.sql \
             supabase/tests/health_security.sql \
             supabase/tests/global_push_security.sql \
             supabase/tests/health_query_plans.sql

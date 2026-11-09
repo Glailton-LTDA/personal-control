@@ -4,10 +4,20 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
-## [2.1.1] - 2026-11-08
+## [2.2.1] - 2026-11-09
 
 ### Corrigido
 - **Aviso de fatura fechada**: a confirmação ao salvar despesas de cartão considera a data real de fechamento, inclusive no dia do fechamento e quando a fatura vence no mês atual ou seguinte. Mantida a opção existente de não perguntar novamente.
+
+## [2.2.0] - 2026-11-09
+
+### Adicionado
+- **Consultas**: ação direta para concluir a consulta e agendar retornos vinculados à original, com nova data e lembretes próprios. Os retornos aparecem no histórico.
+- **Especialidades**: sugestões traduzidas das principais especialidades médicas, preservando a entrada livre.
+- **Endereço da consulta**: busca pela mesma API de Viagens, entrada manual, número/complemento e link de GPS nos detalhes.
+
+### Corrigido
+- **Busca de endereços**: cancelamento de buscas antigas, respeito ao idioma ativo, seleção por teclado e preservação do endereço manual quando a API estiver indisponível.
 
 ## [2.1.0] - 2026-11-08
 
