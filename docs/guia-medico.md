@@ -42,6 +42,16 @@ As restrições valem para usuários da aplicação. Administradores da infraest
 
 ## Consultas e desempenho
 
+### Conclusão, retornos e endereços de consultas
+
+A ação **Concluir consulta** atualiza somente a situação do registro, com filtros de proprietário e ID. O trigger existente dispensa os lembretes da consulta concluída. Em caso de falha, a tela preserva a situação anterior e permite repetir.
+
+**Agendar retorno** cria outra consulta com `follow_up_of` apontando para a original. Profissional, especialidade, local, endereço, condição e opções de lembretes são preenchidos; data e observações precisam ser definidas para o novo atendimento. A consulta original permanece intacta. O retorno mostra um link para a original, e o histórico da original lista os retornos com a mesma paginação das demais listas.
+
+A migração `20261109000149_health_appointment_followups.sql` acrescenta endereço e vínculo de retorno à tabela existente, preservando suas políticas RLS. A FK composta `(user_id, follow_up_of)` impede vínculos entre contas; uma restrição impede a autorreferência. O índice `(user_id, follow_up_of, starts_at, id)` atende o histórico paginado e a FK. Excluir uma consulta com retornos vinculados é bloqueado para preservar a referência histórica.
+
+As sugestões de especialidades ficam nas traduções pt/en/es; o campo aceita texto livre. O endereço reutiliza `Trips/AddressInput` e a API Nominatim já usada em Viagens. A busca envia apenas o texto do endereço e o idioma, nunca nome da consulta, profissional, especialidade ou observações. Respostas antigas são canceladas/descartadas, e o preenchimento manual funciona sem a API. O GPS abre a busca do Google Maps com apenas o endereço codificado e sem enviar o referer. A função de coordenadas de Viagens permanece compatível; o Guia médico armazena o endereço textual, incluindo número/complemento.
+
 **Nenhum SELECT curinga foi introduzido. Não há exceção a justificar.**
 
 - Projeções de lista e detalhe são separadas em `src/lib/health.js`. Laudos, preparo e observações são consultados no detalhe. INSERT/UPDATE/DELETE retornam somente `id` quando necessário.

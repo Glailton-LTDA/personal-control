@@ -543,3 +543,8 @@ iframe.health-preview {
     padding: 0.65rem;
   }
 }
+
+.health-map-link {
+  margin-top: 0.6rem;
+  width: fit-content;
+}

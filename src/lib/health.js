@@ -22,7 +22,7 @@ export const HEALTH_FIELDS = {
 };
 const DETAILS = {
   conditions: ',notes',
-  appointments: ',specialty,location,notes,condition_id,reminder_minutes',
+  appointments: ',specialty,location,address,follow_up_of,notes,condition_id,reminder_minutes',
   medications:
     ',times,timezone,reminders_enabled,notes,condition_id,appointment_id',
   exams:
@@ -72,6 +72,7 @@ export async function listHealth(
       'appointment_id',
       'medication_id',
       'exam_id',
+      'follow_up_of',
     ];
     if (!allowed.includes(parent.field))
       throw new Error('health_invalid_parent');
@@ -128,6 +129,8 @@ const WRITABLE = {
     'professional',
     'specialty',
     'location',
+    'address',
+    'follow_up_of',
     'notes',
     'condition_id',
     'reminder_minutes',

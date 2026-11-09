@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,6 +7,8 @@ import {
   localDay,
   saveHealth,
 } from '../../lib/health';
+import AddressInput from '../Trips/AddressInput';
+import { MEDICAL_SPECIALTIES } from '../../lib/medicalSpecialties';
 import { HealthLinkSelect, HealthModal } from './HealthUI';
 
 const STATUS = {
@@ -25,6 +27,7 @@ export default function HealthForm({
   onSaved,
 }) {
   const { t } = useTranslation();
+  const inputId = useId();
   const [form, setForm] = useState(() => ({
     name: '',
     status: STATUS[kind][0],
@@ -33,6 +36,7 @@ export default function HealthForm({
     laboratory: '',
     specialty: '',
     location: '',
+    address: '',
     dose: '',
     starts_on: localDay(),
     ends_on: '',
@@ -138,7 +142,7 @@ export default function HealthForm({
   return (
     <HealthModal
       title={t(
-        `health.${record ? 'edit' : kind === 'doses' ? 'record_dose' : `new_${kind}`}`,
+        `health.${record ? 'edit' : initial.follow_up_of ? 'schedule_follow_up' : kind === 'doses' ? 'record_dose' : `new_${kind}`}`,
       )}
       onClose={() => !busy && onClose()}
     >
@@ -164,8 +168,25 @@ export default function HealthForm({
             <>
               {text('starts_at', { type: 'datetime-local', required: true })}
               {text('professional')}
-              {text('specialty')}
+              <div className="health-field">
+                <label htmlFor={`${inputId}-specialty`}>{t('health.specialty')}</label>
+                <input id={`${inputId}-specialty`} name="specialty" list={`${inputId}-specialties`} value={form.specialty}
+                  maxLength={255} onChange={(e) => set('specialty', e.target.value)}
+                  aria-describedby={`${inputId}-specialty-hint`} />
+                <datalist id={`${inputId}-specialties`}>
+                  {MEDICAL_SPECIALTIES.map((key) => <option key={key} value={t(`health.specialties.${key}`)} />)}
+                </datalist>
+                <small id={`${inputId}-specialty-hint`} className="health-muted">{t('health.specialty_hint')}</small>
+              </div>
               {text('location', { maxLength: 1000 })}
+              <div className="health-field health-full">
+                <label htmlFor={`${inputId}-address`}>{t('health.address')}</label>
+                <AddressInput id={`${inputId}-address`} value={form.address} disabled={busy}
+                  allowFreeText placeholder={t('health.address_placeholder')}
+                  clearLabel={t('health.clear_address')}
+                  onChange={(address) => set('address', address.slice(0, 1000))} />
+              </div>
+              {form.follow_up_of && <p className="health-muted health-full">{t('health.follow_up_hint')}</p>}
             </>
           )}
           {kind === 'exams' && (
