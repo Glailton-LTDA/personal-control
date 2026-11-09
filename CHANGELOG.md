@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-11-09
+
+### Corrigido
+- **Pagamento de fatura atrasada**: permite quitar e desfazer a quitação pelo lançamento existente na conta, mantendo o bloqueio contra criação e reajuste automáticos de faturas históricas.
+
 ## [2.2.2] - 2026-11-09
 
 ### Corrigido
