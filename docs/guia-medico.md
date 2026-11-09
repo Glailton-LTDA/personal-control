@@ -42,6 +42,12 @@ As restrições valem para usuários da aplicação. Administradores da infraest
 
 ## Consultas e desempenho
 
+As listas e históricos usam ordem cronológica decrescente: consultas pela data do atendimento, medicamentos pelo início do tratamento, exames pela realização, doses pelo horário previsto, documentos/resultados/condições pelo cadastro. A busca por nome mantém essa ordem, com desempate por ID e ordenação no servidor antes da paginação. Exames sem data ficam por último. Na área Hoje, próximos compromissos e avisos preservam a ordem do mais próximo para o mais distante.
+
+Consultas vinculadas por `follow_up_of` exibem o badge traduzido **Retorno** nos cards e detalhes, sem buscar a consulta original para identificar o vínculo. A projeção da lista inclui somente esse identificador adicional.
+
+A migração `20261109021510_health_recent_lists_indexes.sql` acrescenta índices por dono/data para medicamentos e condições e ajusta os índices de exames para `NULLS LAST`. Consultas e retornos podem usar a leitura inversa dos índices de data já existentes. A busca por nome continua filtrando pelo intervalo indexado; seus resultados são ordenados por data. Os planos de listas, histórico, busca e novos índices são verificados em banco descartável com RLS ativa. Não há alteração de dados, políticas ou privilégios nessa migração.
+
 ### Conclusão, retornos e endereços de consultas
 
 A ação **Concluir consulta** atualiza somente a situação do registro, com filtros de proprietário e ID. O trigger existente dispensa os lembretes da consulta concluída. Em caso de falha, a tela preserva a situação anterior e permite repetir.

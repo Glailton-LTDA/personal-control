@@ -15,22 +15,39 @@ select '11111111-1111-4111-8111-111111111111'::uuid,'Consulta '||n,'completed',n
  case when n%50=0 then 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'::uuid else null end
 from generate_series(1,5000) n;
 analyze public.health_appointments;
+insert into public.health_conditions(user_id,name,created_at)
+select '11111111-1111-4111-8111-111111111111'::uuid,'Condição '||n,now()-n*interval '1 hour'
+from generate_series(1,2000) n;
+insert into public.health_medications(user_id,name,dose,status,starts_on,times,timezone,reminders_enabled)
+select '11111111-1111-4111-8111-111111111111'::uuid,'Tratamento '||n,'1 unidade','finished',current_date-n,array['08:00'::time],'UTC',false
+from generate_series(1,200) n;
+analyze public.health_conditions;
+analyze public.health_medications;
+
 set local role authenticated;
 explain (analyze,buffers)
  select id,name,status,performed_at,laboratory,professional from public.health_exams
  where user_id='11111111-1111-4111-8111-111111111111'
- order by performed_at desc,id limit 21;
+ order by performed_at desc nulls last,id limit 21;
 explain (analyze,buffers)
  select id,name,status,performed_at,laboratory,professional from public.health_exams
  where user_id='11111111-1111-4111-8111-111111111111' and name='Hemograma'
- order by performed_at desc,id limit 21;
+ order by performed_at desc nulls last,id limit 21;
 explain (analyze,buffers)
  select id,name,status,performed_at,laboratory,professional from public.health_exams
  where user_id='11111111-1111-4111-8111-111111111111' and name_search>='exame 1999' and name_search<'exame 199:'
- order by name_search,id limit 21;
+ order by performed_at desc nulls last,id limit 21;
 explain (analyze,buffers)
  select id,name,status,starts_at,professional from public.health_appointments
  where user_id='11111111-1111-4111-8111-111111111111' and follow_up_of='cccccccc-cccc-4ccc-8ccc-ccccccccccc1'
- order by starts_at,id limit 21;
+ order by starts_at desc,id desc limit 21;
+explain (analyze,buffers)
+ select id,name,status,dose,starts_on,ends_on from public.health_medications
+ where user_id='11111111-1111-4111-8111-111111111111'
+ order by starts_on desc,id limit 21;
+explain (analyze,buffers)
+ select id,name,status,diagnosed_on from public.health_conditions
+ where user_id='11111111-1111-4111-8111-111111111111'
+ order by created_at desc,id limit 21;
 reset role;
 rollback;

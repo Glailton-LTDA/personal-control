@@ -34,6 +34,33 @@ beforeEach(() => {
 });
 
 describe('medical guide data boundary', () => {
+  it.each([
+    ['appointments', 'starts_at.desc,id.desc'],
+    ['medications', 'starts_on.desc,id.asc'],
+    ['exams', 'performed_at.desc.nullslast,id.asc'],
+    ['conditions', 'created_at.desc,id.asc'],
+    ['documents', 'created_at.desc,id.asc'],
+    ['results', 'created_at.desc,id.asc'],
+    ['doses', 'scheduled_at.desc,id.asc'],
+    ['reminders', 'remind_at.asc,id.asc'],
+  ])('orders %s on the server before pagination', async (kind, expected) => {
+    fetchMock.mockResolvedValueOnce(json([]));
+    await listHealth(OWNER, kind, { page: 1 });
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(url.searchParams.get('order')).toBe(expected);
+    expect(url.searchParams.get('offset')).toBe('20');
+    expect(url.searchParams.get('limit')).toBe('21');
+    expect(url.searchParams.get('user_id')).toBe(`eq.${OWNER}`);
+  });
+  it('keeps upcoming appointments soonest first and includes the return marker in list projections', async () => {
+    fetchMock.mockResolvedValueOnce(json([]));
+    await listHealth(OWNER, 'appointments', { soonestFirst: true, after: '2026-11-09' });
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(url.searchParams.get('order')).toBe('starts_at.asc,id.asc');
+    expect(url.searchParams.get('select')).toContain('follow_up_of');
+    expect(url.searchParams.get('select')).not.toContain('*');
+  });
+
   it('stores address and follow-up linkage with explicit fields and scopes its history to the owner', async () => {
     fetchMock.mockResolvedValueOnce(json({ id: 'return' }));
     await saveHealth(OWNER, 'appointments', { name: 'Return', address: 'Street, 10', follow_up_of: 'original', status: 'scheduled', user_id: 'forged' });
@@ -118,7 +145,7 @@ describe('medical guide data boundary', () => {
       'lt.hemp',
     ]);
     expect(url.searchParams.has('or')).toBe(false);
-    expect(url.searchParams.get('order')).toBe('name_search.asc,id.asc');
+    expect(url.searchParams.get('order')).toBe('performed_at.desc.nullslast,id.asc');
   });
   it('fails closed when there is no authenticated owner or a read is denied', async () => {
     await expect(listHealth(null, 'conditions')).rejects.toThrow(
