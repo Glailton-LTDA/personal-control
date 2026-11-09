@@ -45,6 +45,7 @@ import {
   HealthModal,
   HealthPagination,
   HealthStatus,
+  HealthReturnBadge,
 } from './HealthUI';
 import './HealthGuide.css';
 
@@ -85,7 +86,10 @@ function RecordCard({ kind, record, onOpen }) {
     >
       <Icon size={22} />
       <div className="health-grow">
-        <strong>{record.name}</strong>
+        <div className="health-record-title">
+          <strong>{record.name}</strong>
+          {kind === 'appointments' && record.follow_up_of && <HealthReturnBadge />}
+        </div>
         <p className="health-muted">
           <HealthDate
             value={record[DATE_FIELDS[kind]]}
@@ -107,6 +111,7 @@ function RecordList({
   parent,
   name,
   compact = false,
+  soonestFirst = false,
   after,
   status: fixedStatus,
 }) {
@@ -122,6 +127,7 @@ function RecordList({
     parent,
     name,
     after,
+    soonestFirst,
   });
   return (
     <section className="health-section">
@@ -438,6 +444,7 @@ function Today({ userId, navigate, onForm, refresh }) {
           navigate={navigate}
           compact
           after={start.toISOString()}
+          soonestFirst
           status="scheduled"
         />
         <RecordList
@@ -446,6 +453,7 @@ function Today({ userId, navigate, onForm, refresh }) {
           navigate={navigate}
           compact
           after={start.toISOString()}
+          soonestFirst
           status="scheduled"
         />
       </div>
@@ -506,7 +514,10 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
       <header className="health-row">
         <div className="health-grow">
           <h2>{record.name}</h2>
-          <HealthStatus status={record.status} />
+          <div className="health-actions">
+            <HealthStatus status={record.status} />
+            {kind === 'appointments' && record.follow_up_of && <HealthReturnBadge />}
+          </div>
         </div>
         <div className="health-actions">
           {kind === 'appointments' && record.status === 'scheduled' && (

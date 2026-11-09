@@ -127,6 +127,11 @@ export function HealthPagination({ page, hasNext, onPage }) {
     </nav>
   );
 }
+export function HealthReturnBadge() {
+  const { t } = useTranslation();
+  return <span className="health-return-badge">{t('health.follow_up_badge')}</span>;
+}
+
 export function HealthStatus({ status }) {
   const { t } = useTranslation();
   return (

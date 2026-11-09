@@ -174,7 +174,8 @@
       "allergy": "Alergología e inmunología",
       "general_surgery": "Cirugía general",
       "vascular": "Cirugía vascular"
-    }
+    },
+    "follow_up_badge": "Seguimiento"
   },
   "nav": {
     "health": "Guía médica",
