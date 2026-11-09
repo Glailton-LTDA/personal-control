@@ -1,10 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useId, useState, useRef, useEffect } from 'react';
 import { Search, MapPin, X, Loader2, Hash } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-export default function AddressInput({ value, onChange, placeholder, disabled = false }) {
-  const { t } = useTranslation();
+export default function AddressInput({ value, onChange, placeholder, disabled = false, id, allowFreeText = false, clearLabel }) {
+  const { t, i18n } = useTranslation();
+  const listId = useId();
+  const requestRef = useRef(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
   // baseAddress: the raw Nominatim address (never contains number/complement)
   const [baseAddress, setBaseAddress] = useState('');
   const [inputValue, setInputValue] = useState('');
@@ -80,15 +83,31 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
     }
   }, [showSuggestions, suggestions]);
 
+  useEffect(() => () => {
+    clearTimeout(searchTimeoutRef.current);
+    requestRef.current?.abort();
+  }, []);
+
   const handleSearch = (query) => {
     if (disabled) return;
     setInputValue(query);
     setBaseAddress(query);
+    setSelectedCoords(null);
+    setNumberValue('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveIndex(-1);
+    requestRef.current?.abort();
+    setIsSearching(false);
+    if (allowFreeText) {
+      internalChangeRef.current = true;
+      onChange(query, null);
+    }
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     
     if (!query || query.length < 2) {
       setSuggestions([]);
-      if (!query) {
+      if (!query && !allowFreeText) {
         internalChangeRef.current = true;
         onChange('', null);
       }
@@ -96,20 +115,24 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
     }
 
     searchTimeoutRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      requestRef.current = controller;
       setIsSearching(true);
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=10&accept-language=pt-BR`
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=10&accept-language=${encodeURIComponent(i18n.resolvedLanguage || i18n.language || 'pt')}` , { signal: controller.signal }
         );
+        if (!response.ok) throw new Error('Address search unavailable');
         const data = await response.json();
-        setSuggestions(data || []);
+        if (controller.signal.aborted) return;
+        setSuggestions(Array.isArray(data) ? data : []);
         setShowSuggestions(true);
       } catch (error) {
-        console.error('Error fetching addresses:', error);
+        if (error.name !== 'AbortError') setSuggestions([]);
       } finally {
-        setIsSearching(false);
+        if (!controller.signal.aborted) setIsSearching(false);
       }
-    }, 600);
+    }, 1000);
   };
 
   const handleSelect = (suggestion) => {
@@ -141,6 +164,9 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
 
   const clearInput = () => {
     if (disabled) return;
+    clearTimeout(searchTimeoutRef.current);
+    requestRef.current?.abort();
+    setIsSearching(false);
     setBaseAddress('');
     setInputValue('');
     setSuggestions([]);
@@ -150,12 +176,12 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
   };
 
   const suggestionsDropdown = showSuggestions && suggestions.length > 0 && dropdownPos && createPortal(
-    <div style={{ 
+    <div id={listId} role="listbox" style={{
       position: 'absolute',
       top: `${dropdownPos.top}px`,
       left: `${dropdownPos.left}px`,
       width: `${dropdownPos.width}px`,
-      background: '#0f172a',
+      background: 'var(--bg-card)',
       border: '1px solid var(--glass-border)',
       borderRadius: '12px',
       marginTop: '0.5rem',
@@ -168,12 +194,14 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
       {suggestions.map((s, idx) => (
         <div
           key={idx}
+          id={`${listId}-${idx}`} role="option" aria-selected={activeIndex === idx}
           onMouseDown={(e) => {
             e.preventDefault();
             handleSelect(s);
           }}
           style={{
             padding: '0.75rem 1rem',
+            background: activeIndex === idx ? 'var(--bg-hover)' : 'transparent',
             cursor: 'pointer',
             borderBottom: idx < suggestions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
             display: 'flex',
@@ -185,7 +213,7 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
           <Search size={14} style={{ marginTop: '3px', opacity: 0.5, flexShrink: 0 }} />
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+          <span style={{ minWidth: 0, overflowWrap: 'anywhere', fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
             {s.display_name}
           </span>
         </div>
@@ -208,6 +236,29 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
         />
         <input
           type="text"
+          id={id}
+          maxLength={1000}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={Boolean(showSuggestions && suggestions.length)}
+          aria-controls={showSuggestions && suggestions.length ? listId : undefined}
+          aria-activedescendant={activeIndex >= 0 && showSuggestions ? `${listId}-${activeIndex}` : undefined}
+          onKeyDown={(event) => {
+            if (!showSuggestions || !suggestions.length) return;
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              setShowSuggestions(false);
+              return;
+            }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              setActiveIndex((old) => (old + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length);
+            }
+            if (event.key === 'Enter' && activeIndex >= 0) {
+              event.preventDefault();
+              handleSelect(suggestions[activeIndex]);
+            }
+          }}
           value={inputValue}
           disabled={disabled}
           onChange={(e) => { setShowNumberField(false); handleSearch(e.target.value); }}
@@ -225,7 +276,8 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
           {isSearching && <Loader2 size={18} className="spin-loader" />}
           {inputValue && !isSearching && !disabled && (
             <button 
-              type="button" 
+              type="button"
+              aria-label={clearLabel || t('health.clear_address')}
               onClick={() => { clearInput(); setShowNumberField(false); setNumberValue(''); setSelectedCoords(null); }}
               style={{ 
                 background: 'none', 
@@ -252,6 +304,7 @@ export default function AddressInput({ value, onChange, placeholder, disabled = 
             disabled={disabled}
             onChange={(e) => handleNumberChange(e.target.value)}
             placeholder={t('trips.address_complement')}
+            aria-label={t('trips.address_complement')}
             className="glass-input"
             style={{ 
               flex: 1,

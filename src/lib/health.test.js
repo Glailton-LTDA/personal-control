@@ -34,6 +34,19 @@ beforeEach(() => {
 });
 
 describe('medical guide data boundary', () => {
+  it('stores address and follow-up linkage with explicit fields and scopes its history to the owner', async () => {
+    fetchMock.mockResolvedValueOnce(json({ id: 'return' }));
+    await saveHealth(OWNER, 'appointments', { name: 'Return', address: 'Street, 10', follow_up_of: 'original', status: 'scheduled', user_id: 'forged' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ user_id: OWNER, address: 'Street, 10', follow_up_of: 'original' });
+    fetchMock.mockResolvedValueOnce(json([]));
+    await listHealth(OWNER, 'appointments', { parent: { field: 'follow_up_of', id: 'original' } });
+    const url = new URL(fetchMock.mock.calls[1][0]);
+    expect(url.searchParams.get('user_id')).toBe(`eq.${OWNER}`);
+    expect(url.searchParams.get('follow_up_of')).toBe('eq.original');
+    expect(url.searchParams.get('limit')).toBe('21');
+    expect(url.searchParams.get('select')).not.toContain('*');
+  });
+
   it('requests only a bounded page with an owner filter and summary fields', async () => {
     fetchMock.mockResolvedValueOnce(
       json(Array.from({ length: 21 }, (_, id) => ({ id }))),
@@ -175,15 +188,20 @@ describe('medical guide data boundary', () => {
     ).toBe(false);
   });
   it('has every medical guide and navigation key in all three supported languages', () => {
+    const flatten = (object, prefix = '') => Object.fromEntries(
+      Object.entries(object).flatMap(([key, value]) => typeof value === 'object'
+        ? Object.entries(flatten(value, `${prefix}${key}.`))
+        : [[`${prefix}${key}`, value]]),
+    );
     for (const resource of [en, es]) {
-      expect(Object.keys(resource.health).sort()).toEqual(
-        Object.keys(pt.health).sort(),
+      expect(Object.keys(flatten(resource.health)).sort()).toEqual(
+        Object.keys(flatten(pt.health)).sort(),
       );
       expect(Object.keys(resource.nav.sub.health).sort()).toEqual(
         Object.keys(pt.nav.sub.health).sort(),
       );
       expect(
-        Object.values(resource.health).every(
+        Object.values(flatten(resource.health)).every(
           (value) => typeof value === 'string' && value.trim(),
         ),
       ).toBe(true);

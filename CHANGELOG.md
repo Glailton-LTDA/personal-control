@@ -4,6 +4,16 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-09
+
+### Adicionado
+- **Consultas**: ação direta para concluir a consulta e agendar retornos vinculados à original, com nova data e lembretes próprios. Os retornos aparecem no histórico.
+- **Especialidades**: sugestões traduzidas das principais especialidades médicas, preservando a entrada livre.
+- **Endereço da consulta**: busca pela mesma API de Viagens, entrada manual, número/complemento e link de GPS nos detalhes.
+
+### Corrigido
+- **Busca de endereços**: cancelamento de buscas antigas, respeito ao idioma ativo, seleção por teclado e preservação do endereço manual quando a API estiver indisponível.
+
 ## [2.1.0] - 2026-11-08
 
 ### Adicionado

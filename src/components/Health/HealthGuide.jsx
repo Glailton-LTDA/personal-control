@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowLeft,
   Calendar,
+  MapPin,
   Check,
   Edit,
   FileText,
@@ -24,6 +25,7 @@ import {
   healthErrorKey,
   localDay,
   snoozeHealth,
+  saveHealth,
 } from '../../lib/health';
 import {
   useHealthDetail,
@@ -31,6 +33,7 @@ import {
   useHealthReminderSync,
   useHealthSearch,
 } from '../../hooks/useHealth';
+import { appointmentFollowUp, appointmentMapUrl } from '../../lib/medicalSpecialties';
 import HealthForm from './HealthForm';
 import HealthDocuments from './HealthDocuments';
 import HealthResults from './HealthResults';
@@ -463,6 +466,8 @@ function LinkedRecord({ userId, kind, id, navigate }) {
 function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState('summary');
+  const [completing, setCompleting] = useState(false);
+  const client = useQueryClient();
   const query = useHealthDetail(userId, kind, id);
   if (query.isLoading) return <HealthLoading />;
   if (query.isError) return <HealthError query={query} />;
@@ -479,7 +484,7 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
     kind === 'medications'
       ? ['dose', 'starts_on', 'ends_on', 'times', 'timezone', 'notes']
       : kind === 'appointments'
-        ? ['starts_at', 'professional', 'specialty', 'location', 'notes']
+        ? ['starts_at', 'professional', 'specialty', 'location', 'address', 'notes']
         : kind === 'exams'
           ? [
               'performed_at',
@@ -504,6 +509,29 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
           <HealthStatus status={record.status} />
         </div>
         <div className="health-actions">
+          {kind === 'appointments' && record.status === 'scheduled' && (
+            <button className="btn-primary" disabled={completing} onClick={async () => {
+              if (completing) return;
+              setCompleting(true);
+              try {
+                await saveHealth(userId, kind, { status: 'completed' }, id);
+                await client.invalidateQueries({ queryKey: ['health', userId] });
+                toast.success(t('health.appointment_completed'));
+              } catch (error) {
+                toast.error(t(`health.${healthErrorKey(error)}`));
+              } finally {
+                setCompleting(false);
+              }
+            }}>
+              <Check size={18} />{t(completing ? 'health.loading' : 'health.complete_appointment')}
+            </button>
+          )}
+          {kind === 'appointments' && record.status !== 'cancelled' && (
+            <button className="btn-secondary" disabled={completing}
+              onClick={() => onForm({ kind, initial: appointmentFollowUp(record) })}>
+              <Calendar size={18} />{t('health.schedule_follow_up')}
+            </button>
+          )}
           {kind === 'medications' && (
             <button
               className="btn-primary"
@@ -565,6 +593,14 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
                     )
                   ) : ['starts_at', 'performed_at'].includes(field) ? (
                     <HealthDate value={record[field]} />
+                  ) : field === 'address' && record.address ? (
+                    <>
+                      <span>{record.address}</span>
+                      <a className="btn-secondary health-map-link" href={appointmentMapUrl(record.address)}
+                        target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+                        <MapPin size={18} />{t('health.open_gps')}
+                      </a>
+                    </>
                   ) : field === 'times' ? (
                     record.times.map((time) => time.slice(0, 5)).join(', ') ||
                     t('health.no_information')
@@ -576,6 +612,12 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
             ))}
           </dl>
           <div className="health-list">
+            {kind === 'appointments' && record.follow_up_of && (
+              <section className="health-section">
+                <h3>{t('health.original_appointment')}</h3>
+                <LinkedRecord userId={userId} kind="appointments" id={record.follow_up_of} navigate={navigate} />
+              </section>
+            )}
             {record.condition_id && (
               <LinkedRecord
                 userId={userId}
@@ -625,6 +667,13 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
           <DoseList userId={userId} medicationId={id} onEdit={onForm} />
         ) : (
           <div className="health-section">
+            {kind === 'appointments' && (
+              <section className="health-section">
+                <h3>{t('health.follow_ups')}</h3>
+                <RecordList userId={userId} kind="appointments" navigate={navigate}
+                  parent={{ field: 'follow_up_of', id }} compact />
+              </section>
+            )}
             {(kind === 'conditions'
               ? ['appointments', 'medications', 'exams']
               : ['medications', 'exams']
