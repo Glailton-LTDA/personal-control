@@ -4,12 +4,17 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
-## [2.2.1] - 2026-11-09
+## [2.2.2] - 2026-11-09
 
 ### Corrigido
 - **Retornos identificados**: badge traduzido nos cards e nos detalhes das consultas vinculadas a uma consulta anterior.
 - **Ordem do Guia médico**: listas e históricos do mais recente para o mais antigo, inclusive na busca por nome. Consultas e exames usam a data do evento, medicamentos usam o início do tratamento e condições/documentos/resultados usam a data de cadastro. Exames sem data ficam no fim; a área Hoje mantém os próximos compromissos primeiro.
 - **Índices de ordenação**: consultas paginadas por dono/data com índices para medicamentos, condições e exames sem data ao final, preservando RLS e projeções explícitas.
+
+## [2.2.1] - 2026-11-09
+
+### Corrigido
+- **Aviso de fatura fechada**: a confirmação ao salvar despesas de cartão considera a data real de fechamento, inclusive no dia do fechamento e quando a fatura vence no mês atual ou seguinte. Mantida a opção existente de não perguntar novamente.
 
 ## [2.2.0] - 2026-11-09
 

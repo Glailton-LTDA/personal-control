@@ -1755,6 +1755,48 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     }
   });
 
+  it.each([
+    ['antes do fechamento', new Date(2026, 8, 30, 12), false],
+    ['no dia do fechamento', new Date(2026, 9, 1, 12), true],
+    ['depois do fechamento no mesmo mês', new Date(2026, 9, 11, 12), true],
+  ])('aviso da fatura selecionada %s', async (_label, now, closed) => {
+    vi.useFakeTimers({ toFake: ['Date'], now });
+    localStorage.removeItem('mf_closed_invoice_warn_off');
+    try {
+      renderScreen();
+      await waitFor(() => {
+        expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+      });
+      openAdd('cardExpense');
+      await screen.findByTestId('mf-tx-invoice');
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Compra no ciclo de outubro' },
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '99,90' } });
+      // O contexto já seleciona outubro (fecha 01/10 no cartão do mock).
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+      if (closed) {
+        await screen.findByTestId('mf-tx-closed-invoice');
+        expect(chain.insert).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByTestId('mf-tx-closed-invoice-option-cancel'));
+        expect(screen.queryByTestId('mf-tx-closed-invoice')).not.toBeInTheDocument();
+        expect(chain.insert).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByTestId('mf-tx-save'));
+        await screen.findByTestId('mf-tx-closed-invoice');
+        fireEvent.click(screen.getByTestId('mf-tx-closed-invoice-option-continue'));
+      }
+      await waitFor(() => expect(chain.insert).toHaveBeenCalledTimes(1));
+      expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
+        description: 'Compra no ciclo de outubro', invoice_close: '2026-10-01',
+      });
+    } finally {
+      vi.useRealTimers();
+      localStorage.removeItem('mf_closed_invoice_warn_off');
+    }
+  });
+
   it('fatura fechada pede confirmação antes de salvar (app original)', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 11, 12, 0, 0) });
     try {
@@ -1835,6 +1877,8 @@ describe('Tela de Lançamentos (Fase 3)', () => {
   });
 
   it('duplicada de despesa de cartão compara pela Fatura, não pela data', async () => {
+    // Novembro ainda está aberto; este teste isola o aviso de duplicidade.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 11, 12) });
     // Existe "Compra racao" lançada em 10/10 mas na fatura de NOVEMBRO:
     // o aviso tem que mirar a fatura (novembro), não o mês da data (outubro).
     const mocked = await import('../../lib/supabase');
@@ -1887,6 +1931,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       expect(chain.gte.mock.calls).toContainEqual(['invoice_close', '2026-11-01']);
       expect(chain.lte.mock.calls).toContainEqual(['invoice_close', '2026-12-31']);
     } finally {
+      vi.useRealTimers();
       const index = rows.findIndex((row) => row.id === 'tx-racao');
       if (index >= 0) rows.splice(index, 1);
     }
