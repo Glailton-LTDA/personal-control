@@ -73,12 +73,14 @@ test('schedules a linked return with a new date and shows it in the original his
   await dialog.getByLabel('Data e hora da consulta', { exact: true }).fill('2026-12-15T10:00');
   await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Consulta original', exact: true })).toBeVisible();
+  await expect(page.locator('.health-return-badge')).toHaveText('Retorno');
   const created = writes.find((w) => w.method === 'POST').body;
   expect(created).toMatchObject({ follow_up_of: ORIGINAL, user_id: OWNER, status: 'scheduled', reminder_minutes: [1440,120] });
   expect(original.starts_at).toBe('2026-11-10T12:00:00Z');
   await page.getByRole('button', { name: /Consulta de acompanhamento/ }).click();
   await page.getByRole('button', { name: 'Histórico', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Retornos', exact: true })).toBeVisible();
+  await expect(page.locator('.health-record .health-return-badge')).toHaveText('Retorno');
   await expect(page.getByRole('button', { name: /Consulta de acompanhamento/ })).toBeVisible();
 });
 test('suggests localized specialties while accepting a custom specialty and a manual address', async ({ page }) => {
@@ -121,12 +123,13 @@ for (const width of [320,768,1440]) {
     const address = '12, sala 3, Rua selecionada, Bairro, Cidade de teste';
     expect(writes.find((write) => write.method === 'POST').body.address).toBe(address);
     await expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+    await expect(page.locator('.health-return-badge')).toHaveText('Retorno');
     await noOverflow(page);
   });
 }
-for (const [language, complete, follow, address, specialty] of [
-  ['en', 'Complete appointment', 'Schedule follow-up', 'Address', 'Cardiology'],
-  ['es', 'Completar consulta', 'Programar seguimiento', 'Dirección', 'Cardiología'],
+for (const [language, complete, follow, address, specialty, badge] of [
+  ['en', 'Complete appointment', 'Schedule follow-up', 'Address', 'Cardiology', 'Follow-up'],
+  ['es', 'Completar consulta', 'Programar seguimiento', 'Dirección', 'Cardiología', 'Seguimiento'],
 ]) {
   test(`appointment improvements translate to ${language}`, async ({ page }) => {
     await openAppointment(page, { language });
@@ -134,5 +137,9 @@ for (const [language, complete, follow, address, specialty] of [
     await page.getByRole('button', { name: follow, exact: true }).click();
     await expect(page.getByRole('dialog').getByLabel(address, { exact: true })).toBeVisible();
     await expect(page.locator(`datalist option[value="${specialty}"]`)).toHaveCount(1);
+    const dialog = page.getByRole('dialog');
+    await dialog.locator('input[name=starts_at]').fill('2026-12-15T10:00');
+    await dialog.locator('button[type=submit], button.btn-primary').click();
+    await expect(page.locator('.health-return-badge')).toHaveText(badge);
   });
 }

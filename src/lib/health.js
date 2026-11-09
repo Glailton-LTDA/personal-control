@@ -10,7 +10,7 @@ export const HEALTH_KINDS = [
 ];
 export const HEALTH_FIELDS = {
   conditions: 'id,name,status,diagnosed_on',
-  appointments: 'id,name,status,starts_at,professional',
+  appointments: 'id,name,status,starts_at,professional,follow_up_of',
   medications: 'id,name,status,dose,starts_on,ends_on',
   exams: 'id,name,status,performed_at,laboratory,professional',
   documents: 'id,name,category,mime_type,size_bytes,created_at',
@@ -22,7 +22,7 @@ export const HEALTH_FIELDS = {
 };
 const DETAILS = {
   conditions: ',notes',
-  appointments: ',specialty,location,address,follow_up_of,notes,condition_id,reminder_minutes',
+  appointments: ',specialty,location,address,notes,condition_id,reminder_minutes',
   medications:
     ',times,timezone,reminders_enabled,notes,condition_id,appointment_id',
   exams:
@@ -46,7 +46,7 @@ function checked({ data, error }) {
 export async function listHealth(
   userId,
   kind,
-  { page = 0, search = '', status, parent, before, after, name, category } = {},
+  { page = 0, search = '', status, parent, before, after, name, category, soonestFirst = false } = {},
 ) {
   let query = supabase
     .from(table(kind))
@@ -87,22 +87,20 @@ export async function listHealth(
   if (before && dateField) query = query.lt(dateField, before);
   if (after && dateField) query = query.gte(dateField, after);
   if (kind === 'reminders') query = query.is('dismissed_at', null);
-  const sort = prefix
-    ? 'name_search'
-    : dateField ||
-      (kind === 'documents'
-        ? 'created_at'
-        : kind === 'results'
-          ? 'created_at'
-          : 'name');
-  const ascending =
-    Boolean(prefix) ||
-    ['appointments', 'reminders', 'medications', 'conditions'].includes(kind);
+  // Searches keep the same chronological order as unfiltered lists.
+  const sort = { medications: 'starts_on', conditions: 'created_at' }[kind]
+    || dateField || 'created_at';
+  const ascending = kind === 'reminders' || soonestFirst;
+  // Appointments use a backward scan of the existing (date ASC, id ASC) index.
+  const idAscending = ascending || kind !== 'appointments';
+  const order = kind === 'exams'
+    ? { ascending, nullsFirst: false }
+    : { ascending };
   const start = Math.max(0, page) * HEALTH_PAGE_SIZE;
   const rows = checked(
     await query
-      .order(sort, { ascending })
-      .order('id', { ascending: true })
+      .order(sort, order)
+      .order('id', { ascending: idAscending })
       .range(start, start + HEALTH_PAGE_SIZE),
   );
   return {
