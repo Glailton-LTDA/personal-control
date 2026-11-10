@@ -280,7 +280,7 @@ export default function MFResumo({
     setSortOpen(false);
     savePrefs({ accountsSort: value });
   };
-  // Estreito (tablet retrato/mobile): cabeçalho compacto sem gráficos.
+  // Estreito (tablet retrato/mobile): cabeçalho compacto substitui os KPIs.
   const isNarrow = useMFNarrowScreen();
 
   // Painel personalizável (Fase 9): widgets + contas visíveis
@@ -3301,9 +3301,8 @@ export default function MFResumo({
               KPIs, Grupos, Contas e Gráficos ocupam a faixa cheia;
               Orçamento e Objetivo dividem a última linha em duas colunas. */}
           {orderedWidgets
-            // Estreito: o compacto substitui os cards de KPI e os gráficos
-            // (vão embora na Fase D, quando forem redesenhados para o mobile).
-            .filter((id) => !isNarrow || (id !== 'charts' && id !== 'kpis'))
+            // No estreito, só os KPIs são substituídos pelo cabeçalho compacto.
+            .filter((id) => !isNarrow || id !== 'kpis')
             .map((id) => (
             <div
               key={id}
