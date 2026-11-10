@@ -134,7 +134,7 @@ describe('MFResumo — compacto no estreito (Fase A)', () => {
     delete window.matchMedia;
   };
 
-  it('mostra Inicial/Saldo/Previsto e esconde os gráficos', async () => {
+  it('mostra Inicial/Saldo/Previsto e mantém os gráficos no estreito', async () => {
     mockNarrow();
     try {
       renderScreen();
@@ -149,7 +149,11 @@ describe('MFResumo — compacto no estreito (Fase A)', () => {
       expect(
         await screen.findByTestId('mf-resumo-compact-balance-totals-line-BRL')
       ).toBeInTheDocument();
-      expect(screen.queryByTestId('mf-chart-categories-BRL')).not.toBeInTheDocument();
+      expect(await screen.findByTestId('mf-chart-accounts-BRL')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-chart-categories-BRL')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-chart-income-BRL')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-chart-flow-BRL')).toBeInTheDocument();
+      expect(screen.getByTestId('mf-chart-bytype-BRL')).toBeInTheDocument();
       // os cards de KPI grandes somem: o compacto substitui
       expect(screen.queryByTestId('mf-kpi-kpi_balance')).not.toBeInTheDocument();
     } finally {

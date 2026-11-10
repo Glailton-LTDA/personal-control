@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-11-10
+
+### Corrigido
+- **Gráficos do Resumo no celular**: mantém os gráficos visíveis em telas de até 768 px, respeitando as preferências do painel e preservando o cabeçalho compacto no lugar dos cards de indicadores.
+
 ## [2.2.3] - 2026-11-09
 
 ### Corrigido

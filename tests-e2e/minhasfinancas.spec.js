@@ -777,6 +777,19 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     );
   });
 
+  test('gráficos do Resumo aparecem no celular e abrem em tela cheia', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page);
+    await page.goto('/minhasfinancas');
+    await expect(page.getByTestId('mf-resumo-compact')).toBeVisible();
+    const chart = page.getByTestId('mf-chart-accounts-BRL');
+    await expect(chart).toBeVisible();
+    await expect(chart.locator('.recharts-surface')).toBeVisible();
+    await expect(page.getByTestId('mf-chart-flow-BRL')).toBeVisible();
+    await chart.getByTestId('mf-chart-accounts-BRL-open').click();
+    await expect(page.getByTestId('mf-charts-screen')).toBeVisible();
+  });
+
   test('gráficos do Resumo: tela cheia de Contas, drill-down e refresh', async ({ page }) => {
     test.slow();
     page.mfStore.mf_account_groups = [
