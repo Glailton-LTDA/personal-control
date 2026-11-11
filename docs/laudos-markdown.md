@@ -17,14 +17,14 @@ As tabelas dos laudos viram pares de rótulo/valor em telas estreitas; os cabeç
 ## Validação local desta proposta
 
 - Lint e build aprovados.
-- 1.021 testes unitários aprovados; 27 novos casos cobrem parser, segurança, renderizador, editor e integração com formulário/detalhes.
-- 18 testes de navegador de exames/laudos aprovados, incluindo pt/en/es, persistência do texto original, prévia sem salvar e tabelas em 320, 768 e 1440 pixels.
-- Código alterado: 100% de linhas, instruções e funções; 98,44% de branches na medição de diff.
-- Cobertura global: 62,97% de linhas, 61,04% de instruções, 59,03% de funções e 57,87% de branches. O comando de cobertura falhou corretamente nos limites globais de 75%.
-- Scanner de segredos aprovado no snapshot dos arquivos versionáveis. A configuração permite somente o JWT público exato do exemplo local do Supabase, após conferir os claims `role=anon` e `iss=supabase-demo`; tokens diferentes ou privilegiados não são liberados por essa exceção.
+- 1.716 testes unitários aprovados em 148 arquivos; 695 casos foram acrescentados para fechar a lacuna global e proteger as regressões encontradas.
+- Cobertura global: 83,60% de linhas, 81,52% de instruções, 78,33% de funções e 75,34% de branches. Os quatro limites de 75% foram atendidos sem reduzir thresholds ou excluir código de produção.
+- Cobertura do código alterado contra a base de `develop`: 100% nas quatro métricas.
+- Navegador: 80 casos aprovados na suíte completa; o caso de recuperação de senha que falhou foi corrigido e aprovado em reexecução específica. Os sete casos de push global passaram. A suíte inclui exames/laudos, pt/en/es, persistência do texto original, prévia sem salvar e layouts mobile/tablet/desktop.
+- Scanner de segredos aprovado no snapshot dos arquivos versionáveis. A configuração permite somente o JWT público exato do exemplo local; tokens diferentes ou privilegiados não são liberados por essa exceção.
 
-## Bloqueio para commit e integração
+## Integração
 
-O [AGENTS.md](../AGENTS.md), seção 3, exige 75% global nas quatro métricas em cada commit e proíbe excluir código de negócio ou reduzir os limites para passar. A implementação está na branch `feature/medical-report-markdown`. Após receber os percentuais de cobertura, o usuário autorizou o envio da branch para teste no ambiente local. Essa autorização permite este commit/push de teste com o requisito global ainda pendente; não autoriza merge nem publicação em produção.
+A implementação está na branch `feature/medical-report-markdown`, destinada a `develop` pelo PR 111. A cobertura global deixou de ser um bloqueio na validação local. A pipeline deve validar o SHA enviado e publicar seus próprios relatórios; os checks exigidos pelo [AGENTS.md](../AGENTS.md) continuam obrigatórios para integração. Merge e publicação em produção dependem de autorização específica.
 
-A configuração local da pipeline foi preparada para coletar cobertura de todo o código de produção, publicar os relatórios, validar cobertura do diff e executar o scanner de segredos dentro do job de validação. Falhas não são ignoradas. A configuração de checks obrigatórios do repositório não foi alterada. Os thresholds de 75% permanecem ativos, e a cobertura global segue bloqueando integração. O envio para teste local não é uma declaração de aprovação da pipeline nem uma dispensa dos checks para merge.
+Os casos adicionais e as correções encontradas durante essa ampliação estão descritos em [Cobertura global e regressões](cobertura.md). Não há migration nova nesta proposta.
