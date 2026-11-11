@@ -74,6 +74,21 @@ As instruções específicas do aplicativo nativo pertencem ao seu próprio repo
 
 ## 7. Supabase e banco de dados
 
+- Web e Android devem usar o mesmo schema Supabase e as mesmas tabelas,
+  colunas, relacionamentos e contratos de dados para a mesma funcionalidade.
+  É proibido criar tabelas ou schemas paralelos por plataforma para representar
+  a mesma funcionalidade. Os dados devem ser compartilhados entre os clientes.
+- Antes de propor nova tabela, consultar o schema e as migrações existentes.
+  Evoluir a estrutura compartilhada por uma única migração canônica, mantendo
+  compatibilidade com web e Android e validando os impactos nos dois clientes.
+  Não manter definições de schema ou históricos de migração divergentes.
+- O histórico canônico das migrações Supabase permanece em
+  `Glailton-LTDA/personal-control/supabase/migrations`. Mudanças necessárias ao
+  Android devem ser feitas ali por branch e PR, com referência cruzada no PR
+  Android. Não executar uma segunda migração equivalente pelo outro repositório.
+- Armazenamento local/cache pode usar estruturas próprias da plataforma, mas
+  deve mapear o contrato compartilhado e nunca criar outra fonte de verdade
+  nem justificar tabelas Supabase duplicadas para a mesma funcionalidade.
 - Ler a skill Supabase disponível ao trabalhar em autenticação, cliente ou banco;
   seguir práticas atuais de Postgres e verificar documentação relevante.
 - Compartilhar o backend existente com permissões por usuário: RLS nas tabelas
