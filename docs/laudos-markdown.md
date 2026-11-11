@@ -1,0 +1,28 @@
+# Markdown nos laudos
+
+O campo `health_exams.report` continua armazenando o texto original. Não há mudança de schema, API, autorização ou formato de dados compartilhado com outros clientes.
+
+Nos detalhes do exame, a aba Laudo apresenta títulos, ênfase, listas, código e tabelas. No formulário, Editar Markdown e Visualizar alternam entre o texto e a prévia do rascunho. Alternar o modo não salva; somente Salvar usa o fluxo existente. O limite permanece em 100.000 caracteres. Textos simples continuam sendo exibidos.
+
+O parser de Notas Markdown foi extraído para `src/lib/markdown.js` e o componente para `src/components/MarkdownRenderer.jsx`. Notas e laudos usam a mesma implementação. As tabelas reconhecem separadores de alinhamento e pipes escapados. Os checkboxes das notas preservam o callback existente.
+
+## Segurança e interface
+
+O renderizador escapa HTML, valida protocolos de links e sanitiza o HTML gerado com DOMPurify, com versão fixa no lockfile. Links externos recebem `noopener noreferrer` e `no-referrer`. O conteúdo não carrega imagens remotas ou scripts; imagens e documentos médicos continuam no fluxo privado existente. O conteúdo não é enviado a serviços de Markdown nem gravado durante a prévia.
+
+As tabelas dos laudos viram pares de rótulo/valor em telas estreitas; os cabeçalhos permanecem no DOM para acessibilidade. Código longo quebra em linhas. As novas strings têm traduções pt/en/es.
+
+## Validação local desta proposta
+
+- Lint e build aprovados.
+- 1.021 testes unitários aprovados; 27 novos casos cobrem parser, segurança, renderizador, editor e integração com formulário/detalhes.
+- 18 testes de navegador de exames/laudos aprovados, incluindo pt/en/es, persistência do texto original, prévia sem salvar e tabelas em 320, 768 e 1440 pixels.
+- Código alterado: 100% de linhas, instruções e funções; 98,44% de branches na medição de diff.
+- Cobertura global: 62,97% de linhas, 61,04% de instruções, 59,03% de funções e 57,87% de branches. O comando de cobertura falhou corretamente nos limites globais de 75%.
+- Scanner de segredos aprovado no snapshot dos arquivos versionáveis. A configuração permite somente o JWT público exato do exemplo local do Supabase, após conferir os claims `role=anon` e `iss=supabase-demo`; tokens diferentes ou privilegiados não são liberados por essa exceção.
+
+## Bloqueio para commit e integração
+
+O [AGENTS.md](../AGENTS.md), seção 3, exige 75% global nas quatro métricas em cada commit e proíbe excluir código de negócio ou reduzir os limites para passar. A implementação está na branch `feature/medical-report-markdown`. Após receber os percentuais de cobertura, o usuário autorizou o envio da branch para teste no ambiente local. Essa autorização permite este commit/push de teste com o requisito global ainda pendente; não autoriza merge nem publicação em produção.
+
+A configuração local da pipeline foi preparada para coletar cobertura de todo o código de produção, publicar os relatórios, validar cobertura do diff e executar o scanner de segredos dentro do job de validação. Falhas não são ignoradas. A configuração de checks obrigatórios do repositório não foi alterada. Os thresholds de 75% permanecem ativos, e a cobertura global segue bloqueando integração. O envio para teste local não é uma declaração de aprovação da pipeline nem uma dispensa dos checks para merge.

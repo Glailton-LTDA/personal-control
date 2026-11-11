@@ -4,6 +4,13 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Adicionado
+- **Laudos em Markdown**: visualização formatada e prévia no formulário antes de salvar, com tabelas responsivas e traduções pt/en/es.
+
+### Segurança
+- **Markdown compartilhado**: extração do renderizador de Notas Markdown, sanitização do HTML gerado, validação de links e escape uniforme das células de tabelas.
+- **Validações de desenvolvimento**: proposta de coleta de cobertura global e do diff, artifacts de cobertura e scanner de segredos no job de validação, conforme AGENTS.md. Integração bloqueada enquanto a cobertura global não alcançar os limites exigidos.
+
 ## [2.2.4] - 2026-11-10
 
 ### Corrigido

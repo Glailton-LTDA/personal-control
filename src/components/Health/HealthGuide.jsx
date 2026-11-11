@@ -35,6 +35,7 @@ import {
 } from '../../hooks/useHealth';
 import { appointmentFollowUp, appointmentMapUrl } from '../../lib/medicalSpecialties';
 import HealthForm from './HealthForm';
+import MarkdownRenderer from '../MarkdownRenderer';
 import HealthDocuments from './HealthDocuments';
 import HealthResults from './HealthResults';
 import {
@@ -650,7 +651,7 @@ function RecordDetail({ userId, kind, id, navigate, onForm, onDelete }) {
       )}
       {tab === 'report' && (
         <article className="glass-card health-card health-text">
-          {record.report || t('health.no_information')}
+          <MarkdownRenderer className="health-report-markdown" content={record.report || t('health.no_information')} />
         </article>
       )}
       {tab === 'results' && <HealthResults userId={userId} examId={id} />}
