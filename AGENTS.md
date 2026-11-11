@@ -1,16 +1,14 @@
 # Regras obrigatórias de desenvolvimento
 
-Estas regras aplicam-se a humanos e agentes neste repositório. O mesmo contrato
-é adotado nos repositórios web `personal-control` e Android `personal-control-app`.
+Estas regras aplicam-se a humanos e agentes no repositório web `personal-control`.
+As instruções específicas do aplicativo nativo pertencem ao seu próprio repositório.
 
 ## 1. Branches e integração
 
 - Antes de editar arquivos, criar uma branch de trabalho: `feature/<nome>`,
   `fix/<nome>`, `docs/<nome>` ou outro prefixo que descreva a tarefa.
 - É estritamente proibido fazer commits ou pushes diretos em `main` ou `develop`.
-- Android: criar branches a partir de `develop`; integrar por PR para `develop`.
-  Releases chegam a `main` por PR de `develop` para `main`.
-- Web: usar `develop` como base se essa branch existir; caso contrário, criar a
+- Usar `develop` como base se essa branch existir; caso contrário, criar a
   branch a partir de `main` e abrir PR para `main`. Nunca escrever direto nela.
 - Só integrar após os checks exigidos passarem. Não ignorar checks ou proteções.
 - Preservar alterações pendentes de outras tarefas e manter PRs com escopo claro.
@@ -19,8 +17,7 @@ Estas regras aplicam-se a humanos e agentes neste repositório. O mesmo contrato
 
 - É proibido hardcode de textos exibidos ao usuário, inclusive validações,
   erros, acessibilidade, notificações e conteúdo de exemplo em telas.
-- Usar o mecanismo de internacionalização da plataforma: recursos Android
-  `strings.xml`/plurals e `stringResource`, ou i18n na web.
+- Usar o mecanismo i18n existente na web e seus arquivos de tradução.
 - Entregar as traduções correspondentes em português, inglês e espanhol.
 - Não concatenar frases traduzidas; usar placeholders e plurais. Formatar
   datas, números e moedas conforme locale, preservando a moeda do lançamento.
@@ -40,9 +37,7 @@ Estas regras aplicam-se a humanos e agentes neste repositório. O mesmo contrato
   para merge. Validar cada SHA de código enviado para PR, não apenas releases.
 - Documentos/configurações sem código executável não têm percentual próprio;
   sua alteração não autoriza desativar os checks existentes.
-- Antes da primeira entrega de código Android, configurar ferramenta de cobertura
-  compatível com Kotlin/Compose, relatório e verificação de thresholds no CI.
-  Na web, configurar e executar a coleta/thresholds do Vitest no CI.
+- Configurar e executar coleta de cobertura e thresholds do Vitest no CI.
 - Este documento é um requisito; não afirmar que a cobertura está garantida sem
   executar a medição e implementar o bloqueio na pipeline.
 
@@ -50,34 +45,30 @@ Estas regras aplicam-se a humanos e agentes neste repositório. O mesmo contrato
 
 - Unitários devem ser detalhados: sucesso, erro, limites, entradas inválidas,
   transições de estado, condições, cancelamento e concorrência quando aplicáveis.
-- Testar regras financeiras, datas de faturas, arredondamento, duplicidade,
-  autorização e isolamento entre usuários com cenários relevantes.
-- Manter testes em emulador Android para os happy paths dos fluxos principais.
-  Não é necessário repetir no emulador todas as combinações dos unitários.
-- Na web, manter testes de navegador dos fluxos principais.
+- Testar regras de cada módulo e suas integrações, autorização e isolamento
+  entre usuários. Para finanças, cobrir também datas de faturas, arredondamento
+  e duplicidade; para os demais módulos, cobrir suas condições específicas.
+- Manter testes de navegador dos happy paths dos fluxos principais.
+  As combinações detalhadas de regras e erros devem ficar nos testes unitários.
 - Usar dados sintéticos e infraestrutura isolada. Nunca modificar dados reais
   de usuários para testar. Não usar pausas fixas como sincronização de UI.
 
-## 5. Kotlin e Compose
+## 5. Desenvolvimento web
 
-- Seguir as recomendações oficiais atuais de Android, Kotlin e Jetpack Compose.
-- Usar fluxo unidirecional: UI observa estado imutável e envia eventos ao
-  ViewModel; repositórios coordenam dados; regras de negócio não ficam em Composables.
-- Coletar flows com respeito ao lifecycle; usar coroutines e cancelamento
-  estruturado. Não fazer I/O bloqueante na main thread ou usar GlobalScope.
-- Manter estado restaurável, acessibilidade, suporte a tema e layouts adaptáveis.
-- Base acordada: Kotlin, Compose/Material 3, ViewModel/StateFlow, Hilt, Room e
-  WorkManager. Validar compatibilidade das versões antes de adicionar dependências.
-- Guardar valores monetários com representação decimal exata ou unidades menores
-  explícitas, nunca Float/Double para cálculo financeiro.
+- Seguir as boas práticas de React e JavaScript e a arquitetura existente.
+- Manter componentes com responsabilidades claras; regras de negócio e acesso
+  a dados devem ficar em hooks, serviços e funções apropriadas.
+- Tratar carregamento, erro, cancelamento e invalidação de consultas. Evitar
+  estado duplicado e efeitos sem limpeza; respeitar as regras de hooks.
+- Garantir acessibilidade, navegação por teclado, temas e layouts responsivos.
+- Preservar precisão monetária e testar arredondamento; não introduzir cálculos
+  financeiros com ponto flutuante sem tratamento explícito e validação.
 
 ## 6. Lint antes de cada commit
 
 - Executar o lint antes de cada commit, inclusive alterações pequenas.
-- Web: `npm run lint`. Android: executar Android Lint e os verificadores Kotlin
-  definidos pelo projeto; consultar as tasks disponíveis no Gradle Wrapper.
-- Enquanto o Android contiver somente documentação, validar Markdown (links
-  locais, whitespace e estrutura). Não declarar Android Lint aprovado sem projeto.
+- Executar `npm run lint` e validar os documentos alterados (links locais,
+  whitespace e estrutura).
 - A pipeline também deve executar lint e falhar em erros; warnings e baselines
   novos devem ser avaliados, não adicionados para ocultar problemas.
 
@@ -89,7 +80,7 @@ Estas regras aplicam-se a humanos e agentes neste repositório. O mesmo contrato
   expostas, políticas por proprietário e validação de referências entre usuários.
 - Não confiar em user_metadata para autorização ou em validação só no cliente.
 - Mudanças de schema devem ter migração versionada, revisão e teste de regressão.
-  Não editar migrações já aplicadas. Preferir mudanças compatíveis com a web.
+  Não editar migrações já aplicadas. Preservar compatibilidade com os clientes ativos.
 - Usar transações para operações atômicas, idempotência na sincronização,
   índices conforme consultas e paginação. Evitar consultas sem limite.
 - Usar SECURITY DEFINER apenas com necessidade demonstrada, search_path fixo,
@@ -100,7 +91,7 @@ Estas regras aplicam-se a humanos e agentes neste repositório. O mesmo contrato
 - Revisar o diff staged procurando segredos, dados pessoais, logs sensíveis,
   falhas de autorização, permissões excessivas e alterações inseguras.
 - Nunca versionar senhas, tokens, chaves privadas, service_role/secret keys,
-  keystores de assinatura ou configurações locais com credenciais.
+  certificados privados ou configurações locais com credenciais.
 - Chaves publishable públicas do Supabase não substituem RLS. Configurá-las por
   ambiente; credenciais privilegiadas ficam apenas no servidor.
 - Não registrar senhas, tokens de sessão ou conteúdo financeiro em logs.
