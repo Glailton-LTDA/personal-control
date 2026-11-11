@@ -12,6 +12,13 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: './src/tests/setup.js',
     css: true,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/**/*.{test,spec}.{js,jsx}', 'src/tests/**'],
+      reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
+      thresholds: { lines: 75, branches: 75, functions: 75, statements: 75 },
+    },
     exclude: ['**/node_modules/**', '**/dist/**', '**/tests-e2e/**', '**/supabase/functions/**'],
   },
   resolve: {
