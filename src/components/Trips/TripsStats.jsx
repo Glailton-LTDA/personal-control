@@ -675,7 +675,7 @@ export default function TripsStats({ trips, onBack }) {
                     .filter(p => {
                       // Show points that belong to trips covering this country
                       return trips.some(t =>
-                        t.countries.includes(selectedCountry.name) &&
+                        Array.isArray(t.countries) && t.countries.includes(selectedCountry.name) &&
                         itineraries[t.id]?.some(i => (i.location === p.name || i.activity === p.name) && i.coordinates)
                       );
                     })

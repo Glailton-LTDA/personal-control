@@ -405,8 +405,8 @@ export default function InvestmentSettings({ user }) {
 
             {activeTab === 'types' && (
               accountTypes.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>{t('investments.no_types')}</p> :
-              accountTypes.map(t => (
-                <div key={t.id} className="glass-card" style={{ 
+              accountTypes.map(accountType => (
+                <div key={accountType.id} className="glass-card" style={{
                   padding: '1.5rem', 
                   display: 'flex', 
                   justifyContent: 'space-between', 
@@ -416,11 +416,11 @@ export default function InvestmentSettings({ user }) {
                     <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: 'var(--card-action-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
                       <Layers size={20} color="var(--primary)" />
                     </div>
-                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>{t.name}</span>
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>{accountType.name}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="action-btn" onClick={() => { setEditingId(t.id); setTypeData({ name: t.name }); setIsAdding(true); }}><Edit2 size={18} /></button>
-                    <button className="action-btn danger" onClick={() => deleteItem('investment_account_types', t.id, t('investments.type_label'))}><Trash2 size={18} /></button>
+                    <button className="action-btn" onClick={() => { setEditingId(accountType.id); setTypeData({ name: accountType.name }); setIsAdding(true); }}><Edit2 size={18} /></button>
+                    <button className="action-btn danger" onClick={() => deleteItem('investment_account_types', accountType.id, t('investments.type_label'))}><Trash2 size={18} /></button>
                   </div>
                 </div>
               ))

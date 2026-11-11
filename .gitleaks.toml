@@ -1,0 +1,7 @@
+# Only the exact public demo anon fixture is allowed; privileged/changed JWTs still fail.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known local Supabase demo public anon key (not a privileged credential)"
+regexes = ['''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9\.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0''']

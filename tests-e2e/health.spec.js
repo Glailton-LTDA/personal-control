@@ -4,7 +4,7 @@ import { Buffer } from 'node:buffer';
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const EXAM = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4';
 
-async function mockHealth(page, { language = 'pt', fail = false } = {}) {
+async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo de exemplo para teste' } = {}) {
   const requests = [];
   const user = {
     id: OWNER,
@@ -19,7 +19,7 @@ async function mockHealth(page, { language = 'pt', fail = false } = {}) {
       performed_at: '2026-08-15T10:30:00Z',
       professional: 'Dra. Ana',
       laboratory: 'Laboratório Central',
-      report: 'Laudo de exemplo para teste',
+      report,
       notes: '',
       preparation: '',
       reminder_minutes: [1440, 120],
@@ -362,4 +362,55 @@ test('all mobile sections and creation forms fit without horizontal scrolling', 
     .getByRole('button', { name: 'Registrar uso eventual', exact: true })
     .click();
   await noHorizontalOverflow(page);
+});
+
+
+const markdownReport = '## Resultado sintético\n\n| Indicador | Resultado | Referência | Situação |\n| :--- | ---: | --- | --- |\n| **Indicador A** | 12 unidades | Referência sintética longa | Normal |\n| Indicador B | 15 unidades | Outra referência | Conferir |';
+for (const width of [320, 768, 1440]) {
+  test(`Markdown report and preview fit ${width}px without autosaving`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const writes = await mockHealth(page, { report: markdownReport });
+    await page.getByRole('button', { name: /Hemograma completo/ }).click();
+    await page.getByRole('button', { name: 'Laudo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Resultado sintético' })).toBeVisible();
+    await expect(page.locator('.health-report-markdown tbody tr')).toHaveCount(2);
+    await noHorizontalOverflow(page);
+    await page.getByRole('button', { name: 'Editar', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    const draft = markdownReport + '\n\n**Texto adicionado no teste**';
+    await dialog.getByLabel('Laudo', { exact: true }).fill(draft);
+    await dialog.getByRole('button', { name: 'Visualizar', exact: true }).click();
+    await expect(dialog.getByRole('heading', { name: 'Resultado sintético' })).toBeVisible();
+    await expect(dialog.getByText('Texto adicionado no teste', { exact: true })).toBeVisible();
+    expect(writes.filter((request) => ['POST','PATCH'].includes(request.method))).toHaveLength(0);
+    await noHorizontalOverflow(page);
+    if (width === 320 || width === 1440) await page.screenshot({ path: `/tmp/medical-report-preview-${width}.png`, fullPage: true });
+    await dialog.getByRole('button', { name: 'Editar Markdown', exact: true }).click();
+    await expect(dialog.getByLabel('Laudo', { exact: true })).toHaveValue(draft);
+    await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(writes.find((request) => request.method === 'PATCH').body.report).toBe(draft);
+  });
+}
+for (const [language, edit, preview] of [['en', 'Edit Markdown', 'Preview'], ['es', 'Editar Markdown', 'Vista previa']]) {
+  test(`Markdown editor is translated to ${language}`, async ({ page }) => {
+    await mockHealth(page, { language, report: markdownReport });
+    await page.getByRole('button', { name: /Hemograma completo/ }).click();
+    await page.getByRole('button', { name: language === 'en' ? 'Edit' : 'Editar', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('button', { name: edit, exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: preview, exact: true }).click();
+    await expect(dialog.getByRole('heading', { name: 'Resultado sintético' })).toBeVisible();
+  });
+}
+test('report HTML and dangerous links remain inert in the browser', async ({ page }) => {
+  const remote = [];
+  page.on('request', (request) => { if(request.url().includes('untrusted.example')) remote.push(request.url()); });
+  await mockHealth(page, { report: '| Name | Result |\n| --- | --- |\n| <img src="https://untrusted.example/tracker" onerror="window.__unsafeReport=1"> | [bad](javascript:alert%281%29) |' });
+  await page.getByRole('button', { name: /Hemograma completo/ }).click();
+  await page.getByRole('button', { name: 'Laudo', exact: true }).click();
+  await expect(page.locator('.health-report-markdown table')).toBeVisible();
+  await expect(page.locator('.health-report-markdown img, .health-report-markdown script, .health-report-markdown a')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__unsafeReport)).toBeUndefined();
+  expect(remote).toEqual([]);
 });

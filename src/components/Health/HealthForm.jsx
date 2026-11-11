@@ -8,6 +8,7 @@ import {
   saveHealth,
 } from '../../lib/health';
 import AddressInput from '../Trips/AddressInput';
+import HealthReportEditor from './HealthReportEditor';
 import { MEDICAL_SPECIALTIES } from '../../lib/medicalSpecialties';
 import { HealthLinkSelect, HealthModal } from './HealthUI';
 
@@ -198,7 +199,7 @@ export default function HealthForm({
               {text('laboratory')}
               {text('professional')}
               {area('preparation')}
-              {area('report', 100000)}
+              <HealthReportEditor value={form.report} onChange={(value) => set('report', value)} disabled={busy} />
             </>
           )}
           {kind === 'medications' && (

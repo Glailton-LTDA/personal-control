@@ -4,6 +4,18 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Corrigido
+- **Investimentos**: exclusão de tipos de conta preserva a função de tradução.
+- **Viagens**: formulário de despesas permite validar a ausência de uma viagem; mapas das estatísticas toleram viagens sem lista de países.
+- **Finanças offline**: filtros dos lançamentos seguem o contrato de lista do cache local, preservando filtros, totais e paginação.
+
+### Adicionado
+- **Laudos em Markdown**: visualização formatada e prévia no formulário antes de salvar, com tabelas responsivas e traduções pt/en/es.
+
+### Segurança
+- **Markdown compartilhado**: extração do renderizador de Notas Markdown, sanitização do HTML gerado, validação de links e escape uniforme das células de tabelas.
+- **Validações de desenvolvimento**: coleta de cobertura global e do diff, artifacts de cobertura e scanner de segredos no job de validação, conforme AGENTS.md. Os limites mínimos de 75% bloqueiam integração quando não são atendidos.
+
 ## [2.2.4] - 2026-11-10
 
 ### Corrigido

@@ -22,8 +22,8 @@ export default function ExpenseModal({ user, trip, expense, currency: initialCur
   const { t } = useTranslation();
   const { data: offlineCategories = [] } = useOfflineCategories(user.id);
   const categories = initialCategories || offlineCategories;
-  const createExpenseMutation = useOfflineCreateExpense(user.id, trip.id);
-  const updateExpenseMutation = useOfflineUpdateExpense(user.id, trip.id);
+  const createExpenseMutation = useOfflineCreateExpense(user.id, trip?.id);
+  const updateExpenseMutation = useOfflineUpdateExpense(user.id, trip?.id);
   const formatDateToDisplay = (dateStr) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');

@@ -1220,7 +1220,7 @@ export function useMFLancamentos(
       const totalsPromise = mfSelectAll(
         'mf_transactions',
         () => buildQuery('id,payment_date,amount,type,status,account_id', false),
-        { filter: matches, sort: sortRows, cache: false }
+        { filter: (rows) => rows.filter(matches), sort: sortRows, cache: false }
       );
       // Busca por valor é por prefixo: o filtro não é uma faixa única no
       // PostgREST ("10" pega 10, 100, 1.000...). Nesse caso baixamos o mês
@@ -1230,12 +1230,12 @@ export function useMFLancamentos(
         ? mfSelectAll(
             'mf_transactions',
             () => buildQuery('*', false),
-            { filter: matches, sort: sortRows }
+            { filter: (rows) => rows.filter(matches), sort: sortRows }
           )
         : mfSelect(
             'mf_transactions',
             () => buildQuery('*', true),
-            { filter: matches, sort: sortRows }
+            { filter: (rows) => rows.filter(matches), sort: sortRows }
           );
       const [pageRes, totalsRes, linksRes] = await Promise.all([
         pagePromise,

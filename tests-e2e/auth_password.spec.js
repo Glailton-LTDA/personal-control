@@ -100,6 +100,9 @@ test.describe('Autenticação - Senha', () => {
 
     // Simula o acesso via link de recuperação
     await page.goto('/#type=recovery');
+    // Abrir o link externo carrega a aplicação; trocar só o hash pode
+    // manter o documento atual e não executar a detecção inicial.
+    await page.reload();
 
     // Deve mostrar o formulário de "Nova senha" (ResetPasswordForm)
     await expect(page.getByRole('heading', { name: 'Nova senha' })).toBeVisible();

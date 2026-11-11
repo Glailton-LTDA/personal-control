@@ -175,7 +175,11 @@
       "general_surgery": "Cirugía general",
       "vascular": "Cirugía vascular"
     },
-    "follow_up_badge": "Seguimiento"
+    "follow_up_badge": "Seguimiento",
+    "report_mode": "Modo del informe",
+    "markdown_edit": "Editar Markdown",
+    "markdown_preview": "Vista previa",
+    "markdown_hint": "Use Markdown para títulos, listas, negrita y tablas. La vista previa no guarda los cambios."
   },
   "nav": {
     "health": "Guía médica",
