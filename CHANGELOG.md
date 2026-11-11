@@ -4,6 +4,9 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+### Adicionado
+- **Scripts de desenvolvimento local**: `npm run dev:local` aplica as migrations pendentes do Supabase local antes de iniciar o Vite (se a migration falhar, o app não sobe) e `npm run db:migrate:local` aplica apenas as migrations.
+
 ## [2.2.4] - 2026-11-10
 
 ### Corrigido

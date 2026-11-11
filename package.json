@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "npm run db:migrate:local && vite",
+    "db:migrate:local": "npx --yes supabase@3.1.0 migration up --local",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

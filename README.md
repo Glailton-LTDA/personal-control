@@ -80,8 +80,10 @@ Copy-Item .env.local.example .env.local
 
 **3. Rode o app:**
 ```bash
-npm run dev
+npm run dev:local
 ```
+
+Esse comando aplica as migrations pendentes no banco local antes de iniciar o Vite. Se a migration falhar, o app **não** sobe. O stack precisa estar no ar (`npx supabase start`). Para iniciar só o Vite, sem aplicar migrations, use `npm run dev`.
 
 #### “Não basta subir o container no Docker?”
 
@@ -96,6 +98,8 @@ Ou seja: na primeira vez, `npx supabase start` + copiar o `.env.local`. Depois d
 
 | Comando | O que faz |
 |---|---|
+| `npm run dev:local` | aplica as migrations pendentes e inicia o Vite (não inicia se a migration falhar) |
+| `npm run db:migrate:local` | aplica apenas as migrations pendentes no banco local |
 | `npx supabase start` | sobe/religa o stack e revalida a config |
 | `npx supabase stop` | para o stack (mantém os dados) |
 | `npx supabase stop --no-backup` | para e descarta os dados |
