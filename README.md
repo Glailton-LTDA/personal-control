@@ -78,10 +78,12 @@ cp .env.local.example .env.local
 Copy-Item .env.local.example .env.local
 ```
 
-**3. Rode o app:**
+**3. Aplique as migrations pendentes e rode o app:**
 ```bash
-npm run dev
+npm run dev:local
 ```
+
+O comando aplica primeiro as migrations pendentes **somente no Supabase local** e inicia o Vite apenas se essa etapa terminar com sucesso. O Docker e o stack Supabase precisam estar em execução, e o `.env.local` deve apontar para a API local. Não executa reset nem reaplica o seed. Para aplicar somente as migrations, use `npm run db:migrate:local`. O comando `npm run dev` continua disponível para iniciar apenas o Vite.
 
 #### “Não basta subir o container no Docker?”
 
@@ -90,12 +92,14 @@ Não. São duas coisas independentes:
 - **O banco**: `npx supabase start` cria/religa o banco e aplica migrations + seed. Se os containers já existem, um `docker start` (ou o próprio Docker Desktop religando) traz tudo de volta **com os dados** — isso funciona.
 - **O app**: o Vite lê `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` do `.env`, que aponta para **produção**. O `.env.local` é o override local e é **ignorado pelo git** (por isso existe o `.env.local.example`). Sem ele, o `npm run dev` continua falando com produção, mesmo com o container no ar — e o egress continua.
 
-Ou seja: na primeira vez, `npx supabase start` + copiar o `.env.local`. Depois disso, religar o Docker já basta.
+Ou seja: na primeira vez, `npx supabase start` + copiar o `.env.local`. Depois disso, mantenha o stack em execução e use `npm run dev:local` para aplicar as novas migrations antes de abrir o app.
 
 #### Comandos do dia a dia
 
 | Comando | O que faz |
 |---|---|
+| `npm run dev:local` | aplica migrations locais pendentes e depois inicia o Vite |
+| `npm run db:migrate:local` | aplica somente as migrations locais pendentes, sem reset |
 | `npx supabase start` | sobe/religa o stack e revalida a config |
 | `npx supabase stop` | para o stack (mantém os dados) |
 | `npx supabase stop --no-backup` | para e descarta os dados |

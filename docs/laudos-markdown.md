@@ -2,6 +2,8 @@
 
 O campo `health_exams.report` continua armazenando o texto original. Não há mudança de schema, API, autorização ou formato de dados compartilhado com outros clientes.
 
+Para testar com o banco local atualizado, use `npm run dev:local`: aplica as migrations locais pendentes e inicia o app somente se elas terminarem com sucesso. O Supabase local precisa estar em execução e o `.env.local` deve apontar para ele. `npm run db:migrate:local` executa apenas a primeira etapa. A CLI está fixada na mesma versão da pipeline; nenhum desses comandos usa banco remoto ou reset.
+
 Nos detalhes do exame, a aba Laudo apresenta títulos, ênfase, listas, código e tabelas. No formulário, Editar Markdown e Visualizar alternam entre o texto e a prévia do rascunho. Alternar o modo não salva; somente Salvar usa o fluxo existente. O limite permanece em 100.000 caracteres. Textos simples continuam sendo exibidos.
 
 O parser de Notas Markdown foi extraído para `src/lib/markdown.js` e o componente para `src/components/MarkdownRenderer.jsx`. Notas e laudos usam a mesma implementação. As tabelas reconhecem separadores de alinhamento e pipes escapados. Os checkboxes das notas preservam o callback existente.
