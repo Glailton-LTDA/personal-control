@@ -106,9 +106,10 @@ export default function MFGoalDetail({
   const money = (value) => (showValues ? formatMoney(value, currency) : '•••');
   const target = Number(goal?.target_amount) || 0;
   const isLinked = Boolean(goal?.account_id);
-  const current = balanceKnown
-    ? goalCurrentAmount(goal, contributions, balance)
-    : null;
+  const current =
+    balanceKnown && goal
+      ? goalCurrentAmount(goal, contributions, balance)
+      : null;
   const pct = current === null || target <= 0 ? 0 : Math.min(100, (current / target) * 100);
   const reached = current !== null && target > 0 && current >= target;
   const remaining = current === null ? null : Math.max(0, target - current);

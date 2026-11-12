@@ -330,4 +330,81 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
     });
     expect(supabase.from('mf_goal_contributions').eq).toHaveBeenCalledWith('id', 'c1');
   });
+
+  it('abre o detalhe pelo teclado e ignora teclas de elementos internos', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-goal-card')).toHaveLength(3);
+    });
+
+    const card = screen.getAllByTestId('mf-goal-card')[0];
+    fireEvent.keyDown(card.querySelector('[data-testid="mf-goal-current"]'), { key: 'Enter' });
+    expect(screen.queryByTestId('mf-goal-detail')).not.toBeInTheDocument();
+
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(screen.getByTestId('mf-goal-detail')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-goal-detail-close'));
+
+    fireEvent.keyDown(card, { key: ' ' });
+    expect(screen.getByTestId('mf-goal-detail')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-goal-detail-close'));
+
+    fireEvent.keyDown(card, { key: 'Tab' });
+    expect(screen.queryByTestId('mf-goal-detail')).not.toBeInTheDocument();
+  });
+
+  it('edita e exclui pelo card sem abrir o detalhe', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-goal-edit-g1')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-goal-edit-g1'));
+    expect(screen.getByTestId('mf-goal-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-goal-name')).toHaveValue('Reserva de emergência');
+    expect(screen.queryByTestId('mf-goal-detail')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Fechar'));
+
+    fireEvent.click(screen.getByTestId('mf-goal-del-g1'));
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.from('mf_goals').delete).toHaveBeenCalled();
+    });
+    expect(supabase.from('mf_goals').eq).toHaveBeenCalledWith('id', 'g1');
+  });
+
+  it('registra retirada pelo card e edita a partir do detalhe', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-goal-withdraw-g1')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-goal-withdraw-g1'));
+    expect(screen.getByTestId('mf-goal-contrib')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-goal-contrib')).toHaveTextContent(
+      'minhasfinancas.gl_withdraw'
+    );
+
+    fireEvent.change(screen.getByTestId('mf-contrib-amount'), {
+      target: { value: '250,00' },
+    });
+    fireEvent.click(screen.getByTestId('mf-contrib-save'));
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.from('mf_goal_contributions').insert).toHaveBeenCalled();
+    });
+    expect(supabase.from('mf_goal_contributions').insert.mock.calls.at(-1)[0]).toMatchObject({
+      goal_id: 'g1',
+      kind: 'WITHDRAW',
+      amount: 250,
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('mf-goal-contrib')).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getAllByTestId('mf-goal-card')[0]);
+    fireEvent.click(screen.getByTestId('mf-goal-detail-edit'));
+    expect(screen.queryByTestId('mf-goal-detail')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mf-goal-modal')).toBeInTheDocument();
+  });
 });
