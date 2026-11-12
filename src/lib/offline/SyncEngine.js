@@ -318,6 +318,22 @@ export class SyncEngine {
           const { id: _id, updated_at: _ua, ...cleanPayload } = payload || {};
           const { error } = await supabase.from(table_name).upsert(cleanPayload);
           if (error) throw error;
+        } else if (
+          table_name === 'trip_checklists' ||
+          table_name === 'trip_itinerary'
+        ) {
+          // Viagens: a RLS exige user_id = auth.uid() também no INSERT.
+          // Entradas antigas da fila podem ter sido gravadas sem o dono;
+          // completa com o dono da fila. `trip_checklists` também não tem
+          // description/is_template no servidor — remove antes do upsert.
+          const row = { ...(payload || {}) };
+          if (table_name === 'trip_checklists') {
+            delete row.description;
+            delete row.is_template;
+          }
+          row.user_id = payload?.user_id || entry.owner_id;
+          const { error } = await supabase.from(table_name).upsert(row).select();
+          if (error) throw error;
         } else {
           const { error } = await supabase.from(table_name).upsert(payload).select();
           if (error) throw error;
