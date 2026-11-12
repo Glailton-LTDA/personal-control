@@ -3356,11 +3356,18 @@ export const buildCardInstallmentPlan = ({
       }
     : null;
 
-  // Distribui os centavos restantes entre as parcelas para que a soma
-  // das parcelas seja exatamente o valor financiado (ex.: 1000 / 12 =
-  // 11 × 83,33 + 1 × 83,34, não 12 × 83,33 = 999,96).
-  const centsPer = Math.floor((financed * 100) / installments);
-  const extraCents = Math.round(financed * 100) - centsPer * installments;
+  // O valor informado da parcela é a fonte da verdade. Só ajustamos os
+  // centavos quando ele é uma divisão do principal (diferença de até meio
+  // centavo por parcela, ex.: 1000 / 12 = 83,33 → a última vira 83,37 para a
+  // soma fechar em 1000,00). Quando há juros (valor informado maior que o
+  // principal/parcela), o valor é preservado integralmente.
+  const eachCents = Math.round(each * 100);
+  const financedCents = Math.round(financed * 100);
+  const distributes =
+    Math.abs(eachCents * installments - financedCents) <= Math.ceil(installments / 2);
+  const lastCents = distributes
+    ? financedCents - eachCents * (installments - 1)
+    : eachCents;
 
   // A primeira parcela nunca pode cair no mesmo fechamento da fatura
   // financiada: senão ela quitaria a própria fatura que está sendo
@@ -3378,8 +3385,8 @@ export const buildCardInstallmentPlan = ({
     const close = invoiceCloseForDueMonth(card, dueISO.slice(0, 7));
     const amount =
       index === installments - 1
-        ? roundMoney((centsPer + extraCents) / 100)
-        : roundMoney(centsPer / 100);
+        ? roundMoney(lastCents / 100)
+        : roundMoney(eachCents / 100);
     return {
       id: index === 0 ? headId : generateUUID(),
       user_id: userId,
@@ -3411,7 +3418,7 @@ export const buildCardInstallmentPlan = ({
     entry: entryValue,
     financed,
     count: installments,
-    installmentAmount: roundMoney(centsPer / 100),
+    installmentAmount: each,
     firstDueISO: firstDue,
     effectiveDate: effective,
     totalInstallments,
@@ -3867,14 +3874,37 @@ export function usePayCardInvoice() {
       // qualquer pagamento ainda agendado para a fatura (senão o valor
       // financiado seria debitado duas vezes).
       const replaced = payload ? superseded : rows;
+      const extras = (Array.isArray(extraRows) ? extraRows : [extraRows]).filter(Boolean);
+      const insertedIds = [];
       let result = null;
-      if (payload) {
-        // Pagamento feito pelo usuário não leva o marcador do agendador;
-        // assim o trigger histórico não o bloqueia e o planner o trata como
-        // pagamento seu (não cria espelho/diferença automática).
-        const patch = { ...payload, notes: null };
-        result = existing
-          ? await mfMutate({
+      try {
+        // Extras (crédito/parcelas ou encargos) PRIMEIRO: se falharem, nada
+        // mais foi gravado — nem a entrada, nem a remoção dos espelhos.
+        if (extras.length > 0) {
+          const inserted = await mfMutate({
+            table: 'mf_transactions',
+            action: 'insert',
+            payload: extras,
+            run: async () => {
+              const { data, error: insertError } = await supabase
+                .from('mf_transactions')
+                .insert(extras)
+                .select();
+              if (insertError) throw insertError;
+              return data ?? [];
+            },
+          });
+          (Array.isArray(inserted) ? inserted : []).forEach(
+            (row) => row?.id && insertedIds.push(row.id)
+          );
+        }
+        if (payload) {
+          // Pagamento feito pelo usuário não leva o marcador do agendador;
+          // assim o trigger histórico não o bloqueia e o planner o trata como
+          // pagamento seu (não cria espelho/diferença automática).
+          const patch = { ...payload, notes: null };
+          if (existing) {
+            result = await mfMutate({
               table: 'mf_transactions',
               action: 'update',
               id: existing.id,
@@ -3888,8 +3918,9 @@ export function usePayCardInvoice() {
                 if (updateError) throw updateError;
                 return updated ?? [];
               },
-            })
-          : await mfMutate({
+            });
+          } else {
+            result = await mfMutate({
               table: 'mf_transactions',
               action: 'insert',
               payload: [patch],
@@ -3902,37 +3933,44 @@ export function usePayCardInvoice() {
                 return inserted ?? [];
               },
             });
-      }
-      for (const row of replaced) {
-        await mfMutate({
-          table: 'mf_transactions',
-          action: 'delete',
-          id: row.id,
-          run: async () => {
-            const { error: delError } = await supabase
-              .from('mf_transactions')
-              .delete()
-              .eq('id', row.id);
-            if (delError) throw delError;
-            return row.id;
-          },
-        });
-      }
-      const extras = (Array.isArray(extraRows) ? extraRows : [extraRows]).filter(Boolean);
-      if (extras.length > 0) {
-        await mfMutate({
-          table: 'mf_transactions',
-          action: 'insert',
-          payload: extras,
-          run: async () => {
-            const { data: inserted, error: insertError } = await supabase
-              .from('mf_transactions')
-              .insert(extras)
-              .select();
-            if (insertError) throw insertError;
-            return inserted ?? [];
-          },
-        });
+            const createdId = Array.isArray(result) ? result[0]?.id : result?.id;
+            if (createdId) insertedIds.push(createdId);
+          }
+        }
+        for (const row of replaced) {
+          await mfMutate({
+            table: 'mf_transactions',
+            action: 'delete',
+            id: row.id,
+            run: async () => {
+              const { error: delError } = await supabase
+                .from('mf_transactions')
+                .delete()
+                .eq('id', row.id);
+              if (delError) throw delError;
+              return row.id;
+            },
+          });
+        }
+      } catch (err) {
+        // Compensa o que acabou de ser criado para não deixar a operação
+        // pela metade (entrada sem parcelas, crédito órfão).
+        for (const id of insertedIds) {
+          await mfMutate({
+            table: 'mf_transactions',
+            action: 'delete',
+            id,
+            run: async () => {
+              const { error: delError } = await supabase
+                .from('mf_transactions')
+                .delete()
+                .eq('id', id);
+              if (delError) throw delError;
+              return id;
+            },
+          }).catch(() => {});
+        }
+        throw err;
       }
       return result;
     },

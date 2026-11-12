@@ -324,6 +324,30 @@ describe('MFGoalDetail', () => {
     expect(toast.success).toHaveBeenCalledWith('minhasfinancas.gl_target_reached');
   });
 
+  it('não duplica o aporte quando a conclusão da meta falha e o usuário tenta de novo', async () => {
+    hookMocks.update.mockRejectedValueOnce(new Error('offline'));
+    renderDetail({ goal: { ...baseGoal, initial_amount: 4500 } });
+    openDepositForm();
+
+    fireEvent.change(screen.getByTestId('mf-goal-detail-amount'), {
+      target: { value: '500,00' },
+    });
+    fireEvent.click(screen.getByTestId('mf-goal-detail-save'));
+    await waitFor(() => {
+      expect(hookMocks.add).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith('minhasfinancas.save_error');
+    });
+    // O formulário continua aberto com o mesmo valor.
+    expect(screen.getByTestId('mf-goal-detail-contrib-form')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('mf-goal-detail-save'));
+    await waitFor(() => {
+      expect(hookMocks.update).toHaveBeenCalledTimes(2);
+    });
+    // O retry reaproveita o aporte já gravado: não insere de novo.
+    expect(hookMocks.add).toHaveBeenCalledTimes(1);
+  });
+
   it('valida valor zero antes de salvar', () => {
     renderDetail();
     openDepositForm();

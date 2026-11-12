@@ -1203,10 +1203,16 @@ export default function MFTransacaoScreen({
       // lançamento/série. Parcelado = valor da parcela × nº de parcelas
       // (mesmo no modo "valor total", em que `each` já é a divisão).
       const mirrorAmount = Math.round(each * integrationCount * 100) / 100;
+      const createdIds = [];
       // Cabeça da série em edição: atualiza o próprio (pela RPC quando há
       // vínculo, para criar/atualizar/remover o espelho atomicamente).
-      const saveEditHead = async (extra = {}) => {
+      const saveEditHead = async (extra = {}, children = []) => {
         if (linkedEdit) {
+          // A RPC grava cabeça + filhas (+ espelho) numa única transação.
+          const childRows = children.map((row) => ({
+            ...row,
+            id: row.id ?? generateUUID(),
+          }));
           await saveLinkedMutation.mutateAsync({
             txId: tx.id,
             payload: { ...base, ...extra },
@@ -1214,8 +1220,9 @@ export default function MFTransacaoScreen({
             investmentAccountId: linkTargetInvestmentId,
             mirrorAmount: linkActive ? mirrorAmount : null,
             paidBy: paidByName,
-            children: [],
+            children: childRows,
           });
+          childRows.forEach((row) => createdIds.push(row.id));
         } else {
           await updateMutation.mutateAsync({ id: tx.id, ...base, ...extra });
         }
@@ -1271,7 +1278,6 @@ export default function MFTransacaoScreen({
         return;
       }
 
-      const createdIds = [];
       // Id da cabeça gerado aqui (criação) para as filhas já nascerem
       // apontando para ela — a RPC vinculada insere tudo numa transação.
       const headId = isEdit ? tx.id : generateUUID();
@@ -1279,7 +1285,7 @@ export default function MFTransacaoScreen({
       // um avulso em série (ele vira a cabeça, com as filhas vinculadas).
       const saveHead = async (extra, children = []) => {
         if (isEdit) {
-          await saveEditHead(extra);
+          await saveEditHead(extra, children);
           return tx.id;
         }
         if (linkedCreate) {
@@ -1304,8 +1310,9 @@ export default function MFTransacaoScreen({
         return first?.id ?? headId;
       };
       const saveChildren = async (rows) => {
-        // Vinculado: as filhas já entraram na mesma transação da RPC.
-        if (rows.length === 0 || linkedCreate) return;
+        // Vinculado (criação ou edição): as filhas já entraram na mesma
+        // transação da RPC.
+        if (rows.length === 0 || linkedCreate || linkedEdit) return;
         const created = await createMutation.mutateAsync(rows);
         created.forEach((row) => createdIds.push(row?.id));
       };
@@ -1330,6 +1337,41 @@ export default function MFTransacaoScreen({
       });
 
       let savedHeadId = null;
+      // Grava cabeça + filhas de forma resiliente. Com vínculo, a RPC faz
+      // tudo numa transação. Sem vínculo: na criação, desfazemos a cabeça se
+      // as filhas falharem; na edição, criamos as filhas antes e, se a
+      // atualização da cabeça falhar, removemos só as filhas recém-criadas —
+      // o lançamento original nunca é apagado.
+      const persistSeries = async (headExtra, children) => {
+        if (linkedCreate || linkedEdit) {
+          savedHeadId = await saveHead(headExtra, children);
+          return savedHeadId;
+        }
+        if (isEdit) {
+          const before = createdIds.length;
+          await saveChildren(children);
+          const createdChildren = createdIds.slice(before).filter(Boolean);
+          try {
+            await saveEditHead(headExtra);
+          } catch (err) {
+            for (const childId of createdChildren) {
+              await deleteMutation.mutateAsync(childId).catch(() => {});
+            }
+            throw err;
+          }
+          savedHeadId = tx.id;
+          return savedHeadId;
+        }
+        const id = await saveHead(headExtra, children);
+        try {
+          await saveChildren(children);
+        } catch (err) {
+          if (id) await deleteMutation.mutateAsync(id).catch(() => {});
+          throw err;
+        }
+        return id;
+      };
+
       if (repeatMode === 'fixed') {
         // Série fixa mensal: 12 ocorrências agora; o estensor (1x/dia)
         // mantém ~12 meses futuros até o usuário excluir a série.
@@ -1349,15 +1391,7 @@ export default function MFTransacaoScreen({
             )
           );
         }
-        savedHeadId = await saveHead({ recurrence: 'MONTHLY', is_fixed: true }, children);
-        try {
-          await saveChildren(children);
-        } catch {
-          // Rollback: se as filhas falharem, remove a cabeça para não
-          // deixar uma série fixa salva pela metade.
-          if (savedHeadId) await deleteMutation.mutateAsync(savedHeadId);
-          throw new Error('serie_revertida');
-        }
+        await persistSeries({ recurrence: 'MONTHLY', is_fixed: true }, children);
       } else if (repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY') {
         // Parcelamento numerado (1/12…) — série finita mensal.
         const { initial, count } = repeatConfig;
@@ -1379,7 +1413,7 @@ export default function MFTransacaoScreen({
             )
           );
         }
-        savedHeadId = await saveHead(
+        await persistSeries(
           {
             recurrence: 'NONE',
             installments_current: initial,
@@ -1387,14 +1421,6 @@ export default function MFTransacaoScreen({
           },
           children
         );
-        try {
-          await saveChildren(children);
-        } catch {
-          // Rollback: se as filhas falharem, remove a cabeça para não
-          // deixar um parcelamento salvo pela metade.
-          if (savedHeadId) await deleteMutation.mutateAsync(savedHeadId);
-          throw new Error('parcelamento_revertido');
-        }
       } else if (repeatMode === 'repeat') {
         // Repetição finita semanal/anual (sem numeração de parcela).
         const { count, periodicity } = repeatConfig;
@@ -1411,13 +1437,22 @@ export default function MFTransacaoScreen({
             })
           );
         }
-        savedHeadId = await saveHead({ recurrence: periodicity }, children);
-        await saveChildren(children);
+        await persistSeries({ recurrence: periodicity }, children);
       } else {
         savedHeadId = await saveHead({ recurrence: 'NONE' });
       }
 
-      await syncGoalContribution(savedHeadId ?? headId, base.amount, base.payment_date);
+      try {
+        await syncGoalContribution(savedHeadId ?? headId, base.amount, base.payment_date);
+      } catch (err) {
+        // O lançamento já foi gravado; se o aporte falhar, desfaz a criação
+        // para o retry não gerar uma segunda receita (na edição o retry
+        // atualiza o mesmo lançamento e não duplica).
+        if (!isEdit && savedHeadId) {
+          await deleteMutation.mutateAsync(savedHeadId).catch(() => {});
+        }
+        throw err;
+      }
       await linkTags(isEdit ? [tx.id, ...createdIds.filter(Boolean)] : createdIds.filter(Boolean));
       toast.success(t(isEdit ? 'minhasfinancas.tx_updated' : 'minhasfinancas.tx_saved'));
       onClose();

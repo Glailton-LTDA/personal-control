@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowDownToLine,
@@ -92,6 +92,9 @@ export default function MFGoalDetail({
     contribution_date: todayISO(),
     notes: '',
   });
+  // Aporte já gravado numa tentativa que falhou no passo seguinte: o retry
+  // reaproveita o id em vez de inserir de novo. Limpo ao resetar o form.
+  const pendingContributionRef = useRef(null);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -137,6 +140,7 @@ export default function MFGoalDetail({
   if (!goal) return null;
 
   const resetForm = () => {
+    pendingContributionRef.current = null;
     setForm({
       kind: 'DEPOSIT',
       amount: '',
@@ -154,32 +158,30 @@ export default function MFGoalDetail({
     }
     setSaving(true);
     try {
-      // Idempotência: não cria um segundo aporte igual se o primeiro já foi
-      // gravado (ex.: falha no updateGoal depois do addContribution).
-      const contributionDate = form.contribution_date || todayISO();
-      const already = contributions.some(
-        (c) =>
-          c.goal_id === goal.id &&
-          c.kind === form.kind &&
-          Number(c.amount) === amount &&
-          c.contribution_date === contributionDate
-      );
-      if (!already) {
-        await addContribution.mutateAsync({
+      // Idempotência por tentativa: se o aporte já foi gravado e só o passo
+      // seguinte falhou (ex.: marcar a meta como concluída), o retry não
+      // insere de novo. A chave é o id do insert — não valor/data, que se
+      // repetem legitimamente em depósitos distintos.
+      if (!pendingContributionRef.current) {
+        const created = await addContribution.mutateAsync({
           user_id: user.id,
           goal_id: goal.id,
           kind: form.kind,
           amount,
-          contribution_date: contributionDate,
+          contribution_date: form.contribution_date || todayISO(),
           notes: form.notes.trim() || null,
         });
+        pendingContributionRef.current = { id: created?.id ?? null, kind: form.kind, amount };
       }
+      const saved = pendingContributionRef.current;
+      const inList = saved.id
+        ? contributions.some((c) => c.id === saved.id)
+        : false;
       const nextCurrent = goalCurrentAmount(
         goal,
-        [
-          ...contributions,
-          { goal_id: goal.id, kind: form.kind, amount },
-        ],
+        inList
+          ? contributions
+          : [...contributions, { goal_id: goal.id, kind: saved.kind, amount: saved.amount }],
         balance
       );
       if (goal.status === 'ACTIVE' && nextCurrent >= target) {

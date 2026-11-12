@@ -392,6 +392,48 @@ describe('buildCardInstallmentPlan — parcelar fatura', () => {
     expect(buildCardInstallmentPlan({ ...base, count: 1 })).toBeNull();
     expect(buildCardInstallmentPlan({ ...base, installmentAmount: 0 })).toBeNull();
   });
+
+  it('fecha a soma das parcelas no principal quando o valor é uma divisão', () => {
+    const plan = buildCardInstallmentPlan({
+      ...base,
+      invoice: { ...invoice, openAmount: 1000 },
+      entry: 0,
+      count: 12,
+      installmentAmount: 83.33,
+    });
+    const parcels = plan.extraRows.filter((row) => row.installments_total === 12);
+    const sum = parcels.reduce((total, row) => total + row.amount, 0);
+    expect(Number(sum.toFixed(2))).toBe(1000);
+    expect(plan.totalInstallments).toBe(1000);
+    expect(plan.extraRows).toHaveLength(13); // 1 crédito + 12 parcelas
+  });
+
+  it('preserva o valor informado quando há juros e mantém o crédito no principal', () => {
+    const plan = buildCardInstallmentPlan({
+      ...base,
+      invoice: { ...invoice, openAmount: 1000 },
+      entry: 0,
+      count: 10,
+      installmentAmount: 120,
+    });
+    const parcels = plan.extraRows.filter((row) => row.installments_total === 10);
+    expect(parcels).toHaveLength(10);
+    parcels.forEach((row) => expect(row.amount).toBe(120));
+    expect(plan.totalInstallments).toBe(1200);
+    expect(plan.extraRows[0].amount).toBe(-1000); // crédito = só o principal
+  });
+
+  it('empurra a primeira parcela para um ciclo posterior ao financiado', () => {
+    const plan = buildCardInstallmentPlan({
+      ...base,
+      firstDueISO: '2026-10-20', // mesmo ciclo do fechamento financiado (2026-10-10)
+    });
+    const credit = plan.extraRows[0];
+    const first = plan.extraRows[1];
+    expect(credit.invoice_close).toBe('2026-10-10');
+    expect(first.invoice_close > credit.invoice_close).toBe(true);
+    expect(first.invoice_close).toBe('2026-11-10');
+  });
 });
 
 describe('buildCardInvoices — régua de época em mês passado (feedback 07/10)', () => {

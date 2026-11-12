@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Target,
@@ -106,7 +106,12 @@ export default function MFObjetivos({ user, showValues = true }) {
     );
   };
 
+  // Aporte já gravado numa tentativa que falhou no passo seguinte: o retry
+  // reaproveita o id em vez de inserir de novo. Limpo ao abrir o modal.
+  const pendingContributionRef = useRef(null);
+
   const openContribution = (goal, kind) => {
+    pendingContributionRef.current = null;
     setContribFor(goal);
     setContrib({
       kind,
@@ -124,17 +129,12 @@ export default function MFObjetivos({ user, showValues = true }) {
       return;
     }
     try {
-      // Idempotência: não cria um segundo aporte igual se o primeiro já foi
-      // gravado (ex.: falha no updateGoal depois do addContribution).
-      const already = contributions.some(
-        (c) =>
-          c.goal_id === contribFor.id &&
-          c.kind === contrib.kind &&
-          Number(c.amount) === amount &&
-          c.contribution_date === (contrib.contribution_date || toISODate(new Date()))
-      );
-      if (!already) {
-        await addContribution.mutateAsync({
+      // Idempotência por tentativa: se o aporte já foi gravado e só o passo
+      // seguinte falhou (ex.: marcar a meta como concluída), o retry não
+      // insere de novo. A chave é o id do insert — não valor/data, que se
+      // repetem legitimamente em depósitos distintos.
+      if (!pendingContributionRef.current) {
+        const created = await addContribution.mutateAsync({
           user_id: user.id,
           goal_id: contribFor.id,
           kind: contrib.kind,
@@ -142,14 +142,18 @@ export default function MFObjetivos({ user, showValues = true }) {
           contribution_date: contrib.contribution_date || toISODate(new Date()),
           notes: contrib.notes.trim() || null,
         });
+        pendingContributionRef.current = { id: created?.id ?? null, kind: contrib.kind, amount };
       }
+      const saved = pendingContributionRef.current;
+      const inList = saved.id
+        ? contributions.some((c) => c.id === saved.id)
+        : false;
       // atinge a meta → marca como concluída
       const nextCurrent = goalCurrentAmount(
         contribFor,
-        [
-          ...contributions,
-          { goal_id: contribFor.id, kind: contrib.kind, amount },
-        ],
+        inList
+          ? contributions
+          : [...contributions, { goal_id: contribFor.id, kind: saved.kind, amount: saved.amount }],
         balances[contribFor.account_id]
       );
       if (
@@ -161,6 +165,7 @@ export default function MFObjetivos({ user, showValues = true }) {
       } else {
         toast.success(t('minhasfinancas.gl_mov_saved'));
       }
+      pendingContributionRef.current = null;
       setContribFor(null);
     } catch {
       toast.error(t('minhasfinancas.save_error'));

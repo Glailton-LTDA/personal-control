@@ -426,13 +426,9 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     await waitFor(() => {
       expect(chain.insert).toHaveBeenCalledTimes(2);
     });
+    // Os extras (encargos) são gravados ANTES do pagamento: se falharem,
+    // o pagamento não fica gravado (a fatura não é paga pela metade).
     expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
-      account_id: 'acc-check',
-      amount: 800,
-      invoice_close: '2026-09-10',
-      status: 'PAGO',
-    });
-    expect(chain.insert.mock.calls[1][0][0]).toMatchObject({
       account_id: 'acc-check',
       type: 'DESPESA',
       amount: 50,
@@ -440,6 +436,12 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       status: 'PAGO',
       notes: 'Encargos de fatura',
       invoice_close: null,
+    });
+    expect(chain.insert.mock.calls[1][0][0]).toMatchObject({
+      account_id: 'acc-check',
+      amount: 800,
+      invoice_close: '2026-09-10',
+      status: 'PAGO',
     });
   });
 
@@ -478,16 +480,9 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(chain.insert).toHaveBeenCalledTimes(2);
     });
 
-    const entry = chain.insert.mock.calls[0][0][0];
-    expect(entry).toMatchObject({
-      account_id: 'acc-check',
-      amount: 200,
-      status: 'PAGO',
-      payment_date: '2026-10-04',
-      invoice_close: '2026-09-10',
-    });
-
-    const extras = chain.insert.mock.calls[1][0];
+    // Crédito + parcelas PRIMEIRO: se a gravação das parcelas falhar, a
+    // entrada não fica gravada (nada é pago pela metade).
+    const extras = chain.insert.mock.calls[0][0];
     expect(extras).toHaveLength(13);
     expect(extras[0]).toMatchObject({
       account_id: 'acc-card',
@@ -507,6 +502,15 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       installments_current: 12,
       payment_date: '2027-09-20',
       invoice_close: '2027-09-10',
+    });
+
+    const entry = chain.insert.mock.calls[1][0][0];
+    expect(entry).toMatchObject({
+      account_id: 'acc-check',
+      amount: 200,
+      status: 'PAGO',
+      payment_date: '2026-10-04',
+      invoice_close: '2026-09-10',
     });
   });
 
