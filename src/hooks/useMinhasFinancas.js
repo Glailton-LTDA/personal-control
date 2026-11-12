@@ -3356,17 +3356,37 @@ export const buildCardInstallmentPlan = ({
       }
     : null;
 
+  // Distribui os centavos restantes entre as parcelas para que a soma
+  // das parcelas seja exatamente o valor financiado (ex.: 1000 / 12 =
+  // 11 × 83,33 + 1 × 83,34, não 12 × 83,33 = 999,96).
+  const centsPer = Math.floor((financed * 100) / installments);
+  const extraCents = Math.round(financed * 100) - centsPer * installments;
+
+  // A primeira parcela nunca pode cair no mesmo fechamento da fatura
+  // financiada: senão ela quitaria a própria fatura que está sendo
+  // parcelada. Avança o vencimento enquanto o ciclo da parcela for <= closeISO.
+  let firstDue = first;
+  while (
+    invoiceCloseForDueMonth(card, firstDue.slice(0, 7)) <= closeISO
+  ) {
+    firstDue = addMonthsISO(firstDue, 1);
+  }
+
   const headId = generateUUID();
   const installmentRows = Array.from({ length: installments }, (_, index) => {
-    const dueISO = addMonthsISO(first, index);
+    const dueISO = addMonthsISO(firstDue, index);
     const close = invoiceCloseForDueMonth(card, dueISO.slice(0, 7));
+    const amount =
+      index === installments - 1
+        ? roundMoney((centsPer + extraCents) / 100)
+        : roundMoney(centsPer / 100);
     return {
       id: index === 0 ? headId : generateUUID(),
       user_id: userId,
       type: 'DESPESA',
       account_id: card.id,
       description: `${label} ${index + 1}/${installments} — ${card.name}`,
-      amount: each,
+      amount,
       payment_date: dueISO,
       due_date: null,
       effective_date: dueISO,
@@ -3382,16 +3402,20 @@ export const buildCardInstallmentPlan = ({
     };
   });
 
+  const totalInstallments = roundMoney(
+    installmentRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
+  );
+
   return {
     open,
     entry: entryValue,
     financed,
     count: installments,
-    installmentAmount: each,
-    firstDueISO: first,
+    installmentAmount: roundMoney(centsPer / 100),
+    firstDueISO: firstDue,
     effectiveDate: effective,
-    totalInstallments: roundMoney(each * installments),
-    total: roundMoney(entryValue + each * installments),
+    totalInstallments,
+    total: roundMoney(entryValue + totalInstallments),
     entryPayload,
     extraRows: [...(creditRow ? [creditRow] : []), ...installmentRows],
   };

@@ -1350,7 +1350,14 @@ export default function MFTransacaoScreen({
           );
         }
         savedHeadId = await saveHead({ recurrence: 'MONTHLY', is_fixed: true }, children);
-        await saveChildren(children);
+        try {
+          await saveChildren(children);
+        } catch {
+          // Rollback: se as filhas falharem, remove a cabeça para não
+          // deixar uma série fixa salva pela metade.
+          if (savedHeadId) await deleteMutation.mutateAsync(savedHeadId);
+          throw new Error('serie_revertida');
+        }
       } else if (repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY') {
         // Parcelamento numerado (1/12…) — série finita mensal.
         const { initial, count } = repeatConfig;
@@ -1380,7 +1387,14 @@ export default function MFTransacaoScreen({
           },
           children
         );
-        await saveChildren(children);
+        try {
+          await saveChildren(children);
+        } catch {
+          // Rollback: se as filhas falharem, remove a cabeça para não
+          // deixar um parcelamento salvo pela metade.
+          if (savedHeadId) await deleteMutation.mutateAsync(savedHeadId);
+          throw new Error('parcelamento_revertido');
+        }
       } else if (repeatMode === 'repeat') {
         // Repetição finita semanal/anual (sem numeração de parcela).
         const { count, periodicity } = repeatConfig;

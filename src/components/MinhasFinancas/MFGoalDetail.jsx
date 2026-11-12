@@ -154,14 +154,26 @@ export default function MFGoalDetail({
     }
     setSaving(true);
     try {
-      await addContribution.mutateAsync({
-        user_id: user.id,
-        goal_id: goal.id,
-        kind: form.kind,
-        amount,
-        contribution_date: form.contribution_date || todayISO(),
-        notes: form.notes.trim() || null,
-      });
+      // Idempotência: não cria um segundo aporte igual se o primeiro já foi
+      // gravado (ex.: falha no updateGoal depois do addContribution).
+      const contributionDate = form.contribution_date || todayISO();
+      const already = contributions.some(
+        (c) =>
+          c.goal_id === goal.id &&
+          c.kind === form.kind &&
+          Number(c.amount) === amount &&
+          c.contribution_date === contributionDate
+      );
+      if (!already) {
+        await addContribution.mutateAsync({
+          user_id: user.id,
+          goal_id: goal.id,
+          kind: form.kind,
+          amount,
+          contribution_date: contributionDate,
+          notes: form.notes.trim() || null,
+        });
+      }
       const nextCurrent = goalCurrentAmount(
         goal,
         [

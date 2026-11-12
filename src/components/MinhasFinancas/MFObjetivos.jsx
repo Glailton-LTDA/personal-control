@@ -124,14 +124,25 @@ export default function MFObjetivos({ user, showValues = true }) {
       return;
     }
     try {
-      await addContribution.mutateAsync({
-        user_id: user.id,
-        goal_id: contribFor.id,
-        kind: contrib.kind,
-        amount,
-        contribution_date: contrib.contribution_date || toISODate(new Date()),
-        notes: contrib.notes.trim() || null,
-      });
+      // Idempotência: não cria um segundo aporte igual se o primeiro já foi
+      // gravado (ex.: falha no updateGoal depois do addContribution).
+      const already = contributions.some(
+        (c) =>
+          c.goal_id === contribFor.id &&
+          c.kind === contrib.kind &&
+          Number(c.amount) === amount &&
+          c.contribution_date === (contrib.contribution_date || toISODate(new Date()))
+      );
+      if (!already) {
+        await addContribution.mutateAsync({
+          user_id: user.id,
+          goal_id: contribFor.id,
+          kind: contrib.kind,
+          amount,
+          contribution_date: contrib.contribution_date || toISODate(new Date()),
+          notes: contrib.notes.trim() || null,
+        });
+      }
       // atinge a meta → marca como concluída
       const nextCurrent = goalCurrentAmount(
         contribFor,
