@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Receipt, Eye, Trash2, Plus, Tag, X, Calculator } from 'lucide-react';
+import { Receipt, Eye, Trash2, Plus, Tag, X, Calculator, Target } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -38,6 +38,11 @@ import {
   invoiceCloseForDueMonth,
   useSaveMFTransactionLinked,
   useMFProfiles,
+  useMFGoals,
+  useMFGoalContributions,
+  useAddMFGoalContribution,
+  useUpdateMFGoalContribution,
+  useDeleteMFGoalContribution,
 } from '../../hooks/useMinhasFinancas';
 import MFAccountSelect from './MFAccountSelect';
 import MFCategoryAvatar from './MFCategoryAvatar';
@@ -106,6 +111,7 @@ const emptyForm = {
   installments: '1',
   recurrence: 'NONE',
   attachment_path: '',
+  goal_id: '',
 };
 
 /** Grid de campos da tela (colunas responsivas). */
@@ -169,6 +175,14 @@ export default function MFTransacaoScreen({
   const saveLinkedMutation = useSaveMFTransactionLinked();
   const { data: profiles = [] } = useMFProfiles(user);
   const activeProfileId = useMFProfileScope();
+  const { data: goals = [] } = useMFGoals(user);
+  const {
+    data: goalContributions = [],
+    isSuccess: goalContributionsReady,
+  } = useMFGoalContributions(user);
+  const addGoalContribution = useAddMFGoalContribution();
+  const updateGoalContribution = useUpdateMFGoalContribution();
+  const deleteGoalContribution = useDeleteMFGoalContribution();
   // Vínculo existente (edição): pré-preenche o bloco de integração.
   const { data: existingLink = null } = useMFTxLink(user, tx?.id ?? null);
   const [integration, setIntegration] = useState({
@@ -274,6 +288,7 @@ export default function MFTransacaoScreen({
         installments: '1',
         recurrence: 'NONE',
         attachment_path: tx.attachment_path ?? '',
+        goal_id: '',
       });
       // tags vinculadas (carregadas pela tela e passadas via tx.tagIds)
       setTagIds(Array.isArray(tx.tagIds) ? tx.tagIds : []);
@@ -461,6 +476,60 @@ export default function MFTransacaoScreen({
   const alreadyRecurrent = isEdit && isRecurrentTx(tx);
   // Converter um avulso em série nesta edição (mesma regra do salvamento).
   const converting = isEdit && repeatMode !== 'none' && !alreadyRecurrent;
+
+  // --- Aporte em objetivo a partir de uma receita -----------------------
+  // Só receita avulsa, em conta que não é cartão. Objetivo com conta
+  // vinculada tem progresso automático pelo saldo e não recebe aporte
+  // manual; a lista mostra apenas objetivos sem vínculo.
+  const existingGoalContribution = useMemo(
+    () =>
+      isEdit && tx?.id
+        ? goalContributions.find((item) => item.transaction_id === tx.id) ?? null
+        : null,
+    [isEdit, tx?.id, goalContributions]
+  );
+  const goalLinkBase =
+    form.type === 'RECEITA' &&
+    !isEstorno &&
+    !isCardExpense &&
+    !!selectedAccount &&
+    selectedAccount.account_type !== 'CARTAO';
+  const goalLinkSeries = repeatMode !== 'none' || alreadyRecurrent;
+  const goalLinkVisible = goalLinkBase && !goalLinkSeries;
+  const goalOptions = goals
+    .filter(
+      (goal) =>
+        !goal.account_id &&
+        (goal.status === 'ACTIVE' ||
+          goal.id === form.goal_id ||
+          goal.id === existingGoalContribution?.goal_id)
+    )
+    .map((goal) => ({
+      value: goal.id,
+      label: goal.name,
+      color: goal.color,
+    }));
+  const wishGoal =
+    goalLinkVisible &&
+    Boolean(form.goal_id) &&
+    goalOptions.some((option) => option.value === form.goal_id);
+
+  useEffect(() => {
+    if (!goalLinkBase && form.goal_id) {
+      setForm((prev) => ({ ...prev, goal_id: '' }));
+    }
+  }, [goalLinkBase, form.goal_id]);
+
+  // Edição: o vínculo existente abre selecionado, mesmo que a receita
+  // esteja PENDENTE (o aporte acompanha o lançamento).
+  useEffect(() => {
+    if (!isEdit || !existingGoalContribution) return;
+    setForm((prev) =>
+      prev.goal_id === existingGoalContribution.goal_id
+        ? prev
+        : { ...prev, goal_id: existingGoalContribution.goal_id }
+    );
+  }, [isEdit, existingGoalContribution]);
 
   // --- Integração com a viagem e o investimento (Fatias 1 e 2) ----------
   // O bloco só integra lançamento PAGO, com conexão. Recorrente (série fixa
@@ -921,6 +990,38 @@ export default function MFTransacaoScreen({
     }
   };
 
+  /**
+   * Mantém o aporte do objetivo espelhando o lançamento: cria, atualiza ou
+   * remove a contribuição vinculada. Só roda quando a lista já carregou,
+   * para não apagar um vínculo existente durante o loading.
+   */
+  const syncGoalContribution = async (txId, amount, date) => {
+    if (!goalContributionsReady || !txId) return;
+    if (wishGoal) {
+      const payload = {
+        user_id: user.id,
+        goal_id: form.goal_id,
+        transaction_id: txId,
+        kind: 'DEPOSIT',
+        amount: Math.abs(Number(amount) || 0),
+        contribution_date: date,
+        notes: null,
+      };
+      if (existingGoalContribution) {
+        await updateGoalContribution.mutateAsync({
+          id: existingGoalContribution.id,
+          ...payload,
+        });
+      } else {
+        await addGoalContribution.mutateAsync(payload);
+      }
+      return;
+    }
+    if (existingGoalContribution) {
+      await deleteGoalContribution.mutateAsync(existingGoalContribution.id);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.description.trim()) {
@@ -1164,6 +1265,7 @@ export default function MFTransacaoScreen({
           await saveEditHead();
           await linkTags([tx.id]);
         }
+        await syncGoalContribution(tx.id, base.amount, base.payment_date);
         toast.success(t('minhasfinancas.tx_updated'));
         onClose();
         return;
@@ -1227,6 +1329,7 @@ export default function MFTransacaoScreen({
         effective_date: isCardExpense ? over.payment_date : null,
       });
 
+      let savedHeadId = null;
       if (repeatMode === 'fixed') {
         // Série fixa mensal: 12 ocorrências agora; o estensor (1x/dia)
         // mantém ~12 meses futuros até o usuário excluir a série.
@@ -1246,7 +1349,7 @@ export default function MFTransacaoScreen({
             )
           );
         }
-        await saveHead({ recurrence: 'MONTHLY', is_fixed: true }, children);
+        savedHeadId = await saveHead({ recurrence: 'MONTHLY', is_fixed: true }, children);
         await saveChildren(children);
       } else if (repeatMode === 'repeat' && repeatConfig.periodicity === 'MONTHLY') {
         // Parcelamento numerado (1/12…) — série finita mensal.
@@ -1269,7 +1372,7 @@ export default function MFTransacaoScreen({
             )
           );
         }
-        await saveHead(
+        savedHeadId = await saveHead(
           {
             recurrence: 'NONE',
             installments_current: initial,
@@ -1294,12 +1397,13 @@ export default function MFTransacaoScreen({
             })
           );
         }
-        await saveHead({ recurrence: periodicity }, children);
+        savedHeadId = await saveHead({ recurrence: periodicity }, children);
         await saveChildren(children);
       } else {
-        await saveHead({ recurrence: 'NONE' });
+        savedHeadId = await saveHead({ recurrence: 'NONE' });
       }
 
+      await syncGoalContribution(savedHeadId ?? headId, base.amount, base.payment_date);
       await linkTags(isEdit ? [tx.id, ...createdIds.filter(Boolean)] : createdIds.filter(Boolean));
       toast.success(t(isEdit ? 'minhasfinancas.tx_updated' : 'minhasfinancas.tx_saved'));
       onClose();
@@ -1839,6 +1943,70 @@ export default function MFTransacaoScreen({
                 {t('minhasfinancas.tx_fixed_hint')}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Aporte em objetivo: a receita escolhida aparece em Depósitos. */}
+        {goalLinkVisible && goalOptions.length > 0 && (
+          <div
+            className="glass-card"
+            data-testid="mf-tx-goal-link"
+            style={{
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.75rem',
+            }}
+          >
+            <span
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 11,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                color: 'var(--primary)',
+                background: 'color-mix(in srgb, var(--primary) 14%, transparent)',
+              }}
+            >
+              <Target size={18} />
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  marginBottom: '0.35rem',
+                }}
+              >
+                {t('minhasfinancas.tx_goal_label')}
+              </label>
+              <MFSelect
+                testId="mf-tx-goal"
+                value={form.goal_id}
+                onChange={(next) => setForm((prev) => ({ ...prev, goal_id: next }))}
+                placeholder={t('minhasfinancas.tx_goal_none')}
+                options={[
+                  { value: '', label: t('minhasfinancas.tx_goal_none') },
+                  ...goalOptions,
+                ]}
+                style={{ width: '100%' }}
+              />
+              <p
+                style={{
+                  margin: '0.35rem 0 0',
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.45,
+                }}
+              >
+                {t('minhasfinancas.tx_goal_hint')}
+              </p>
+            </div>
           </div>
         )}
 

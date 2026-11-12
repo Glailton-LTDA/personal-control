@@ -258,6 +258,64 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
     expect(payload.icon.length).toBeGreaterThan(0);
   });
 
+  it('abre o detalhe com abas, progresso, simulação e depósitos', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-goal-card')).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getAllByTestId('mf-goal-card')[0]);
+
+    expect(screen.getByTestId('mf-goal-detail')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-goal-detail-tab-details')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(screen.getByTestId('mf-goal-detail-ring')).toHaveAttribute('data-pct', '50');
+    expect(screen.getByTestId('mf-goal-detail-current')).toHaveTextContent('R$ 2.500,00');
+    expect(screen.getByTestId('mf-goal-detail-target')).toHaveTextContent('R$ 5.000,00');
+    expect(screen.getByTestId('mf-goal-detail-monthly')).not.toHaveTextContent('—');
+    expect(screen.getByTestId('mf-goal-detail-simulation')).toHaveTextContent(
+      /minhasfinancas.gl_simulation_text/
+    );
+
+    fireEvent.click(screen.getByTestId('mf-goal-detail-tab-deposits'));
+    expect(screen.getByTestId('mf-goal-detail-panel-deposits')).toBeInTheDocument();
+    expect(screen.getByTestId('mf-goal-detail-deposit-c1')).toHaveTextContent('R$ 1.500,00');
+
+    fireEvent.click(screen.getByTestId('mf-goal-detail-add'));
+    fireEvent.change(screen.getByTestId('mf-goal-detail-amount'), {
+      target: { value: '500,00' },
+    });
+    fireEvent.click(screen.getByTestId('mf-goal-detail-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    await waitFor(() => {
+      expect(supabase.from('mf_goal_contributions').insert).toHaveBeenCalled();
+    });
+    expect(supabase.from('mf_goal_contributions').insert.mock.calls[0][0]).toMatchObject({
+      user_id: 'test-user',
+      goal_id: 'g1',
+      kind: 'DEPOSIT',
+      amount: 500,
+    });
+  });
+
+  it('objetivo vinculado a conta não oferece depósito manual no detalhe', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-goal-card')).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getAllByTestId('mf-goal-card')[1]);
+
+    fireEvent.click(screen.getByTestId('mf-goal-detail-tab-deposits'));
+    expect(screen.getByTestId('mf-goal-detail-linked-hint')).toHaveTextContent(
+      /minhasfinancas.gl_deposit_linked_hint/
+    );
+    expect(screen.queryByTestId('mf-goal-detail-add')).not.toBeInTheDocument();
+  });
+
   it('exclui movimento com confirmação automática', async () => {
     renderScreen();
     await waitFor(() => {

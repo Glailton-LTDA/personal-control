@@ -147,6 +147,11 @@ vi.mock('../../lib/supabase', () => {
   // Integração com viagens: estado mutável (testes setam state.links)
   const state = {
     links: [],
+    goals: [
+      { id: 'goal-1', name: 'Viagem', target_amount: 5000, status: 'ACTIVE', account_id: null, color: '#6366f1' },
+      { id: 'goal-2', name: 'Reserva', target_amount: 10000, status: 'ACTIVE', account_id: 'acc-1', color: '#10b981' },
+    ],
+    contributions: [],
     trips: [
       {
         id: 'trip-1',
@@ -175,6 +180,11 @@ vi.mock('../../lib/supabase', () => {
     data: [{ id: 'prof-1', name: 'Glailton', sort_order: 0 }],
     error: null,
   });
+  const goals = makeChain(() => ({ data: state.goals, error: null }));
+  const goalContributions = makeChain(() => ({
+    data: state.contributions,
+    error: null,
+  }));
   const rpc = vi.fn(() => Promise.resolve({ data: 'tx-linked', error: null }));
 
   return {
@@ -190,6 +200,8 @@ vi.mock('../../lib/supabase', () => {
         if (table === 'trips') return trips;
         if (table === 'investment_accounts') return investments;
         if (table === 'mf_profiles') return profiles;
+        if (table === 'mf_goals') return goals;
+        if (table === 'mf_goal_contributions') return goalContributions;
         return transactions;
       }),
       rpc,
@@ -270,6 +282,7 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     // sem .range — ver mfSelectAll — então os consumidores esperam os dados)
     const mocked = await import('../../lib/supabase');
     mocked.__state.links = [];
+    mocked.__state.contributions = [];
     allTxMock.mockReturnValue({
       data: mocked.__txRows ?? [],
       isLoading: false,
@@ -2170,6 +2183,125 @@ describe('Tela de Lançamentos (Fase 3)', () => {
 
     expect(screen.queryByTestId('mf-tx-calc')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-tx-amount')).toHaveValue('18,00');
+  });
+
+  it('receita vinculada a objetivo cria o aporte com o lançamento', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('income');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Bônus anual' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '1.500,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-10-20' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-goal-link')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-goal'));
+    // Objetivo com conta vinculada tem progresso automático: não aparece.
+    expect(screen.getByTestId('mf-tx-goal-option-goal-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('mf-tx-goal-option-goal-2')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-tx-goal-option-goal-1'));
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const contributions = supabase.from('mf_goal_contributions');
+    await waitFor(() => {
+      expect(contributions.insert).toHaveBeenCalled();
+    });
+    const txRow = supabase.from('mf_transactions').insert.mock.calls[0][0][0];
+    expect(contributions.insert.mock.calls[0][0]).toMatchObject({
+      user_id: 'test-user',
+      goal_id: 'goal-1',
+      transaction_id: txRow.id,
+      kind: 'DEPOSIT',
+      amount: 1500,
+      contribution_date: '2026-10-20',
+    });
+  });
+
+  it('editar receita vinculada atualiza o aporte do objetivo', async () => {
+    const mocked = await import('../../lib/supabase');
+    mocked.__state.contributions = [
+      {
+        id: 'contrib-1',
+        goal_id: 'goal-1',
+        transaction_id: 'tx-1',
+        kind: 'DEPOSIT',
+        amount: 5000,
+        contribution_date: '2026-10-05',
+      },
+    ];
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    await openDetailEdit('mf-tx-edit-tx-1');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-goal')).toHaveTextContent('Viagem');
+    });
+
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '4.000,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const contributions = supabase.from('mf_goal_contributions');
+    await waitFor(() => {
+      expect(contributions.update).toHaveBeenCalled();
+    });
+    expect(contributions.update.mock.calls[0][0]).toMatchObject({
+      goal_id: 'goal-1',
+      transaction_id: 'tx-1',
+      amount: 4000,
+      contribution_date: '2026-10-05',
+    });
+    expect(contributions.eq).toHaveBeenCalledWith('id', 'contrib-1');
+  });
+
+  it('desvincular a receita do objetivo remove o aporte', async () => {
+    const mocked = await import('../../lib/supabase');
+    mocked.__state.contributions = [
+      {
+        id: 'contrib-1',
+        goal_id: 'goal-1',
+        transaction_id: 'tx-1',
+        kind: 'DEPOSIT',
+        amount: 5000,
+        contribution_date: '2026-10-05',
+      },
+    ];
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    await openDetailEdit('mf-tx-edit-tx-1');
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-goal')).toHaveTextContent('Viagem');
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-goal'));
+    fireEvent.click(
+      screen.getByTestId('mf-tx-goal-popover').querySelector('[data-testid="mf-tx-goal-option-"]')
+    );
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const contributions = supabase.from('mf_goal_contributions');
+    await waitFor(() => {
+      expect(contributions.delete).toHaveBeenCalled();
+    });
+    expect(contributions.eq).toHaveBeenCalledWith('id', 'contrib-1');
   });
 });
 

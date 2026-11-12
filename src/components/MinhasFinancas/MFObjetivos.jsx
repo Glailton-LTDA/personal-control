@@ -26,6 +26,7 @@ import {
   formatMoney,
 } from '../../hooks/useMinhasFinancas';
 import MFGoalModal from './MFGoalModal';
+import MFGoalDetail from './MFGoalDetail';
 import MFAccountIcon from './MFAccountIcon';
 import MFSelect from './MFSelect';
 
@@ -62,8 +63,11 @@ export default function MFObjetivos({ user, showValues = true }) {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [detailForId, setDetailForId] = useState(null);
   const [contribFor, setContribFor] = useState(null);
   const [contrib, setContrib] = useState(emptyContribution);
+
+  const detailGoal = goals.find((goal) => goal.id === detailForId) ?? null;
 
   const accountsById = useMemo(
     () => Object.fromEntries(accounts.map((acc) => [acc.id, acc])),
@@ -256,7 +260,25 @@ export default function MFObjetivos({ user, showValues = true }) {
               key={goal.id}
               className="glass-card"
               data-testid="mf-goal-card"
-              style={{ padding: '1.1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
+              data-goal-id={goal.id}
+              role="button"
+              tabIndex={0}
+              aria-label={t('minhasfinancas.gl_open_detail', { name: goal.name })}
+              onClick={() => setDetailForId(goal.id)}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setDetailForId(goal.id);
+                }
+              }}
+              style={{
+                padding: '1.1rem 1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.6rem',
+                cursor: 'pointer',
+              }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
@@ -298,7 +320,10 @@ export default function MFObjetivos({ user, showValues = true }) {
                     className="icon-btn"
                     data-testid={`mf-goal-edit-${goal.id}`}
                     aria-label={t('minhasfinancas.edit')}
-                    onClick={() => openEdit(goal)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openEdit(goal);
+                    }}
                   >
                     <Pencil size={14} />
                   </button>
@@ -307,7 +332,10 @@ export default function MFObjetivos({ user, showValues = true }) {
                     className="icon-btn"
                     data-testid={`mf-goal-del-${goal.id}`}
                     aria-label={t('minhasfinancas.delete')}
-                    onClick={() => handleDelete(goal)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDelete(goal);
+                    }}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -365,7 +393,10 @@ export default function MFObjetivos({ user, showValues = true }) {
                     type="button"
                     className="btn-primary"
                     data-testid={`mf-goal-deposit-${goal.id}`}
-                    onClick={() => openContribution(goal, 'DEPOSIT')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openContribution(goal, 'DEPOSIT');
+                    }}
                     style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
                   >
                     <ArrowDownToLine size={14} /> {t('minhasfinancas.gl_deposit')}
@@ -374,7 +405,10 @@ export default function MFObjetivos({ user, showValues = true }) {
                     type="button"
                     className="btn-cancel"
                     data-testid={`mf-goal-withdraw-${goal.id}`}
-                    onClick={() => openContribution(goal, 'WITHDRAW')}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openContribution(goal, 'WITHDRAW');
+                    }}
                     style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
                   >
                     <ArrowUpFromLine size={14} /> {t('minhasfinancas.gl_withdraw')}
@@ -408,7 +442,10 @@ export default function MFObjetivos({ user, showValues = true }) {
                         className="icon-btn"
                         data-testid={`mf-contrib-del-${item.id}`}
                         aria-label={t('minhasfinancas.delete')}
-                        onClick={() => handleDeleteContribution(item)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteContribution(item);
+                        }}
                         style={{ marginLeft: 'auto' }}
                       >
                         <Trash2 size={12} />
@@ -421,6 +458,24 @@ export default function MFObjetivos({ user, showValues = true }) {
           );
         })}
       </div>
+
+      {/* Detalhe do objetivo (abas Detalhes/Depósitos) */}
+      {detailGoal && (
+        <MFGoalDetail
+          goal={detailGoal}
+          contributions={contributions}
+          balance={balances[detailGoal.account_id]}
+          balanceKnown={!detailGoal.account_id || balances[detailGoal.account_id] !== undefined}
+          accountsById={accountsById}
+          user={user}
+          showValues={showValues}
+          onClose={() => setDetailForId(null)}
+          onEdit={() => {
+            setDetailForId(null);
+            openEdit(detailGoal);
+          }}
+        />
+      )}
 
       {/* Modal de objetivo */}
       <MFGoalModal

@@ -398,6 +398,143 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
   });
 
+  it('pagamento de fatura vencida com encargos debita pagamento e encargos separados', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-chip-2026-09-10')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-09-10'));
+    fireEvent.click(screen.getByTestId('mf-invoice-pay'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-pay-charges-wrap')).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByTestId('mf-pay-charges'), { target: { value: '5000' } });
+    expect(screen.getByTestId('mf-pay-total-debit')).toHaveTextContent(
+      'minhasfinancas.card_charges_total'
+    );
+
+    fireEvent.click(screen.getByTestId('mf-pay-continue'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert).toHaveBeenCalledTimes(2);
+    });
+    expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
+      account_id: 'acc-check',
+      amount: 800,
+      invoice_close: '2026-09-10',
+      status: 'PAGO',
+    });
+    expect(chain.insert.mock.calls[1][0][0]).toMatchObject({
+      account_id: 'acc-check',
+      type: 'DESPESA',
+      amount: 50,
+      payment_date: '2026-10-04',
+      status: 'PAGO',
+      notes: 'Encargos de fatura',
+      invoice_close: null,
+    });
+  });
+
+  it('parcela a fatura vencida: entrada na conta e parcelas futuras no cartão', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-chip-2026-09-10')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-invoice-chip-2026-09-10'));
+    fireEvent.click(screen.getByTestId('mf-invoice-pay'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-pay-modal')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-pay-installments-open'));
+
+    // 800 em 12x sem entrada → 66,67 por parcela, começando na próxima fatura.
+    expect(screen.getByTestId('mf-pay-installments-amount')).toHaveValue('66,67');
+    expect(screen.getByTestId('mf-pay-installments-first')).toHaveValue('2026-10-20');
+
+    fireEvent.change(screen.getByTestId('mf-pay-installments-entry'), {
+      target: { value: '20000' },
+    });
+    expect(screen.getByTestId('mf-pay-installments-amount')).toHaveValue('50,00');
+
+    fireEvent.click(screen.getByTestId('mf-pay-installments-confirm'));
+
+    const { supabase } = await import('../../lib/supabase');
+    const chain = supabase.from('mf_transactions');
+    await waitFor(() => {
+      expect(chain.insert).toHaveBeenCalledTimes(2);
+    });
+
+    const entry = chain.insert.mock.calls[0][0][0];
+    expect(entry).toMatchObject({
+      account_id: 'acc-check',
+      amount: 200,
+      status: 'PAGO',
+      payment_date: '2026-10-04',
+      invoice_close: '2026-09-10',
+    });
+
+    const extras = chain.insert.mock.calls[1][0];
+    expect(extras).toHaveLength(13);
+    expect(extras[0]).toMatchObject({
+      account_id: 'acc-card',
+      amount: -600,
+      notes: 'Fatura parcelada',
+      invoice_close: '2026-09-10',
+    });
+    expect(extras[1]).toMatchObject({
+      account_id: 'acc-card',
+      amount: 50,
+      installments_current: 1,
+      installments_total: 12,
+      payment_date: '2026-10-20',
+      invoice_close: '2026-10-10',
+    });
+    expect(extras[12]).toMatchObject({
+      installments_current: 12,
+      payment_date: '2027-09-20',
+      invoice_close: '2027-09-10',
+    });
+  });
+
+  it('parcelamento da fatura corrente começa na fatura seguinte', async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-open-card-acc-card')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mf-open-card-acc-card'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-chip-current')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-invoice-chip-current'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-invoice-total')).toHaveTextContent('R$ 1.700,00');
+    });
+
+    fireEvent.click(screen.getByTestId('mf-invoice-anticipate'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-pay-modal')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-pay-installments-open'));
+
+    // A corrente vence 20/10; a primeira parcela cai em 20/11 (não na própria).
+    expect(screen.getByTestId('mf-pay-installments-first')).toHaveValue('2026-11-20');
+  });
+
   it('fatura já paga não exibe o botão de pagar', async () => {
     const { __mfState } = await import('../../lib/supabase');
     const original = __mfState.transactions;
