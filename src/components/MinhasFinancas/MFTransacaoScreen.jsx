@@ -995,9 +995,15 @@ export default function MFTransacaoScreen({
       category_id: form.category_id || null,
       notes: form.notes.trim() || null,
       attachment_path: form.attachment_path || null,
-      // Despesa de cartão: fatura escolhida no picker (sempre gravada —
-      // a fatura independe da data, como no app original).
-      ...(isCardExpense ? { invoice_close: expenseInvoiceClose || null } : {}),
+      // Despesa de cartão e estorno: fatura escolhida no picker (sempre
+      // gravada — a fatura independe da data, como no app original). O
+      // banco exige invoice_close em toda DESPESA de cartão, inclusive
+      // estorno (DESPESA negativa que reduz a fatura).
+      ...(isCardExpense
+        ? { invoice_close: expenseInvoiceClose || null }
+        : isEstorno && selectedAccount?.account_type === 'CARTAO'
+        ? { invoice_close: invoiceClose || null }
+        : {}),
     };
 
     // Série que repete mês com mesmo nome (fixa/parcelada/repetida):
