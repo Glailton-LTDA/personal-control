@@ -464,6 +464,48 @@
   border: 0;
   margin-top: 1rem;
 }
+.health-preview-wrap {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 1rem;
+  min-width: 0;
+  max-height: 40dvh;
+  overflow-y: auto;
+  background: var(--input-bg);
+}
+.health-preview-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.health-preview-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.health-preview-slots {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.health-preview-slots li {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  white-space: nowrap;
+}
 iframe.health-preview {
   height: 65dvh;
 }

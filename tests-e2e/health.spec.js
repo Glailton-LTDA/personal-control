@@ -75,6 +75,16 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
       exams = [...exams, created];
       return route.fulfill({ json: { id: created.id } });
     }
+    if (route.request().method() === 'POST' && table === 'health_treatment_save') {
+      const body = route.request().postDataJSON();
+      const payload = body.p_payload || body;
+      return route.fulfill({
+        json: {
+          id: payload.id || 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+          row_version: payload.expected_version == null ? 1 : Number(payload.expected_version) + 1,
+        },
+      });
+    }
     if (route.request().method() === 'PATCH' && table === 'health_exams') {
       const id = url.searchParams.get('id')?.slice(3);
       const body = route.request().postDataJSON();
@@ -192,6 +202,29 @@ test('creates an exam and loads its own detail', async ({ page }) => {
   expect(
     requests.find((request) => request.method === 'POST').body.user_id,
   ).toBe(OWNER);
+});
+
+test('creates a medication treatment and saves via RPC', async ({ page }) => {
+  const requests = await mockHealth(page);
+  await page.getByRole('link', { name: 'Medicamentos', exact: true }).click();
+  await page.getByRole('button', { name: 'Novo tratamento', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByLabel('Nome do tratamento', { exact: true })
+    .fill('Tratamento de teste');
+  await page
+    .getByRole('dialog')
+    .getByLabel('Dose por tomada', { exact: true })
+    .fill('1 comprimido');
+  await page.getByRole('button', { name: 'Tratamento salvo.', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  const save = requests.find(
+    (request) =>
+      request.method === 'POST' && request.url().includes('/rpc/health_treatment_save'),
+  );
+  expect(save).toBeDefined();
+  expect(save.body.p_payload.name).toBe('Tratamento de teste');
+  expect(save.body.p_payload.dose).toBe('1 comprimido');
 });
 
 for (const [language, title, action, field] of [
