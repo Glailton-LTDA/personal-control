@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.2.6] - 2026-11-13
+
+### Corrigido
+- **Checklists de viagem**: reabrir a tela ou recarregar o app aguarda a restauração da viagem e da sessão, preservando o botão Voltar e evitando a tela preta.
+- **Importação no app instalado**: arrastar o conteúdo da janela de importação não aciona mais o gesto global de atualizar a página. A janela também passa a identificar seu título e o botão de fechar para leitores de tela.
+
 ## [2.2.5] - 2026-11-12
 
 ### Corrigido

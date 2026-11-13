@@ -116,3 +116,10 @@ As instruções específicas do aplicativo nativo pertencem ao seu próprio repo
   lockfiles/verificação compatível com a ferramenta. Falhas devem bloquear merge.
 - Registrar no PR o lint, testes, cobertura medida e revisão de segurança,
   incluindo qualquer verificação ainda bloqueada. Não afirmar resultado não medido.
+
+## 9. Versão e changelog
+
+- Ao entregar correções ou funcionalidades para teste ou publicação, incrementar
+  a versão em `package.json` e `package-lock.json` no mesmo PR da alteração.
+- Registrar as mudanças em uma entrada versionada e datada no `CHANGELOG.md`.
+  A versão exibida no app deve permitir identificar a entrega que contém a correção.
