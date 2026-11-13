@@ -704,6 +704,13 @@ export default function MFTransacaoScreen({
     setInvoiceChoice(closeISO);
   };
 
+  /**
+   * Fatura do estorno no cartão: a escolha no picker manda (regra de
+   * tudo que é cartão — a fatura, nunca a data); a fatura do ciclo que
+   * contém a data só entra como default enquanto não houver escolha.
+   */
+  const estornoInvoiceClose = invoiceChoice || invoiceClose;
+
   const handleDescriptionChange = (event) => {
     const value = event.target.value;
     setForm((prev) => {
@@ -1110,7 +1117,7 @@ export default function MFTransacaoScreen({
       ...(isCardExpense
         ? { invoice_close: expenseInvoiceClose || null }
         : isEstorno && selectedAccount?.account_type === 'CARTAO'
-        ? { invoice_close: invoiceClose || null }
+        ? { invoice_close: estornoInvoiceClose || null }
         : {}),
     };
 
@@ -1902,7 +1909,7 @@ export default function MFTransacaoScreen({
               <label>{t('minhasfinancas.tx_invoice_label')}</label>
               <MFSelect
                 testId="mf-tx-invoice"
-                value={invoiceClose}
+                value={estornoInvoiceClose}
                 onChange={pickInvoice}
                 searchable={false}
                 options={invoiceCycles.map((cycle) => ({
