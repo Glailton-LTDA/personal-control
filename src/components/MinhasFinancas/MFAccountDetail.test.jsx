@@ -487,6 +487,58 @@ describe('MFAccountDetail', () => {
     });
   });
 
+  it('estorno do cartão grava a fatura escolhida no picker, não a da data', async () => {
+    // Lançamento em 15/10: o ciclo automático (fecha 10/11) é o da data,
+    // mas a regra do cartão é a FATURA escolhida — nunca a data.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 15, 12, 0, 0) });
+    try {
+      renderDetail({ account: cardAccount });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-acct-det-invoices')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('mf-acct-det-new-tx'));
+      fireEvent.click(screen.getByTestId('mf-add-opt-estorno'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-invoice')).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('mf-tx-account')).toHaveTextContent('Visa');
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-description'), {
+        target: { value: 'Estorno na fatura certa' },
+      });
+      fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '100,00' } });
+
+      // Default vindo da data (15/10 → fatura que fecha 10/11); o usuário
+      // escolhe manualmente a fatura que fecha 10/10.
+      fireEvent.click(screen.getByTestId('mf-tx-invoice'));
+      fireEvent.click(screen.getByTestId('mf-tx-invoice-option-2026-10-10'));
+      fireEvent.click(screen.getByTestId('mf-tx-save'));
+
+      const { supabase } = await import('../../lib/supabase');
+      const chain = supabase.from('mf_transactions');
+      await waitFor(() => {
+        expect(chain.insert).toHaveBeenCalled();
+      });
+      const inserted = chain.insert.mock.calls.flatMap((call) => call[0]);
+      const estorno = inserted.find((row) => row?.description === 'Estorno na fatura certa');
+      // Fatura escolhida no picker (fecha 10/10) — não a calculada pela
+      // data do lançamento (15/10 → fecha 10/11).
+      expect(estorno).toMatchObject({
+        account_id: 'acc-card',
+        type: 'DESPESA',
+        amount: -100,
+        invoice_close: '2026-10-10',
+      });
+      expect(estorno.invoice_close).not.toBe('2026-11-10');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('mostra o extrato vazio quando a conta nao tem lancamentos', async () => {
     renderDetail({ account: { ...account, id: 'acc-9', name: 'Carteira' } });
 

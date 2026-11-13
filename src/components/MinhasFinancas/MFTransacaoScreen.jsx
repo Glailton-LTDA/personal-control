@@ -704,6 +704,13 @@ export default function MFTransacaoScreen({
     setInvoiceChoice(closeISO);
   };
 
+  /**
+   * Fatura do estorno no cartão: a escolha no picker manda (regra de
+   * tudo que é cartão — a fatura, nunca a data); a fatura do ciclo que
+   * contém a data só entra como default enquanto não houver escolha.
+   */
+  const estornoInvoiceClose = invoiceChoice || invoiceClose;
+
   const handleDescriptionChange = (event) => {
     const value = event.target.value;
     setForm((prev) => {
@@ -1103,9 +1110,15 @@ export default function MFTransacaoScreen({
       category_id: form.category_id || null,
       notes: form.notes.trim() || null,
       attachment_path: form.attachment_path || null,
-      // Despesa de cartão: fatura escolhida no picker (sempre gravada —
-      // a fatura independe da data, como no app original).
-      ...(isCardExpense ? { invoice_close: expenseInvoiceClose || null } : {}),
+      // Despesa de cartão e estorno: fatura escolhida no picker (sempre
+      // gravada — a fatura independe da data, como no app original). O
+      // banco exige invoice_close em toda DESPESA de cartão, inclusive
+      // estorno (DESPESA negativa que reduz a fatura).
+      ...(isCardExpense
+        ? { invoice_close: expenseInvoiceClose || null }
+        : isEstorno && selectedAccount?.account_type === 'CARTAO'
+        ? { invoice_close: estornoInvoiceClose || null }
+        : {}),
     };
 
     // Série que repete mês com mesmo nome (fixa/parcelada/repetida):
@@ -1896,7 +1909,7 @@ export default function MFTransacaoScreen({
               <label>{t('minhasfinancas.tx_invoice_label')}</label>
               <MFSelect
                 testId="mf-tx-invoice"
-                value={invoiceClose}
+                value={estornoInvoiceClose}
                 onChange={pickInvoice}
                 searchable={false}
                 options={invoiceCycles.map((cycle) => ({
