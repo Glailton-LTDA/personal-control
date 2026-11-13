@@ -34,6 +34,8 @@ const ALIEN = 'abababab-abab-abab-abab-abababababab';
 let pg;
 
 const schema = `
+create schema mf_private;
+create role anon; create role authenticated;
 create schema if not exists auth;
 create table if not exists auth.users (id uuid primary key);
 create or replace function auth.uid() returns uuid language sql stable
@@ -77,6 +79,8 @@ create table public.mf_transactions (
   auto_settle boolean not null default false
 );
 
+create table public.mf_card_settings (card_id uuid,user_id uuid,effective_from text,linked_account_id uuid,closing_day int,due_day int,closing_dynamic boolean,due_business_days boolean);
+create table public.mf_invoices (user_id uuid,card_id uuid,close_date date,total_source text,total numeric,paid_total numeric,status text);
 create table public.mf_tx_links (
   transaction_id uuid primary key,
   user_id uuid not null,
@@ -153,6 +157,10 @@ create unique index uq_mf_goal_contributions_transaction
 
 const seed = async () => {
   await pg.exec(`
+    delete from mf_private.payment_operations;
+    delete from public.mf_card_settings;
+    delete from public.mf_invoices;
+    insert into auth.users(id) values ('${OWNER}'),('${OTHER}') on conflict do nothing;
     delete from public.mf_goal_contributions;
     delete from public.mf_tx_links;
     delete from public.trip_expenses;
@@ -176,6 +184,7 @@ beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(schema);
   await pg.exec(readFunctionMigration('_mf_atomic_finance_writes.sql'));
+  await pg.exec(readFunctionMigration('_mf_review_consistency.sql'));
 }, 60000);
 
 beforeEach(async () => {
@@ -451,7 +460,7 @@ describe('mf_pay_card_invoice — pagamento transacional', () => {
         `select mf_pay_card_invoice($1::uuid, $2::uuid, $3::date, null, '[]'::jsonb, true, null)`,
         [CARD, BANK, CLOSE]
       )
-    ).resolves.toBeTruthy();
+    ).rejects.toThrow(/mf_pay_card_amount/);
 
     await pg.query(`update public.mf_accounts set user_id = $1 where id = $2`, [OTHER, CARD]);
     await expect(
@@ -535,5 +544,73 @@ describe('mf_save_tx_with_goal — receita + aporte', () => {
 
     const txs = await rows(`select id from public.mf_transactions`);
     expect(txs).toHaveLength(0);
+  });
+});
+
+const reviewTx = (account, amount, close = CLOSE) => ({ user_id: OWNER, account_id: account, type: 'DESPESA', description: 'Regression', amount, payment_date: '2026-10-20', status: 'PAGO', invoice_close: close });
+const seedPurchase = (amount, account = CARD, status = 'PAGO', close = CLOSE) => pg.query(
+  `insert into mf_transactions(user_id,account_id,type,description,amount,payment_date,status,invoice_close) values($1,$2,'DESPESA','Regression',$3,'2026-10-05',$4,$5)`,[OWNER,account,amount,status,close]);
+const pay = (amount, operation = null, extras = [], raw = 100000) => pg.query(
+  'select mf_pay_card_invoice($1,$2,$3,$4::jsonb,$5::jsonb,false,$6,$7) as result',
+  [CARD,BANK,CLOSE,amount == null ? null : JSON.stringify(reviewTx(BANK,amount)),JSON.stringify(extras),raw,operation]);
+
+describe('authoritative balances and retries', () => {
+  it('does not add pending payments to principal or trust client limits', async () => {
+    await seedPurchase(800); await seedPurchase(800,BANK,'PENDENTE');
+    await expect(pay(1600)).rejects.toThrow(/mf_pay_card_amount/);
+    await expect(pay(800)).resolves.toBeDefined();
+    await expect(pay(800)).rejects.toThrow(/mf_pay_card_settled/);
+  });
+  it('subtracts refunds and financing credits', async () => {
+    await seedPurchase(800); await seedPurchase(-200);
+    await expect(pay(601)).rejects.toThrow(/mf_pay_card_amount/);
+    await pay(600);
+    await expect(pay(1)).rejects.toThrow(/mf_pay_card_settled/);
+  });
+  it('a fully credited invoice cannot be paid or financed twice', async () => {
+    await seedPurchase(800); await seedPurchase(-800);
+    await expect(pay(800)).rejects.toThrow(/mf_pay_card_settled/);
+    await expect(pay(null,null,[reviewTx(CARD,-800)])).rejects.toThrow(/mf_pay_card_settled/);
+  });
+  it('recognizes a lost response, returns the same rows and rejects a changed request', async () => {
+    await seedPurchase(800);
+    const operation='12121212-1212-1212-1212-121212121212';
+    const first=await pay(300,operation); const second=await pay(300,operation);
+    expect(second.rows).toEqual(first.rows);
+    expect(first.rows[0].result.tables.mf_transactions.rows[0]).toMatchObject({ amount: 300 });
+    expect(await rows('select id from mf_transactions where account_id=$1',[BANK])).toHaveLength(1);
+    await expect(pay(400,operation)).rejects.toThrow(/mf_operation_conflict/);
+    await expect(pay(501)).rejects.toThrow(/mf_pay_card_amount/);
+    await pay(500);
+  });
+  it('financing without a down payment validates the principal and future installments', async () => {
+    await seedPurchase(800);
+    const credit=reviewTx(CARD,-800); const installment=reviewTx(CARD,800,'2026-11-10');
+    await expect(pay(null,null,[reviewTx(CARD,-900),installment])).rejects.toThrow(/mf_pay_card_amount/);
+    const result=await pay(null,'13131313-1313-1313-1313-131313131313',[credit,installment]);
+    expect(result.rows[0].result.extra_ids).toHaveLength(2);
+    await expect(pay(null,null,[credit,installment])).rejects.toThrow(/mf_pay_card_settled/);
+  });
+  it('uses legacy purchases, transfer payments and FIFO credits', async () => {
+    // Account settings: legacy October purchase belongs to the October 10 cycle.
+    await pg.query(`insert into mf_card_settings(card_id,user_id,effective_from,closing_day,due_day,linked_account_id) values($1,$2,'2020-01',10,20,$3)`,[CARD,OWNER,BANK]);
+    await seedPurchase(500,CARD,'PAGO',null);
+    await pg.query(`insert into mf_transactions(user_id,account_id,transfer_account_id,type,description,amount,payment_date,status) values($1,$2,$3,'TRANSFERENCIA','Legacy payment',200,'2026-10-05','PAGO')`,[OWNER,BANK,CARD]);
+    await expect(pay(301)).rejects.toThrow(/mf_pay_card_amount/);
+    await pay(300);
+  });
+  it('applies official imported totals and historical linked account payments', async () => {
+    await seedPurchase(500);
+    await pg.query(`insert into mf_invoices(user_id,card_id,close_date,total_source,total,paid_total) values($1,$2,$3,'imported',600,200)`,[OWNER,CARD,CLOSE]);
+    await expect(pay(401)).rejects.toThrow(/mf_pay_card_amount/);
+    await pay(400);
+    await expect(pay(1)).rejects.toThrow(/mf_pay_card_settled/);
+  });
+  it('uses the same weekend and national holiday rules as the client', async () => {
+    const { nextBusinessDay } = await import('../lib/mfBusinessDays');
+    for (const date of ['2026-04-03','2026-11-20','2026-10-31','2026-10-10','2024-12-25']) {
+      const result=await rows('select mf_private.next_business_day($1)::text as day',[date]);
+      expect(result[0].day).toBe(nextBusinessDay(date));
+    }
   });
 });

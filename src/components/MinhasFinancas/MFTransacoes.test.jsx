@@ -700,9 +700,9 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     });
     fireEvent.click(screen.getByTestId('mf-integration-trip-select-option-trip-1'));
 
-    fireEvent.click(screen.getByTestId('mf-tx-save'));
-
     const { supabase } = await import('../../lib/supabase');
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: new TypeError('lost response') });
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
     await waitFor(() => {
       expect(supabase.rpc).toHaveBeenCalled();
     });
@@ -716,6 +716,10 @@ describe('Tela de Lançamentos (Fase 3)', () => {
       installments_current: 2,
       installments_total: 2,
     });
+    await waitFor(() => expect(screen.getByTestId('mf-tx-save')).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+    await waitFor(() => expect(supabase.rpc).toHaveBeenCalledTimes(2));
+    expect(supabase.rpc.mock.calls[1][1]).toEqual(args);
     expect(supabase.from('mf_transactions').insert).not.toHaveBeenCalled();
   });
 

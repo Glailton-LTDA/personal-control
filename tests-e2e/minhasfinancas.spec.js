@@ -463,7 +463,8 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         }
         page.mfPayCardRpcCalls = [...(page.mfPayCardRpcCalls || []), body];
         // Extras (crédito do parcelamento, parcelas e encargos).
-        (body.p_extras || []).forEach((row) => upsertTx(row));
+        const extras = (body.p_extras || []).map((row) => upsertTx(row));
+        const deletedIds = [];
         // Pagamento: reusa a linha PENDENTE da fatura ou cria uma nova.
         let paymentId = null;
         if (body.p_payment) {
@@ -489,14 +490,20 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
             row.invoice_close === body.p_invoice_close &&
             row.status === 'PENDENTE';
           if (!isPending) return true;
-          if (body.p_replace_all) return false;
-          return !(row.notes === marker && row.id !== paymentId);
+          const remove = body.p_replace_all || (row.notes === marker && row.id !== paymentId);
+          if (remove) deletedIds.push(row.id);
+          return !remove;
         });
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
           headers: CORS,
-          body: JSON.stringify({ payment_id: paymentId, extra_ids: [], deleted_ids: [] }),
+          body: JSON.stringify({ payment_id: paymentId, extra_ids: extras.map((row) => row.id), deleted_ids: deletedIds,
+            tables: { mf_transactions: {
+              rows: (store.mf_transactions || []).filter((row) => row.id === paymentId || extras.some((extra) => extra.id === row.id)),
+              deleted_ids: deletedIds,
+            } },
+          }),
         });
       }
       if (request.method() === 'POST' && fn === 'mf_save_tx_with_goal') {
@@ -539,6 +546,10 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
           body: JSON.stringify({
             transaction_id: opId,
             contribution_id: contributionId,
+            tables: {
+              mf_transactions: { rows: (store.mf_transactions || []).filter((row) => row.id === opId), deleted_ids: [] },
+              mf_goal_contributions: { rows: (store.mf_goal_contributions || []).filter((row) => row.id === contributionId), deleted_ids: [] },
+            },
           }),
         });
       }
@@ -1413,6 +1424,13 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     expect(paid.amount).toBe(150);
     expect(paid.status).toBe('PENDENTE');
     expect(paid.invoice_close).toBeTruthy();
+    // The committed RPC result is available offline without a full table pull.
+    await expect.poll(() => page.evaluate(async (id) => {
+      const { db } = await import('/src/lib/offline/db.js');
+      const row = await db.mf_transactions.get(id);
+      return row?.amount;
+    }, paid.id)).toBe(150);
+
   });
 
   test('antecipar parcelas do cartão move as futuras e lança o estorno', async ({ page }) => {

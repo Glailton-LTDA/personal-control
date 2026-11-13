@@ -252,6 +252,7 @@ export default function MFTransacaoScreen({
   // reaproveitado nos retries. O servidor reconhece a repetição e devolve
   // o resultado existente — a resposta perdida não vira receita duplicada.
   const operationIdRef = useRef(null);
+  const operationChildIdsRef = useRef([]);
 
   const isEdit = !!tx;
   const isEstorno = mode === 'estorno' && !isEdit;
@@ -1215,9 +1216,9 @@ export default function MFTransacaoScreen({
       const saveEditHead = async (extra = {}, children = []) => {
         if (linkedEdit) {
           // A RPC grava cabeça + filhas (+ espelho) numa única transação.
-          const childRows = children.map((row) => ({
+          const childRows = children.map((row, index) => ({
             ...row,
-            id: row.id ?? generateUUID(),
+            id: row.id ?? (operationChildIdsRef.current[index] ??= generateUUID()),
           }));
           await saveLinkedMutation.mutateAsync({
             txId: tx.id,
@@ -1304,9 +1305,9 @@ export default function MFTransacaoScreen({
           return tx.id;
         }
         if (linkedCreate) {
-          const childRows = children.map((row) => ({
+          const childRows = children.map((row, index) => ({
             ...row,
-            id: row.id ?? generateUUID(),
+            id: row.id ?? (operationChildIdsRef.current[index] ??= generateUUID()),
           }));
           await saveLinkedMutation.mutateAsync({
             txId: null,
@@ -1489,6 +1490,7 @@ export default function MFTransacaoScreen({
       }
       await linkTags(isEdit ? [tx.id, ...createdIds.filter(Boolean)] : createdIds.filter(Boolean));
       operationIdRef.current = null;
+      operationChildIdsRef.current = [];
       toast.success(t(isEdit ? 'minhasfinancas.tx_updated' : 'minhasfinancas.tx_saved'));
       onClose();
     } catch {

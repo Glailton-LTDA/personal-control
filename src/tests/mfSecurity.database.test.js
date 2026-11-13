@@ -40,6 +40,8 @@ beforeAll(async () => {
   await pg.exec(migration('mf_security_ownership.sql'));
   await pg.exec(migration('mf_safe_snapshots_and_ai_limits.sql'));
   await pg.exec(migration('mf_goal_contributions_transaction.sql'));
+  await pg.exec(migration('mf_atomic_finance_writes.sql'));
+  await pg.exec(migration('mf_review_consistency.sql'));
 }, 60000);
 afterAll(async () => { await pg?.close(); });
 beforeEach(async () => {
@@ -83,6 +85,16 @@ describe('hardening SQL com PostgreSQL isolado, sem conexão à produção', () 
     ).rejects.toThrow(/mf_reference_not_authorized/);
   });
 
+  it('atomic goal RPC checks account ownership under authenticated role and rolls back', async () => {
+    await asUser();
+    await expect(pg.query('select mf_save_tx_with_goal($1,$2::jsonb)', [
+      '50000000-0000-4000-8000-000000000001', JSON.stringify({ account_id: accB, type: 'RECEITA', description: 'Synthetic income', amount: 100, payment_date: '2026-11-01' }),
+    ])).rejects.toThrow(/mf_goal_tx_account/);
+  });
+  it('authenticated clients cannot read operation receipts or call the private balance helper', async () => {
+    await asUser();
+    await expect(pg.query('select * from mf_private.payment_operations')).rejects.toThrow(/permission denied/);
+  });
   it('RPC não permite usar a conta de outro usuário e faz rollback', async () => {
     await asUser();
     await expect(pg.query('select public.mf_save_tx_linked($1::jsonb)', [JSON.stringify({account_id:accB,type:'DESPESA',description:'teste',amount:1,payment_date:'2026-11-01'})])).rejects.toThrow(/mf_reference_not_authorized/);

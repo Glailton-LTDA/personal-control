@@ -9,6 +9,7 @@ import { useMFProfileScope } from './mfProfileContext';
 import { useNotificationSettings } from './useFinance';
 import { mfSelect, mfSelectAll, mfMutate, isOffline, assertNoPendingMfWrites } from '../lib/offline/mfOffline';
 import { generateUUID } from '../lib/offline/db';
+import { executeMfAtomicOperation, prepareCardPaymentOperation } from '../lib/offline/mfAtomic';
 
 /** Evento interno: uma instância de `useMFPrefs` avisa as outras. */
 const MF_PREFS_EVENT = 'mf-prefs-changed';
@@ -1974,60 +1975,13 @@ export function useSaveMFTransactionLinked() {
 export function useSaveMFTransactionWithGoal() {
   const invalidate = useInvalidateAll();
   return useMutation({
-    mutationFn: async ({
-      operationId,
-      payload,
-      contribution = null,
-      deleteContribution = false,
-    }) => {
-      if (isOffline()) {
-        // Offline: a fila cuida do lançamento e do aporte separadamente.
-        const created = await mfMutate({
-          table: 'mf_transactions',
-          action: 'insert',
-          payload,
-          run: async () => {
-            const { data, error } = await supabase
-              .from('mf_transactions')
-              .insert(payload)
-              .select();
-            if (error) throw error;
-            return data ?? [];
-          },
-        });
-        if (contribution) {
-          await mfMutate({
-            table: 'mf_goal_contributions',
-            action: 'insert',
-            payload: { ...contribution, transaction_id: operationId },
-            run: async () => {
-              const { data, error } = await supabase
-                .from('mf_goal_contributions')
-                .insert({ ...contribution, transaction_id: operationId })
-                .select();
-              if (error) throw error;
-              return data ?? [];
-            },
-          });
-        }
-        return created;
-      }
-      return mfMutate({
-        table: 'mf_transactions',
-        action: 'insert',
-        payload,
-        run: async () => {
-          const { data, error } = await supabase.rpc('mf_save_tx_with_goal', {
-            p_operation_id: operationId,
-            p_tx: payload,
-            p_goal_contribution: contribution,
-            p_delete_contribution: deleteContribution,
-          });
-          if (error) throw error;
-          return data;
-        },
-      });
-    },
+    mutationFn: ({ operationId, payload, contribution = null, deleteContribution = false }) =>
+      executeMfAtomicOperation('mf_save_tx_with_goal', {
+        p_operation_id: operationId,
+        p_tx: payload,
+        p_goal_contribution: contribution ? { ...contribution, id: contribution.id || operationId } : null,
+        p_delete_contribution: deleteContribution,
+      }),
     onSuccess: invalidate,
   });
 }
@@ -3905,172 +3859,20 @@ export function useMFScheduleCardPayments(user) {
  */
 export function usePayCardInvoice() {
   const invalidate = useInvalidateAll();
+  const pending = useRef(null);
   return useMutation({
-    /**
-     * `payload`: pagamento na conta vinculada (null quando a fatura é
-     * totalmente financiada e não há entrada). `extraRows`: lançamentos
-     * adicionais do mesmo fluxo — encargos na conta ou o crédito/parcelas
-     * do "Parcelar fatura" no cartão.
-     */
-    mutationFn: async ({ card, invoice, payload = null, extraRows = [], openAmount = null }) => {
-      const extras = (Array.isArray(extraRows) ? extraRows : [extraRows]).filter(Boolean);
-      const payable =
-        openAmount != null
-          ? Number(openAmount)
-          : Math.round(
-              ((Number(invoice?.openAmount) || 0) + (Number(invoice?.pendingBound) || 0)) * 100
-            ) / 100;
-
-      if (!isOffline()) {
-        // Uma transação só: pagamento, crédito, parcelas, encargos e a
-        // remoção dos espelhos entram (ou não entram) juntos.
-        return mfMutate({
-          table: 'mf_transactions',
-          action: 'insert',
-          payload: payload ? [payload] : extras,
-          run: async () => {
-            const { data, error } = await supabase.rpc('mf_pay_card_invoice', {
-              p_card_id: card.id,
-              p_account_id: card.linked_account_id,
-              p_invoice_close: invoice.closeISO,
-              p_payment: payload ? { ...payload, notes: null } : null,
-              p_extras: extras,
-              p_replace_all: !payload,
-              p_open_amount: payable,
-            });
-            if (error) throw error;
-            return data;
-          },
-        });
-      }
-
-      // Offline: cada pedaço vira uma entrada na fila (sobe depois).
-      const { data, error } = await supabase
-        .from('mf_transactions')
-        .select('*')
-        .eq('account_id', card.linked_account_id)
-        .eq('type', 'DESPESA')
-        .eq('invoice_close', invoice.closeISO)
-        .eq('status', 'PENDENTE');
-      if (error) throw error;
-      const rows = (data ?? []).filter(
-        (row) =>
-          row.account_id === card.linked_account_id &&
-          row.type === 'DESPESA' &&
-          row.invoice_close === invoice.closeISO &&
-          row.status === 'PENDENTE'
-      );
-      const existing =
-        rows.sort((a, b) =>
-          String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
-        )[0] ?? null;
-      // Espelhos automáticos sobrando (corrida agendador × pagamento): o
-      // usuário assumiu a fatura — a linha dele fica e os duplicados somem.
-      const superseded = rows.filter(
-        (row) => row.notes === MF_INVOICE_PAYMENT_NOTE && row.id !== (existing?.id ?? null)
-      );
-      // Financiamento sem entrada: o crédito do parcelamento substitui
-      // qualquer pagamento ainda agendado para a fatura (senão o valor
-      // financiado seria debitado duas vezes).
-      const replaced = payload ? superseded : rows;
-      const insertedIds = [];
-      let result = null;
+    mutationFn: async (input) => {
+      if (!pending.current) pending.current = prepareCardPaymentOperation(input);
       try {
-        // Extras (crédito/parcelas ou encargos) PRIMEIRO: se falharem, nada
-        // mais foi gravado — nem a entrada, nem a remoção dos espelhos.
-        if (extras.length > 0) {
-          const inserted = await mfMutate({
-            table: 'mf_transactions',
-            action: 'insert',
-            payload: extras,
-            run: async () => {
-              const { data, error: insertError } = await supabase
-                .from('mf_transactions')
-                .insert(extras)
-                .select();
-              if (insertError) throw insertError;
-              return data ?? [];
-            },
-          });
-          (Array.isArray(inserted) ? inserted : []).forEach(
-            (row) => row?.id && insertedIds.push(row.id)
-          );
-        }
-        if (payload) {
-          // Pagamento feito pelo usuário não leva o marcador do agendador;
-          // assim o trigger histórico não o bloqueia e o planner o trata como
-          // pagamento seu (não cria espelho/diferença automática).
-          const patch = { ...payload, notes: null };
-          if (existing) {
-            result = await mfMutate({
-              table: 'mf_transactions',
-              action: 'update',
-              id: existing.id,
-              payload: patch,
-              run: async () => {
-                const { data: updated, error: updateError } = await supabase
-                  .from('mf_transactions')
-                  .update(patch)
-                  .eq('id', existing.id)
-                  .select();
-                if (updateError) throw updateError;
-                return updated ?? [];
-              },
-            });
-          } else {
-            result = await mfMutate({
-              table: 'mf_transactions',
-              action: 'insert',
-              payload: [patch],
-              run: async () => {
-                const { data: inserted, error: insertError } = await supabase
-                  .from('mf_transactions')
-                  .insert([patch])
-                  .select();
-                if (insertError) throw insertError;
-                return inserted ?? [];
-              },
-            });
-            const createdId = Array.isArray(result) ? result[0]?.id : result?.id;
-            if (createdId) insertedIds.push(createdId);
-          }
-        }
-        for (const row of replaced) {
-          await mfMutate({
-            table: 'mf_transactions',
-            action: 'delete',
-            id: row.id,
-            run: async () => {
-              const { error: delError } = await supabase
-                .from('mf_transactions')
-                .delete()
-                .eq('id', row.id);
-              if (delError) throw delError;
-              return row.id;
-            },
-          });
-        }
-      } catch (err) {
-        // Compensa o que acabou de ser criado para não deixar a operação
-        // pela metade (entrada sem parcelas, crédito órfão).
-        for (const id of insertedIds) {
-          await mfMutate({
-            table: 'mf_transactions',
-            action: 'delete',
-            id,
-            run: async () => {
-              const { error: delError } = await supabase
-                .from('mf_transactions')
-                .delete()
-                .eq('id', id);
-              if (delError) throw delError;
-              return id;
-            },
-          }).catch(() => {});
-        }
-        throw err;
+        const result = await executeMfAtomicOperation('mf_pay_card_invoice', pending.current);
+        pending.current = null;
+        return result;
+      } catch (error) {
+        // A server rejection guarantees rollback. Keep IDs on transport failures:
+        // the response may have been lost after COMMIT.
+        if (error?.code && !String(error.code).startsWith('PGRST')) pending.current = null;
+        throw error;
       }
-      return result;
     },
     onSuccess: invalidate,
   });
