@@ -302,6 +302,21 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     page.mfStore = store;
     const wantsObject = (request) =>
       String(request.headers()['accept'] || '').includes('vnd.pgrst.object');
+    // Grava/atualiza um lançamento no store (emulação das RPCs).
+    const upsertTx = (row, forcedId) => {
+      if (!row) return null;
+      const next = {
+        user_id: authUser.id,
+        ...row,
+        id: forcedId || row.id || `tx-e2e-${Date.now()}-${Math.random()}`,
+      };
+      const list = store.mf_transactions || [];
+      const index = list.findIndex((item) => item.id === next.id);
+      if (index >= 0) list[index] = { ...list[index], ...next };
+      else list.push(next);
+      store.mf_transactions = list;
+      return next;
+    };
 
     // RPC mf_month_summary (resumo agregado no servidor) — emulada
     // sobre o store para exercitar o caminho real do hook.
@@ -353,15 +368,6 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         const txId = body.p_tx_id || body.p_tx?.id || `tx-linked-${Date.now()}`;
         // Emula a RPC: grava/atualiza o lançamento, as filhas, o espelho
         // em trip_expenses e o vínculo em mf_tx_links.
-        const upsertTx = (row) => {
-          if (!row) return;
-          const next = { user_id: authUser.id, ...row };
-          const list = store.mf_transactions || [];
-          const index = list.findIndex((item) => item.id === next.id);
-          if (index >= 0) list[index] = { ...list[index], ...next };
-          else list.push(next);
-          store.mf_transactions = list;
-        };
         upsertTx({ ...body.p_tx, id: txId });
         (body.p_children || []).forEach((row) => upsertTx(row));
 
@@ -446,6 +452,94 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
           contentType: 'application/json',
           headers: CORS,
           body: JSON.stringify(txId),
+        });
+      }
+      if (request.method() === 'POST' && fn === 'mf_pay_card_invoice') {
+        let body = {};
+        try {
+          body = JSON.parse(request.postData() || '{}');
+        } catch {
+          body = {};
+        }
+        page.mfPayCardRpcCalls = [...(page.mfPayCardRpcCalls || []), body];
+        // Extras (crédito do parcelamento, parcelas e encargos).
+        (body.p_extras || []).forEach((row) => upsertTx(row));
+        // Pagamento: reusa a linha PENDENTE da fatura ou cria uma nova.
+        let paymentId = null;
+        if (body.p_payment) {
+          const pending = (store.mf_transactions || []).filter(
+            (row) =>
+              row.account_id === body.p_account_id &&
+              row.type === 'DESPESA' &&
+              row.invoice_close === body.p_invoice_close &&
+              row.status === 'PENDENTE'
+          );
+          const existing = pending[0];
+          const saved = existing
+            ? upsertTx({ ...body.p_payment, notes: null }, existing.id)
+            : upsertTx({ ...body.p_payment, notes: null }, body.p_payment?.id);
+          paymentId = saved?.id ?? null;
+        }
+        // Espelhos: sem pagamento sai tudo; com pagamento sai só o duplicado.
+        const marker = 'Agendado automaticamente (fatura)';
+        store.mf_transactions = (store.mf_transactions || []).filter((row) => {
+          const isPending =
+            row.account_id === body.p_account_id &&
+            row.type === 'DESPESA' &&
+            row.invoice_close === body.p_invoice_close &&
+            row.status === 'PENDENTE';
+          if (!isPending) return true;
+          if (body.p_replace_all) return false;
+          return !(row.notes === marker && row.id !== paymentId);
+        });
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS,
+          body: JSON.stringify({ payment_id: paymentId, extra_ids: [], deleted_ids: [] }),
+        });
+      }
+      if (request.method() === 'POST' && fn === 'mf_save_tx_with_goal') {
+        let body = {};
+        try {
+          body = JSON.parse(request.postData() || '{}');
+        } catch {
+          body = {};
+        }
+        page.mfGoalRpcCalls = [...(page.mfGoalRpcCalls || []), body];
+        const opId = body.p_operation_id || body.p_tx?.id;
+        // Retry com o mesmo id da operação atualiza (não duplica).
+        upsertTx({ ...body.p_tx, id: opId });
+        let contributionId = null;
+        if (body.p_goal_contribution) {
+          store.mf_goal_contributions = store.mf_goal_contributions || [];
+          const contribution = {
+            user_id: authUser.id,
+            ...body.p_goal_contribution,
+            id: `gc-e2e-${opId}`,
+            transaction_id: opId,
+          };
+          const index = store.mf_goal_contributions.findIndex(
+            (row) => row.transaction_id === opId
+          );
+          if (index >= 0) {
+            store.mf_goal_contributions[index] = {
+              ...store.mf_goal_contributions[index],
+              ...contribution,
+            };
+          } else {
+            store.mf_goal_contributions.push(contribution);
+          }
+          contributionId = contribution.id;
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS,
+          body: JSON.stringify({
+            transaction_id: opId,
+            contribution_id: contributionId,
+          }),
         });
       }
       return route.fulfill({

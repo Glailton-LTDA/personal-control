@@ -1965,6 +1965,73 @@ export function useSaveMFTransactionLinked() {
   });
 }
 
+/**
+ * Salva um lançamento com aporte de objetivo numa transação só
+ * (`mf_save_tx_with_goal`): a receita e o aporte entram (ou não entram)
+ * juntos. Idempotente pelo id da operação — o retry manda o mesmo id e o
+ * servidor devolve o resultado existente em vez de criar outra receita.
+ */
+export function useSaveMFTransactionWithGoal() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: async ({
+      operationId,
+      payload,
+      contribution = null,
+      deleteContribution = false,
+    }) => {
+      if (isOffline()) {
+        // Offline: a fila cuida do lançamento e do aporte separadamente.
+        const created = await mfMutate({
+          table: 'mf_transactions',
+          action: 'insert',
+          payload,
+          run: async () => {
+            const { data, error } = await supabase
+              .from('mf_transactions')
+              .insert(payload)
+              .select();
+            if (error) throw error;
+            return data ?? [];
+          },
+        });
+        if (contribution) {
+          await mfMutate({
+            table: 'mf_goal_contributions',
+            action: 'insert',
+            payload: { ...contribution, transaction_id: operationId },
+            run: async () => {
+              const { data, error } = await supabase
+                .from('mf_goal_contributions')
+                .insert({ ...contribution, transaction_id: operationId })
+                .select();
+              if (error) throw error;
+              return data ?? [];
+            },
+          });
+        }
+        return created;
+      }
+      return mfMutate({
+        table: 'mf_transactions',
+        action: 'insert',
+        payload,
+        run: async () => {
+          const { data, error } = await supabase.rpc('mf_save_tx_with_goal', {
+            p_operation_id: operationId,
+            p_tx: payload,
+            p_goal_contribution: contribution,
+            p_delete_contribution: deleteContribution,
+          });
+          if (error) throw error;
+          return data;
+        },
+      });
+    },
+    onSuccess: invalidate,
+  });
+}
+
 export function useDeleteMFTransaction() {
   const invalidate = useInvalidateAll();
   return useMutation({
@@ -3845,7 +3912,39 @@ export function usePayCardInvoice() {
      * adicionais do mesmo fluxo — encargos na conta ou o crédito/parcelas
      * do "Parcelar fatura" no cartão.
      */
-    mutationFn: async ({ card, invoice, payload = null, extraRows = [] }) => {
+    mutationFn: async ({ card, invoice, payload = null, extraRows = [], openAmount = null }) => {
+      const extras = (Array.isArray(extraRows) ? extraRows : [extraRows]).filter(Boolean);
+      const payable =
+        openAmount != null
+          ? Number(openAmount)
+          : Math.round(
+              ((Number(invoice?.openAmount) || 0) + (Number(invoice?.pendingBound) || 0)) * 100
+            ) / 100;
+
+      if (!isOffline()) {
+        // Uma transação só: pagamento, crédito, parcelas, encargos e a
+        // remoção dos espelhos entram (ou não entram) juntos.
+        return mfMutate({
+          table: 'mf_transactions',
+          action: 'insert',
+          payload: payload ? [payload] : extras,
+          run: async () => {
+            const { data, error } = await supabase.rpc('mf_pay_card_invoice', {
+              p_card_id: card.id,
+              p_account_id: card.linked_account_id,
+              p_invoice_close: invoice.closeISO,
+              p_payment: payload ? { ...payload, notes: null } : null,
+              p_extras: extras,
+              p_replace_all: !payload,
+              p_open_amount: payable,
+            });
+            if (error) throw error;
+            return data;
+          },
+        });
+      }
+
+      // Offline: cada pedaço vira uma entrada na fila (sobe depois).
       const { data, error } = await supabase
         .from('mf_transactions')
         .select('*')
@@ -3874,7 +3973,6 @@ export function usePayCardInvoice() {
       // qualquer pagamento ainda agendado para a fatura (senão o valor
       // financiado seria debitado duas vezes).
       const replaced = payload ? superseded : rows;
-      const extras = (Array.isArray(extraRows) ? extraRows : [extraRows]).filter(Boolean);
       const insertedIds = [];
       let result = null;
       try {

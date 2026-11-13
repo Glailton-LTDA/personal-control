@@ -37,6 +37,7 @@ import {
   formatMonthLabel,
   invoiceCloseForDueMonth,
   useSaveMFTransactionLinked,
+  useSaveMFTransactionWithGoal,
   useMFProfiles,
   useMFGoals,
   useMFGoalContributions,
@@ -173,6 +174,7 @@ export default function MFTransacaoScreen({
   const updateMutation = useUpdateMFTransaction();
   const deleteMutation = useDeleteMFTransaction();
   const saveLinkedMutation = useSaveMFTransactionLinked();
+  const saveWithGoalMutation = useSaveMFTransactionWithGoal();
   const { data: profiles = [] } = useMFProfiles(user);
   const activeProfileId = useMFProfileScope();
   const { data: goals = [] } = useMFGoals(user);
@@ -246,6 +248,10 @@ export default function MFTransacaoScreen({
   const editScopeMode = useRef(null);
   // Ids criados aqui nesta abertura (ponte até o refetch trazê-los)
   const createdCategoryIds = useRef(new Set());
+  // Id da operação de gravação: gerado antes da primeira tentativa e
+  // reaproveitado nos retries. O servidor reconhece a repetição e devolve
+  // o resultado existente — a resposta perdida não vira receita duplicada.
+  const operationIdRef = useRef(null);
 
   const isEdit = !!tx;
   const isEstorno = mode === 'estorno' && !isEdit;
@@ -1280,7 +1286,16 @@ export default function MFTransacaoScreen({
 
       // Id da cabeça gerado aqui (criação) para as filhas já nascerem
       // apontando para ela — a RPC vinculada insere tudo numa transação.
-      const headId = isEdit ? tx.id : generateUUID();
+      // Na criação via RPC, o id é o id da operação: o retry reaproveita o
+      // mesmo e o servidor reconhece a repetição (não duplica a receita).
+      const goalTxViaRpc = wishGoal && !isEdit && !linkedCreate;
+      const viaRpc = goalTxViaRpc || linkedCreate;
+      if (!isEdit && viaRpc && !operationIdRef.current) operationIdRef.current = generateUUID();
+      const headId = isEdit
+        ? tx.id
+        : viaRpc
+          ? operationIdRef.current ?? generateUUID()
+          : generateUUID();
       // Cabeça: cria — ou atualiza o lançamento em edição ao converter
       // um avulso em série (ele vira a cabeça, com as filhas vinculadas).
       const saveHead = async (extra, children = []) => {
@@ -1438,22 +1453,42 @@ export default function MFTransacaoScreen({
           );
         }
         await persistSeries({ recurrence: periodicity }, children);
+      } else if (goalTxViaRpc) {
+        // Receita com aporte: uma transação só — se o aporte for recusado,
+        // a receita não fica gravada e o retry não duplica nada.
+        await saveWithGoalMutation.mutateAsync({
+          operationId: headId,
+          payload: { ...base, recurrence: 'NONE', id: headId },
+          contribution: {
+            user_id: user.id,
+            goal_id: form.goal_id,
+            kind: 'DEPOSIT',
+            amount: Math.abs(Number(base.amount) || 0),
+            contribution_date: base.payment_date,
+            notes: null,
+          },
+        });
+        savedHeadId = headId;
+        createdIds.push(headId);
       } else {
         savedHeadId = await saveHead({ recurrence: 'NONE' });
       }
 
-      try {
-        await syncGoalContribution(savedHeadId ?? headId, base.amount, base.payment_date);
-      } catch (err) {
-        // O lançamento já foi gravado; se o aporte falhar, desfaz a criação
-        // para o retry não gerar uma segunda receita (na edição o retry
-        // atualiza o mesmo lançamento e não duplica).
-        if (!isEdit && savedHeadId) {
-          await deleteMutation.mutateAsync(savedHeadId).catch(() => {});
+      if (!goalTxViaRpc) {
+        try {
+          await syncGoalContribution(savedHeadId ?? headId, base.amount, base.payment_date);
+        } catch (err) {
+          // O lançamento já foi gravado; se o aporte falhar, desfaz a criação
+          // para o retry não gerar uma segunda receita (na edição o retry
+          // atualiza o mesmo lançamento e não duplica).
+          if (!isEdit && savedHeadId) {
+            await deleteMutation.mutateAsync(savedHeadId).catch(() => {});
+          }
+          throw err;
         }
-        throw err;
       }
       await linkTags(isEdit ? [tx.id, ...createdIds.filter(Boolean)] : createdIds.filter(Boolean));
+      operationIdRef.current = null;
       toast.success(t(isEdit ? 'minhasfinancas.tx_updated' : 'minhasfinancas.tx_saved'));
       onClose();
     } catch {

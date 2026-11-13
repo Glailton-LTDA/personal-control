@@ -2214,18 +2214,73 @@ describe('Tela de Lançamentos (Fase 3)', () => {
     fireEvent.click(screen.getByTestId('mf-tx-save'));
 
     const { supabase } = await import('../../lib/supabase');
-    const contributions = supabase.from('mf_goal_contributions');
     await waitFor(() => {
-      expect(contributions.insert).toHaveBeenCalled();
+      expect(
+        supabase.rpc.mock.calls.some(([name]) => name === 'mf_save_tx_with_goal')
+      ).toBe(true);
     });
-    const txRow = supabase.from('mf_transactions').insert.mock.calls[0][0][0];
-    expect(contributions.insert.mock.calls[0][0]).toMatchObject({
+    const args = supabase.rpc.mock.calls.find(([name]) => name === 'mf_save_tx_with_goal')[1];
+    // Receita e aporte na MESMA transação (uma RPC só).
+    expect(args.p_tx).toMatchObject({
+      user_id: 'test-user',
+      type: 'RECEITA',
+      account_id: 'acc-1',
+      amount: 1500,
+    });
+    // O id do lançamento é o id da operação: o retry não duplica a receita.
+    expect(args.p_tx.id).toBe(args.p_operation_id);
+    expect(args.p_goal_contribution).toMatchObject({
       user_id: 'test-user',
       goal_id: 'goal-1',
-      transaction_id: txRow.id,
       kind: 'DEPOSIT',
       amount: 1500,
       contribution_date: '2026-10-20',
+    });
+  });
+
+  it('retry da receita com aporte reusa o id da operação', async () => {
+    const { supabase } = await import('../../lib/supabase');
+    // A primeira tentativa falha: o servidor não gravou nada.
+    supabase.rpc.mockImplementationOnce(() =>
+      Promise.resolve({ data: null, error: { message: 'mf_goal_tx_account' } })
+    );
+
+    renderScreen();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('mf-tx-row')).toHaveLength(3);
+    });
+
+    openAdd('income');
+    fireEvent.change(screen.getByTestId('mf-tx-description'), {
+      target: { value: 'Bônus anual' },
+    });
+    fireEvent.change(screen.getByTestId('mf-tx-amount'), { target: { value: '1.500,00' } });
+    fireEvent.click(screen.getByTestId('mf-tx-account'));
+    fireEvent.click(screen.getByTestId('mf-tx-account-option-acc-1'));
+    fireEvent.change(screen.getByTestId('mf-tx-payment-date'), {
+      target: { value: '2026-10-20' },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('mf-tx-goal-link')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('mf-tx-goal'));
+    fireEvent.click(screen.getByTestId('mf-tx-goal-option-goal-1'));
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+    await waitFor(() => {
+      expect(
+        supabase.rpc.mock.calls.some(([name]) => name === 'mf_save_tx_with_goal')
+      ).toBe(true);
+    });
+
+    fireEvent.click(screen.getByTestId('mf-tx-save'));
+    await waitFor(() => {
+      const calls = supabase.rpc.mock.calls.filter(
+        ([name]) => name === 'mf_save_tx_with_goal'
+      );
+      expect(calls.length).toBeGreaterThanOrEqual(2);
+      // Mesma operação: o servidor reconhece a repetição.
+      expect(calls.at(-1)[1].p_operation_id).toBe(calls[0][1].p_operation_id);
     });
   });
 

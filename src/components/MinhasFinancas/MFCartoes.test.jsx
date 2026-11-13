@@ -137,6 +137,17 @@ vi.mock('../../lib/supabase', () => {
         return transactions;
       }),
       storage: { from: vi.fn(() => ({ upload: vi.fn().mockResolvedValue({ error: null }) })) },
+      // Pagamento de fatura: uma RPC transacional (pagamento + extras).
+      // As demais RPCs não existem no mock — o hook cai na leitura local.
+      rpc: vi.fn(async (name) => {
+        if (name === 'mf_pay_card_invoice') {
+          return {
+            data: { payment_id: 'pay-1', extra_ids: [], deleted_ids: [] },
+            error: null,
+          };
+        }
+        throw new Error(`rpc ${name} indisponível no mock`);
+      }),
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user' } }, error: null }),
         signOut: vi.fn().mockResolvedValue({ error: null }),
@@ -154,6 +165,16 @@ const renderScreen = () => {
       <MFCartoes user={{ id: 'test-user' }} />
     </QueryClientProvider>
   );
+};
+
+/** Argumentos da última chamada da RPC transacional de pagamento de fatura. */
+const lastPayRpc = async () => {
+  const { supabase } = await import('../../lib/supabase');
+  await waitFor(() => {
+    expect(supabase.rpc.mock.calls.some(([name]) => name === 'mf_pay_card_invoice')).toBe(true);
+  });
+  const calls = supabase.rpc.mock.calls.filter(([name]) => name === 'mf_pay_card_invoice');
+  return calls.at(-1)[1];
 };
 
 describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
@@ -383,11 +404,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(screen.getByTestId('mf-pay-amount')).toHaveValue('800,00');
     fireEvent.click(screen.getByTestId('mf-pay-continue'));
 
-    const { supabase } = await import('../../lib/supabase');
-    await waitFor(() => {
-      expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
-    });
-    expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+    const args = await lastPayRpc();
+    expect(args.p_payment).toMatchObject({
       user_id: 'test-user',
       type: 'DESPESA',
       account_id: 'acc-check', // origem: conta vinculada (sem transação no cartão)
@@ -397,7 +415,6 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       invoice_close: '2026-09-10', // vínculo com a fatura paga
     });
   });
-
   it('pagamento de fatura vencida com encargos debita pagamento e encargos separados', async () => {
     renderScreen();
     await waitFor(() => {
@@ -422,13 +439,26 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     fireEvent.click(screen.getByTestId('mf-pay-continue'));
 
     const { supabase } = await import('../../lib/supabase');
-    const chain = supabase.from('mf_transactions');
     await waitFor(() => {
-      expect(chain.insert).toHaveBeenCalledTimes(2);
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'mf_pay_card_invoice',
+        expect.objectContaining({
+          p_card_id: 'acc-card',
+          p_account_id: 'acc-check',
+          p_invoice_close: '2026-09-10',
+        })
+      );
     });
-    // Os extras (encargos) são gravados ANTES do pagamento: se falharem,
-    // o pagamento não fica gravado (a fatura não é paga pela metade).
-    expect(chain.insert.mock.calls[0][0][0]).toMatchObject({
+    const args = await lastPayRpc();
+    // Pagamento e encargos vão na MESMA transação (uma RPC só).
+    expect(args.p_payment).toMatchObject({
+      account_id: 'acc-check',
+      amount: 800,
+      invoice_close: '2026-09-10',
+      status: 'PAGO',
+    });
+    expect(args.p_extras).toHaveLength(1);
+    expect(args.p_extras[0]).toMatchObject({
       account_id: 'acc-check',
       type: 'DESPESA',
       amount: 50,
@@ -436,12 +466,6 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       status: 'PAGO',
       notes: 'Encargos de fatura',
       invoice_close: null,
-    });
-    expect(chain.insert.mock.calls[1][0][0]).toMatchObject({
-      account_id: 'acc-check',
-      amount: 800,
-      invoice_close: '2026-09-10',
-      status: 'PAGO',
     });
   });
 
@@ -474,23 +498,17 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
 
     fireEvent.click(screen.getByTestId('mf-pay-installments-confirm'));
 
-    const { supabase } = await import('../../lib/supabase');
-    const chain = supabase.from('mf_transactions');
-    await waitFor(() => {
-      expect(chain.insert).toHaveBeenCalledTimes(2);
-    });
-
-    // Crédito + parcelas PRIMEIRO: se a gravação das parcelas falhar, a
-    // entrada não fica gravada (nada é pago pela metade).
-    const extras = chain.insert.mock.calls[0][0];
-    expect(extras).toHaveLength(13);
-    expect(extras[0]).toMatchObject({
+    const args = await lastPayRpc();
+    // Crédito + parcelas + entrada: tudo na mesma transação — se alguma
+    // parte falhar, nada fica gravado.
+    expect(args.p_extras).toHaveLength(13);
+    expect(args.p_extras[0]).toMatchObject({
       account_id: 'acc-card',
       amount: -600,
       notes: 'Fatura parcelada',
       invoice_close: '2026-09-10',
     });
-    expect(extras[1]).toMatchObject({
+    expect(args.p_extras[1]).toMatchObject({
       account_id: 'acc-card',
       amount: 50,
       installments_current: 1,
@@ -498,14 +516,13 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       payment_date: '2026-10-20',
       invoice_close: '2026-10-10',
     });
-    expect(extras[12]).toMatchObject({
+    expect(args.p_extras[12]).toMatchObject({
       installments_current: 12,
       payment_date: '2027-09-20',
       invoice_close: '2027-09-10',
     });
 
-    const entry = chain.insert.mock.calls[1][0][0];
-    expect(entry).toMatchObject({
+    expect(args.p_payment).toMatchObject({
       account_id: 'acc-check',
       amount: 200,
       status: 'PAGO',
@@ -780,11 +797,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
       expect(screen.getByTestId('mf-pay-amount')).toHaveValue('1266,93');
 
       fireEvent.click(screen.getByTestId('mf-pay-continue'));
-      const { supabase } = await import('../../lib/supabase');
-      await waitFor(() => {
-        expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
-      });
-      expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+      const args = await lastPayRpc();
+      expect(args.p_payment).toMatchObject({
         type: 'DESPESA',
         account_id: 'acc-check', // conta vinculada (sem transação no cartão)
         amount: 1266.93,
@@ -815,11 +829,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
     fireEvent.click(screen.getByTestId('mf-pay-continue'));
 
-    const { supabase } = await import('../../lib/supabase');
-    await waitFor(() => {
-      expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
-    });
-    expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+    const args = await lastPayRpc();
+    expect(args.p_payment).toMatchObject({
       type: 'DESPESA',
       account_id: 'acc-check',
       amount: 1700,
@@ -841,11 +852,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     });
     fireEvent.click(screen.getByTestId('mf-pay-continue'));
 
-    const { supabase } = await import('../../lib/supabase');
-    await waitFor(() => {
-      expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
-    });
-    expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+    const args = await lastPayRpc();
+    expect(args.p_payment).toMatchObject({
       user_id: 'test-user',
       type: 'DESPESA',
       account_id: 'acc-check',
@@ -875,11 +883,8 @@ describe('MFCartoes — Cartões e faturas (Fase 4)', () => {
     expect(screen.getByTestId('mf-pay-amount')).toHaveValue('500,00');
     fireEvent.click(screen.getByTestId('mf-pay-continue'));
 
-    const { supabase } = await import('../../lib/supabase');
-    await waitFor(() => {
-      expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
-    });
-    expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+    const args = await lastPayRpc();
+    expect(args.p_payment).toMatchObject({
       amount: 500,
       status: 'PENDENTE',
       payment_date: '2026-10-20',
