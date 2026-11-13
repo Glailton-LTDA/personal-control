@@ -252,8 +252,6 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     
     // Expand
     await page.getByTestId('checklist-title-checklist-alpha').click({ force: true });
-    // Wait for animation
-    await page.waitForTimeout(500); 
     await expect(taskItem).toBeVisible({ timeout: 15000 });
   });
 
@@ -261,5 +259,41 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await goToChecklists(page);
     await page.getByTestId('import-checklist-btn').click();
     await expect(page.getByText(/Importar de outras viagens|Import from other trips|Importar de otros viajes/i)).toBeVisible();
+  });
+
+  test('deve importar no celular e reabrir os checklists após recarregar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await goToChecklists(page);
+    await page.evaluate(async () => {
+      const { db } = await import('/src/lib/offline/db.js');
+      await db.trips.put({ id: 'trip-source', user_id: 'user-123', title: 'Viagem de origem' });
+      await db.trip_checklists.put({ id: 'list-source', trip_id: 'trip-source', title: 'Lista de origem' });
+      await db.trip_checklist_items.put({ id: 'item-source', checklist_id: 'list-source', task: 'Carregador', completed: true });
+    });
+    // Include the source trip in the server response as well as the offline cache.
+    await page.route('**/rest/v1/trips*', async route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify([
+        { id: 'trip-1', user_id: 'user-123', title: 'Viagem Teste', currencies: ['BRL'] },
+        { id: 'trip-source', user_id: 'user-123', title: 'Viagem de origem', currencies: ['BRL'] },
+      ]),
+    }));
+    const tripsRefetched = page.waitForResponse(response => response.url().includes('/rest/v1/trips?'));
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('database-synced', { detail: { source: 'trips' } })));
+    await tripsRefetched;
+    await page.getByTestId('import-checklist-btn').click();
+    await page.getByRole('button', { name: 'Lista de origem', exact: true }).click();
+    await expect(page.getByText('Carregador', { exact: true })).toBeVisible();
+    expect(pageErrors).toEqual([]);
+    await page.goto('/trips/checklists');
+    await expect(page.getByTestId('checklists-title')).toBeVisible({ timeout: 15000 });
+    await page.reload();
+    await expect(page.getByTestId('checklists-title')).toBeVisible({ timeout: 15000 });
+    await page.goto('/trips/list');
+    await expect(page.getByTestId('trip-selector')).toBeVisible({ timeout: 15000 });
+    await page.goto('/launchpad');
+    await expect(page.getByTestId('launchpad-item-trips')).toBeVisible({ timeout: 15000 });
+    expect(pageErrors).toEqual([]);
   });
 });

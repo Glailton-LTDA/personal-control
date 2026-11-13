@@ -102,6 +102,30 @@ describe('TripChecklists', () => {
     });
   });
 
+  it('keeps navigation available while the selected trip is restored or removed', async () => {
+    setupSupabaseMocks();
+    const onBack = vi.fn();
+    const { rerender } = render(<TripChecklists user={mockUser} trip={null} onBack={onBack} />, { wrapper: Wrapper });
+    expect(screen.getByText('Carregando informações da viagem...')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(supabase.from).not.toHaveBeenCalledWith('trip_checklists');
+
+    rerender(<TripChecklists user={mockUser} trip={mockTrip} onBack={onBack} />);
+    expect(await screen.findByText('Viagem Teste')).toBeInTheDocument();
+    rerender(<TripChecklists user={mockUser} trip={null} onBack={onBack} />);
+    expect(screen.getByRole('button', { name: 'Voltar' })).toBeInTheDocument();
+  });
+
+  it('waits for the session before exposing checklist actions', async () => {
+    setupSupabaseMocks();
+    const { rerender } = render(<TripChecklists user={null} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
+    expect(screen.getByRole('button', { name: 'Voltar' })).toBeInTheDocument();
+    expect(screen.queryByTestId('btn-add-checklist')).not.toBeInTheDocument();
+    rerender(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />);
+    expect(await screen.findByTestId('btn-add-checklist')).toBeInTheDocument();
+  });
+
   it('allows adding a new checklist', async () => {
     const user = userEvent.setup();
     const newChecklist = { id: 'new-list', trip_id: mockTrip.id, title: 'Lista Nova', items: [] };

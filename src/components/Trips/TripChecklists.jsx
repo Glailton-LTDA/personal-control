@@ -38,13 +38,17 @@ export default function TripChecklists({ user, trip, onBack }) {
   const { data: checklists = [], isLoading: loading } = useOfflineChecklists(trip?.id);
   const { data: allTrips = [] } = useOfflineTrips(user?.id);
 
-  const createChecklistMutation = useOfflineCreateChecklist(user.id, trip.id);
-  const updateChecklistMutation = useOfflineUpdateChecklist(user.id, trip.id);
-  const deleteChecklistMutation = useOfflineDeleteChecklist(user.id, trip.id);
+  // The saved checklist view can mount before the selected trip is restored.
+  // Keep hooks unconditional while allowing the loading/back screen to render.
+  const userId = user?.id;
+  const tripId = trip?.id;
+  const createChecklistMutation = useOfflineCreateChecklist(userId, tripId);
+  const updateChecklistMutation = useOfflineUpdateChecklist(userId, tripId);
+  const deleteChecklistMutation = useOfflineDeleteChecklist(userId, tripId);
   
-  const createChecklistItemMutation = useOfflineCreateChecklistItem(user.id, trip.id);
-  const updateChecklistItemMutation = useOfflineUpdateChecklistItem(user.id, trip.id);
-  const deleteChecklistItemMutation = useOfflineDeleteChecklistItem(user.id, trip.id);
+  const createChecklistItemMutation = useOfflineCreateChecklistItem(userId, tripId);
+  const updateChecklistItemMutation = useOfflineUpdateChecklistItem(userId, tripId);
+  const deleteChecklistItemMutation = useOfflineDeleteChecklistItem(userId, tripId);
 
   const handleAddChecklist = async () => {
     if (!trip?.id || !newListTitle.trim()) {
@@ -217,7 +221,7 @@ export default function TripChecklists({ user, trip, onBack }) {
     }
   };
 
-  if (!trip) {
+  if (!tripId || !userId) {
     return (
       <div style={{ padding: '5rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
         <Motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}>
