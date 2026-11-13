@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.2.5] - 2026-11-12
+
+### Corrigido
+- **Estorno no cartão**: o estorno em conta de cartão grava a fatura escolhida no picker (`invoice_close`), atendendo ao banco que exige fatura vinculada em toda despesa de cartão (erro P0001).
+- **Checklists de viagem offline**: criação com o dono para satisfazer a RLS (42501), recuperação única das entradas esgotadas da fila de sincronização e payload de itinerário serializado pelas colunas reais do servidor.
+
+### Adicionado
+- **Objetivos e pagamento de fatura**: detalhe de metas com progresso por saldo da conta ou aportes manuais, receita com aporte gravados numa transação única e idempotente, e pagamento/parcelamento de fatura com escritas transacionais no servidor.
+
 ### Corrigido
 - **Investimentos**: exclusão de tipos de conta preserva a função de tradução.
 - **Viagens**: formulário de despesas permite validar a ausência de uma viagem; mapas das estatísticas toleram viagens sem lista de países.
