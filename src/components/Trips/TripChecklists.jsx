@@ -38,13 +38,17 @@ export default function TripChecklists({ user, trip, onBack }) {
   const { data: checklists = [], isLoading: loading } = useOfflineChecklists(trip?.id);
   const { data: allTrips = [] } = useOfflineTrips(user?.id);
 
-  const createChecklistMutation = useOfflineCreateChecklist(user.id, trip.id);
-  const updateChecklistMutation = useOfflineUpdateChecklist(user.id, trip.id);
-  const deleteChecklistMutation = useOfflineDeleteChecklist(user.id, trip.id);
+  // The saved checklist view can mount before the selected trip is restored.
+  // Keep hooks unconditional while allowing the loading/back screen to render.
+  const userId = user?.id;
+  const tripId = trip?.id;
+  const createChecklistMutation = useOfflineCreateChecklist(userId, tripId);
+  const updateChecklistMutation = useOfflineUpdateChecklist(userId, tripId);
+  const deleteChecklistMutation = useOfflineDeleteChecklist(userId, tripId);
   
-  const createChecklistItemMutation = useOfflineCreateChecklistItem(user.id, trip.id);
-  const updateChecklistItemMutation = useOfflineUpdateChecklistItem(user.id, trip.id);
-  const deleteChecklistItemMutation = useOfflineDeleteChecklistItem(user.id, trip.id);
+  const createChecklistItemMutation = useOfflineCreateChecklistItem(userId, tripId);
+  const updateChecklistItemMutation = useOfflineUpdateChecklistItem(userId, tripId);
+  const deleteChecklistItemMutation = useOfflineDeleteChecklistItem(userId, tripId);
 
   const handleAddChecklist = async () => {
     if (!trip?.id || !newListTitle.trim()) {
@@ -217,7 +221,7 @@ export default function TripChecklists({ user, trip, onBack }) {
     }
   };
 
-  if (!trip) {
+  if (!tripId || !userId) {
     return (
       <div style={{ padding: '5rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
         <Motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}>
@@ -640,6 +644,9 @@ export default function TripChecklists({ user, trip, onBack }) {
         {isImportModalOpen && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
             <Motion.div 
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="checklist-import-title"
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -648,10 +655,10 @@ export default function TripChecklists({ user, trip, onBack }) {
             >
               <div style={{ padding: '2rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>{t('trips.import_from_other_trips', 'Importar de outras viagens')}</h3>
+                  <h3 id="checklist-import-title" style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>{t('trips.import_from_other_trips', 'Importar de outras viagens')}</h3>
                   <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('trips.import_modal_desc')}</p>
                 </div>
-                <button onClick={() => setIsImportModalOpen(false)} className="action-btn"><X size={24} /></button>
+                <button aria-label={t('common.cancel')} onClick={() => setIsImportModalOpen(false)} className="action-btn"><X size={24} /></button>
               </div>
               
               <div style={{ padding: '1.5rem', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
