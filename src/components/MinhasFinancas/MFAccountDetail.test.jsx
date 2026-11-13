@@ -267,6 +267,17 @@ vi.mock('../../lib/supabase', () => {
       storage: {
         from: vi.fn(() => ({ upload: vi.fn().mockResolvedValue({ error: null }) })),
       },
+      // Pagamento de fatura: uma RPC transacional (pagamento + extras).
+      // As demais RPCs não existem no mock — o hook cai na leitura local.
+      rpc: vi.fn(async (name) => {
+        if (name === 'mf_pay_card_invoice') {
+          return {
+            data: { payment_id: 'pay-1', extra_ids: [], deleted_ids: [] },
+            error: null,
+          };
+        }
+        throw new Error(`rpc ${name} indisponível no mock`);
+      }),
       auth: {
         getUser: vi
           .fn()
@@ -563,9 +574,14 @@ describe('MFAccountDetail', () => {
 
       const { supabase } = await import('../../lib/supabase');
       await waitFor(() => {
-        expect(supabase.from('mf_transactions').insert).toHaveBeenCalled();
+        expect(
+          supabase.rpc.mock.calls.some(([name]) => name === 'mf_pay_card_invoice')
+        ).toBe(true);
       });
-      expect(supabase.from('mf_transactions').insert.mock.calls[0][0][0]).toMatchObject({
+      const call = supabase.rpc.mock.calls
+        .filter(([name]) => name === 'mf_pay_card_invoice')
+        .at(-1);
+      expect(call[1].p_payment).toMatchObject({
         user_id: 'test-user',
         type: 'DESPESA',
         account_id: 'acc-1', // origem: a própria conta (sem transação no cartão)

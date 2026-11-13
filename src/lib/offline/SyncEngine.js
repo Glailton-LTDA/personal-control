@@ -3,6 +3,8 @@ import { db, MF_SYNC_TABLES } from './db';
 import { MUSIC_SONG_LIST_COLUMNS } from './musicQueries';
 import { offlineIdentity, queueOwner } from './owner';
 import { mfSelectAll } from './mfOffline';
+import { recoverTripQueue, serializeTripRow } from './tripsPayload';
+import { MF_ATOMIC_QUEUE, sendMfAtomicOperation } from './mfAtomic';
 
 export class MusicSyncProvider {
   constructor(userId) {
@@ -152,7 +154,7 @@ export class MfSyncProvider {
       if (!tableDb) continue;
       // Sem apagar mudanças ainda na fila (nem o cache de outras contas).
       const pending = await db.sync_queue.toArray();
-      if (pending.some((entry) => entry.table_name === table && queueOwner(entry) === this.userId)) continue;
+      if (pending.some((entry) => (entry.table_name === table || entry.table_name === MF_ATOMIC_QUEUE) && queueOwner(entry) === this.userId)) continue;
       if (await offlineIdentity() !== this.userId) return results;
       await db.transaction('rw', tableDb, async () => {
         await tableDb.where('user_id').equals(this.userId).delete();
@@ -284,6 +286,7 @@ export class SyncEngine {
 
   async drainQueue() {
     if (!this._isOnline || !this.userId || this.destroyed || await offlineIdentity() !== this.userId) return 0;
+    await recoverTripQueue(this.userId);
     const queue = await db.sync_queue.toArray();
     // Entradas legadas sem dono permanecem intactas, em quarentena.
     const activeQueue = queue.filter((entry) => queueOwner(entry) === this.userId && (entry.attempts || 0) < 5);
@@ -307,6 +310,11 @@ export class SyncEngine {
   async _processQueueEntry(entry) {
     const { table_name, record_id, action, payload } = entry;
     switch (action) {
+      case 'rpc': {
+        if (table_name !== MF_ATOMIC_QUEUE || queueOwner(entry) !== this.userId) throw new Error('offline_owner_mismatch');
+        await sendMfAtomicOperation(payload.rpc, payload.args, this.userId);
+        break;
+      }
       case 'insert':
       case 'update': {
         if (
@@ -317,6 +325,13 @@ export class SyncEngine {
           // upsert só com as colunas reais.
           const { id: _id, updated_at: _ua, ...cleanPayload } = payload || {};
           const { error } = await supabase.from(table_name).upsert(cleanPayload);
+          if (error) throw error;
+        } else if (
+          table_name === 'trip_checklists' ||
+          table_name === 'trip_itinerary'
+        ) {
+          const row = serializeTripRow(table_name, payload, entry.owner_id);
+          const { error } = await supabase.from(table_name).upsert(row).select();
           if (error) throw error;
         } else {
           const { error } = await supabase.from(table_name).upsert(payload).select();
