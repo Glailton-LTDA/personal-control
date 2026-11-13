@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TripChecklists from './TripChecklists';
 import { supabase } from '../../lib/supabase';
 import { clearTripsCache } from '../../lib/offline/db';
+import * as offlineDb from '../../lib/offline/db';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -196,6 +197,84 @@ describe('TripChecklists', () => {
     await waitFor(() => {
       expect(screen.getByText('Nova Tarefa')).toBeInTheDocument();
     });
+  });
+
+  async function openItemEditor() {
+    setupSupabaseMocks({ checklists: [{ id: 'list-1', trip_id: mockTrip.id, title: 'Checklist 1', items: [] }] });
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
+    fireEvent.click(await screen.findByText('Adicionar item'));
+    return screen.findByPlaceholderText('O que precisa ser feito?');
+  }
+
+  it('keeps the focused editor ready for consecutive items after Enter', async () => {
+    const input = await openItemEditor();
+    const user = userEvent.setup();
+    await user.type(input, 'Passaporte{Enter}');
+    await waitFor(() => expect(input).toHaveValue(''));
+    expect(input).toHaveFocus();
+    await user.type(input, 'Carregador{Enter}');
+    await waitFor(() => expect(input).toHaveValue(''));
+    expect(input).toHaveFocus();
+    const items = await offlineDb.getTripChecklistItemsFromDexie('list-1');
+    expect(items.map(item => item.task).sort()).toEqual(['Carregador', 'Passaporte']);
+    fireEvent.blur(input);
+    expect(input).toBeInTheDocument();
+  });
+
+  it('ignores blank, composing and repeated Enter without closing the editor', async () => {
+    const input = await openItemEditor();
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.change(input, { target: { value: 'Documento' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(input, { key: 'Enter', repeat: true });
+    expect(await offlineDb.getTripChecklistItemsFromDexie('list-1')).toEqual([]);
+    expect(input).toHaveValue('Documento');
+  });
+
+  it('does not duplicate a pending submission or reopen a cancelled editor', async () => {
+    const input = await openItemEditor();
+    let finish;
+    const gate = new Promise(resolve => { finish = resolve; });
+    const originalPut = offlineDb.putTripChecklistItemInDexie;
+    const put = vi.spyOn(offlineDb, 'putTripChecklistItemInDexie').mockImplementationOnce(async item => {
+      await gate;
+      return originalPut(item);
+    });
+    try {
+      fireEvent.change(input, { target: { value: 'Passaporte' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+      expect(input).toHaveAttribute('aria-busy', 'true');
+      expect(input).not.toHaveAttribute('readonly');
+      fireEvent.change(input, { target: { value: 'Alteração durante gravação' } });
+      expect(input).toHaveValue('Passaporte');
+      fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+      await act(async () => { finish(); await gate; });
+      await waitFor(() => expect(screen.queryByPlaceholderText('O que precisa ser feito?')).not.toBeInTheDocument());
+      expect(await offlineDb.getTripChecklistItemsFromDexie('list-1')).toHaveLength(1);
+      fireEvent.click(screen.getByText('Adicionar item'));
+      expect(await screen.findByPlaceholderText('O que precisa ser feito?')).toHaveValue('');
+    } finally {
+      put.mockRestore();
+    }
+  });
+
+  it('preserves the draft after a failed save and allows retry', async () => {
+    const input = await openItemEditor();
+    const put = vi.spyOn(offlineDb, 'putTripChecklistItemInDexie').mockRejectedValueOnce(new Error('synthetic storage failure'));
+    try {
+      const user = userEvent.setup();
+      await user.type(input, 'Seguro viagem{Enter}');
+      await waitFor(() => expect(input).toHaveAttribute('aria-busy', 'false'));
+      expect(input).toHaveValue('Seguro viagem');
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(input).toHaveValue(''));
+      expect(await offlineDb.getTripChecklistItemsFromDexie('list-1')).toHaveLength(1);
+    } finally {
+      put.mockRestore();
+    }
   });
 
   it('allows toggling an item', async () => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   ChevronLeft, Plus, Trash2, CheckCircle, Circle, 
   ListTodo, Save, X, Edit2, Check, Copy, Search,
@@ -31,6 +31,8 @@ export default function TripChecklists({ user, trip, onBack }) {
   const [newListTitle, setNewListTitle] = useState('');
   const [addingItemToId, setAddingItemToId] = useState(null);
   const [newItemTask, setNewItemTask] = useState('');
+  const newItemInputRef = useRef(null);
+  const savingItemRef = useRef(false);
   const [editingItemId, setEditingItemId] = useState(null);
   const [tempItemTask, setTempItemTask] = useState('');
   const [collapsedIds, setCollapsedIds] = useState(new Set());
@@ -82,10 +84,10 @@ export default function TripChecklists({ user, trip, onBack }) {
   };
 
   const handleAddItem = async (checklistId) => {
-    if (!newItemTask.trim()) {
-      setAddingItemToId(null);
-      return;
-    }
+    if (!newItemTask.trim() || savingItemRef.current) return;
+    savingItemRef.current = true;
+    const input = newItemInputRef.current;
+    input?.focus();
 
     try {
       await createChecklistItemMutation.mutateAsync({
@@ -93,11 +95,13 @@ export default function TripChecklists({ user, trip, onBack }) {
         task: newItemTask.trim(),
         completed: false
       });
-      setNewItemTask('');
-      setAddingItemToId(null);
+      // Do not clear a different editor if this one was cancelled while saving.
+      if (newItemInputRef.current === input) setNewItemTask('');
     } catch (err) {
       console.error(err);
       toast.error(t('trips.error_adding_item', 'Erro ao adicionar item'));
+    } finally {
+      savingItemRef.current = false;
     }
   };
 
@@ -234,14 +238,14 @@ export default function TripChecklists({ user, trip, onBack }) {
   }
 
   return (
-    <div className="fade-in" style={{ paddingBottom: '5rem' }}>
+    <div className="fade-in trip-checklists" style={{ paddingBottom: '5rem', width: '100%', minWidth: 0, minHeight: 0, flex: 1, overflowY: 'auto' }}>
       {/* Header Premium */}
       <div className="checklists-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2.5rem', gap: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <button onClick={onBack} className="action-btn" style={{ width: '44px', height: '44px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', minWidth: 0 }}>
+          <button aria-label={t('trips.back', 'Voltar')} onClick={onBack} className="action-btn" style={{ width: '44px', height: '44px', flexShrink: 0 }}>
             <ChevronLeft size={24} />
           </button>
-          <div>
+          <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
             <h2 data-testid="checklists-title" style={{ margin: 0, fontSize: '1.75rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>{t('trips.checklists_title')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: '700', fontSize: '0.85rem' }}>
               <ClipboardList size={14} />
@@ -401,7 +405,7 @@ export default function TripChecklists({ user, trip, onBack }) {
           </button>
         </Motion.div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '1.75rem', minWidth: 0 }}>
           <AnimatePresence mode="popLayout">
             {checklists.map(checklist => {
               const completedCount = checklist.items.filter(i => i.completed).length;
@@ -414,13 +418,14 @@ export default function TripChecklists({ user, trip, onBack }) {
                    animate={{ opacity: 1, scale: 1 }}
                    exit={{ opacity: 0, scale: 0.95 }}
                    key={checklist.id} 
-                   className="glass-card" 
+                   className="glass-card checklist-card"
                    style={{ 
                      padding: '1.75rem', 
                      display: 'flex', 
                      flexDirection: 'column', 
                      gap: '1.25rem', 
                      alignSelf: 'flex-start',
+                     minWidth: 0,
                      border: progress === 100 && totalCount > 0 ? '1px solid var(--success)' : '1px solid var(--glass-border)',
                      background: progress === 100 && totalCount > 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(15, 23, 42, 0.3)',
                      transition: 'border-color 0.3s, background 0.3s'
@@ -530,7 +535,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                                 onClick={() => toggleItem(checklist.id, item)}
                                 style={{ 
                                   background: 'none', border: 'none', cursor: 'pointer', padding: 0, 
-                                  display: 'flex', color: item.completed ? 'var(--success)' : 'var(--text-muted)',
+                                  display: 'flex', flexShrink: 0, color: item.completed ? 'var(--success)' : 'var(--text-muted)',
                                   transition: '0.2s',
                                   transform: item.completed ? 'scale(1.1)' : 'scale(1)'
                                 }}
@@ -548,13 +553,15 @@ export default function TripChecklists({ user, trip, onBack }) {
                                   onBlur={() => saveItem(checklist.id, item)}
                                   onKeyDown={e => e.key === 'Enter' && saveItem(checklist.id, item)}
                                   className="glass-input"
-                                  style={{ flex: 1, fontSize: '0.95rem', padding: '0.4rem 0.75rem' }}
+                                  style={{ flex: 1, minWidth: 0, fontSize: '1rem', padding: '0.4rem 0.75rem' }}
                                 />
                               ) : (
                                 <span 
                                   data-testid={'checklist-item-task-' + item.id}
                                   style={{ 
                                     flex: 1, 
+                                    minWidth: 0,
+                                    overflowWrap: 'anywhere',
                                     fontSize: '1rem', 
                                     fontWeight: '600',
                                     textDecoration: item.completed ? 'line-through' : 'none',
@@ -569,7 +576,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                                 </span>
                               )}
 
-                              <div style={{ display: 'flex', gap: '0.4rem', opacity: 0 }} className="item-actions">
+                              <div style={{ display: 'flex', flexShrink: 0, gap: '0.4rem', opacity: 0 }} className="item-actions">
                                 {editingItemId !== item.id && (
                                   <>
                                     <button onClick={() => startEditingItem(item)} className="icon-btn" title={t('trips.checklist_edit')}><Edit2 size={14} /></button>
@@ -589,24 +596,37 @@ export default function TripChecklists({ user, trip, onBack }) {
                           style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem', padding: '1rem', background: 'rgba(99,102,241,0.05)', borderRadius: '16px', border: '1px solid var(--primary)' }}
                         >
                           <input 
+                            ref={newItemInputRef}
                             autoFocus
                             type="text" 
+                            enterKeyHint="next"
+                            aria-label={t('trips.item_placeholder', 'O que precisa ser feito?')}
+                            aria-busy={createChecklistItemMutation.isPending}
                             value={newItemTask}
-                            onChange={e => setNewItemTask(e.target.value)}
-                            onBlur={() => !newItemTask.trim() && setAddingItemToId(null)}
-                            onKeyDown={e => e.key === 'Enter' && handleAddItem(checklist.id)}
+                            onChange={e => {
+                              if (!savingItemRef.current) setNewItemTask(e.target.value);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat) {
+                                e.preventDefault();
+                                handleAddItem(checklist.id);
+                              }
+                            }}
                             placeholder={t('trips.item_placeholder', 'O que precisa ser feito?')}
                             className="glass-input"
-                            style={{ fontSize: '1rem', padding: '0.85rem' }}
+                            style={{ fontSize: '1rem', padding: '0.85rem', width: '100%', minWidth: 0 }}
                           />
                           <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <button onClick={() => handleAddItem(checklist.id)} className="btn-primary" style={{ flex: 1, padding: '0.75rem', fontWeight: '900', borderRadius: '10px' }}>{t('common.add', 'ADICIONAR')}</button>
+                            <button disabled={createChecklistItemMutation.isPending} onClick={() => handleAddItem(checklist.id)} className="btn-primary" style={{ flex: 1, padding: '0.75rem', fontWeight: '900', borderRadius: '10px' }}>{createChecklistItemMutation.isPending ? t('common.saving') : t('common.add', 'ADICIONAR')}</button>
                             <button onClick={() => setAddingItemToId(null)} className="btn-cancel" style={{ padding: '0.75rem 1rem', borderRadius: '10px' }}>{t('common.cancel', 'CANCELAR')}</button>
                           </div>
                         </Motion.div>
                       ) : (
                         <button 
-                          onClick={() => setAddingItemToId(checklist.id)}
+                          onClick={() => {
+                            setNewItemTask('');
+                            setAddingItemToId(checklist.id);
+                          }}
                           style={{ 
                             marginTop: '0.5rem',
                             width: '100%',
@@ -654,11 +674,11 @@ export default function TripChecklists({ user, trip, onBack }) {
               style={{ width: '100%', maxWidth: '600px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: '1px solid var(--glass-border)', boxShadow: '0 30px 60px -12px rgba(0,0,0,0.8)' }}
             >
               <div style={{ padding: '2rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
-                <div>
+                <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                   <h3 id="checklist-import-title" style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900' }}>{t('trips.import_from_other_trips', 'Importar de outras viagens')}</h3>
                   <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('trips.import_modal_desc')}</p>
                 </div>
-                <button aria-label={t('common.cancel')} onClick={() => setIsImportModalOpen(false)} className="action-btn"><X size={24} /></button>
+                <button aria-label={t('common.cancel')} onClick={() => setIsImportModalOpen(false)} className="action-btn" style={{ flexShrink: 0 }}><X size={24} /></button>
               </div>
               
               <div style={{ padding: '1.5rem', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -683,7 +703,7 @@ export default function TripChecklists({ user, trip, onBack }) {
                           <LayoutGrid size={18} style={{ color: 'var(--primary)' }} />
                           <p style={{ margin: 0, fontWeight: '900', fontSize: '1rem', color: 'var(--text-main)' }}>{t.title}</p>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem' }}>
                           {t.checklists.map(c => (
                             <button 
                               key={c.id}
@@ -749,24 +769,30 @@ export default function TripChecklists({ user, trip, onBack }) {
         }
 
         @media (max-width: 640px) {
-          .checklists-header {
+          .trip-checklists .checklists-header {
             flex-direction: column;
             align-items: flex-start !important;
             gap: 1.5rem !important;
           }
-          .header-actions {
+          .trip-checklists .header-actions {
             width: 100%;
+            flex-direction: row;
           }
-          .header-actions .btn {
+          .trip-checklists .header-actions .btn {
             flex: 1;
+            min-width: 0;
             justify-content: center;
             padding: 0.75rem !important;
           }
-          .btn-text {
+          .trip-checklists .btn-text {
             display: none;
           }
-          .item-actions {
+          .trip-checklists .item-actions {
             opacity: 1 !important;
+          }
+          .trip-checklists .checklist-item-row {
+            gap: 0.5rem !important;
+            padding: 0.75rem 0.5rem !important;
           }
         }
       `}</style>
