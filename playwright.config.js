@@ -37,6 +37,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'iphone-webkit',
+      testMatch: '**/trips_checklists.spec.js',
+      use: { ...devices['iPhone 13'], browserName: 'webkit', launchOptions: {} },
+    },
   ],
 
   /* Run your local dev server before starting the tests */

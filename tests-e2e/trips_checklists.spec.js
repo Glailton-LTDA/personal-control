@@ -287,10 +287,15 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     const dialog = page.getByRole('dialog', { name: 'Importar de outras viagens' });
     await expect(dialog.getByRole('button', { name: 'Lista de origem', exact: true })).toBeVisible();
     await dialog.getByText('Viagem de origem', { exact: true }).evaluate(target => {
-      const finger = y => new Touch({ identifier: 1, target, clientX: 100, clientY: y });
-      target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [finger(100)] }));
-      target.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [finger(200)] }));
-      target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [] }));
+      // WebKit does not expose Touch constructors on every platform.
+      const touch = (type, touches) => {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'touches', { value: touches });
+        target.dispatchEvent(event);
+      };
+      touch('touchstart', [{ clientX: 100, clientY: 100 }]);
+      touch('touchmove', [{ clientX: 100, clientY: 200 }]);
+      touch('touchend', []);
     });
     await expect(page.locator('.pull-to-refresh-container')).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
@@ -309,4 +314,48 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     await expect(page.getByTestId('launchpad-item-trips')).toBeVisible({ timeout: 15000 });
     expect(pageErrors).toEqual([]);
   });
+
+  for (const width of [320, 375, 430]) {
+    test(`deve caber em ${width}px e adicionar itens consecutivos com Enter`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      checklistsData[0].title = 'Documentos e preparativos para uma viagem em família';
+      checklistsData[0].items[0].task = 'DocumentoDeViagemSemEspaços'.repeat(8);
+      await goToChecklists(page);
+      const assertFits = async () => {
+        const overflow = await page.locator('.trip-checklists').evaluate(root => {
+          const viewport = document.documentElement.clientWidth;
+          const elements = [root, ...root.querySelectorAll('.checklist-card, .checklist-item-row')];
+          return elements.some(element => element.scrollWidth > element.clientWidth + 1 || element.getBoundingClientRect().right > viewport + 1);
+        });
+        expect(overflow).toBe(false);
+      };
+      await expect(page.getByTestId('checklist-item-task-task-alpha')).toBeVisible();
+      await assertFits();
+      await expect.poll(() => page.locator('.trip-checklists').evaluate(root => root.scrollHeight > root.clientHeight || document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight)).toBe(true);
+      expect(await page.locator('.trip-checklists').evaluate(root => {
+        const scroller = root.scrollHeight > root.clientHeight ? root : document.scrollingElement;
+        scroller.scrollTop = 100;
+        return scroller.scrollTop;
+      })).toBeGreaterThan(0);
+      await page.getByRole('button', { name: 'Adicionar item', exact: true }).click();
+      const input = page.getByRole('textbox', { name: 'O que precisa ser feito?' });
+      await input.fill('Seguro de viagem');
+      await input.press('Enter');
+      await expect(page.getByText('Seguro de viagem', { exact: true })).toBeVisible();
+      await expect(input).toHaveValue('');
+      await expect(input).toBeFocused();
+      await input.fill('Carregador do celular');
+      await input.press('Enter');
+      await expect(page.getByText('Carregador do celular', { exact: true })).toBeVisible();
+      await expect(input).toHaveValue('');
+      await expect(input).toBeFocused();
+      await assertFits();
+      await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+      await expect(input).toBeHidden();
+      await page.getByTestId('checklist-item-task-task-alpha').click();
+      await expect(page.getByTestId('edit-item-input-task-alpha')).toBeVisible();
+      await assertFits();
+      await page.screenshot({ path: test.info().outputPath('mobile-checklist.png') });
+    });
+  }
 });
