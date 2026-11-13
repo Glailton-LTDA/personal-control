@@ -300,3 +300,81 @@ describe("trip reads and local fallback", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+describe("trip RLS payloads", () => {
+  it("online checklist insert sends user_id and only server columns", async () => {
+    remote.mode = "success";
+    remote.value = { id: "created-id" };
+    const { result } = mount(hooks.useOfflineCreateChecklist, "owner", "trip");
+    await act(async () => {
+      await result.current.mutateAsync({ title: "Checklist" });
+    });
+    const insert = remote.calls.find(
+      ([table, method]) => table === "trip_checklists" && method === "insert",
+    );
+    expect(insert).toBeTruthy();
+    expect(insert[2][0]).toEqual(
+      expect.objectContaining({
+        id: "created-id",
+        trip_id: "trip",
+        user_id: "owner",
+        title: "Checklist",
+      }),
+    );
+    expect(insert[2][0]).not.toHaveProperty("description");
+    expect(insert[2][0]).not.toHaveProperty("is_template");
+  });
+
+  it("offline checklist queue keeps user_id and drops unknown columns", async () => {
+    remote.mode = "offline";
+    const { result } = mount(hooks.useOfflineCreateChecklist, "owner", "trip");
+    await act(async () => {
+      await result.current.mutateAsync({ title: "Checklist" });
+    });
+    expect(remote.enqueue).toHaveBeenCalledWith(
+      "trip_checklists",
+      "created-id",
+      "insert",
+      expect.objectContaining({
+        id: "created-id",
+        trip_id: "trip",
+        user_id: "owner",
+        title: "Checklist",
+      }),
+    );
+    const queued = remote.enqueue.mock.calls[0][3];
+    expect(queued).not.toHaveProperty("description");
+    expect(queued).not.toHaveProperty("is_template");
+  });
+
+  it("offline itinerary queue keeps user_id", async () => {
+    remote.mode = "offline";
+    const { result } = mount(
+      hooks.useOfflineCreateItineraryItem,
+      "owner",
+      "trip",
+    );
+    await act(async () => {
+      await result.current.mutateAsync({ day: 1, activity: "Visit", coordinates: [20,10],
+        completed: true, needs_booking: true, is_booked: true, order_index: 3,
+        lat: 10, lng: 20, km_multiplier: 2, transportation: 'drive' });
+    });
+    expect(remote.enqueue).toHaveBeenCalledWith(
+      "trip_itinerary",
+      "created-id",
+      "insert",
+      expect.objectContaining({
+        id: "created-id",
+        trip_id: "trip",
+        user_id: "owner",
+        coordinates: [20,10], completed: true, needs_booking: true, is_booked: true, order_index: 3,
+      }),
+    );
+    const queued = remote.enqueue.mock.calls[0][3];
+    expect(Object.keys(queued).sort()).toEqual([
+      'id','trip_id','user_id','day','time','activity','location','notes','coordinates',
+      'completed','needs_booking','is_booked','order_index','created_at','updated_at',
+    ].sort());
+    expect(await db.trip_itinerary.get('created-id')).toMatchObject(queued);
+  });
+});

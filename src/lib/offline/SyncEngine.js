@@ -3,6 +3,7 @@ import { db, MF_SYNC_TABLES } from './db';
 import { MUSIC_SONG_LIST_COLUMNS } from './musicQueries';
 import { offlineIdentity, queueOwner } from './owner';
 import { mfSelectAll } from './mfOffline';
+import { recoverTripQueue, serializeTripRow } from './tripsPayload';
 import { MF_ATOMIC_QUEUE, sendMfAtomicOperation } from './mfAtomic';
 
 export class MusicSyncProvider {
@@ -285,6 +286,7 @@ export class SyncEngine {
 
   async drainQueue() {
     if (!this._isOnline || !this.userId || this.destroyed || await offlineIdentity() !== this.userId) return 0;
+    await recoverTripQueue(this.userId);
     const queue = await db.sync_queue.toArray();
     // Entradas legadas sem dono permanecem intactas, em quarentena.
     const activeQueue = queue.filter((entry) => queueOwner(entry) === this.userId && (entry.attempts || 0) < 5);
@@ -323,6 +325,13 @@ export class SyncEngine {
           // upsert só com as colunas reais.
           const { id: _id, updated_at: _ua, ...cleanPayload } = payload || {};
           const { error } = await supabase.from(table_name).upsert(cleanPayload);
+          if (error) throw error;
+        } else if (
+          table_name === 'trip_checklists' ||
+          table_name === 'trip_itinerary'
+        ) {
+          const row = serializeTripRow(table_name, payload, entry.owner_id);
+          const { error } = await supabase.from(table_name).upsert(row).select();
           if (error) throw error;
         } else {
           const { error } = await supabase.from(table_name).upsert(payload).select();
