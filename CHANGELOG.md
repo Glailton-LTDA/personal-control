@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.2.7] - 2026-11-13
+
+### Corrigido
+- **Checklists no celular**: cartões se adaptam à largura disponível e textos longos quebram linha, evitando rolagem horizontal em telas pequenas. A lista mantém sua rolagem vertical e os campos de edição usam tamanho de fonte adequado ao iPhone.
+- **Inclusão contínua de itens**: Enter salva o item e mantém o campo aberto, limpo e com foco para o próximo. Entradas vazias não fecham o campo, tentativas simultâneas não duplicam itens e falhas preservam o texto para tentar novamente.
+
 ## [2.2.6] - 2026-11-13
 
 ### Corrigido
