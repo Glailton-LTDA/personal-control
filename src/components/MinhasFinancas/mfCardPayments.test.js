@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildCardInvoices, buildCardPaymentTx, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate, cardSettingsAt, cardLinkedAccountIds, invoiceCloseForPurchaseDate } from '../../hooks/useMinhasFinancas';
+import { buildCardInvoices, buildCardPaymentTx, buildCardChargesTx, buildCardInstallmentPlan, cardCycles, invoiceCloseForDueMonth, planCardAnticipation, isParceladaTx, planInvoicePaymentSync, MF_INVOICE_PAYMENT_NOTE, MF_INVOICE_DIFF_NOTE, addInvoiceCloseMonths, planFixedExtensions, currentMonthKey, monthBounds, toISODate, cardSettingsAt, cardLinkedAccountIds, invoiceCloseForPurchaseDate } from '../../hooks/useMinhasFinancas';
 
 /**
  * Regras de pagamento de fatura (bug "marquei como paga e nada aconteceu"):
@@ -270,6 +270,169 @@ describe('buildCardPaymentTx â€” payload de pagamento', () => {
         amount: 'abc',
       })
     ).toBeNull();
+  });
+});
+
+describe('buildCardChargesTx â€” encargos de fatura', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 4, 12, 0, 0) });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('cria despesa separada na conta vinculada, sem vÃ­nculo com a fatura', () => {
+    const payload = buildCardChargesTx({
+      userId: 'u1',
+      card,
+      amount: 49.9,
+      description: 'Encargos',
+    });
+
+    expect(payload).toMatchObject({
+      user_id: 'u1',
+      type: 'DESPESA',
+      account_id: 'acc-1',
+      amount: 49.9,
+      status: 'PAGO',
+      payment_date: '2026-10-04',
+      effective_date: '2026-10-04',
+      invoice_close: null,
+    });
+  });
+
+  it('retorna null sem valor de encargos', () => {
+    expect(
+      buildCardChargesTx({ userId: 'u1', card, amount: 0, description: 'Encargos' })
+    ).toBeNull();
+  });
+});
+
+describe('buildCardInstallmentPlan â€” parcelar fatura', () => {
+  const invoice = {
+    closeISO: '2026-10-10',
+    dueISO: '2026-10-20',
+    openAmount: 1200,
+  };
+
+  const base = {
+    userId: 'u1',
+    card,
+    invoice,
+    entry: 200,
+    count: 10,
+    installmentAmount: 100,
+    firstDueISO: '2026-11-20',
+    effectiveDate: '2026-10-04',
+    description: 'Fatura parcelada',
+  };
+
+  it('zera a parte financiada no ciclo atual e distribui as parcelas futuras', () => {
+    const plan = buildCardInstallmentPlan(base);
+
+    expect(plan).toMatchObject({
+      open: 1200,
+      entry: 200,
+      financed: 1000,
+      count: 10,
+      installmentAmount: 100,
+      totalInstallments: 1000,
+      total: 1200,
+    });
+    expect(plan.entryPayload).toMatchObject({
+      type: 'DESPESA',
+      account_id: 'acc-1',
+      amount: 200,
+      status: 'PAGO',
+      payment_date: '2026-10-04',
+      invoice_close: '2026-10-10',
+    });
+
+    // 1 crÃ©dito no cartÃ£o + 10 parcelas
+    expect(plan.extraRows).toHaveLength(11);
+    const credit = plan.extraRows[0];
+    expect(credit).toMatchObject({
+      account_id: 'acc-card',
+      type: 'DESPESA',
+      amount: -1000,
+      status: 'PAGO',
+      invoice_close: '2026-10-10',
+    });
+
+    const first = plan.extraRows[1];
+    expect(first).toMatchObject({
+      account_id: 'acc-card',
+      amount: 100,
+      installments_current: 1,
+      installments_total: 10,
+      payment_date: '2026-11-20',
+      invoice_close: '2026-11-10',
+    });
+    expect(plan.extraRows[10]).toMatchObject({
+      installments_current: 10,
+      payment_date: '2027-08-20',
+      invoice_close: '2027-08-10',
+    });
+  });
+
+  it('permite entrada zero e financia a fatura inteira', () => {
+    const plan = buildCardInstallmentPlan({ ...base, entry: 0 });
+    expect(plan.entryPayload).toBeNull();
+    expect(plan.financed).toBe(1200);
+    expect(plan.extraRows[0]).toMatchObject({ amount: -1200 });
+  });
+
+  it('rejeita entrada maior que a fatura e entrada que quita tudo', () => {
+    expect(buildCardInstallmentPlan({ ...base, entry: 1300 })).toBeNull();
+    expect(buildCardInstallmentPlan({ ...base, entry: 1200 })).toBeNull();
+  });
+
+  it('rejeita parcelamento sem quantidade ou valor de parcela', () => {
+    expect(buildCardInstallmentPlan({ ...base, count: 1 })).toBeNull();
+    expect(buildCardInstallmentPlan({ ...base, installmentAmount: 0 })).toBeNull();
+  });
+
+  it('fecha a soma das parcelas no principal quando o valor Ã© uma divisÃ£o', () => {
+    const plan = buildCardInstallmentPlan({
+      ...base,
+      invoice: { ...invoice, openAmount: 1000 },
+      entry: 0,
+      count: 12,
+      installmentAmount: 83.33,
+    });
+    const parcels = plan.extraRows.filter((row) => row.installments_total === 12);
+    const sum = parcels.reduce((total, row) => total + row.amount, 0);
+    expect(Number(sum.toFixed(2))).toBe(1000);
+    expect(plan.totalInstallments).toBe(1000);
+    expect(plan.extraRows).toHaveLength(13); // 1 crÃ©dito + 12 parcelas
+  });
+
+  it('preserva o valor informado quando hÃ¡ juros e mantÃ©m o crÃ©dito no principal', () => {
+    const plan = buildCardInstallmentPlan({
+      ...base,
+      invoice: { ...invoice, openAmount: 1000 },
+      entry: 0,
+      count: 10,
+      installmentAmount: 120,
+    });
+    const parcels = plan.extraRows.filter((row) => row.installments_total === 10);
+    expect(parcels).toHaveLength(10);
+    parcels.forEach((row) => expect(row.amount).toBe(120));
+    expect(plan.totalInstallments).toBe(1200);
+    expect(plan.extraRows[0].amount).toBe(-1000); // crÃ©dito = sÃ³ o principal
+  });
+
+  it('empurra a primeira parcela para um ciclo posterior ao financiado', () => {
+    const plan = buildCardInstallmentPlan({
+      ...base,
+      firstDueISO: '2026-10-20', // mesmo ciclo do fechamento financiado (2026-10-10)
+    });
+    const credit = plan.extraRows[0];
+    const first = plan.extraRows[1];
+    expect(credit.invoice_close).toBe('2026-10-10');
+    expect(first.invoice_close > credit.invoice_close).toBe(true);
+    expect(first.invoice_close).toBe('2026-11-10');
   });
 });
 
@@ -1702,7 +1865,7 @@ describe('invoiceCloseForPurchaseDate â€” compra avulsa sem vÃ­nculo', () => {
   });
 });
 
-describe('agendador — fatura histórica não é reescrita', () => {
+describe('agendador ï¿½ fatura histï¿½rica nï¿½o ï¿½ reescrita', () => {
   const invoice = (over = {}) => ({
     closeISO: '2025-12-31',
     dueISO: '2026-01-07',
@@ -1712,7 +1875,7 @@ describe('agendador — fatura histórica não é reescrita', () => {
     ...over,
   });
 
-  it('ignora fechamento anterior ao mês corrente', () => {
+  it('ignora fechamento anterior ao mï¿½s corrente', () => {
     const plan = planInvoicePaymentSync({
       userId: 'u',
       card,
@@ -1724,7 +1887,7 @@ describe('agendador — fatura histórica não é reescrita', () => {
     expect(plan).toEqual({ creates: [], updates: [], deletes: [] });
   });
 
-  it('mês corrente continua gerando espelho', () => {
+  it('mï¿½s corrente continua gerando espelho', () => {
     const plan = planInvoicePaymentSync({
       userId: 'u',
       card,

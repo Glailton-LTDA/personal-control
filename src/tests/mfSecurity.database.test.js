@@ -39,6 +39,9 @@ beforeAll(async () => {
   await pg.exec(updated.slice(updated.indexOf('CREATE OR REPLACE FUNCTION public.mf_set_updated_at'),updated.indexOf('-- -------------------------------------------------------------',updated.indexOf('CREATE OR REPLACE FUNCTION public.mf_set_updated_at'))));
   await pg.exec(migration('mf_security_ownership.sql'));
   await pg.exec(migration('mf_safe_snapshots_and_ai_limits.sql'));
+  await pg.exec(migration('mf_goal_contributions_transaction.sql'));
+  await pg.exec(migration('mf_atomic_finance_writes.sql'));
+  await pg.exec(migration('mf_review_consistency.sql'));
 }, 60000);
 afterAll(async () => { await pg?.close(); });
 beforeEach(async () => {
@@ -55,6 +58,42 @@ describe('hardening SQL com PostgreSQL isolado, sem conexão à produção', () 
   it('bloqueia FK de transação para conta de outro usuário', async () => {
     await asUser();
     await expect(pg.query("insert into public.mf_transactions(user_id,account_id,type,description,amount,payment_date) values($1,$2,'DESPESA','teste',1,current_date)",[A,accB])).rejects.toThrow(/mf_reference_not_authorized/);
+  });
+  it('aporte só aceita lançamento do próprio usuário', async () => {
+    const goalA = '30000000-0000-4000-8000-000000000001';
+    const txA = '40000000-0000-4000-8000-000000000001';
+    const txB = '40000000-0000-4000-8000-000000000002';
+    await admin();
+    await pg.query(
+      "insert into public.mf_goals(id,user_id,name,target_amount) values($1,$2,'Meta A',1000)",
+      [goalA, A]
+    );
+    await pg.query(
+      `insert into public.mf_transactions(id,user_id,account_id,type,description,amount,payment_date)
+       values($1,$2,$3,'RECEITA','Salário A',100,current_date),
+             ($4,$5,$6,'RECEITA','Salário B',100,current_date)`,
+      [txA, A, accA, txB, B, accB]
+    );
+    await asUser();
+    await expect(
+      pg.query(
+        `insert into public.mf_goal_contributions
+           (user_id,goal_id,transaction_id,kind,amount,contribution_date)
+         values($1,$2,$3,'DEPOSIT',100,current_date)`,
+        [A, goalA, txB]
+      )
+    ).rejects.toThrow(/mf_reference_not_authorized/);
+  });
+
+  it('atomic goal RPC checks account ownership under authenticated role and rolls back', async () => {
+    await asUser();
+    await expect(pg.query('select mf_save_tx_with_goal($1,$2::jsonb)', [
+      '50000000-0000-4000-8000-000000000001', JSON.stringify({ account_id: accB, type: 'RECEITA', description: 'Synthetic income', amount: 100, payment_date: '2026-11-01' }),
+    ])).rejects.toThrow(/mf_goal_tx_account/);
+  });
+  it('authenticated clients cannot read operation receipts or call the private balance helper', async () => {
+    await asUser();
+    await expect(pg.query('select * from mf_private.payment_operations')).rejects.toThrow(/permission denied/);
   });
   it('RPC não permite usar a conta de outro usuário e faz rollback', async () => {
     await asUser();
