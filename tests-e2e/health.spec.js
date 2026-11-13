@@ -75,7 +75,7 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
       exams = [...exams, created];
       return route.fulfill({ json: { id: created.id } });
     }
-    if (route.request().method() === 'POST' && table === 'health_treatment_save') {
+    if (route.request().method() === 'POST' && url.pathname.includes('/rpc/health_treatment_save')) {
       const body = route.request().postDataJSON();
       const payload = body.p_payload || body;
       return route.fulfill({
@@ -85,7 +85,7 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
         },
       });
     }
-    if (route.request().method() === 'POST' && table === 'health_treatment_list') {
+    if (route.request().method() === 'POST' && url.pathname.includes('/rpc/health_treatment_list')) {
       return route.fulfill({ json: { rows: [], has_more: false } });
     }
     if (route.request().method() === 'PATCH' && table === 'health_exams') {
