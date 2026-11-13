@@ -263,6 +263,7 @@ test.describe('Viagens - Checklists (TODOs)', () => {
 
   test('deve importar no celular e reabrir os checklists após recarregar', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { configurable: true, value: true }));
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     await goToChecklists(page);
@@ -282,6 +283,18 @@ test.describe('Viagens - Checklists (TODOs)', () => {
     const tripsRefetched = page.waitForResponse(response => response.url().includes('/rest/v1/trips?'));
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('database-synced', { detail: { source: 'trips' } })));
     await tripsRefetched;
+    await page.getByTestId('import-checklist-btn').click();
+    const dialog = page.getByRole('dialog', { name: 'Importar de outras viagens' });
+    await expect(dialog.getByRole('button', { name: 'Lista de origem', exact: true })).toBeVisible();
+    await dialog.getByText('Viagem de origem', { exact: true }).evaluate(target => {
+      const finger = y => new Touch({ identifier: 1, target, clientX: 100, clientY: y });
+      target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [finger(100)] }));
+      target.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [finger(200)] }));
+      target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [] }));
+    });
+    await expect(page.locator('.pull-to-refresh-container')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(dialog).toBeHidden();
     await page.getByTestId('import-checklist-btn').click();
     await page.getByRole('button', { name: 'Lista de origem', exact: true }).click();
     await expect(page.getByText('Carregador', { exact: true })).toBeVisible();

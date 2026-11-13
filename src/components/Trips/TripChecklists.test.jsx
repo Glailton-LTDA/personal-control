@@ -126,6 +126,17 @@ describe('TripChecklists', () => {
     expect(await screen.findByTestId('btn-add-checklist')).toBeInTheDocument();
   });
 
+  it('identifies the import dialog and allows closing and reopening it', async () => {
+    setupSupabaseMocks();
+    render(<TripChecklists user={mockUser} trip={mockTrip} onBack={() => {}} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByTestId('import-checklist-btn'));
+    expect(await screen.findByRole('dialog', { name: 'Importar de outras viagens' })).toHaveAttribute('aria-modal', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('import-checklist-btn'));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
   it('allows adding a new checklist', async () => {
     const user = userEvent.setup();
     const newChecklist = { id: 'new-list', trip_id: mockTrip.id, title: 'Lista Nova', items: [] };

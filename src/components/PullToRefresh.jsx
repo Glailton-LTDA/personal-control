@@ -32,7 +32,8 @@ function PullToRefresh() {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       currentY = startY;
-      if (window.scrollY === 0 && !e.target.closest?.('button, a, input, select, textarea, [role="tab"], [contenteditable="true"]')) {
+      // A drag inside a dialog belongs to that dialog, never to page refresh.
+      if (window.scrollY === 0 && !e.target.closest?.('button, a, input, select, textarea, [role="tab"], [role="dialog"], [aria-modal="true"], [contenteditable="true"]')) {
         pulling = true;
       }
     };
