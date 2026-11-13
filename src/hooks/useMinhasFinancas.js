@@ -8,6 +8,8 @@ import { nextBusinessDay } from '../lib/mfBusinessDays';
 import { useMFProfileScope } from './mfProfileContext';
 import { useNotificationSettings } from './useFinance';
 import { mfSelect, mfSelectAll, mfMutate, isOffline, assertNoPendingMfWrites } from '../lib/offline/mfOffline';
+import { generateUUID } from '../lib/offline/db';
+import { executeMfAtomicOperation, prepareCardPaymentOperation } from '../lib/offline/mfAtomic';
 
 /** Evento interno: uma instância de `useMFPrefs` avisa as outras. */
 const MF_PREFS_EVENT = 'mf-prefs-changed';
@@ -1964,6 +1966,26 @@ export function useSaveMFTransactionLinked() {
   });
 }
 
+/**
+ * Salva um lançamento com aporte de objetivo numa transação só
+ * (`mf_save_tx_with_goal`): a receita e o aporte entram (ou não entram)
+ * juntos. Idempotente pelo id da operação — o retry manda o mesmo id e o
+ * servidor devolve o resultado existente em vez de criar outra receita.
+ */
+export function useSaveMFTransactionWithGoal() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: ({ operationId, payload, contribution = null, deleteContribution = false }) =>
+      executeMfAtomicOperation('mf_save_tx_with_goal', {
+        p_operation_id: operationId,
+        p_tx: payload,
+        p_goal_contribution: contribution ? { ...contribution, id: contribution.id || operationId } : null,
+        p_delete_contribution: deleteContribution,
+      }),
+    onSuccess: invalidate,
+  });
+}
+
 export function useDeleteMFTransaction() {
   const invalidate = useInvalidateAll();
   return useMutation({
@@ -3242,6 +3264,191 @@ export const buildCardPaymentTx = ({ userId, card, invoice, description, amount 
   };
 };
 
+export const MF_INVOICE_CHARGES_NOTE = 'Encargos de fatura';
+export const MF_INVOICE_INSTALLMENT_NOTE = 'Fatura parcelada';
+
+/**
+ * Encargos (juros/multa) cobrados no pagamento de uma fatura vencida.
+ * Não entram no valor da fatura: são uma despesa separada na conta
+ * vinculada, debitada junto com o pagamento. O valor da fatura continua
+ * sendo o que o cartão cobra; os encargos são o custo de pagar atrasado.
+ */
+export const buildCardChargesTx = ({
+  userId,
+  card,
+  amount,
+  description,
+  date,
+}) => {
+  const value = roundMoney(amount);
+  if (!(value > 0)) return null;
+  const when = date || toISODate(new Date());
+  return {
+    user_id: userId,
+    type: 'DESPESA',
+    account_id: card.linked_account_id,
+    description: `${description} — ${card.name}`,
+    amount: value,
+    payment_date: when,
+    due_date: null,
+    effective_date: when,
+    status: 'PAGO',
+    category_id: null,
+    notes: MF_INVOICE_CHARGES_NOTE,
+    attachment_path: null,
+    recurrence: 'NONE',
+    invoice_close: null,
+  };
+};
+
+/**
+ * Plano de "Parcelar fatura": a entrada sai da conta vinculada agora e o
+ * restante da fatura é financiado. No cartão, um lançamento negativo no
+ * ciclo atual zera a parte financiada (como se a operadora tivesse pago) e
+ * as parcelas entram como despesas nas faturas seguintes. O total pode ser
+ * maior que o em aberto quando há juros — a diferença é o custo do
+ * parcelamento. Puro para testar sem I/O.
+ *
+ * Retorna null quando os dados não formam um plano válido.
+ */
+export const buildCardInstallmentPlan = ({
+  userId,
+  card,
+  invoice,
+  entry = 0,
+  count,
+  installmentAmount,
+  firstDueISO,
+  effectiveDate,
+  description,
+}) => {
+  const open = roundMoney(invoice?.openAmount);
+  const entryValue = roundMoney(entry);
+  const installments = Math.floor(Number(count) || 0);
+  const each = roundMoney(installmentAmount);
+  const closeISO = invoice?.closeISO;
+  const effective = effectiveDate || toISODate(new Date());
+  const first = firstDueISO || addMonthsISO(invoice?.dueISO || effective, 1);
+  if (!card?.id || !card?.linked_account_id || !closeISO) return null;
+  if (!(open > 0) || entryValue < 0 || entryValue > open + 0.004) return null;
+  // Sem valor financiado não há parcelamento: a entrada já quita a fatura.
+  if (!(roundMoney(open - entryValue) > 0.004)) return null;
+  if (installments < 2 || !(each > 0)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(first))) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(effective))) return null;
+
+  const label = description || 'Fatura parcelada';
+  const financed = roundMoney(open - entryValue);
+  const entryPayload = entryValue > 0
+    ? {
+        user_id: userId,
+        type: 'DESPESA',
+        account_id: card.linked_account_id,
+        description: `${label} — entrada — ${card.name}`,
+        amount: entryValue,
+        payment_date: effective,
+        due_date: null,
+        effective_date: effective,
+        status: 'PAGO',
+        category_id: null,
+        notes: null,
+        attachment_path: null,
+        recurrence: 'NONE',
+        invoice_close: closeISO,
+      }
+    : null;
+
+  const creditRow = financed > 0
+    ? {
+        user_id: userId,
+        type: 'DESPESA',
+        account_id: card.id,
+        description: `${label} — ${card.name}`,
+        amount: -financed,
+        payment_date: effective,
+        due_date: null,
+        effective_date: effective,
+        status: 'PAGO',
+        category_id: null,
+        notes: MF_INVOICE_INSTALLMENT_NOTE,
+        attachment_path: null,
+        recurrence: 'NONE',
+        invoice_close: closeISO,
+      }
+    : null;
+
+  // O valor informado da parcela é a fonte da verdade. Só ajustamos os
+  // centavos quando ele é uma divisão do principal (diferença de até meio
+  // centavo por parcela, ex.: 1000 / 12 = 83,33 → a última vira 83,37 para a
+  // soma fechar em 1000,00). Quando há juros (valor informado maior que o
+  // principal/parcela), o valor é preservado integralmente.
+  const eachCents = Math.round(each * 100);
+  const financedCents = Math.round(financed * 100);
+  const distributes =
+    Math.abs(eachCents * installments - financedCents) <= Math.ceil(installments / 2);
+  const lastCents = distributes
+    ? financedCents - eachCents * (installments - 1)
+    : eachCents;
+
+  // A primeira parcela nunca pode cair no mesmo fechamento da fatura
+  // financiada: senão ela quitaria a própria fatura que está sendo
+  // parcelada. Avança o vencimento enquanto o ciclo da parcela for <= closeISO.
+  let firstDue = first;
+  while (
+    invoiceCloseForDueMonth(card, firstDue.slice(0, 7)) <= closeISO
+  ) {
+    firstDue = addMonthsISO(firstDue, 1);
+  }
+
+  const headId = generateUUID();
+  const installmentRows = Array.from({ length: installments }, (_, index) => {
+    const dueISO = addMonthsISO(firstDue, index);
+    const close = invoiceCloseForDueMonth(card, dueISO.slice(0, 7));
+    const amount =
+      index === installments - 1
+        ? roundMoney(lastCents / 100)
+        : roundMoney(eachCents / 100);
+    return {
+      id: index === 0 ? headId : generateUUID(),
+      user_id: userId,
+      type: 'DESPESA',
+      account_id: card.id,
+      description: `${label} ${index + 1}/${installments} — ${card.name}`,
+      amount,
+      payment_date: dueISO,
+      due_date: null,
+      effective_date: dueISO,
+      status: 'PAGO',
+      category_id: null,
+      notes: MF_INVOICE_INSTALLMENT_NOTE,
+      attachment_path: null,
+      recurrence: 'NONE',
+      invoice_close: close,
+      parent_transaction_id: index === 0 ? null : headId,
+      installments_current: index + 1,
+      installments_total: installments,
+    };
+  });
+
+  const totalInstallments = roundMoney(
+    installmentRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
+  );
+
+  return {
+    open,
+    entry: entryValue,
+    financed,
+    count: installments,
+    installmentAmount: each,
+    firstDueISO: firstDue,
+    effectiveDate: effective,
+    totalInstallments,
+    total: roundMoney(entryValue + totalInstallments),
+    entryPayload,
+    extraRows: [...(creditRow ? [creditRow] : []), ...installmentRows],
+  };
+};
+
 /**
  * Marcador do pagamento-espelho (item 30): a despesa que o agendador cria e
  * mantém como reflexo da fatura na conta vinculada — valor sempre igual ao
@@ -3652,81 +3859,20 @@ export function useMFScheduleCardPayments(user) {
  */
 export function usePayCardInvoice() {
   const invalidate = useInvalidateAll();
+  const pending = useRef(null);
   return useMutation({
-    mutationFn: async ({ card, invoice, payload }) => {
-      const { data, error } = await supabase
-        .from('mf_transactions')
-        .select('*')
-        .eq('account_id', card.linked_account_id)
-        .eq('type', 'DESPESA')
-        .eq('invoice_close', invoice.closeISO)
-        .eq('status', 'PENDENTE');
-      if (error) throw error;
-      const rows = (data ?? []).filter(
-        (row) =>
-          row.account_id === card.linked_account_id &&
-          row.type === 'DESPESA' &&
-          row.invoice_close === invoice.closeISO &&
-          row.status === 'PENDENTE'
-      );
-      const existing =
-        rows.sort((a, b) =>
-          String(b.payment_date || '').localeCompare(String(a.payment_date || ''))
-        )[0] ?? null;
-      // Espelhos automáticos sobrando (corrida agendador × pagamento): o
-      // usuário assumiu a fatura — a linha dele fica e os duplicados somem.
-      const superseded = rows.filter(
-        (row) => row.notes === MF_INVOICE_PAYMENT_NOTE && row.id !== (existing?.id ?? null)
-      );
-      // Pagamento feito pelo usuário não leva o marcador do agendador;
-      // assim o trigger histórico não o bloqueia e o planner o trata como
-      // pagamento seu (não cria espelho/diferença automática).
-      const patch = { ...payload, notes: null };
-      const result = existing
-        ? await mfMutate({
-            table: 'mf_transactions',
-            action: 'update',
-            id: existing.id,
-            payload: patch,
-            run: async () => {
-              const { data: updated, error: updateError } = await supabase
-                .from('mf_transactions')
-                .update(patch)
-                .eq('id', existing.id)
-                .select();
-              if (updateError) throw updateError;
-              return updated ?? [];
-            },
-          })
-        : await mfMutate({
-            table: 'mf_transactions',
-            action: 'insert',
-            payload: [patch],
-            run: async () => {
-              const { data: inserted, error: insertError } = await supabase
-                .from('mf_transactions')
-                .insert([patch])
-                .select();
-              if (insertError) throw insertError;
-              return inserted ?? [];
-            },
-          });
-      for (const row of superseded) {
-        await mfMutate({
-          table: 'mf_transactions',
-          action: 'delete',
-          id: row.id,
-          run: async () => {
-            const { error: delError } = await supabase
-              .from('mf_transactions')
-              .delete()
-              .eq('id', row.id);
-            if (delError) throw delError;
-            return row.id;
-          },
-        });
+    mutationFn: async (input) => {
+      if (!pending.current) pending.current = prepareCardPaymentOperation(input);
+      try {
+        const result = await executeMfAtomicOperation('mf_pay_card_invoice', pending.current);
+        pending.current = null;
+        return result;
+      } catch (error) {
+        // A server rejection guarantees rollback. Keep IDs on transport failures:
+        // the response may have been lost after COMMIT.
+        if (error?.code && !String(error.code).startsWith('PGRST')) pending.current = null;
+        throw error;
       }
-      return result;
     },
     onSuccess: invalidate,
   });
@@ -4992,15 +5138,45 @@ export function useMFGoalContributions(user) {
 export function useAddMFGoalContribution() {
   const invalidate = useInvalidateAll();
   return useMutation({
-    mutationFn: async (payload) => {
-      const { data, error } = await supabase
-        .from('mf_goal_contributions')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return data ?? payload;
-    },
+    mutationFn: (payload) =>
+      mfMutate({
+        table: 'mf_goal_contributions',
+        action: 'insert',
+        payload,
+        run: async () => {
+          const { data, error } = await supabase
+            .from('mf_goal_contributions')
+            .insert(payload)
+            .select()
+            .single();
+          if (error) throw error;
+          return data ?? payload;
+        },
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateMFGoalContribution() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: ({ id, ...patch }) =>
+      mfMutate({
+        table: 'mf_goal_contributions',
+        action: 'update',
+        id,
+        payload: patch,
+        run: async () => {
+          const { data, error } = await supabase
+            .from('mf_goal_contributions')
+            .update(patch)
+            .eq('id', id)
+            .select()
+            .single();
+          if (error) throw error;
+          return data;
+        },
+      }),
     onSuccess: invalidate,
   });
 }
@@ -5008,11 +5184,20 @@ export function useAddMFGoalContribution() {
 export function useDeleteMFGoalContribution() {
   const invalidate = useInvalidateAll();
   return useMutation({
-    mutationFn: async (id) => {
-      const { error } = await supabase.from('mf_goal_contributions').delete().eq('id', id);
-      if (error) throw error;
-      return id;
-    },
+    mutationFn: (id) =>
+      mfMutate({
+        table: 'mf_goal_contributions',
+        action: 'delete',
+        id,
+        run: async () => {
+          const { error } = await supabase
+            .from('mf_goal_contributions')
+            .delete()
+            .eq('id', id);
+          if (error) throw error;
+          return id;
+        },
+      }),
     onSuccess: invalidate,
   });
 }
