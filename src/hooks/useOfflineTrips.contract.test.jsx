@@ -355,7 +355,9 @@ describe("trip RLS payloads", () => {
       "trip",
     );
     await act(async () => {
-      await result.current.mutateAsync({ day: 1, activity: "Visit" });
+      await result.current.mutateAsync({ day: 1, activity: "Visit", coordinates: [20,10],
+        completed: true, needs_booking: true, is_booked: true, order_index: 3,
+        lat: 10, lng: 20, km_multiplier: 2, transportation: 'drive' });
     });
     expect(remote.enqueue).toHaveBeenCalledWith(
       "trip_itinerary",
@@ -365,7 +367,14 @@ describe("trip RLS payloads", () => {
         id: "created-id",
         trip_id: "trip",
         user_id: "owner",
+        coordinates: [20,10], completed: true, needs_booking: true, is_booked: true, order_index: 3,
       }),
     );
+    const queued = remote.enqueue.mock.calls[0][3];
+    expect(Object.keys(queued).sort()).toEqual([
+      'id','trip_id','user_id','day','time','activity','location','notes','coordinates',
+      'completed','needs_booking','is_booked','order_index','created_at','updated_at',
+    ].sort());
+    expect(await db.trip_itinerary.get('created-id')).toMatchObject(queued);
   });
 });

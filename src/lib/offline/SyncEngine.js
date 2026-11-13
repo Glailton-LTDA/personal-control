@@ -3,6 +3,7 @@ import { db, MF_SYNC_TABLES } from './db';
 import { MUSIC_SONG_LIST_COLUMNS } from './musicQueries';
 import { offlineIdentity, queueOwner } from './owner';
 import { mfSelectAll } from './mfOffline';
+import { recoverTripQueue, serializeTripRow } from './tripsPayload';
 import { MF_ATOMIC_QUEUE, sendMfAtomicOperation } from './mfAtomic';
 
 export class MusicSyncProvider {
@@ -285,6 +286,7 @@ export class SyncEngine {
 
   async drainQueue() {
     if (!this._isOnline || !this.userId || this.destroyed || await offlineIdentity() !== this.userId) return 0;
+    await recoverTripQueue(this.userId);
     const queue = await db.sync_queue.toArray();
     // Entradas legadas sem dono permanecem intactas, em quarentena.
     const activeQueue = queue.filter((entry) => queueOwner(entry) === this.userId && (entry.attempts || 0) < 5);
@@ -328,16 +330,7 @@ export class SyncEngine {
           table_name === 'trip_checklists' ||
           table_name === 'trip_itinerary'
         ) {
-          // Viagens: a RLS exige user_id = auth.uid() também no INSERT.
-          // Entradas antigas da fila podem ter sido gravadas sem o dono;
-          // completa com o dono da fila. `trip_checklists` também não tem
-          // description/is_template no servidor — remove antes do upsert.
-          const row = { ...(payload || {}) };
-          if (table_name === 'trip_checklists') {
-            delete row.description;
-            delete row.is_template;
-          }
-          row.user_id = payload?.user_id || entry.owner_id;
+          const row = serializeTripRow(table_name, payload, entry.owner_id);
           const { error } = await supabase.from(table_name).upsert(row).select();
           if (error) throw error;
         } else {

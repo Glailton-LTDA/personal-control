@@ -28,6 +28,7 @@ import {
   generateUUID,
 } from '../lib/offline/db';
 import { SyncEngine } from '../lib/offline/SyncEngine';
+import { serializeTripRow } from '../lib/offline/tripsPayload';
 
 // --- TRIPS HOOKS ---
 
@@ -392,7 +393,7 @@ export function useOfflineCreateItineraryItem(userId, tripId) {
   return useMutation({
     mutationFn: async (payload) => {
       const id = generateUUID();
-      const item = {
+      const item = serializeTripRow('trip_itinerary', {
         id,
         trip_id: tripId,
         user_id: userId,
@@ -400,21 +401,22 @@ export function useOfflineCreateItineraryItem(userId, tripId) {
         time: payload.time || '',
         activity: payload.activity,
         location: payload.location || '',
-        lat: payload.lat || null,
-        lng: payload.lng || null,
         notes: payload.notes || '',
-        km_multiplier: payload.km_multiplier || 0,
-        transportation: payload.transportation || 'drive',
+        coordinates: payload.coordinates ?? null,
+        completed: payload.completed ?? false,
+        needs_booking: payload.needs_booking ?? false,
+        is_booked: payload.is_booked ?? false,
+        order_index: payload.order_index ?? 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      };
+      }, userId);
 
       await putTripItineraryInDexie(item);
 
       const engine = new SyncEngine(userId, { providers: ['trips'] });
       if (engine.isOnline) {
         try {
-          const { data, error } = await supabase.from('trip_itinerary').insert([{ ...payload, id, trip_id: tripId }]).select().single();
+          const { data, error } = await supabase.from('trip_itinerary').insert([item]).select().single();
           if (error) {
             console.warn('Supabase insert failed, enqueuing...', error);
             await engine.enqueue('trip_itinerary', id, 'insert', item);
