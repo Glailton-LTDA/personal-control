@@ -165,7 +165,6 @@ export default function TreatmentForm({
               value={form.dose || ''}
               onChange={(e) => set('dose', e.target.value)}
             />
-            <p className="health-muted">{t('health.treatment_dose')}</p>
           </label>
           <div className="health-field health-full">
             <span>{t('health.treatment_dose_quantity')} / {t('health.treatment_dose_unit')}</span>
