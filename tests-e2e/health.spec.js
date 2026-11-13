@@ -85,6 +85,9 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
         },
       });
     }
+    if (route.request().method() === 'POST' && table === 'health_treatment_list') {
+      return route.fulfill({ json: { rows: [], has_more: false } });
+    }
     if (route.request().method() === 'PATCH' && table === 'health_exams') {
       const id = url.searchParams.get('id')?.slice(3);
       const body = route.request().postDataJSON();

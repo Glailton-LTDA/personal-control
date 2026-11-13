@@ -21,7 +21,7 @@ import {
   useRecordDose,
   useUndoDose,
 } from '../../hooks/useTreatments';
-import { HealthDate, HealthEmpty, HealthError, HealthLoading } from './HealthUI';
+import { HealthDate, HealthEmpty, HealthError, HealthLoading, HealthModal } from './HealthUI';
 
 const DAY_MS = 86400000;
 
