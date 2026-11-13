@@ -51,6 +51,19 @@ describe('PullToRefresh', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it.each(['dialog', 'aria-modal'])('não recarrega ao arrastar conteúdo de um modal: %s', (kind) => {
+    const { getByText } = render(<><PullToRefresh /><section
+      role={kind === 'dialog' ? 'dialog' : undefined}
+      aria-modal={kind === 'aria-modal' ? 'true' : undefined}
+    ><p>Listas de outras viagens</p></section></>);
+    const content = getByText('Listas de outras viagens');
+    touch(content, 'touchStart', 10, 100);
+    touch(content, 'touchMove', 10, 200);
+    touch(content, 'touchEnd');
+    vi.advanceTimersByTime(1000);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it.each(['touchCancel', 'horizontal', 'unmount'])('cancela o reload: %s', (kind) => {
     const { unmount } = render(<PullToRefresh />);
     touch(document.body, 'touchStart', 10, 100);
