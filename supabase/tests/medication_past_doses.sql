@@ -2,10 +2,10 @@
 \set ON_ERROR_STOP on
 begin;
 insert into auth.users(id) values
- ('33333333-3333-4333-8333-333333333333'),
- ('44444444-4444-4444-8444-444444444444');
+ ('a39d4b51-7101-43a0-8dd0-000000000001'),
+ ('a39d4b51-7101-43a0-8dd0-000000000002');
 set local role authenticated;
-select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
+select set_config('request.jwt.claim.sub','a39d4b51-7101-43a0-8dd0-000000000001',true);
 do $$
 declare payload jsonb; res jsonb; again jsonb; med uuid; slot timestamptz;
  request uuid:=gen_random_uuid(); n integer; dose_version bigint; seen integer;
@@ -17,7 +17,7 @@ begin
   'mark_past_doses_taken',true);
  res:=public.health_treatment_save(payload,request); med:=(res->>'id')::uuid;
  select count(*) into n from health_private.schedule_slots(
-  '33333333-3333-4333-8333-333333333333',med,now()-interval '3 days',now());
+  'a39d4b51-7101-43a0-8dd0-000000000001',med,now()-interval '3 days',now());
  if n<6 or (res->>'past_doses_recorded')::int<>n then raise exception 'wrong import count'; end if;
  if (select count(*) from health_doses where medication_id=med)<>n then raise exception 'missing doses'; end if;
  if exists(select 1 from health_doses where medication_id=med and
@@ -25,7 +25,7 @@ begin
   raise exception 'bad retrospective dose';
  end if;
  if (select count(*) from health_dose_events where medication_id=med and request_id=request
-   and actor_user_id='33333333-3333-4333-8333-333333333333' and action='taken')<>n then
+   and actor_user_id='a39d4b51-7101-43a0-8dd0-000000000001' and action='taken')<>n then
   raise exception 'audit missing';
  end if;
  if exists(select 1 from health_reminders r join health_doses d
@@ -80,7 +80,7 @@ begin
   raise exception 'nonboolean accepted';
  exception when raise_exception then if sqlerrm<>'INVALID_SCHEDULE' then raise; end if; end;
  -- A different owner sees nothing and cannot edit the imported treatment.
- perform set_config('request.jwt.claim.sub','44444444-4444-4444-8444-444444444444',true);
+ perform set_config('request.jwt.claim.sub','a39d4b51-7101-43a0-8dd0-000000000002',true);
  if exists(select 1 from health_doses where medication_id=med) or exists(select 1 from health_dose_events where medication_id=med) then
   raise exception 'cross owner leak';
  end if;
