@@ -9,6 +9,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 ### Corrigido
 - **Medicamentos**: o campo Unidade agora é uma lista controlada (comprimido, cápsula, gota, mL, mg, g, UI, aplicação, outro), com rótulos em português, inglês e espanhol e unidade padrão sugerida pela apresentação, sem sobrescrever a escolha manual. Cadastros antigos em texto livre são normalizados e os valores não reconhecidos são preservados.
 - **Viagens**: completadas as traduções em inglês e espanhol dos ajustes, compartilhamentos, anexos e rótulos de transporte, eliminando chaves cruas na interface.
+- **Consultas vinculadas**: o seletor de consulta relacionada exibe a data da consulta ao lado do nome, facilitando distinguir registros com nomes parecidos.
 
 ## [2.4.0] - 2026-11-14
 

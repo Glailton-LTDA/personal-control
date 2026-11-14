@@ -66,6 +66,7 @@
     "none": "No link",
     "select_record": "Select a record",
     "find_link": "Search for a record to link",
+    "link_option_with_date": "{{name}} — {{date}}",
     "no_date": "No date",
     "no_information": "Not provided",
     "status_monitoring": "Being monitored",

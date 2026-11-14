@@ -66,6 +66,7 @@
     "none": "Sin vínculo",
     "select_record": "Seleccionar registro",
     "find_link": "Buscar un registro para vincular",
+    "link_option_with_date": "{{name}} — {{date}}",
     "no_date": "Sin fecha",
     "no_information": "No indicado",
     "status_monitoring": "En seguimiento",
