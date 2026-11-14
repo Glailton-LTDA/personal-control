@@ -4,6 +4,22 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-13
+
+### Corrigido
+- **Cadastro de medicamentos**: a dose é montada por Quantidade + Unidade, sem campo redundante. Edições preservam a dose dos cadastros antigos até que esses valores sejam alterados.
+- **Controles do Guia Médico**: radios e checkboxes voltam ao tamanho visual de 20px, mantendo os rótulos com área confortável para toque.
+
+## [2.3.0] - 2026-11-13
+
+### Adicionado
+- **Tratamentos no Guia Médico**: frequência em horas ou horários personalizados, duração finita ou contínua, prévia de doses e última tomada prevista, resumo, calendário mensal, histórico paginado e documentos privados vinculados.
+
+### Corrigido
+- **Fluxos de medicamentos**: salvamento aguarda confirmação do servidor; navegação e edição preservam agenda, fuso e vínculos. Tomadas atrasadas mantêm o horário previsto e falhas permitem tentar novamente sem duplicar a operação.
+- **Integridade e lembretes**: histórico acima de 20 doses, retomada de notificações e conflitos entre dispositivos, inclusive depois de desfazer e registrar novamente.
+- **Migração e validação**: upgrade preserva cadastros antigos sem horários e períodos longos; pipeline executa migrations, segurança, planos e gravações concorrentes do novo módulo.
+
 ## [2.2.7] - 2026-11-13
 
 ### Corrigido
