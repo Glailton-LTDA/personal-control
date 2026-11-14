@@ -1,116 +1,84 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key) => key, i18n: { language: 'en' } }),
-}));
-vi.mock('../../lib/treatments', () => ({
-  saveTreatment: vi.fn(),
-}));
-import { saveTreatment } from '../../lib/treatments';
 import TreatmentForm from './TreatmentForm';
-
-const OWNER = '11111111-1111-4111-4111-111111111111';
-
-const Wrapper = ({ children }) => {
-  const client = new QueryClient();
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-};
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  saveTreatment.mockReset();
-  saveTreatment.mockResolvedValue({
-    data: { id: 'med-1', row_version: 1 },
-    error: null,
+import { saveTreatment } from '../../lib/treatments';
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key, options) => key === 'health.predicted_doses' ? `${key}:${options.count}` : key === 'health.last_dose' ? `${key}:${options.date}` : key, i18n: { language: 'en' } }) }));
+vi.mock('../../lib/treatments', () => ({ saveTreatment: vi.fn() }));
+vi.mock('./HealthUI', async original => ({ ...await original(), HealthLinkSelect: ({ field, value, onChange }) => <label>{field}<select aria-label={field} value={value || ''} onChange={e => onChange(e.target.value)}><option value="" /><option value="link-1">Linked</option></select></label> }));
+const wrapper = ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
+const start = Date.UTC(2026, 10, 12, 9);
+const setup = (record) => { const saved = vi.fn(), close = vi.fn(); render(<TreatmentForm userId="owner" record={record} onSaved={saved} onClose={close} />, { wrapper }); return { saved, close }; };
+const fill = () => { fireEvent.change(screen.getByLabelText('health.treatment_name'), { target: { value: 'Synthetic' } }); fireEvent.change(screen.getByLabelText('health.treatment_dose'), { target: { value: '1 tablet' } }); };
+beforeEach(() => { vi.clearAllMocks(); vi.spyOn(Date, 'now').mockReturnValue(start); saveTreatment.mockResolvedValue({ data: { id: 'med-1' }, error: null }); });
+describe('treatment form with real mutation hook', () => {
+  it('awaits server success, calculates 21 doses and does not expose a technical timezone input', async () => {
+    const { saved } = setup(); fill();
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_time'), {target:{value:'06:00'}});
+    expect(screen.getByText('health.predicted_doses:21')).toBeVisible();
+    expect(screen.getByText(/health.last_dose:.*Nov 18, 2026/)).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: /timezone/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
+    await waitFor(() => expect(saved).toHaveBeenCalledWith('med-1'));
+    expect(saveTreatment).toHaveBeenCalledWith('owner', expect.objectContaining({ interval_minutes: 480, duration_days: 7 }), expect.any(String));
   });
-});
-
-describe('TreatmentForm', () => {
-  it('renders main fields and submits a new treatment', async () => {
-    const onSaved = vi.fn();
-    render(
-      <TreatmentForm userId={OWNER} onClose={vi.fn()} onSaved={onSaved} />,
-      { wrapper: Wrapper },
-    );
-    await screen.findByLabelText('health.treatment_name');
-    fireEvent.change(screen.getByLabelText('health.treatment_name'), {
-      target: { value: 'Tratamento Teste' },
-    });
-    fireEvent.change(
-      screen.getByRole('textbox', { name: /dose/i }),
-      { target: { value: '1 comprimido' } },
-    );
-    fireEvent.change(screen.getByLabelText(/timezone/i), {
-      target: { value: 'America/Sao_Paulo' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'health.treatment_saved' }));
+  it('keeps values and command ID after an error, then retries the same intent', async () => {
+    saveTreatment.mockResolvedValueOnce({ data: null, error: 'version_conflict' });
+    const { saved } = setup(); fill();
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
+    await screen.findByRole('alert');
+    expect(saved).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('health.treatment_name')).toHaveValue('Synthetic');
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
+    await waitFor(() => expect(saved).toHaveBeenCalledWith('med-1'));
+    expect(saveTreatment.mock.calls[0][2]).toBe(saveTreatment.mock.calls[1][2]);
+  });
+  it('preserves interval, local anchor, duration and relationships while editing metadata', async () => {
+    setup({ id: 'med-1', name: 'Existing', dose: '1', timezone: 'America/Fortaleza', row_version: 7, condition_id: 'link-1', appointment_id: 'link-1', schedule: { mode: 'interval', anchor_at: '2026-11-12T09:00:00Z', interval_minutes: 480, duration_kind: 'finite', duration_days: 7 } });
+    expect(screen.getByLabelText('health.treatment_anchor_time')).toHaveValue('06:00');
+    fireEvent.change(screen.getByLabelText('health.treatment_name'), { target: { value: 'Renamed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
     await waitFor(() => expect(saveTreatment).toHaveBeenCalled());
-    expect(saveTreatment).toHaveBeenCalledWith(OWNER, expect.objectContaining({
-      name: 'Tratamento Teste',
-      dose: '1 comprimido',
-    }));
+    expect(saveTreatment.mock.calls[0][1]).toMatchObject({ mode: 'interval', anchor_time: '06:00', duration_days: 7, expected_version: 7, condition_id: 'link-1', appointment_id: 'link-1' });
   });
-
-  it('switches to interval mode and shows anchor fields', async () => {
-    render(
-      <TreatmentForm userId={OWNER} onClose={vi.fn()} onSaved={vi.fn()} />,
-      { wrapper: Wrapper },
-    );
-    await screen.findByLabelText('health.treatment_name');
-    fireEvent.click(screen.getByRole('radio', { name: /treatment_mode_interval/i }));
-    expect(screen.getByLabelText('health.treatment_anchor_date')).toBeInTheDocument();
-    expect(screen.getByLabelText('health.treatment_anchor_time')).toBeInTheDocument();
-    expect(screen.getByLabelText(/treatment_interval_minutes/i)).toBeInTheDocument();
-  });
-
-  it('adds and removes a daily time', async () => {
-    render(
-      <TreatmentForm userId={OWNER} onClose={vi.fn()} onSaved={vi.fn()} />,
-      { wrapper: Wrapper },
-    );
-    await screen.findByLabelText('health.treatment_name');
+  it('supports custom daily times, continuous use, offsets and optional information', async () => {
+    setup(); fill();
+    fireEvent.click(screen.getByRole('radio', { name: 'health.treatment_mode_daily_times' }));
     fireEvent.click(screen.getByRole('button', { name: 'health.add_time' }));
-    fireEvent.click(
-      screen.getAllByRole('button', { name: 'health.remove_time' })[0],
-    );
-    expect(saveTreatment).not.toHaveBeenCalled();
-  });
-
-  it('renders edit mode with record values', async () => {
-    const record = {
-      id: 'med-1',
-      name: 'Existente',
-      dose: '2 comprimidos',
-      mode: 'interval',
-      duration_kind: 'finite',
-      duration_days: 7,
-      timezone: 'America/Sao_Paulo',
-      anchor_date: '2027-03-15',
-      anchor_time: '08:00',
-      interval_minutes: 120,
-      row_version: 2,
-    };
-    const onSaved = vi.fn();
-    render(
-      <TreatmentForm
-        userId={OWNER}
-        record={record}
-        onClose={vi.fn()}
-        onSaved={onSaved}
-      />,
-      { wrapper: Wrapper },
-    );
-    await screen.findByLabelText('health.treatment_name');
-    expect(screen.getByDisplayValue('Existente')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('2 comprimidos')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'health.treatment_updated' }));
+    fireEvent.change(screen.getAllByLabelText('health.treatment_local_times')[1], { target: { value: '20:00' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'health.remove_time' })[0]);
+    fireEvent.click(screen.getByLabelText('health.treatment_duration_continuous'));
+    fireEvent.click(screen.getByText('health.additional_information'));
+    for (const key of ['professional_name', 'indication', 'pharmacy', 'batch']) fireEvent.change(screen.getByLabelText(`health.treatment_${key}`), { target: { value: 'Synthetic' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_notes'), { target: { value: 'Private note' } });
+    fireEvent.change(screen.getByLabelText('condition_id'), { target: { value: 'link-1' } });
+    fireEvent.change(screen.getByLabelText('appointment_id'), { target: { value: 'link-1' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_reminder_offset_minutes'), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText('health.presentation'), { target: { value: 'tablet' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_dose_quantity'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_dose_unit_code'), { target: { value: 'tablet' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_local_start_date'), { target: { value: '2026-11-12' } });
+    expect([...document.querySelector('form').elements].filter(e => e.willValidate && !e.checkValidity()).map(e => [e.name, e.value, e.validationMessage])).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
     await waitFor(() => expect(saveTreatment).toHaveBeenCalled());
-    expect(saveTreatment).toHaveBeenCalledWith(OWNER, expect.objectContaining({
-      id: 'med-1',
-      expected_version: 2,
-    }));
+    expect(saveTreatment.mock.calls[0][1]).toMatchObject({ local_times: ['20:00'], duration_kind: 'continuous', reminder_offset_minutes: 30, presentation_code: 'tablet' });
+  });
+  it('validates duplicates, supports presets and custom hours, and guards dirty close', async () => {
+    const { close } = setup(); fill();
+    fireEvent.click(screen.getAllByRole('button', { name: 'health.every_hours' })[0]);
+    fireEvent.change(screen.getByLabelText('health.interval_hours'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_date'), { target: { value: '2026-11-13' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_time'), { target: { value: '06:00' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_duration_days'), { target: { value: '2' } });
+    fireEvent.click(screen.getByLabelText('health.treatment_reminders_enabled'));
+    fireEvent.click(screen.getByRole('radio', { name: 'health.treatment_mode_daily_times' }));
+    fireEvent.click(screen.getByRole('button', { name: 'health.add_time' }));
+    fireEvent.change(screen.getAllByLabelText('health.treatment_local_times')[1], { target: { value: '08:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('health.invalid_times');
+    vi.stubGlobal('confirm', vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true));
+    fireEvent.click(screen.getByRole('button', { name: 'health.cancel' })); expect(close).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'health.cancel' })); expect(close).toHaveBeenCalled();
   });
 });

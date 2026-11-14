@@ -58,7 +58,7 @@ begin
  insert into med_ctx values('slot',slot::text);
  res:=public.health_dose_record(med,slot,'taken',slot,'1 comprimido','',0,
   'aaaaaaaa-0000-4000-8000-000000000010');
- if (res->>'row_version')::bigint<>0 then raise exception 'dose version'; end if;
+ if (res->>'row_version')::bigint<>1 then raise exception 'dose version'; end if;
  v:=res::text;
  res:=public.health_dose_record(med,slot,'taken',slot,'1 comprimido','',0,
   'aaaaaaaa-0000-4000-8000-000000000010');
@@ -70,9 +70,9 @@ begin
  exception when others then
   if sqlerrm<>'IDEMPOTENCY_CONFLICT' then raise; end if;
  end;
- res:=public.health_dose_record(med,slot,'skipped',null,'','',0,
+ res:=public.health_dose_record(med,slot,'skipped',null,'','',1,
   'aaaaaaaa-0000-4000-8000-000000000015');
- if (res->>'row_version')::bigint<>1 then raise exception 'dose update version'; end if;
+ if (res->>'row_version')::bigint<>2 then raise exception 'dose update version'; end if;
  begin
   perform public.health_dose_record(med,slot,'taken',slot,'','',0,
    'aaaaaaaa-0000-4000-8000-000000000011');
@@ -86,14 +86,14 @@ begin
  exception when others then
   if sqlerrm<>'VERSION_CONFLICT' then raise; end if;
  end;
- res:=public.health_dose_undo(med,slot,1,'aaaaaaaa-0000-4000-8000-000000000013');
+ res:=public.health_dose_undo(med,slot,2,'aaaaaaaa-0000-4000-8000-000000000013');
  if not (res->>'undone')::boolean then raise exception 'undo failed'; end if;
  select count(*) into n from public.health_doses where medication_id=med and scheduled_at=slot;
  if n<>0 then raise exception 'undo left projection'; end if;
  select count(*) into n from public.health_dose_events
   where medication_id=med and scheduled_at=slot and action='undone';
  if n<>1 then raise exception 'undo not audited'; end if;
- res:=public.health_dose_undo(med,slot,1,'aaaaaaaa-0000-4000-8000-000000000013');
+ res:=public.health_dose_undo(med,slot,2,'aaaaaaaa-0000-4000-8000-000000000013');
  if not (res->>'undone')::boolean then raise exception 'undo replay failed'; end if;
  perform public.health_dose_record(med,slot,'taken',slot,'1 comprimido','',0,
   'aaaaaaaa-0000-4000-8000-000000000014');

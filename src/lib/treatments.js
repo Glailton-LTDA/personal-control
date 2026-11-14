@@ -125,14 +125,14 @@ export async function undoDose(
 
 export async function listTreatments(
   userId,
-  { group = 'active', prefix = '', limit = TREATMENT_PAGE_SIZE, offset = 0 } = {},
+  { group = 'active', prefix = '', limit = TREATMENT_PAGE_SIZE, offset, page = 0 } = {},
 ) {
   if (!userId) throw new Error('auth_required');
   const { error, data } = await supabase.rpc('health_treatment_list', {
     p_group: group,
     p_prefix: prefix,
     p_limit: Math.min(Math.max(Number(limit) || 20, 1), 20),
-    p_offset: Math.max(Number(offset) || 0, 0),
+    p_offset: Math.max(Number(offset ?? page * TREATMENT_PAGE_SIZE) || 0, 0),
   });
   return { data, error: error ? mapError(error) : null };
 }

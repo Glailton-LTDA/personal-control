@@ -243,7 +243,7 @@ describe('mutations invalidate on success', () => {
         expectedVersion: 1,
       });
     });
-    expect(treatmentsModule.undoDose).toHaveBeenCalledWith(OWNER, 'm1', '2027-03-15T10:00:00Z', 1);
+    expect(treatmentsModule.undoDose).toHaveBeenCalledWith(OWNER, 'm1', '2027-03-15T10:00:00Z', 1, expect.any(String));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['health', OWNER] });
   });
 
@@ -261,4 +261,14 @@ describe('mutations invalidate on success', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['health', OWNER] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['treatments', OWNER] });
   });
+});
+
+it('reuses one request ID after a lost response and does not treat a domain error as success', async () => {
+  treatmentsModule.saveTreatment.mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValueOnce({data:{id:'same-med'},error:null});
+  const client=new QueryClient();
+  const {result}=renderHook(()=>useSaveTreatment(OWNER),{wrapper:wrapperFactory(client)});
+  await act(async()=>{await expect(result.current.mutateAsync({name:'Synthetic'})).resolves.toEqual({id:'same-med'});});
+  expect(treatmentsModule.saveTreatment.mock.calls[0][2]).toBe(treatmentsModule.saveTreatment.mock.calls[1][2]);
+  treatmentsModule.saveTreatment.mockResolvedValue({error:'version_conflict'});
+  await act(async()=>{await expect(result.current.mutateAsync({name:'Synthetic'})).rejects.toThrow('version_conflict');});
 });

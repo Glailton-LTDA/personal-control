@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   saveTreatment,
   treatmentState,
@@ -11,25 +11,39 @@ import {
   treatmentHistory,
   refreshReminders,
   TREATMENT_PAGE_SIZE,
-} from '../lib/treatments';
+} from "../lib/treatments";
+
+async function checked(promise) {
+  const result = await promise;
+  if (result?.error) throw new Error(result.error);
+  return result?.data;
+}
 
 // Query keys always include the user so cache never leaks across accounts and
 // is cleared on session change.
 export const treatmentKeys = {
-  all: (userId) => ['treatments', userId],
-  list: (userId, params) => [...treatmentKeys.all(userId), 'list', params],
-  detail: (userId, medicationId) => [...treatmentKeys.all(userId), 'detail', medicationId],
-  dashboard: (userId, timezone) => [...treatmentKeys.all(userId), 'dashboard', timezone],
+  all: (userId) => ["treatments", userId],
+  list: (userId, params) => [...treatmentKeys.all(userId), "list", params],
+  detail: (userId, medicationId) => [
+    ...treatmentKeys.all(userId),
+    "detail",
+    medicationId,
+  ],
+  dashboard: (userId, timezone) => [
+    ...treatmentKeys.all(userId),
+    "dashboard",
+    timezone,
+  ],
   calendar: (userId, medicationId, from, to) => [
     ...treatmentKeys.all(userId),
-    'calendar',
+    "calendar",
     medicationId,
     from,
     to,
   ],
   history: (userId, medicationId, params) => [
     ...treatmentKeys.all(userId),
-    'history',
+    "history",
     medicationId,
     params,
   ],
@@ -38,7 +52,7 @@ export const treatmentKeys = {
 export function useTreatmentList(userId, params = {}, enabled = true) {
   return useQuery({
     queryKey: treatmentKeys.list(userId, params),
-    queryFn: () => listTreatments(userId, params),
+    queryFn: () => checked(listTreatments(userId, params)),
     enabled: Boolean(userId) && enabled,
     staleTime: 30000,
     gcTime: 0,
@@ -46,10 +60,14 @@ export function useTreatmentList(userId, params = {}, enabled = true) {
   });
 }
 
-export function useTreatmentDashboard(userId, timezone = 'UTC', enabled = true) {
+export function useTreatmentDashboard(
+  userId,
+  timezone = "UTC",
+  enabled = true,
+) {
   return useQuery({
     queryKey: treatmentKeys.dashboard(userId, timezone),
-    queryFn: () => treatmentDashboard(userId, timezone),
+    queryFn: () => checked(treatmentDashboard(userId, timezone)),
     enabled: Boolean(userId) && enabled,
     staleTime: 30000,
     gcTime: 0,
@@ -60,7 +78,7 @@ export function useTreatmentDashboard(userId, timezone = 'UTC', enabled = true) 
 export function useTreatmentDetail(userId, medicationId, enabled = true) {
   return useQuery({
     queryKey: treatmentKeys.detail(userId, medicationId),
-    queryFn: () => treatmentDetail(userId, medicationId),
+    queryFn: () => checked(treatmentDetail(userId, medicationId)),
     enabled: Boolean(userId && medicationId) && enabled,
     staleTime: 30000,
     gcTime: 0,
@@ -77,7 +95,7 @@ export function useTreatmentCalendar(
 ) {
   return useQuery({
     queryKey: treatmentKeys.calendar(userId, medicationId, from, to),
-    queryFn: () => treatmentCalendar(userId, medicationId, from, to),
+    queryFn: () => checked(treatmentCalendar(userId, medicationId, from, to)),
     enabled: Boolean(userId && medicationId && from && to) && enabled,
     staleTime: 30000,
     gcTime: 0,
@@ -85,10 +103,15 @@ export function useTreatmentCalendar(
   });
 }
 
-export function useTreatmentHistory(userId, medicationId, params = {}, enabled = true) {
+export function useTreatmentHistory(
+  userId,
+  medicationId,
+  params = {},
+  enabled = true,
+) {
   return useQuery({
     queryKey: treatmentKeys.history(userId, medicationId, params),
-    queryFn: () => treatmentHistory(userId, medicationId, params),
+    queryFn: () => checked(treatmentHistory(userId, medicationId, params)),
     enabled: Boolean(userId && medicationId) && enabled,
     staleTime: 30000,
     gcTime: 0,
@@ -96,73 +119,73 @@ export function useTreatmentHistory(userId, medicationId, params = {}, enabled =
   });
 }
 
-export function useTreatmentRefresh(userId) {
+// A command ID is allocated before mutate starts, so automatic retries and a
+// caller retry with the same requestId reuse exactly the same server command.
+function useTreatmentMutation(userId, write) {
   const client = useQueryClient();
-  return useMutation({
-    mutationFn: () => refreshReminders(userId),
+  const mutation = useMutation({
+    mutationFn: (command) => checked(write(command)),
+    onMutate: () => client.cancelQueries({ queryKey: treatmentKeys.all(userId) }),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['health', userId] });
-      client.invalidateQueries({ queryKey: ['treatments', userId] });
+      client.invalidateQueries({ queryKey: ["health", userId] });
+      client.invalidateQueries({ queryKey: treatmentKeys.all(userId) });
     },
+    retry: (count, error) =>
+      count < 1 &&
+      !error?.message?.match(
+        /conflict|invalid|forbidden|expired|future|scheduled/,
+      ),
   });
+  const command = (values = {}) => ({
+    ...values,
+    requestId: values.requestId || crypto.randomUUID(),
+  });
+  return {
+    ...mutation,
+    mutate: (values, options) => mutation.mutate(command(values), options),
+    mutateAsync: (values, options) =>
+      mutation.mutateAsync(command(values), options),
+  };
+}
+
+export function useTreatmentRefresh(userId) {
+  return useTreatmentMutation(userId, () => refreshReminders(userId));
 }
 
 export function useSaveTreatment(userId) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (values) => saveTreatment(userId, values),
-    onMutate: () => {
-      client.cancelQueries({ queryKey: ['treatments', userId] });
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['health', userId] });
-      client.invalidateQueries({ queryKey: ['treatments', userId] });
-    },
-    retry: 1,
-  });
+  return useTreatmentMutation(userId, ({ requestId, ...values }) =>
+    saveTreatment(userId, values, requestId),
+  );
 }
 
 export function useTreatmentState(userId) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ medicationId, action, options }) =>
-      treatmentState(userId, medicationId, action, options),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['health', userId] });
-      client.invalidateQueries({ queryKey: ['treatments', userId] });
-    },
-    retry: 1,
-  });
+  return useTreatmentMutation(
+    userId,
+    ({ medicationId, action, options, requestId }) =>
+      treatmentState(userId, medicationId, action, {
+        ...options,
+        p_request_id: requestId,
+      }),
+  );
 }
 
 export function useRecordDose(userId) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      medicationId,
-      scheduledAt,
-      status,
-      options,
-    }) => recordDose(userId, medicationId, scheduledAt, status, options),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['health', userId] });
-      client.invalidateQueries({ queryKey: ['treatments', userId] });
-    },
-    retry: 1,
-  });
+  return useTreatmentMutation(
+    userId,
+    ({ medicationId, scheduledAt, status, options, requestId }) =>
+      recordDose(userId, medicationId, scheduledAt, status, {
+        ...options,
+        p_request_id: requestId,
+      }),
+  );
 }
 
 export function useUndoDose(userId) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ medicationId, scheduledAt, expectedVersion }) =>
-      undoDose(userId, medicationId, scheduledAt, expectedVersion),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['health', userId] });
-      client.invalidateQueries({ queryKey: ['treatments', userId] });
-    },
-    retry: 1,
-  });
+  return useTreatmentMutation(
+    userId,
+    ({ medicationId, scheduledAt, expectedVersion, requestId }) =>
+      undoDose(userId, medicationId, scheduledAt, expectedVersion, requestId),
+  );
 }
 
 export { TREATMENT_PAGE_SIZE };

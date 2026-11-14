@@ -474,3 +474,15 @@ describe('treatmentEngine limits', () => {
     expect(MAX_TIMES).toBe(24);
   });
 });
+
+it('returns the requested next interval slots using minutes converted to milliseconds', () => {
+  const schedule = { mode:'interval',anchor_at:'2026-11-12T06:00:00Z',interval_minutes:480 };
+  expect(nextSlots(schedule,3,Date.parse('2026-11-12T07:00:00Z')).map(n=>new Date(n).toISOString())).toEqual(['2026-11-12T14:00:00.000Z','2026-11-12T22:00:00.000Z','2026-11-13T06:00:00.000Z']);
+});
+it('does not crash the preview while partially editing invalid inputs', () => {
+  const base={mode:'interval',timezone:'UTC',anchor_date:'2026-11-12',anchor_time:'06:00',interval_minutes:480,duration_kind:'finite',duration_days:7};
+  for (const change of [{timezone:''},{mode:'other'},{duration_days:''},{interval_minutes:0},{anchor_time:''},{mode:'daily_times',local_start_date:'',local_times:[]},{mode:'daily_times',local_start_date:'2026-11-12',local_times:['']}]) expect(scheduleFromTreatment({...base,...change})).toBeNull();
+  const schedule=scheduleFromTreatment(base);
+  expect(countSlots(schedule)).toBe(21);
+  expect(buildSlots(schedule,schedule.effective_from,schedule.end_exclusive_at).at(-1)).toBe(Date.parse('2026-11-18T22:00:00Z'));
+});

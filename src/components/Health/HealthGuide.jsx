@@ -724,13 +724,15 @@ export default function HealthGuide({
     () => () => {
       client.cancelQueries({ queryKey: ['health', userId] });
       client.removeQueries({ queryKey: ['health', userId] });
+      client.cancelQueries({ queryKey: ['treatments', userId] });
+      client.removeQueries({ queryKey: ['treatments', userId] });
     },
     [client, userId],
   );
   const refresh = () =>
     client.invalidateQueries({ queryKey: ['health', userId] });
   if (!userId) return <p role="alert">{t('health.auth_required')}</p>;
-  const current = Object.hasOwn(ICONS, screen) ? screen : 'today';
+  const current = screen === 'treatments' ? 'medications' : Object.hasOwn(ICONS, screen) ? screen : 'today';
   return (
     <div className="health-guide" data-testid="health-guide">
       <header className="health-header">
@@ -845,7 +847,7 @@ export default function HealthGuide({
             setForm(null);
             refresh();
             toast.success(t('health.treatment_saved'));
-            navigate(`health/treatments/${id}`);
+            navigate(`health/medications/${id}`);
           }}
         />
       ) : form ? (

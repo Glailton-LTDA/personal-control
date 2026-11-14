@@ -1,4 +1,4 @@
-﻿begin;
+begin;
 -- ===== 01-schema.sql =====
 -- Medication treatments: schedule revisions, occurrences, dose audit and RPCs.
 -- Additive only. Legacy columns/tables are preserved for older clients.
@@ -36,7 +36,7 @@ create table public.health_medication_schedules (
  local_start_date date,
  local_times time[],
  duration_kind text not null check(duration_kind in ('finite','continuous')),
- duration_days integer check(duration_days between 1 and 365),
+ duration_days integer check(duration_days>0),
  end_exclusive_at timestamptz,
  effective_from timestamptz not null,
  effective_until timestamptz,
@@ -71,6 +71,7 @@ create table public.health_medication_occurrences (
  medication_id uuid not null,
  schedule_id uuid not null,
  scheduled_at timestamptz not null,
+ record_version bigint not null default 0 check(record_version>=0),
  canceled_at timestamptz,
  cancellation_reason text check(cancellation_reason in ('schedule_changed','paused','finished')),
  created_at timestamptz not null default now(),
@@ -99,12 +100,12 @@ create table public.health_dose_events (
  request_id uuid,
  created_at timestamptz not null default now(),
  foreign key(user_id,medication_id) references public.health_medications(user_id,id) on delete cascade,
- foreign key(user_id,occurrence_id) references public.health_medication_occurrences(user_id,id) on delete set null
+ foreign key(user_id,occurrence_id) references public.health_medication_occurrences(user_id,id) on delete set null (occurrence_id)
 );
 
 alter table public.health_doses
  add column if not exists occurrence_id uuid,
- add column if not exists row_version bigint not null default 0 check(row_version>=0),
+ add column if not exists row_version bigint not null default 1 check(row_version>=0),
  add column if not exists reason text not null default '' check(length(reason)<=1000),
  add column if not exists updated_at timestamptz not null default now();
 alter table public.health_doses
@@ -201,9 +202,6 @@ declare wall timestamp; off_before interval; off_after interval;
  c1 timestamptz; c2 timestamptz; best timestamptz;
 begin
  if p_date is null or p_time is null or p_timezone is null then return null; end if;
- if not exists(select 1 from pg_timezone_names tz where tz.name=p_timezone) then
-  raise exception 'INVALID_TIMEZONE' using errcode='P0001';
- end if;
  wall := p_date + p_time;
  -- Offsets on the adjacent days expose both sides of a DST transition.
  off_before := ((wall-interval '1 day') at time zone p_timezone)-(wall-interval '1 day');
@@ -215,6 +213,8 @@ begin
  if (c1 at time zone p_timezone)=wall then best:=c1; end if;
  if (c2 at time zone p_timezone)=wall and (best is null or c2<best) then best:=c2; end if;
  return best;
+exception when invalid_parameter_value then
+ raise exception 'INVALID_TIMEZONE' using errcode='P0001';
 end $body$;
 revoke all on function health_private.local_instant(date,time,text) from public,anon,authenticated;
 grant execute on function health_private.local_instant(date,time,text) to health_scheduler;
@@ -352,7 +352,7 @@ returns integer language plpgsql stable set search_path='' as $body$
 declare r record; bound_end timestamptz; n_first bigint; n_end bigint; total integer:=0;
  d date; t time; slot timestamptz;
 begin
- select * into r from public.health_medication_schedules where id=p_schedule_id;
+ select id,user_id,medication_id,revision,mode,timezone,anchor_at,interval_minutes,local_start_date,local_times,duration_kind,duration_days,end_exclusive_at,effective_from,effective_until,dose_text_snapshot,quantity_snapshot,unit_snapshot,created_at,created_by_request_id into r from public.health_medication_schedules where id=p_schedule_id;
  if not found or r.duration_kind='continuous' then return null; end if;
  bound_end:=least(coalesce(r.end_exclusive_at,'infinity'::timestamptz),
                   coalesce(r.effective_until,'infinity'::timestamptz));
@@ -467,7 +467,7 @@ begin
   end if;
  end if;
  if new.duration_kind='finite' then
-  if new.duration_days is null or new.duration_days<1 or new.duration_days>365 then
+  if new.duration_days is null or new.duration_days<1 then
    raise exception 'INVALID_DURATION' using errcode='P0001';
   end if;
  end if;
@@ -538,11 +538,14 @@ begin
  v_pending:=(v_times is null or cardinality(v_times)=0);
  update public.health_medications set schedule_pending=v_pending
   where id=p_med.id and schedule_pending is distinct from v_pending;
- if not v_pending and not exists(
+ if v_pending or not exists(
   select 1 from public.health_medication_schedules s
   where s.user_id=p_med.user_id and s.medication_id=p_med.id and s.effective_until is null
    and s.mode='daily_times' and s.timezone=v_tz and s.local_start_date=p_med.starts_on
    and s.local_times=v_times
+   and s.dose_text_snapshot=p_med.dose
+   and s.quantity_snapshot is not distinct from p_med.dose_quantity
+   and s.unit_snapshot is not distinct from p_med.dose_unit_code
    and s.duration_kind=(case when p_med.ends_on is null then 'continuous' else 'finite' end)
    and (p_med.ends_on is null or s.duration_days=(p_med.ends_on-p_med.starts_on+1))
  ) then
@@ -551,11 +554,11 @@ begin
     and (effective_until is null or effective_until>v_now);
   update public.health_medication_occurrences set canceled_at=v_now,cancellation_reason='schedule_changed'
    where user_id=p_med.user_id and medication_id=p_med.id and scheduled_at>=v_now
-    and canceled_at is null
+    and p_med.status<>'active' and canceled_at is null
     and not exists(select 1 from public.health_doses d
       where d.user_id=p_med.user_id and d.medication_id=p_med.id
        and d.scheduled_at=health_medication_occurrences.scheduled_at);
-  if not v_pending then
+  if not v_pending and p_med.status='active' then
    select coalesce(max(revision),0)+1 into v_revision
     from public.health_medication_schedules
     where user_id=p_med.user_id and medication_id=p_med.id;
@@ -595,7 +598,7 @@ begin
    set canceled_at=v_now,
        cancellation_reason=case when p_med.status='paused' then 'paused' else 'finished' end
    where user_id=p_med.user_id and medication_id=p_med.id and scheduled_at>=v_now
-    and canceled_at is null
+    and p_med.status<>'active' and canceled_at is null
     and not exists(select 1 from public.health_doses d
       where d.user_id=p_med.user_id and d.medication_id=p_med.id
        and d.scheduled_at=health_medication_occurrences.scheduled_at);
@@ -637,6 +640,11 @@ begin
     where user_id=new.user_id and medication_id=new.medication_id and scheduled_at=new.scheduled_at;
   end if;
  end if;
+ if new.occurrence_id is not null then
+  update public.health_medication_occurrences set record_version=greatest(record_version,case when tg_op='UPDATE' then old.row_version else 0 end)+1
+   where user_id=new.user_id and id=new.occurrence_id
+   returning record_version into new.row_version;
+ elsif tg_op='INSERT' then new.row_version:=1; end if;
  return new;
 end $body$;
 revoke all on function health_private.dose_audit_before() from public,anon,authenticated;
@@ -669,12 +677,20 @@ begin
     and old.user_id is distinct from health_private.request_user_id() then
   raise exception 'ownership required' using errcode='42501';
  end if;
+ -- Definitive parent/account deletion cascades its audit too; do not insert
+ -- an undo event referencing the parent that has already been deleted.
+ if not exists(select 1 from public.health_medications
+   where id=old.medication_id and user_id=old.user_id) then return old; end if;
  insert into public.health_dose_events(
   user_id,medication_id,occurrence_id,action,status,scheduled_at,taken_at,amount,reason,
   actor_user_id,request_id)
  values(old.user_id,old.medication_id,old.occurrence_id,'undone',old.status,old.scheduled_at,
   old.taken_at,old.amount,nullif(old.reason,''),health_private.request_user_id(),
   nullif(current_setting('health.request_id',true),'')::uuid);
+ if old.occurrence_id is not null then
+  update public.health_medication_occurrences set record_version=record_version+1
+   where user_id=old.user_id and id=old.occurrence_id;
+ end if;
  return old;
 end $body$;
 revoke all on function health_private.dose_audit_delete() from public,anon,authenticated;
@@ -689,6 +705,8 @@ create or replace function health_private.schedule_record() returns trigger
 language plpgsql security definer set search_path='' as $body$
 declare d date; tm time; occurrence timestamptz; minutes integer;
 begin
+ if coalesce(current_setting('health.migration_backfill',true),'')='1'
+    and session_user in ('postgres','supabase_admin') then return new; end if;
  if new.user_id is distinct from health_private.request_user_id() then
   raise exception 'ownership required' using errcode='42501';
  end if;
@@ -741,6 +759,7 @@ declare
  v_canceled integer:=0; v_status text; v_reminders boolean; v_offset integer;
  v_condition uuid; v_appointment uuid; v_start_instant timestamptz;
  v_local_anchor_date date; v_local_anchor_time time; t time;
+ v_current record; v_schedule_changed boolean:=true;
 begin
  if uid is null then raise exception 'AUTH_REQUIRED' using errcode='P0001'; end if;
  if p_payload is null or jsonb_typeof(p_payload)<>'object' then
@@ -753,7 +772,7 @@ begin
   v_new:=true;
   v_id:=gen_random_uuid();
  else
-  select * into v_existing from public.health_medications
+  select id,user_id,name,dose,status,starts_on,ends_on,times,timezone,reminders_enabled,notes,condition_id,appointment_id,created_at,name_search,presentation_code,dose_quantity,dose_unit_code,professional_name,indication,pharmacy,batch,finished_at,finish_reason,paused_at,row_version,reminder_offset_minutes,schedule_pending into v_existing from public.health_medications
    where id=v_id and user_id=uid for update;
   if not found then raise exception 'NOT_FOUND_OR_FORBIDDEN' using errcode='P0001'; end if;
   if nullif(p_payload->>'expected_version','') is not null
@@ -814,8 +833,8 @@ begin
  v_offset:=coalesce(nullif(p_payload->>'reminder_offset_minutes','')::integer,
                     v_existing.reminder_offset_minutes,0);
  if v_offset<0 or v_offset>10080 then raise exception 'INVALID_SCHEDULE' using errcode='P0001'; end if;
- v_condition:=nullif(p_payload->>'condition_id','')::uuid;
- v_appointment:=nullif(p_payload->>'appointment_id','')::uuid;
+ v_condition:=case when p_payload ? 'condition_id' then nullif(p_payload->>'condition_id','')::uuid else v_existing.condition_id end;
+ v_appointment:=case when p_payload ? 'appointment_id' then nullif(p_payload->>'appointment_id','')::uuid else v_existing.appointment_id end;
  if v_new then
   v_status:='active';
  else
@@ -861,6 +880,24 @@ begin
  end if;
 
  if not v_new then
+  select id,revision,mode,timezone,anchor_at,interval_minutes,local_start_date,local_times,
+    duration_kind,duration_days,dose_text_snapshot,quantity_snapshot,unit_snapshot
+  into v_current from public.health_medication_schedules
+  where user_id=uid and medication_id=v_id order by revision desc limit 1;
+  v_schedule_changed:=not found or v_current.mode is distinct from v_mode
+   or v_current.timezone is distinct from v_tz
+   or v_current.duration_kind is distinct from v_kind
+   or v_current.duration_days is distinct from v_days
+   or v_current.dose_text_snapshot is distinct from v_dose
+   or v_current.quantity_snapshot is distinct from v_qty
+   or v_current.unit_snapshot is distinct from v_unit
+   or (v_mode='interval' and (v_current.anchor_at is distinct from v_anchor or v_current.interval_minutes is distinct from v_interval))
+   or (v_mode='daily_times' and (v_current.local_start_date is distinct from v_start or v_current.local_times is distinct from v_times));
+  if v_schedule_changed and v_status<>'active' then
+   raise exception 'INVALID_SCHEDULE' using errcode='P0001';
+  end if;
+ end if;
+ if not v_new and v_schedule_changed then
   if exists(select 1 from public.health_doses d
     where d.user_id=uid and d.medication_id=v_id and d.scheduled_at>=v_effective) then
    raise exception 'SCHEDULE_HAS_RECORDED_OCCURRENCES' using errcode='P0001';
@@ -883,8 +920,10 @@ begin
    where user_id=uid and medication_id=v_id and scheduled_at>=v_effective
     and dismissed_at is null;
  end if;
- select coalesce(max(revision),0)+1 into v_revision
-  from public.health_medication_schedules where user_id=uid and medication_id=v_id;
+ if v_schedule_changed then
+  select coalesce(max(revision),0)+1 into v_revision
+   from public.health_medication_schedules where user_id=uid and medication_id=v_id;
+ else v_revision:=v_current.revision; v_sched:=v_current.id; end if;
  perform set_config('health.schedule_api','1',true);
  if v_new then
   insert into public.health_medications(
@@ -900,6 +939,7 @@ begin
    v_prof,v_indication,v_pharmacy,v_batch,v_offset)
   returning row_version into v_version;
  end if;
+ if v_schedule_changed then
  insert into public.health_medication_schedules(
   user_id,medication_id,revision,mode,timezone,anchor_at,interval_minutes,
   local_start_date,local_times,duration_kind,duration_days,end_exclusive_at,
@@ -911,7 +951,8 @@ begin
   case when v_mode='daily_times' then v_times end,
   v_kind,v_days,v_end,v_effective,v_dose,v_qty,v_unit,p_request_id)
  returning id into v_sched;
- if not v_new then
+ end if;
+ if not v_new and v_schedule_changed then
   -- Re-activate occurrences at times still planned by the new revision.
   update public.health_medication_occurrences o
    set canceled_at=null,cancellation_reason=null,schedule_id=v_sched
@@ -939,7 +980,13 @@ begin
  end if;
  perform set_config('health.schedule_api','',true);
 
- if v_status='active' and v_reminders then
+ if not v_reminders or v_status<>'active' then
+  update public.health_reminders set dismissed_at=now()
+   where user_id=uid and medication_id=v_id and scheduled_at>=now() and dismissed_at is null;
+ end if;
+ if v_status='active' and v_reminders
+    and (v_new or v_schedule_changed or v_reminders is distinct from v_existing.reminders_enabled
+     or v_offset is distinct from v_existing.reminder_offset_minutes) then
   perform health_private.ensure_occurrences(uid,v_id,
    greatest(v_effective,now()),greatest(v_effective,now())+interval '14 days');
   insert into public.health_reminders(user_id,medication_id,scheduled_at,offset_minutes,remind_at)
@@ -952,7 +999,10 @@ begin
    and not exists(select 1 from public.health_doses d
      where d.user_id=o.user_id and d.medication_id=o.medication_id
       and d.scheduled_at=o.scheduled_at)
-  on conflict do nothing;
+  on conflict (user_id,medication_id,scheduled_at) where medication_id is not null
+  do update set offset_minutes=excluded.offset_minutes,remind_at=excluded.remind_at,
+    dismissed_at=null,claimed_until=null
+  where public.health_reminders.delivered_at is null and excluded.remind_at>=now();
  end if;
 
  v_cached:=jsonb_build_object(
@@ -992,7 +1042,7 @@ begin
   'reason',coalesce(p_reason,''));
  v_cached:=health_private.command_cached(uid,p_request_id,'treatment_state',v_payload);
  if v_cached is not null then return v_cached; end if;
- select * into v_med from public.health_medications
+ select id,user_id,name,dose,status,starts_on,ends_on,times,timezone,reminders_enabled,notes,condition_id,appointment_id,created_at,name_search,presentation_code,dose_quantity,dose_unit_code,professional_name,indication,pharmacy,batch,finished_at,finish_reason,paused_at,row_version,reminder_offset_minutes,schedule_pending into v_med from public.health_medications
   where id=p_medication_id and user_id=uid for update;
  if not found then raise exception 'NOT_FOUND_OR_FORBIDDEN' using errcode='P0001'; end if;
  if p_expected_version is not null and v_med.row_version<>p_expected_version then
@@ -1035,7 +1085,7 @@ begin
     raise exception 'INVALID_SCHEDULE' using errcode='P0001';
    end if;
   else
-   select * into v_latest from public.health_medication_schedules
+   select id,user_id,medication_id,revision,mode,timezone,anchor_at,interval_minutes,local_start_date,local_times,duration_kind,duration_days,end_exclusive_at,effective_from,effective_until,dose_text_snapshot,quantity_snapshot,unit_snapshot,created_at,created_by_request_id into v_latest from public.health_medication_schedules
     where user_id=uid and medication_id=p_medication_id
     order by effective_from desc,revision desc limit 1;
    if not found then raise exception 'INVALID_SCHEDULE' using errcode='P0001'; end if;
@@ -1078,7 +1128,10 @@ begin
      and o.scheduled_at-make_interval(mins=>v_med.reminder_offset_minutes)>=now()
      and not exists(select 1 from public.health_doses d
        where d.user_id=o.user_id and d.medication_id=o.medication_id and d.scheduled_at=o.scheduled_at)
-    on conflict do nothing;
+    on conflict (user_id,medication_id,scheduled_at) where medication_id is not null
+  do update set offset_minutes=excluded.offset_minutes,remind_at=excluded.remind_at,
+    dismissed_at=null,claimed_until=null
+  where public.health_reminders.delivered_at is null and excluded.remind_at>=now();
    end if;
   end if;
  else
@@ -1164,7 +1217,7 @@ begin
  if p_scheduled_at>now()+interval '5 seconds' then
   raise exception 'FUTURE_OCCURRENCE' using errcode='P0001';
  end if;
- select * into v_med from public.health_medications
+ select id,user_id,name,dose,status,starts_on,ends_on,times,timezone,reminders_enabled,notes,condition_id,appointment_id,created_at,name_search,presentation_code,dose_quantity,dose_unit_code,professional_name,indication,pharmacy,batch,finished_at,finish_reason,paused_at,row_version,reminder_offset_minutes,schedule_pending into v_med from public.health_medications
   where id=p_medication_id and user_id=uid for update;
  if not found then raise exception 'NOT_FOUND_OR_FORBIDDEN' using errcode='P0001'; end if;
  v_sid:=health_private.slot_schedule(uid,p_medication_id,p_scheduled_at);
@@ -1177,7 +1230,7 @@ begin
  select id into v_occ from public.health_medication_occurrences
   where user_id=uid and medication_id=p_medication_id and scheduled_at=p_scheduled_at;
  perform set_config('health.request_id',coalesce(p_request_id::text,''),true);
- select * into v_dose from public.health_doses
+ select id,user_id,medication_id,scheduled_at,taken_at,status,amount,created_at,occurrence_id,row_version,reason,updated_at into v_dose from public.health_doses
   where user_id=uid and medication_id=p_medication_id and scheduled_at=p_scheduled_at
   for update;
  if found then
@@ -1228,7 +1281,7 @@ begin
  perform 1 from public.health_medications
   where id=p_medication_id and user_id=uid for update;
  if not found then raise exception 'NOT_FOUND_OR_FORBIDDEN' using errcode='P0001'; end if;
- select * into v_dose from public.health_doses
+ select id,user_id,medication_id,scheduled_at,taken_at,status,amount,created_at,occurrence_id,row_version,reason,updated_at into v_dose from public.health_doses
   where user_id=uid and medication_id=p_medication_id and scheduled_at=p_scheduled_at
   for update;
  if not found then raise exception 'NOT_FOUND_OR_FORBIDDEN' using errcode='P0001'; end if;
@@ -1271,7 +1324,7 @@ begin
      and (v_prefix='' or name_search>=v_prefix)
      and (v_prefix='' or name_search<v_prefix||chr(1114111))
    order by starts_on desc,id desc
-   limit v_limit+1 offset v_offset) x
+   limit 1 offset v_offset+v_limit) x
  ) into v_has_more;
  for m in
   select id,name,status,dose,presentation_code,dose_quantity,dose_unit_code,
@@ -1287,10 +1340,10 @@ begin
   order by starts_on desc,id desc
   limit v_limit offset v_offset
  loop
-  select * into r from public.health_medication_schedules
+  select id,user_id,medication_id,revision,mode,timezone,anchor_at,interval_minutes,local_start_date,local_times,duration_kind,duration_days,end_exclusive_at,effective_from,effective_until,dose_text_snapshot,quantity_snapshot,unit_snapshot,created_at,created_by_request_id into r from public.health_medication_schedules
    where user_id=uid and medication_id=m.id
    order by effective_from desc,revision desc limit 1;
-  v_planned:=0; v_taken:=0; v_skipped:=0; v_overdue:=0; v_next:=null;
+  v_planned:=0; v_taken:=0; v_skipped:=0; v_overdue:=0; v_next:=null; v_total:=null;
   if found then
    v_start:=((now() at time zone r.timezone)::date::timestamp) at time zone r.timezone;
    v_end:=(((now() at time zone r.timezone)::date+1)::timestamp) at time zone r.timezone;
@@ -1341,60 +1394,46 @@ grant execute on function public.health_treatment_list(text,text,integer,integer
 create or replace function public.health_treatment_dashboard(p_timezone text default 'UTC')
 returns jsonb language plpgsql stable security invoker set search_path='' as $body$
 declare uid uuid:=(select auth.uid()); v_start timestamptz; v_end timestamptz;
- v_recent timestamptz; v_planned integer:=0; v_taken integer:=0; v_skipped integer:=0;
- v_overdue integer:=0; v_due_recent integer:=0; rm record; v_next jsonb; v_doses jsonb:='[]'::jsonb;
- v_next_at timestamptz; v_next_med uuid;
+ v_result jsonb;
 begin
  if uid is null then raise exception 'AUTH_REQUIRED' using errcode='P0001'; end if;
- if p_timezone is null or not exists(select 1 from pg_timezone_names z where z.name=p_timezone) then
+ if not exists(select 1 from pg_timezone_names where name=p_timezone) then
   raise exception 'INVALID_TIMEZONE' using errcode='P0001';
  end if;
  v_start:=((now() at time zone p_timezone)::date::timestamp) at time zone p_timezone;
  v_end:=(((now() at time zone p_timezone)::date+1)::timestamp) at time zone p_timezone;
- v_recent:=v_start-interval '7 days';
- for rm in select id,name,dose,status,timezone from public.health_medications
-   where user_id=uid and status in ('active','paused') loop
-  select count(*),count(*) filter (where d.status='taken'),
-   count(*) filter (where d.status='skipped'),
-   count(*) filter (where d.id is null and s.scheduled_at<=now())
-  into v_planned,v_taken,v_skipped,v_overdue
-  from health_private.schedule_slots(uid,rm.id,v_start,v_end) s
-  left join public.health_doses d on d.user_id=uid and d.medication_id=rm.id
-   and d.scheduled_at=s.scheduled_at;
-  select count(*) into v_due_recent from health_private.schedule_slots(uid,rm.id,v_recent,v_end) s
-   left join public.health_doses d on d.user_id=uid and d.medication_id=rm.id
-    and d.scheduled_at=s.scheduled_at
-   where d.id is null and s.scheduled_at<=now();
-  v_overdue:=v_overdue+greatest(0,v_due_recent
-   -(select count(*) from health_private.schedule_slots(uid,rm.id,v_recent,v_start) s
-     left join public.health_doses d on d.user_id=uid and d.medication_id=rm.id
-      and d.scheduled_at=s.scheduled_at where d.id is null and s.scheduled_at<=now()));
-  v_doses:=v_doses||coalesce((
-   select jsonb_agg(jsonb_build_object(
-    'medication_id',rm.id,'name',rm.name,'dose',rm.dose,'timezone',rm.timezone,
-    'scheduled_at',s.scheduled_at,
-    'status',case when d.id is null then
-      case when s.scheduled_at<=now() then 'missed' else 'scheduled' end
-      else d.status end,
-    'record_version',coalesce(d.row_version,0))
-    order by s.scheduled_at)
-   from health_private.schedule_slots(uid,rm.id,v_start,v_end) s
-   left join public.health_doses d on d.user_id=uid and d.medication_id=rm.id
-    and d.scheduled_at=s.scheduled_at),'[]'::jsonb);
- end loop;
- select s.scheduled_at,m.id into v_next_at,v_next_med
- from public.health_medications m
- cross join lateral health_private.schedule_slots(uid,m.id,now(),now()+interval '8 days') s
- where m.user_id=uid and m.status='active'
- order by s.scheduled_at limit 1;
- if v_next_at is not null then
-  v_next:=jsonb_build_object('medication_id',v_next_med,'scheduled_at',v_next_at,
-   'name',(select name from public.health_medications where id=v_next_med),
-   'dose',(select dose from public.health_medications where id=v_next_med));
- end if;
- return jsonb_build_object('timezone',p_timezone,'server_now',now(),
-  'today',jsonb_build_object('planned',v_planned,'taken',v_taken,'skipped',v_skipped,
-   'overdue',v_overdue),'overdue_recent_total',v_overdue,'next',v_next,'doses',v_doses);
+ with medications as materialized (
+  select id,name,dose,status from public.health_medications
+  where user_id=uid and status in ('active','paused')
+ ), slots as materialized (
+  select m.id medication_id,m.name,m.dose,s.scheduled_at,d.id dose_id,d.status,d.row_version
+  from medications m
+  cross join lateral health_private.schedule_slots(uid,m.id,v_start,v_end) s
+  left join public.health_doses d on d.user_id=uid and d.medication_id=m.id
+   and d.scheduled_at=s.scheduled_at
+ ), next_slot as (
+  select m.id medication_id,m.name,m.dose,s.scheduled_at
+  from medications m
+  cross join lateral health_private.schedule_slots(uid,m.id,now(),now()+interval '8 days') s
+  where m.status='active' order by s.scheduled_at,m.id limit 1
+ )
+ select jsonb_build_object('timezone',p_timezone,'server_now',now(),
+  'active_count',(select count(*) from medications where status='active'),
+  'continuous_count',(select count(distinct s.medication_id) from public.health_medication_schedules s
+    join medications m on m.id=s.medication_id where s.user_id=uid and m.status='active'
+     and s.effective_until is null and s.duration_kind='continuous'),
+  'today',jsonb_build_object('planned',count(*),
+   'taken',count(*) filter(where status='taken'),
+   'skipped',count(*) filter(where status='skipped'),
+   'overdue',count(*) filter(where dose_id is null and scheduled_at<=now())),
+  'next',(select jsonb_build_object('medication_id',medication_id,'name',name,
+    'dose',dose,'scheduled_at',scheduled_at) from next_slot),
+  'doses',coalesce(jsonb_agg(jsonb_build_object('medication_id',medication_id,
+    'name',name,'dose',dose,'scheduled_at',scheduled_at,
+    'status',coalesce(status,case when scheduled_at<=now() then 'missed' else 'scheduled' end),
+    'record_version',coalesce(row_version,0)) order by scheduled_at,medication_id),'[]'::jsonb))
+ into v_result from slots;
+ return v_result;
 end $body$;
 revoke all on function public.health_treatment_dashboard(text) from public,anon,authenticated;
 grant execute on function public.health_treatment_dashboard(text) to authenticated;
@@ -1406,12 +1445,12 @@ create or replace function health_private.last_slot(p_schedule_id uuid)
 returns timestamptz language plpgsql stable set search_path='' as $body$
 declare r record; total integer; d date; t time; slot timestamptz; candidate timestamptz;
 begin
- select * into r from public.health_medication_schedules where id=p_schedule_id;
+ select id,user_id,medication_id,revision,mode,timezone,anchor_at,interval_minutes,local_start_date,local_times,duration_kind,duration_days,end_exclusive_at,effective_from,effective_until,dose_text_snapshot,quantity_snapshot,unit_snapshot,created_at,created_by_request_id into r from public.health_medication_schedules where id=p_schedule_id;
  if not found then return null; end if;
  total:=health_private.revision_total(p_schedule_id);
  if r.mode='interval' then
   if total is null or total<1 then return null; end if;
-  return r.anchor_at+((total-1)*r.interval_minutes)*interval '1 minute';
+  return r.anchor_at+((greatest(0,ceil(extract(epoch from (r.effective_from-r.anchor_at))/60.0/r.interval_minutes)::bigint)+total-1)*r.interval_minutes)*interval '1 minute';
  end if;
  for d in select g::date from generate_series(
    greatest(r.local_start_date,((coalesce(r.end_exclusive_at,r.effective_from+interval '1 day')-interval '1 microsecond') at time zone r.timezone)::date)::timestamp,
@@ -1441,12 +1480,12 @@ declare uid uuid:=(select auth.uid()); m public.health_medications%rowtype; r re
  v_today jsonb; v_next jsonb; v_week jsonb; v_last timestamptz; v_first timestamptz;
 begin
  if uid is null then raise exception 'AUTH_REQUIRED' using errcode='P0001'; end if;
- select * into m from public.health_medications where id=p_medication_id and user_id=uid;
+ select id,user_id,name,dose,status,starts_on,ends_on,times,timezone,reminders_enabled,notes,condition_id,appointment_id,created_at,name_search,presentation_code,dose_quantity,dose_unit_code,professional_name,indication,pharmacy,batch,finished_at,finish_reason,paused_at,row_version,reminder_offset_minutes,schedule_pending into m from public.health_medications where id=p_medication_id and user_id=uid;
  if not found then raise exception 'NOT_FOUND_OR_FORBIDDEN' using errcode='P0001'; end if;
- select * into r from public.health_medication_schedules
+ select id,user_id,medication_id,revision,mode,timezone,anchor_at,interval_minutes,local_start_date,local_times,duration_kind,duration_days,end_exclusive_at,effective_from,effective_until,dose_text_snapshot,quantity_snapshot,unit_snapshot,created_at,created_by_request_id into r from public.health_medication_schedules
   where user_id=uid and medication_id=p_medication_id
   order by effective_from desc,revision desc limit 1;
- select count(*),count(*) filter (where status='taken'),count(*) filter (where status='skipped')
+ select count(*) filter (where status='taken'),count(*) filter (where status='taken'),count(*) filter (where status='skipped')
  into v_taken_total,v_taken_due,v_skipped_total
  from public.health_doses where user_id=uid and medication_id=p_medication_id;
  if not found or r.id is null then
@@ -1484,9 +1523,10 @@ begin
    'status',case when d.id is null then
      case when s.scheduled_at<=now() then 'missed' else 'scheduled' end
      else d.status end,'record_version',coalesce(d.row_version,0),
-   'taken_at',d.taken_at,'amount',d.amount)
+   'taken_at',d.taken_at,'amount',d.amount,'planned_amount',revision.dose_text_snapshot)
    order by s.scheduled_at)
   from health_private.schedule_slots(uid,p_medication_id,v_today_start,v_today_end) s
+  join public.health_medication_schedules revision on revision.user_id=uid and revision.id=s.schedule_id
   left join public.health_doses d on d.user_id=uid and d.medication_id=p_medication_id
    and d.scheduled_at=s.scheduled_at),'[]'::jsonb);
  v_next:=coalesce((
@@ -1573,7 +1613,7 @@ begin
     'dose_id',x.dose_id,
     'record_version',coalesce(x.row_version,0),
     'taken_at',x.taken_at,
-    'amount',coalesce(x.amount,''))
+    'amount',coalesce(x.amount,''),'planned_amount',x.planned_amount)
     order by x.scheduled_at) as slots
   from (
    select s.scheduled_at,
@@ -1581,8 +1621,9 @@ begin
     case when d.id is null then
       case when s.scheduled_at<=now() then 'missed' else 'scheduled' end
       else d.status end as status,
-    d.id as dose_id,d.row_version,d.taken_at,d.amount
+    d.id as dose_id,d.row_version,d.taken_at,d.amount,revision.dose_text_snapshot as planned_amount
    from health_private.schedule_slots(uid,p_medication_id,v_start,v_end) s
+   join public.health_medication_schedules revision on revision.user_id=uid and revision.id=s.schedule_id
    left join public.health_doses d on d.user_id=uid and d.medication_id=p_medication_id
     and d.scheduled_at=s.scheduled_at
   ) x
@@ -1627,27 +1668,28 @@ begin
  from public.health_medication_schedules s
  where s.user_id=uid and s.medication_id=p_medication_id
  order by s.effective_from desc,s.revision desc limit 1;
- if v_tz is null then
-  return jsonb_build_object('timezone','UTC','filter',p_filter,'rows','[]'::jsonb,
-   'has_more',false,'next_cursor_at',null,'next_cursor_id',null,'events','[]'::jsonb);
- end if;
+ v_tz:=coalesce(v_tz,'UTC');
  select min(s.effective_from) into v_earliest
  from public.health_medication_schedules s
  where s.user_id=uid and s.medication_id=p_medication_id;
- v_upper:=least(coalesce(p_cursor_at,now()),now());
- -- 26 x 14 days = 364 days per call; a full page normally stops in 1-2 windows.
- for v_i in 1..26 loop
+ select least(coalesce(v_earliest,'infinity'::timestamptz),min(scheduled_at)) into v_earliest
+  from public.health_doses where user_id=uid and medication_id=p_medication_id;
+ v_upper:=coalesce(p_cursor_at,case when p_filter='scheduled' then now()+interval '8 days' else now()+interval '1 microsecond' end);
+ -- At most 672 projected slots per call (2 x 14 x 24); sparse filters return a continuation cursor.
+ for v_i in 1..2 loop
   v_lower:=v_upper-interval '14 days';
   with slots as materialized (
-   select s.scheduled_at
+   select s.scheduled_at,s.schedule_id
    from health_private.schedule_slots(uid,p_medication_id,v_lower,v_upper) s
-   where s.scheduled_at<=now()
+   where (p_filter='scheduled' and s.scheduled_at>now())
+      or (p_filter<>'scheduled' and s.scheduled_at<=now())
   ), rows as (
    select s.scheduled_at,o.id as occurrence_id,o.canceled_at,o.cancellation_reason,
     d.id as dose_id,d.status as dose_status,d.row_version,d.taken_at,d.amount,d.reason,
     case when d.id is not null then d.status
-         when s.scheduled_at<=now() then 'missed' else 'scheduled' end as status
+         when s.scheduled_at<=now() then 'missed' else 'scheduled' end as status,revision.dose_text_snapshot as planned_amount
    from slots s
+   join public.health_medication_schedules revision on revision.user_id=uid and revision.id=s.schedule_id
    left join public.health_medication_occurrences o
     on o.user_id=uid and o.medication_id=p_medication_id and o.scheduled_at=s.scheduled_at
    left join public.health_doses d
@@ -1655,14 +1697,25 @@ begin
    union all
    select o2.scheduled_at,o2.id,o2.canceled_at,o2.cancellation_reason,
     d2.id,d2.status,d2.row_version,d2.taken_at,d2.amount,d2.reason,
-    'canceled'
+    'canceled',revision2.dose_text_snapshot
    from public.health_medication_occurrences o2
+   join public.health_medication_schedules revision2 on revision2.user_id=uid and revision2.id=o2.schedule_id
    left join public.health_doses d2
     on d2.user_id=uid and d2.medication_id=p_medication_id and d2.scheduled_at=o2.scheduled_at
    where o2.user_id=uid and o2.medication_id=p_medication_id
     and o2.canceled_at is not null
     and o2.scheduled_at>=v_lower and o2.scheduled_at<v_upper
     and not exists(select 1 from slots s2 where s2.scheduled_at=o2.scheduled_at)
+   union all
+   select d3.scheduled_at,d3.occurrence_id,null::timestamptz,null::text,
+    d3.id,d3.status,d3.row_version,d3.taken_at,d3.amount,d3.reason,d3.status,null::text
+   from public.health_doses d3
+   where d3.user_id=uid and d3.medication_id=p_medication_id
+    and d3.scheduled_at>=v_lower and d3.scheduled_at<v_upper
+    and not exists(select 1 from slots s3 where s3.scheduled_at=d3.scheduled_at)
+    and not exists(select 1 from public.health_medication_occurrences o3
+      where o3.user_id=uid and o3.medication_id=p_medication_id
+       and o3.scheduled_at=d3.scheduled_at and o3.canceled_at is not null)
   )
   select coalesce(jsonb_agg(x.obj order by x.scheduled_at desc),'[]'::jsonb)
   into v_page
@@ -1670,7 +1723,7 @@ begin
    select jsonb_build_object(
     'scheduled_at',q.scheduled_at,'occurrence_id',q.occurrence_id,
     'status',q.status,'dose_id',q.dose_id,'record_version',coalesce(q.row_version,0),
-    'taken_at',q.taken_at,'amount',coalesce(q.amount,''),'reason',coalesce(q.reason,''),
+    'taken_at',q.taken_at,'amount',coalesce(q.amount,''),'planned_amount',q.planned_amount,'reason',coalesce(q.reason,''),
     'canceled_at',q.canceled_at,'cancellation_reason',q.cancellation_reason) as obj,
     q.scheduled_at
    from rows q
@@ -1691,12 +1744,14 @@ begin
  from jsonb_array_elements(v_rows) e;
  v_has_more:=v_count>v_limit or v_lower>coalesce(v_earliest,'-infinity'::timestamptz);
  if v_count>v_limit then
-  v_rows_sorted:=v_rows_sorted[0:v_limit-1];
+  select coalesce(jsonb_agg(x.e order by x.ord),'[]'::jsonb) into v_rows_sorted
+   from (select e,ord from jsonb_array_elements(v_rows_sorted) with ordinality a(e,ord)
+         order by ord limit v_limit) x;
   v_count:=v_limit;
  end if;
  if v_has_more then
   v_next:=case when v_count>0 then (v_rows_sorted->-1->>'scheduled_at')::timestamptz
-               else v_upper end;
+               else v_lower end;
  end if;
  if p_cursor_at is null then
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -1818,6 +1873,7 @@ returns integer language plpgsql security invoker set search_path='' as $body$
 declare m record; v_times time[]; v_kind text; v_days integer; v_end timestamptz;
  v_effective timestamptz; n integer:=0;
 begin
+ perform set_config('health.migration_backfill','1',true);
  for m in
   select id,user_id,starts_on,ends_on,times,timezone,dose,dose_quantity,dose_unit_code
   from public.health_medications
@@ -1853,6 +1909,7 @@ begin
    where id=m.id and schedule_pending;
   n:=n+1;
  end loop;
+ perform set_config('health.migration_backfill','',true);
  return n;
 end $body$;
 revoke all on function health_private.backfill_legacy_schedules() from public,anon,authenticated;

@@ -47,9 +47,9 @@ export function isValidTimeZone(timeZone) {
 export function deviceTimeZone() {
   try {
     const value = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return isValidTimeZone(value) ? value : 'UTC';
+    return isValidTimeZone(value) ? value : "";
   } catch {
-    return 'UTC';
+    return "";
   }
 }
 
@@ -223,9 +223,10 @@ export function countSlots(schedule, { from, to } = {}) {
 
 export function nextSlots(schedule, count = 5, now = Date.now()) {
   if (!schedule || count < 1) return [];
-  const span = schedule.mode === 'interval'
-    ? Math.max(interval(schedule) * count, 3600000)
-    : 86400000 * Math.min(Math.max(count, 1), 14);
+  const span =
+    schedule.mode === "interval"
+      ? Math.max(interval(schedule) * count * 60000, 3600000)
+      : 86400000 * Math.min(Math.max(count, 1), 14);
   try {
     return buildSlots(schedule, now, now + span, {
       limit: count,
@@ -318,40 +319,76 @@ export function validateTreatment(values) {
 }
 
 export function scheduleFromTreatment(values) {
-  if (values.mode === 'interval') {
-    const anchorMs = localInstant(values.anchor_date, values.anchor_time, values.timezone);
+  if (!isValidTimeZone(values.timezone)) return null;
+  if (!["interval", "daily_times"].includes(values.mode)) return null;
+  if (
+    values.duration_kind === "finite" &&
+    (!Number.isInteger(Number(values.duration_days)) ||
+      Number(values.duration_days) < 1)
+  )
+    return null;
+  if (
+    values.mode === "interval" &&
+    (!Number.isFinite(Number(values.interval_minutes)) ||
+      Number(values.interval_minutes) < 60)
+  )
+    return null;
+  if (
+    values.mode === "daily_times" &&
+    (!DATE_PATTERN.test(values.local_start_date || "") ||
+      !values.local_times?.length ||
+      values.local_times.some((time) => !TIME_PATTERN.test(time)))
+  )
+    return null;
+  if (values.mode === "interval") {
+    const anchorMs = localInstant(
+      values.anchor_date,
+      values.anchor_time,
+      values.timezone,
+    );
     if (anchorMs == null) return null;
     const days = Number(values.duration_days);
     return {
-      mode: 'interval',
+      mode: "interval",
       timezone: values.timezone,
       anchor_at: new Date(anchorMs).toISOString(),
       interval_minutes: Number(values.interval_minutes),
       duration_kind: values.duration_kind,
-      duration_days: values.duration_kind === 'finite' ? days : null,
-      end_exclusive_at: values.duration_kind === 'finite'
-        ? new Date(anchorMs + days * DAY_MS).toISOString()
-        : null,
-      effective_from: new Date().toISOString(),
+      duration_days: values.duration_kind === "finite" ? days : null,
+      end_exclusive_at:
+        values.duration_kind === "finite"
+          ? new Date(anchorMs + days * DAY_MS).toISOString()
+          : null,
+      effective_from: values.effective_from || new Date(anchorMs).toISOString(),
       effective_until: null,
     };
   }
-  const startMs = localInstant(values.local_start_date, '00:00', values.timezone);
+  const startMs = localInstant(
+    values.local_start_date,
+    "00:00",
+    values.timezone,
+  );
   const days = Number(values.duration_days);
   return {
-    mode: 'daily_times',
+    mode: "daily_times",
     timezone: values.timezone,
     local_start_date: values.local_start_date,
     local_times: [...values.local_times].sort(),
     duration_kind: values.duration_kind,
-    duration_days: values.duration_kind === 'finite' ? days : null,
-    end_exclusive_at: values.duration_kind === 'finite' && startMs != null
-      ? new Date(
-          localInstant(addDays(values.local_start_date, days), '00:00', values.timezone)
-            ?? startMs + days * DAY_MS,
-        ).toISOString()
-      : null,
-    effective_from: new Date().toISOString(),
+    duration_days: values.duration_kind === "finite" ? days : null,
+    end_exclusive_at:
+      values.duration_kind === "finite" && startMs != null
+        ? new Date(
+            localInstant(
+              addDays(values.local_start_date, days),
+              "00:00",
+              values.timezone,
+            ) ?? startMs + days * DAY_MS,
+          ).toISOString()
+        : null,
+    effective_from:
+      values.effective_from ||
+      (startMs == null ? null : new Date(startMs).toISOString()),
     effective_until: null,
   };
 }

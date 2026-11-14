@@ -243,7 +243,7 @@ for (const kind of ["conditions", "appointments", "medications", "exams"])
     expect(
       navigate,
     ).toHaveBeenCalledWith(
-      kind === "medications" ? "health/treatments/saved" : `health/${kind}/saved`,
+      kind === "medications" ? "health/medications/saved" : `health/${kind}/saved`,
     );
   });
 for (const kind of ["conditions", "appointments", "medications", "exams"])

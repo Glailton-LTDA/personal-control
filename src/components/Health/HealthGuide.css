@@ -178,8 +178,8 @@
   background: transparent;
   padding-left: 0;
 }
-.health-guide input[type='checkbox'],
-.health-modal input[type='checkbox'] {
+.health-guide input[type="checkbox"],
+.health-modal input[type="checkbox"] {
   width: 20px;
   min-height: 20px;
   height: 20px;
@@ -621,26 +621,225 @@ iframe.health-preview {
   padding: 1rem;
   min-width: 0;
 }
-.health-report-editor legend { padding: 0 0.4rem; }
-.health-report-editor textarea { width: 100%; min-height: 14rem; font-family: monospace; }
-.health-report-editor button[aria-pressed='true'] { border-color: var(--primary); color: var(--primary); }
+.health-report-editor legend {
+  padding: 0 0.4rem;
+}
+.health-report-editor textarea {
+  width: 100%;
+  min-height: 14rem;
+  font-family: monospace;
+}
+.health-report-editor button[aria-pressed="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
 .health-report-preview,
-.health-report-markdown { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.health-report-markdown { white-space: normal; }
-.health-report-markdown table { position: relative; table-layout: fixed; max-width: 100%; }
+.health-report-markdown {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.health-report-markdown {
+  white-space: normal;
+}
+.health-report-markdown table {
+  position: relative;
+  table-layout: fixed;
+  max-width: 100%;
+}
 .health-report-markdown th,
-.health-report-markdown td { overflow-wrap: anywhere; min-width: 0; }
-.health-report-markdown pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.health-report-markdown td {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.health-report-markdown pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .health-report-markdown h1,
 .health-report-markdown h2,
-.health-report-markdown h3 { display: block; }
+.health-report-markdown h3 {
+  display: block;
+}
 @media (max-width: 600px) {
   .health-report-markdown table,
   .health-report-markdown tbody,
-  .health-report-markdown tr { display: block; width: 100%; }
-  .health-report-markdown thead { position: absolute; width: 100%; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .health-report-markdown tbody tr + tr { margin-top: 0.75rem; }
-  .health-report-markdown td { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 0.5rem; }
-  .health-report-markdown td::before { content: attr(data-label); font-weight: 700; }
-  .health-report-markdown td > * { min-width: 0; }
+  .health-report-markdown tr {
+    display: block;
+    width: 100%;
+  }
+  .health-report-markdown thead {
+    position: absolute;
+    width: 100%;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .health-report-markdown tbody tr + tr {
+    margin-top: 0.75rem;
+  }
+  .health-report-markdown td {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 0.5rem;
+  }
+  .health-report-markdown td::before {
+    content: attr(data-label);
+    font-weight: 700;
+  }
+  .health-report-markdown td > * {
+    min-width: 0;
+  }
+}
+
+/* Treatment cards share Orbit tokens and never require a horizontal scroller. */
+.health-treatment-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+.health-treatment-stats dt,
+.health-treatment-metrics dt {
+  color: var(--text-muted);
+}
+.health-treatment-stats dd {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+.health-treatment-stats .health-card {
+  display: block;
+}
+.health-treatment-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.health-treatment-columns > *,
+.health-treatment-stats > *,
+.health-treatment-metrics > * {
+  min-width: 0;
+}
+.health-treatment-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.health-treatment-metrics dd {
+  margin: 0.5rem 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.health-treatment-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-main);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+  min-height: 44px;
+  cursor: pointer;
+}
+.health-treatment-row progress,
+.health-treatment-columns progress {
+  width: 100%;
+  accent-color: var(--primary);
+}
+.health-treatment-preview {
+  display: block;
+  padding: 1rem;
+}
+.health-treatment-calendar,
+.health-treatment-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+  text-align: center;
+}
+.health-treatment-calendar button,
+.health-treatment-week button {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--input-bg);
+  color: var(--text-main);
+  min-height: 64px;
+  min-width: 0;
+  padding: 0.3rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+.health-treatment-week button span {
+  font-size: 0.75rem;
+}
+.health-treatment-calendar button[aria-pressed="true"] {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.health-treatment-calendar .health-day-complete,
+.health-treatment-week .health-day-complete {
+  border-color: var(--success);
+}
+.health-treatment-calendar .health-day-pending,
+.health-treatment-week .health-day-pending {
+  border-color: var(--pending);
+}
+.health-treatment-calendar .health-day-skipped {
+  border-color: var(--danger);
+}
+.health-treatment-slot-missed {
+  border-inline-start: 3px solid var(--pending);
+}
+.health-treatment-slot-taken {
+  border-inline-start: 3px solid var(--success);
+}
+.health-treatment-slot-skipped {
+  border-inline-start: 3px solid var(--danger);
+}
+.health-treatment-preview li {
+  overflow-wrap: anywhere;
+}
+.health-form details summary {
+  cursor: pointer;
+  min-height: 44px;
+}
+.health-treatment-columns h3 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .health-treatment-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .health-treatment-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .health-treatment-stats > :last-child {
+    grid-column: 1/-1;
+  }
+  .health-treatment-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .health-treatment-calendar,
+  .health-treatment-week {
+    gap: 0.2rem;
+  }
+  .health-treatment-calendar button,
+  .health-treatment-week button {
+    padding: 0.15rem;
+    min-height: 56px;
+  }
+  .health-treatment-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

@@ -60,6 +60,8 @@ begin
  end loop;
  select count(id) into n from storage.objects where bucket_id='health-documents';
  if n<>0 then raise exception 'cross-owner storage read'; end if;
+ delete from storage.objects where bucket_id='health-documents';
+ get diagnostics n=row_count; if n<>0 then raise exception 'cross-owner storage delete'; end if;
  begin
   insert into storage.objects(bucket_id,name) values('health-documents','11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6.pdf');
   raise exception 'cross-owner storage upload allowed';

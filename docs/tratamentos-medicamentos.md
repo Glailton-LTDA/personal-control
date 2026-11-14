@@ -272,3 +272,41 @@ Erros de domínio (SQLSTATE `P0001` com código estável em `message`):
 | Cliente antigo editando `times` | trigger de compatibilidade cria revisão; RPC sinaliza para não duplicar. |
 | Push duplicado | claim com lease, unique por ocorrência, tag estável; sem promessa de exatamente uma entrega. |
 | Android divergente | schema único no repositório web; contrato documentado; nenhuma tabela paralela. |
+
+## 7. Correções da supervisão do PR #121
+
+A release 2.3.0 corrige os achados de integração e integridade da revisão:
+
+- Hooks desembrulham o envelope do serviço e propagam erros traduzíveis; formulário usa `mutateAsync`. Chave de comando é criada uma vez por intenção, antes dos retries; o formulário a mantém se a resposta falhar sem alteração do conteúdo.
+- Navegação canônica em `health/medications/<id>`; URLs antigas `health/treatments/<id>` continuam reconhecidas. Caches de tratamentos são cancelados/removidos na troca de usuário.
+- Formulário recebe medicamento **e revisão**, converte a âncora no fuso do tratamento, preserva vínculos, oferece intervalos em horas, duração/contínuo, total finito e última dose. Nenhum input livre de fuso é exigido no fluxo normal.
+- Edição só de metadados mantém a revisão; alteração de dose/agenda cria revisão futura. Tratamento pausado/finalizado aceita metadados, mas não uma nova agenda sem retomada explícita.
+- Versão zero significa ausência de registro; registros persistidos começam em 1. O contador monotônico da ocorrência também avança ao desfazer: recriar não permite que uma solicitação antiga remova ou altere o registro novo.
+- Histórico agrega no máximo 20 resultados, inclui registros legados avulsos e oferece cursor. Cada consulta projeta no máximo duas janelas de 14 dias; filtro esparso pode retornar página vazia com continuação. A chave única por proprietário/medicamento/instante torna `scheduled_at` suficiente como cursor desse histórico, sem empates para o mesmo medicamento.
+- Retomada/edição de lembrete reconcilia o registro canônico futuro não entregue, em vez de ignorar a unique ocupada por um reminder dispensado. Polling comum não reativa lembrete dispensado pelo usuário.
+- Lista mantém controles em loading/vazio/erro, pagina de fato, diferencia uso contínuo e apresenta indicadores globais. Detalhe tem calendário mensal, ações nas doses vencidas, correção de horário real, histórico paginado e documentos privados contextuais.
+- Quantidades históricas e horário previsto não são alterados pela hora real da tomada. Desfazer preserva ocorrência e eventos. Backend diferencia dose sem registro de não tomada explícita.
+
+### Migrações e ambientes que já testaram o PR
+
+O arquivo inicial **ainda não integrado** do PR foi corrigido para que a primeira aplicação consiga processar cadastros antigos sem horários e períodos acima de 365 dias. Esse limite continua sendo validado nos novos cadastros; o banco preserva períodos legados maiores em vez de rejeitar o upgrade.
+
+A migration complementar `20261114002349_medication_treatment_review_fixes.sql` aplica as correções de funções, constraints e contador de versões aos ambientes que já receberam a versão inicial. O upgrade de metadados é transacional e não cria eventos falsos de tomada. Não se exige reset do banco existente: aplicar as migrations pendentes pelo fluxo normal, por exemplo `npm run dev:local` em Supabase local.
+
+A sequência original + complementar foi testada em banco PostgreSQL separado com dados legados. Também foi testada a aplicação da complementar sobre o SQL original do SHA `8761754`, já com dose e auditoria existentes. Nenhum banco de usuário/produção foi alterado para esses testes.
+
+### Consultas e limites
+
+As consultas novas usam projeções explícitas, inclusive as leituras de linha com lock; não há `SELECT *`. A lista executa agregados dentro de uma única RPC com página de no máximo 20 medicamentos, sem buscar histórico inteiro no browser. O calendário limita datas e orçamento; o histórico projeta janelas delimitadas e continua por cursor.
+
+A resolução de um horário local não consulta o catálogo inteiro de fusos a cada slot. O fuso é validado ao gravar a agenda, e a conversão faz round-trip com tratamento de erro para entrada inválida. Isso remove o custo multiplicado em calendários, backfill e totais diários.
+
+O teste `medication_query_plans.sql` mede RPCs e consulta indexada com 50 tratamentos, início há um ano e 7.500 ocorrências sintéticas. Resultados locais não constituem SLA: revisar novamente com a carga do ambiente de destino. Os índices restringem proprietário, medicamento e intervalo; o job agora executa as migrations e os testes deste recurso.
+
+### Rollout
+
+1. Aplicar as duas migrations na ordem canônica e verificar histórico de aplicação.
+2. Publicar frontend e worker compatíveis pelo fluxo autorizado do projeto. Não voltar ao scheduler antigo, que não entende intervalos.
+3. Conferir criação, edição, tomada, desfazer, calendário, push e isolamento no ambiente de teste.
+4. Em eventual integração autorizada em `main`, acompanhar a action de migrations/funções até o sucesso. Check de PR não equivale a migration aplicada em produção.
+5. Rollback de UI mantém schema e adaptador novo; não remover tabelas, eventos ou converter intervalos em horários diários.
