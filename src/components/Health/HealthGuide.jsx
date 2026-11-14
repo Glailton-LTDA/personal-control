@@ -35,6 +35,9 @@ import {
 } from '../../hooks/useHealth';
 import { appointmentFollowUp, appointmentMapUrl } from '../../lib/medicalSpecialties';
 import HealthForm from './HealthForm';
+import TreatmentList from './TreatmentList';
+import TreatmentDetail from './TreatmentDetail';
+import TreatmentForm from './TreatmentForm';
 import MarkdownRenderer from '../MarkdownRenderer';
 import HealthDocuments from './HealthDocuments';
 import HealthResults from './HealthResults';
@@ -721,13 +724,15 @@ export default function HealthGuide({
     () => () => {
       client.cancelQueries({ queryKey: ['health', userId] });
       client.removeQueries({ queryKey: ['health', userId] });
+      client.cancelQueries({ queryKey: ['treatments', userId] });
+      client.removeQueries({ queryKey: ['treatments', userId] });
     },
     [client, userId],
   );
   const refresh = () =>
     client.invalidateQueries({ queryKey: ['health', userId] });
   if (!userId) return <p role="alert">{t('health.auth_required')}</p>;
-  const current = Object.hasOwn(ICONS, screen) ? screen : 'today';
+  const current = screen === 'treatments' ? 'medications' : Object.hasOwn(ICONS, screen) ? screen : 'today';
   return (
     <div className="health-guide" data-testid="health-guide">
       <header className="health-header">
@@ -777,6 +782,32 @@ export default function HealthGuide({
         />
       ) : current === 'documents' ? (
         <HealthDocuments userId={userId} />
+      ) : current === 'medications' ? detailId ? (
+        <TreatmentDetail
+          key={detailId}
+          userId={userId}
+          medicationId={detailId}
+          navigate={navigate}
+          onForm={setForm}
+        />
+      ) : (
+        <>
+          <header className="health-row">
+            <h2>{t('health.medications')}</h2>
+            <button
+              className="btn-primary"
+              onClick={() => setForm({ kind: 'medications' })}
+            >
+              <Plus size={18} />
+              {t('health.new_medications')}
+            </button>
+          </header>
+          <TreatmentList
+            key={current}
+            userId={userId}
+            navigate={navigate}
+          />
+        </>
       ) : detailId ? (
         <RecordDetail
           key={`${current}/${detailId}`}
@@ -807,7 +838,19 @@ export default function HealthGuide({
           />
         </>
       )}
-      {form && (
+      {form && form.kind === 'medications' ? (
+        <TreatmentForm
+          userId={userId}
+          record={form.record}
+          onClose={() => setForm(null)}
+          onSaved={(id) => {
+            setForm(null);
+            refresh();
+            toast.success(t('health.treatment_saved'));
+            navigate(`health/medications/${id}`);
+          }}
+        />
+      ) : form ? (
         <HealthForm
           userId={userId}
           {...form}
@@ -820,7 +863,7 @@ export default function HealthGuide({
             if (HEALTH_KINDS.includes(kind)) navigate(`health/${kind}/${id}`);
           }}
         />
-      )}
+      ) : null}
       {deleting && (
         <HealthModal
           title={t('health.confirm_delete')}

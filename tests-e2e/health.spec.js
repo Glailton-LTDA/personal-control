@@ -4,13 +4,19 @@ import { Buffer } from 'node:buffer';
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const EXAM = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4';
 
-async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo de exemplo para teste' } = {}) {
+async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo de exemplo para teste', theme = 'light' } = {}) {
   const requests = [];
   const user = {
     id: OWNER,
     email: 'health-test@example.com',
     user_metadata: { name: 'Test' },
   };
+  let treatment = null;
+  let dose = null;
+  const treatmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
+  let treatmentStatus = 'active';
+  let version = 0;
+  let recordVersion = 0;
   let exams = [
     {
       id: EXAM,
@@ -26,11 +32,11 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
     },
   ];
   await page.addInitScript(
-    ({ language }) => {
+    ({ language, theme }) => {
       localStorage.setItem('i18nextLng', language);
-      localStorage.setItem('personal-control-theme', 'light');
+      localStorage.setItem('personal-control-theme', theme);
     },
-    { language },
+    { language, theme },
   );
   await page.route('**/auth/v1/**', async (route) => {
     if (route.request().url().includes('/token'))
@@ -74,6 +80,36 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
       const created = { ...body, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' };
       exams = [...exams, created];
       return route.fulfill({ json: { id: created.id } });
+    }
+    if (table === 'health_treatment_save') {
+      treatment = route.request().postDataJSON().p_payload;
+      version += 1;
+      return route.fulfill({ json: { id: treatmentId, row_version: version } });
+    }
+    const schedule = treatment ? { mode: treatment.mode, timezone: treatment.timezone,
+      duration_kind: treatment.duration_kind, duration_days: Number(treatment.duration_days),
+      interval_minutes: Number(treatment.interval_minutes), anchor_at: '2026-11-12T06:00:00Z',
+      last_slot: '2026-11-18T22:00:00Z', local_times: treatment.local_times } : null;
+    const medication = treatment ? { ...treatment, id: treatmentId, status: treatmentStatus, row_version: version } : null;
+    const slots = ['06:00', '14:00', '22:00'].map(time => ({ scheduled_at: `2026-11-12T${time}:00Z`,
+      status: time === '14:00' && dose ? dose.status : time === '22:00' ? 'scheduled' : 'missed',
+      taken_at: time === '14:00' ? dose?.taken_at : null, amount: treatment?.dose,
+      record_version: recordVersion }));
+    if (table === 'health_treatment_list') return route.fulfill({ json: { rows: medication ? [{ ...medication, schedule, today: { planned:3,taken:dose?.status==='taken'?1:0 }, total_predicted:21, taken_total:dose?.status==='taken'?1:0, next_at:'2026-11-12T22:00:00Z' }] : [], has_more:false } });
+    if (table === 'health_treatment_dashboard') return route.fulfill({ json: { active_count:medication?1:0,continuous_count:0,today:{planned:medication?3:0,taken:0,overdue:2},next:medication?{name:medication.name,scheduled_at:'2026-11-12T22:00:00Z'}:null } });
+    if (table === 'health_treatment_detail') return route.fulfill({ json: { medication,schedule,
+      stats:{total_predicted:21,taken_total:dose?.status==='taken'?1:0,skipped_total:dose?.status==='skipped'?1:0,overdue:dose?1:2,due_recent:2,taken_due:dose?.status==='taken'?1:0},today:slots,next:[{scheduled_at:'2026-11-12T22:00:00Z'}] } });
+    if (table === 'health_treatment_calendar') return route.fulfill({ json: { timezone:'UTC',days:[{date:'2026-11-12',slots}] } });
+    if (table === 'health_treatment_history') return route.fulfill({ json: { rows:slots.slice(0,2).reverse(),has_more:false } });
+    if (table === 'health_dose_record') {
+      const body=route.request().postDataJSON();dose={status:body.p_status,taken_at:body.p_taken_at};recordVersion+=1;
+      return route.fulfill({json:{dose_id:'dose',row_version:recordVersion}});
+    }
+    if (table === 'health_dose_undo') { dose=null;recordVersion+=1;return route.fulfill({json:{undone:true}}); }
+    if (table === 'health_treatment_state') {
+      const action=route.request().postDataJSON().p_action;
+      treatmentStatus=action==='pause'?'paused':action==='resume'?'active':'finished';version+=1;
+      return route.fulfill({json:{status:treatmentStatus,row_version:version}});
     }
     if (route.request().method() === 'PATCH' && table === 'health_exams') {
       const id = url.searchParams.get('id')?.slice(3);
@@ -192,6 +228,34 @@ test('creates an exam and loads its own detail', async ({ page }) => {
   expect(
     requests.find((request) => request.method === 'POST').body.user_id,
   ).toBe(OWNER);
+});
+
+test('creates a medication treatment and saves via RPC', async ({ page }) => {
+  const requests = await mockHealth(page);
+  await page.getByRole('link', { name: 'Medicamentos', exact: true }).click();
+  await page.getByRole('button', { name: 'Novo tratamento', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByLabel('Nome do tratamento', { exact: true })
+    .fill('Tratamento de teste');
+  await page
+    .getByRole('dialog')
+    .getByLabel('Quantidade', { exact: true })
+    .fill('1');
+  await page.getByRole('dialog').getByLabel('Unidade',{exact:true}).fill('comprimido');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  const save = requests.find(
+    (request) =>
+      request.method === 'POST' && request.url.pathname.includes('/rpc/health_treatment_save'),
+  );
+  expect(save).toBeDefined();
+  expect(save.body.p_payload.name).toBe('Tratamento de teste');
+  expect(save.body.p_payload.dose).toBe('1 comprimido');
+  await expect(page.getByRole('heading', { name: 'Tratamento de teste', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/health\/(medications|treatments)\//);
+  await page.getByRole('button', {name:'Voltar',exact:true}).click();
+  await expect(page.getByRole('button', {name:'Tratamento de teste',exact:true})).toBeVisible();
 });
 
 for (const [language, title, action, field] of [
@@ -414,3 +478,68 @@ test('report HTML and dangerous links remain inert in the browser', async ({ pag
   expect(await page.evaluate(() => window.__unsafeReport)).toBeUndefined();
   expect(remote).toEqual([]);
 });
+
+for (const width of [320, 390, 768, 1024, 1440]) {
+  test(`treatment schedule, doses and calendar fit ${width}px`, async ({page}) => {
+    await page.setViewportSize({width,height:1000});
+    await page.clock.setFixedTime(new Date('2026-11-12T17:20:00Z'));
+    await mockHealth(page);
+    await page.getByRole('link',{name:'Medicamentos',exact:true}).click();
+    await page.getByRole('button',{name:'Novo tratamento',exact:true}).click();
+    const form=page.getByRole('dialog');
+    await form.getByLabel('Nome do tratamento',{exact:true}).fill('Medicamento de teste');
+    await expect(form.getByLabel('Dose por tomada',{exact:true})).toHaveCount(0);
+    await form.getByLabel('Quantidade',{exact:true}).fill('1');
+    await form.getByLabel('Unidade',{exact:true}).fill('comprimido');
+    for (const control of await form.locator('input[type=radio],input[type=checkbox]').all()) {
+      await expect(control).toHaveCSS('width','20px');
+      await expect(control).toHaveCSS('height','20px');
+      await expect(control).toHaveCSS('padding','0px');
+    }
+    await form.getByLabel('Data do horário inicial',{exact:true}).fill('2026-11-12');
+    await form.getByLabel('Horário inicial',{exact:true}).fill('06:00');
+    await expect(form.getByText('21 doses previstas',{exact:true})).toBeVisible();
+    await expect(form.getByRole('textbox',{name:/Fuso/})).toHaveCount(0);
+    await form.getByRole('button',{name:'Salvar',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Medicamento de teste',exact:true})).toBeVisible();
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await page.getByRole('button',{name:'Registrar dose tomada',exact:true}).first().click();
+    await page.getByRole('dialog').getByLabel('Horário da tomada',{exact:true}).fill('2026-11-12T17:20');
+    await page.getByRole('dialog').getByRole('button',{name:'Salvar',exact:true}).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    page.once('dialog', dialog=>dialog.accept());
+    await page.getByRole('button',{name:'Desfazer registro',exact:true}).click();
+    await page.getByRole('button',{name:'Calendário',exact:true}).click();
+    await expect(page.getByRole('button',{name:/12 de nov.*doses tomadas/})).toBeVisible();
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await page.getByRole('button',{name:'Histórico',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Próxima',exact:true})).toBeDisabled();
+    await page.screenshot({path:`test-results/treatment-fixed-${width}.png`,fullPage:true});
+  });
+}
+
+for (const [language, moduleName, action, nameLabel, doseLabel, saveLabel, totalLabel] of [
+  ['en','Medications','New treatment','Treatment name','Quantity','Save','21 planned doses'],
+  ['es','Medicamentos','Nuevo tratamiento','Nombre del tratamiento','Cantidad','Guardar','21 dosis previstas'],
+]) {
+  test(`treatment form and private detail are translated in ${language} dark theme`, async ({page}) => {
+    await page.setViewportSize({width:390,height:950});
+    await page.clock.setFixedTime(new Date('2026-11-12T09:00:00Z'));
+    await mockHealth(page,{language,theme:'dark'});
+    await page.getByRole('link',{name:moduleName,exact:true}).click();
+    await page.getByRole('button',{name:action,exact:true}).click();
+    const form=page.getByRole('dialog');
+    await form.getByLabel(nameLabel,{exact:true}).fill('Synthetic treatment');
+    await form.getByLabel(doseLabel,{exact:true}).fill('1');
+    await form.getByLabel(language==='en'?'Unit':'Unidad',{exact:true}).fill('mL');
+    await expect(form.getByText(totalLabel,{exact:true})).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    await expect(page.locator('body')).not.toContainText('health.');
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await form.screenshot({path:`test-results/treatment-form-${language}-dark.png`});
+    await form.getByRole('button',{name:saveLabel,exact:true}).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).toHaveURL(/health\/medications\/bbbb/);
+    await expect(page.getByRole('heading',{name:'Synthetic treatment',exact:true})).toBeVisible();
+  });
+}

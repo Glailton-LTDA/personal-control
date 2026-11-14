@@ -10,9 +10,17 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import HealthGuide from "./HealthGuide";
 import toast from "react-hot-toast";
+import {
+  useTreatmentDetail,
+} from "../../hooks/useTreatments";
 const state = vi.hoisted(() => ({
   lists: {},
   details: {},
+  treatments: {
+    list: { rows: [], has_more: false },
+    detail: null,
+    saved: vi.fn(),
+  },
   loading: false,
   error: false,
   save: vi.fn(),
@@ -54,6 +62,39 @@ vi.mock("../../hooks/useHealth", () => ({
   useHealthReminderSync: () => state.sync,
   useHealthSearch: (value) => value,
 }));
+vi.mock("../../hooks/useTreatments", () => ({
+  useTreatmentList: () => ({
+    data: state.treatments.list,
+    isLoading: state.loading,
+    isError: state.error,
+    refetch: vi.fn(),
+  }),
+  useTreatmentDetail: () => ({
+    data:
+      state.treatments.detail || {
+        medication: {
+          id: "record",
+          name: "Synthetic treatment",
+          status: "active",
+          dose: "1",
+        },
+        schedule: null,
+        stats: { taken_total: 0, overdue: 0, due_recent: 0 },
+        today: [],
+        next: [],
+      },
+    isLoading: state.loading,
+    isError: state.error,
+    refetch: vi.fn(),
+  }),
+  useSaveTreatment: () => ({
+    mutate: vi.fn((values, onSuccess) => {
+      state.treatments.saved(values);
+      if (onSuccess) onSuccess({ id: "saved" });
+    }),
+    isPending: false,
+  }),
+}));
 vi.mock("./HealthForm", () => ({
   default: ({ kind, initial, onClose, onSaved }) => (
     <div role="dialog">
@@ -65,6 +106,57 @@ vi.mock("./HealthForm", () => ({
     </div>
   ),
 }));
+vi.mock("./TreatmentForm", () => ({
+  default: ({ record, onClose, onSaved }) => (
+    <div role="dialog">
+      <output>treatment:{JSON.stringify(record)}</output>
+      <button onClick={onClose}>Close form</button>
+      <button onClick={() => onSaved("saved")}>Save form</button>
+    </div>
+  ),
+}));
+vi.mock("./TreatmentList", () => ({
+  default: ({ navigate }) => {
+    const rows = state.treatments.list.rows || [];
+    return (
+      <div data-testid="treatment-list">
+        {rows.map((record) => (
+          <div
+            key={record.id}
+            onClick={() => navigate(`health/treatments/${record.id}`)}
+            role="button"
+          >
+            {record.name}
+          </div>
+        ))}
+      </div>
+    );
+  },
+}));
+vi.mock("./TreatmentDetail", () => {
+  function TreatmentDetailMock({ userId, medicationId, navigate, onForm }) {
+    const { data } = useTreatmentDetail(userId, medicationId);
+    const medication = data?.medication;
+    return (
+      <div data-testid="treatment-detail">
+        <button
+          className="btn-secondary health-back"
+          onClick={() => navigate("health/treatments")}
+        >
+          health.back
+        </button>
+        <h2>{medication?.name}</h2>
+        <span>{medication?.dose}</span>
+        {onForm && (
+          <button onClick={() => onForm({ kind: "medications", record: medication })}>
+            health.edit_treatment
+          </button>
+        )}
+      </div>
+    );
+  }
+  return { default: TreatmentDetailMock };
+});
 vi.mock("./HealthDocuments", () => ({
   default: ({ imageOnly }) => (
     <div>{imageOnly ? "Image attachments" : "Document attachments"}</div>
@@ -89,6 +181,7 @@ const record = {
 beforeEach(() => {
   state.lists = {};
   state.details = {};
+  state.treatments.list.rows = [];
   state.loading = false;
   state.error = false;
   state.sync = { isSuccess: true };
@@ -116,31 +209,42 @@ function open(props = {}) {
 for (const kind of ["conditions", "appointments", "medications", "exams"])
   it(`filters, opens and creates ${kind}`, () => {
     state.lists[kind] = [record];
+    if (kind === "medications") state.treatments.list.rows = [record];
     const { navigate } = open({ screen: kind });
-    fireEvent.change(screen.getByLabelText("health.search"), {
-      target: { value: "search" },
-    });
-    fireEvent.change(screen.getByLabelText("health.status"), {
-      target: {
-        value:
-          kind === "conditions"
-            ? "chronic"
-            : kind === "medications"
-              ? "active"
-              : "completed",
-      },
-    });
-    expect(state.queries.at(-1)[1]).toMatchObject({
-      search: "search",
-      page: 0,
-    });
+    if (kind !== "medications") {
+      fireEvent.change(screen.getByLabelText("health.search"), {
+        target: { value: "search" },
+      });
+      fireEvent.change(screen.getByLabelText("health.status"), {
+        target: {
+          value:
+            kind === "conditions"
+              ? "chronic"
+              : kind === "medications"
+                ? "active"
+                : "completed",
+        },
+      });
+      expect(state.queries.at(-1)[1]).toMatchObject({
+        search: "search",
+        page: 0,
+      });
+    }
     fireEvent.click(screen.getByText("Synthetic record"));
-    expect(navigate).toHaveBeenCalledWith(`health/${kind}/record`);
+    expect(
+      navigate,
+    ).toHaveBeenCalledWith(
+      kind === "medications" ? "health/treatments/record" : `health/${kind}/record`,
+    );
     fireEvent.click(screen.getByText(`health.new_${kind}`));
     fireEvent.click(screen.getByText("Close form"));
     fireEvent.click(screen.getByText(`health.new_${kind}`));
     fireEvent.click(screen.getByText("Save form"));
-    expect(navigate).toHaveBeenCalledWith(`health/${kind}/saved`);
+    expect(
+      navigate,
+    ).toHaveBeenCalledWith(
+      kind === "medications" ? "health/medications/saved" : `health/${kind}/saved`,
+    );
   });
 for (const kind of ["conditions", "appointments", "medications", "exams"])
   it(`shows ${kind} details, attachments, history and edit`, () => {
@@ -179,23 +283,25 @@ for (const kind of ["conditions", "appointments", "medications", "exams"])
       expect(screen.getByRole("dialog")).toHaveTextContent("appointments");
       fireEvent.click(screen.getByText("Close form"));
     }
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "health.edit", exact: true })[0],
-    );
-    fireEvent.click(screen.getByText("Close form"));
-    fireEvent.click(
-      screen.getByRole("button", { name: "health.documents", exact: true }),
-    );
-    expect(screen.getByText("Document attachments")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "health.history", exact: true }),
-    );
-    if (kind === "medications") {
-      expect(screen.getByText("Medication")).toBeInTheDocument();
+    if (kind !== "medications") {
       fireEvent.click(
-        screen
-          .getAllByRole("button", { name: "health.edit", exact: true })
-          .at(-1),
+        screen.getAllByRole("button", { name: "health.edit", exact: true })[0],
+      );
+      fireEvent.click(screen.getByText("Close form"));
+    }
+    if (kind !== "medications") {
+      fireEvent.click(
+        screen.getByRole("button", { name: "health.documents", exact: true }),
+      );
+      expect(screen.getByText("Document attachments")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "health.history", exact: true }),
+      );
+    }
+    if (kind === "medications") {
+      expect(screen.getByText("Synthetic treatment")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "health.edit_treatment" }),
       );
       fireEvent.click(screen.getByText("Close form"));
     }
@@ -208,7 +314,11 @@ for (const kind of ["conditions", "appointments", "medications", "exams"])
       expect(screen.getByText("health.no_information")).toBeInTheDocument();
     }
     fireEvent.click(screen.getByText("health.back"));
-    expect(navigate).toHaveBeenCalledWith(`health/${kind}`);
+    expect(
+      navigate,
+    ).toHaveBeenCalledWith(
+      kind === "medications" ? "health/treatments" : `health/${kind}`,
+    );
   });
 for (const failure of [false, true])
   it(`completes appointment, failure=${failure}`, async () => {
@@ -328,9 +438,11 @@ for (const kind of ["medications", "appointments", "conditions"])
       appointment_id: "missing",
     };
     open({ screen: kind, detailId: "record" });
-    expect(screen.getAllByText("health.no_information").length).toBeGreaterThan(
-      0,
-    );
+    if (kind !== "medications") {
+      expect(screen.getAllByText("health.no_information").length).toBeGreaterThan(
+        0,
+      );
+    }
     expect(screen.queryByText("health.open_gps")).not.toBeInTheDocument();
     if (kind === "appointments")
       expect(
