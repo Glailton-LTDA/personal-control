@@ -242,7 +242,7 @@ test('creates a medication treatment and saves via RPC', async ({ page }) => {
     .getByRole('dialog')
     .getByLabel('Quantidade', { exact: true })
     .fill('1');
-  await page.getByRole('dialog').getByLabel('Unidade',{exact:true}).fill('comprimido');
+  await page.getByRole('dialog').getByLabel('Unidade',{exact:true}).selectOption('tablet');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   const save = requests.find(
@@ -490,7 +490,7 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     await form.getByLabel('Nome do tratamento',{exact:true}).fill('Medicamento de teste');
     await expect(form.getByLabel('Dose por tomada',{exact:true})).toHaveCount(0);
     await form.getByLabel('Quantidade',{exact:true}).fill('1');
-    await form.getByLabel('Unidade',{exact:true}).fill('comprimido');
+    await form.getByLabel('Unidade',{exact:true}).selectOption('tablet');
     for (const control of await form.locator('input[type=radio],input[type=checkbox]').all()) {
       await expect(control).toHaveCSS('width','20px');
       await expect(control).toHaveCSS('height','20px');
@@ -531,7 +531,7 @@ for (const [language, moduleName, action, nameLabel, doseLabel, saveLabel, total
     const form=page.getByRole('dialog');
     await form.getByLabel(nameLabel,{exact:true}).fill('Synthetic treatment');
     await form.getByLabel(doseLabel,{exact:true}).fill('1');
-    await form.getByLabel(language==='en'?'Unit':'Unidad',{exact:true}).fill('mL');
+    await form.getByLabel(language==='en'?'Unit':'Unidad',{exact:true}).selectOption('ml');
     await expect(form.getByText(totalLabel,{exact:true})).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await expect(page.locator('body')).not.toContainText('health.');
@@ -554,7 +554,7 @@ for (const width of [320, 768, 1440]) {
     const form = page.getByRole('dialog');
     await form.getByLabel('Nome do tratamento', { exact: true }).fill('Tratamento sintético retroativo');
     await form.getByLabel('Quantidade', { exact: true }).fill('1');
-    await form.getByLabel('Unidade', { exact: true }).fill('comprimido');
+    await form.getByLabel('Unidade', { exact: true }).selectOption('tablet');
     await form.getByLabel('Data do horário inicial', { exact: true }).fill('2026-11-11');
     await form.getByLabel('Horário inicial', { exact: true }).fill('06:00');
     const consent = form.getByRole('checkbox', { name: /Marcar .* doses passadas como tomadas/ });

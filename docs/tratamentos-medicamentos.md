@@ -193,6 +193,15 @@ declarada e nova migração.
 preenchem quantidade/unidade e mantêm `dose` como texto derivado legível
 (“1 comprimido”) para clientes antigos e notificações neutras.
 
+`dose_unit_code` usa um domínio controlado e estável: `tablet`, `capsule`,
+`drop`, `ml`, `mg`, `g`, `iu`, `application` e `other`. O rótulo exibido vem
+do i18n em pt/en/es e o snapshot textual (`dose`) usa a forma pluralizada no
+idioma ativo. A apresentação sugere a unidade padrão (`tablet` → `tablet`,
+`drops` → `drop`, `syrup` → `ml`, `ointment` → `application`) sem sobrescrever
+uma escolha manual. Valores legados em texto livre são normalizados por alias
+(“Comprimido” → `tablet`, “gotas” → `drop`, “mL” → `ml`); valores não
+reconhecidos são preservados como opção customizada, sem migração de schema.
+
 ### `health_medication_schedules`
 
 `id`, `user_id`, `medication_id`, `revision`, `mode`, `timezone`, `anchor_at`,
