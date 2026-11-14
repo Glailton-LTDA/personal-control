@@ -543,3 +543,28 @@ for (const [language, moduleName, action, nameLabel, doseLabel, saveLabel, total
     await expect(page.getByRole('heading',{name:'Synthetic treatment',exact:true})).toBeVisible();
   });
 }
+
+for (const width of [320, 768, 1440]) {
+  test(`retrospective treatment doses require explicit consent at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 950 });
+    await page.clock.setFixedTime(new Date('2026-11-12T09:00:00Z'));
+    const writes = await mockHealth(page, { theme: 'dark' });
+    await page.getByRole('link', { name: 'Medicamentos', exact: true }).click();
+    await page.getByRole('button', { name: 'Novo tratamento', exact: true }).click();
+    const form = page.getByRole('dialog');
+    await form.getByLabel('Nome do tratamento', { exact: true }).fill('Tratamento sintético retroativo');
+    await form.getByLabel('Quantidade', { exact: true }).fill('1');
+    await form.getByLabel('Unidade', { exact: true }).fill('comprimido');
+    await form.getByLabel('Data do horário inicial', { exact: true }).fill('2026-11-11');
+    await form.getByLabel('Horário inicial', { exact: true }).fill('06:00');
+    const consent = form.getByRole('checkbox', { name: /Marcar .* doses passadas como tomadas/ });
+    await expect(consent).not.toBeChecked();
+    await consent.check();
+    await expect(consent).toHaveCSS('width', '20px');
+    await noHorizontalOverflow(page);
+    await form.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(form).toHaveCount(0);
+    const request = writes.find(item => item.url.pathname.includes('/rpc/health_treatment_save'));
+    expect(request.body.p_payload.mark_past_doses_taken).toBe(true);
+  });
+}

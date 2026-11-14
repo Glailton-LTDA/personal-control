@@ -440,3 +440,15 @@ export function scheduleLabel(schedule, t) {
   }
   return (schedule.local_times || []).map((time) => time.slice(0, 5)).join(', ');
 }
+
+// Preview only; the database independently computes the final cutoff and count.
+// Bound both work and transaction size for old continuous treatments.
+export function pastDoseCount(schedule, now = Date.now()) {
+  if (!schedule) return 0;
+  const start = new Date(schedule.effective_from).getTime();
+  if (!Number.isFinite(start) || start >= now) return 0;
+  const end = Math.min(now, schedule.end_exclusive_at ? new Date(schedule.end_exclusive_at).getTime() : now);
+  if (end - start > 3650 * DAY_MS) return null;
+  const slots = buildSlots(schedule, start, end, { limit: 10000, cap: false });
+  return slots.length > 10000 ? null : slots.length;
+}

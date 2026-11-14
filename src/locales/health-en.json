@@ -305,7 +305,12 @@
     "invalid_mode": "Choose a valid frequency.",
     "invalid_offset": "Enter a valid reminder lead time.",
     "dose_description": "{{quantity}} {{unit}}",
-    "legacy_dose_hint": "Previous dose: {{dose}}. It will be preserved; enter Quantity and Unit only to change it."
+    "legacy_dose_hint": "Previous dose: {{dose}}. It will be preserved; enter Quantity and Unit only to change it.",
+    "mark_past_doses_taken_one": "Mark {{count}} past dose as taken",
+    "mark_past_doses_taken_other": "Mark {{count}} past doses as taken",
+    "past_doses_hint": "When saved, all doses before registration will be recorded as taken at their scheduled times. Use only if you took these doses. You can correct each entry in the history.",
+    "past_doses_limit": "Automatic recording supports up to 10,000 doses within 3,650 treatment days. You can still save without marking past doses.",
+    "retroactive_dose_reason": "Recorded retrospectively at registration; scheduled time used as the time taken."
   },
   "nav": {
     "health": "Medical guide",

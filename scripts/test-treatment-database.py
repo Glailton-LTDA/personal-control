@@ -46,9 +46,10 @@ values('Legacy long period','1',current_date-400,current_date,array['09:00'::tim
 """)
 sql((root / 'supabase/migrations/20261113120000_medication_treatments.sql').read_text())
 sql((root / 'supabase/migrations/20261114002349_medication_treatment_review_fixes.sql').read_text())
+sql((root / 'supabase/migrations/20261114020244_mark_past_treatment_doses_taken.sql').read_text())
 assert sql("select count(*) from health_medications where schedule_pending") == '1'
 assert sql("select duration_days from health_medication_schedules where duration_kind='finite'") == '401'
-for name in ('medication_treatments.sql', 'medication_regressions.sql', 'health_security.sql', 'medication_query_plans.sql'):
+for name in ('medication_treatments.sql', 'medication_regressions.sql', 'medication_past_doses.sql', 'health_security.sql', 'medication_query_plans.sql'):
     print(sql((root / 'supabase/tests' / name).read_text()))
 
 # Two creators have both observed absence (expected version zero).

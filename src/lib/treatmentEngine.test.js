@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_SLOTS,
+  pastDoseCount,
   MAX_DAYS,
   MIN_INTERVAL_MINUTES,
   MAX_INTERVAL_MINUTES,
@@ -485,4 +486,30 @@ it('does not crash the preview while partially editing invalid inputs', () => {
   const schedule=scheduleFromTreatment(base);
   expect(countSlots(schedule)).toBe(21);
   expect(buildSlots(schedule,schedule.effective_from,schedule.end_exclusive_at).at(-1)).toBe(Date.parse('2026-11-18T22:00:00Z'));
+});
+
+describe('past dose preview', () => {
+  const now = Date.parse('2026-11-12T14:00:00Z');
+  const schedule = { mode: 'interval', timezone: 'UTC', anchor_at: '2026-11-11T06:00:00Z', effective_from: '2026-11-11T06:00:00Z', interval_minutes: 480, duration_kind: 'continuous' };
+  it('excludes the exact cutoff and future slots', () => {
+    expect(pastDoseCount(schedule, now)).toBe(4);
+    expect(pastDoseCount(schedule, now + 1)).toBe(5);
+    expect(pastDoseCount(null, now)).toBe(0);
+    expect(pastDoseCount({ ...schedule, effective_from: 'bad' }, now)).toBe(0);
+    expect(pastDoseCount(schedule, Date.parse(schedule.effective_from))).toBe(0);
+  });
+  it('respects the finite end even when the whole treatment is past', () => {
+    expect(pastDoseCount({ ...schedule, end_exclusive_at: '2026-11-12T06:00:00Z' }, now)).toBe(3);
+  });
+  it('counts local daily times and omits DST gaps', () => {
+    const daily = { mode: 'daily_times', timezone: 'America/New_York', local_start_date: '2026-03-08', local_times: ['02:30', '08:00'], effective_from: '2026-03-08T05:00:00Z' };
+    expect(pastDoseCount(daily, Date.parse('2026-03-09T04:00:00Z'))).toBe(1);
+  });
+  it('bounds large imports and allows exactly 10,000 doses', () => {
+    const hourly = { ...schedule, interval_minutes: 60 };
+    const start = Date.parse(schedule.effective_from);
+    expect(pastDoseCount(hourly, start + 10000 * 3600000)).toBe(10000);
+    expect(pastDoseCount(hourly, start + 10001 * 3600000)).toBeNull();
+    expect(pastDoseCount(schedule, start + 3651 * 86400000)).toBeNull();
+  });
 });
