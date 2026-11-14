@@ -12,6 +12,7 @@ import {
   formatLocalTime,
   formatLocalDate,
   countSlots,
+  pastDoseCount,
   buildSlots,
 } from "../../lib/treatmentEngine";
 import { useSaveTreatment } from "../../hooks/useTreatments";
@@ -66,6 +67,7 @@ function initialForm(record) {
 export default function TreatmentForm({ userId, record, onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const [form, setForm] = useState(() => initialForm(record));
+  const [markPastDoses, setMarkPastDoses] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [doseDirty, setDoseDirty] = useState(false);
   const [error, setError] = useState("");
@@ -74,10 +76,12 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
   const set = (key, value) => {
     if (["dose_quantity", "dose_unit_code"].includes(key)) setDoseDirty(true);
     request.current = null;
+    if (["mode", "anchor_date", "anchor_time", "interval_minutes", "local_start_date", "local_times", "duration_kind", "duration_days", "timezone"].includes(key)) setMarkPastDoses(false);
     setDirty(true);
     setForm((old) => ({ ...old, [key]: value }));
   };
   const schedule = useMemo(() => scheduleFromTreatment(form), [form]);
+  const pastCount = useMemo(() => record ? 0 : pastDoseCount(schedule), [schedule, record]);
   const total = useMemo(() => countSlots(schedule), [schedule]);
   const slots = useMemo(() => {
     if (!schedule) return [];
@@ -134,6 +138,7 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
     try {
       const result = await save.mutateAsync({
         ...values,
+        mark_past_doses_taken: !record && markPastDoses && pastCount > 0,
         requestId: request.current,
       });
       onSaved(result.id);
@@ -367,6 +372,29 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
               <p className="health-muted">{t("health.future_revision_hint")}</p>
             )}
           </section>
+          {!record && pastCount !== 0 && (
+            <div className="health-full">
+              {pastCount == null ? (
+                <p className="health-muted">{t("health.past_doses_limit")}</p>
+              ) : (
+                <>
+                  <label className="health-check">
+                    <input
+                      type="checkbox"
+                      checked={markPastDoses}
+                      onChange={(event) => {
+                        request.current = null;
+                        setDirty(true);
+                        setMarkPastDoses(event.target.checked);
+                      }}
+                    />
+                    {t("health.mark_past_doses_taken", { count: pastCount })}
+                  </label>
+                  <p className="health-muted">{t("health.past_doses_hint")}</p>
+                </>
+              )}
+            </div>
+          )}
           <label className="health-check health-full">
             <input
               type="checkbox"

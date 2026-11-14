@@ -305,7 +305,12 @@
     "invalid_mode": "Seleccione una frecuencia válida.",
     "invalid_offset": "Introduzca una antelación válida para el recordatorio.",
     "dose_description": "{{quantity}} {{unit}}",
-    "legacy_dose_hint": "Dosis anterior: {{dose}}. Se conservará; complete Cantidad y Unidad solo si desea cambiarla."
+    "legacy_dose_hint": "Dosis anterior: {{dose}}. Se conservará; complete Cantidad y Unidad solo si desea cambiarla.",
+    "mark_past_doses_taken_one": "Marcar {{count}} dosis pasada como tomada",
+    "mark_past_doses_taken_other": "Marcar {{count}} dosis pasadas como tomadas",
+    "past_doses_hint": "Al guardar, todas las dosis anteriores al registro se marcarán como tomadas en los horarios previstos. Úsalo solo si tomaste esas dosis. Podrás corregir cada registro en el historial.",
+    "past_doses_limit": "El registro automático admite hasta 10.000 dosis en 3.650 días de tratamiento. Puedes guardar sin marcar las dosis pasadas.",
+    "retroactive_dose_reason": "Registrada retrospectivamente al crear el tratamiento; se usó la hora prevista como hora de toma."
   },
   "nav": {
     "health": "Guía médica",

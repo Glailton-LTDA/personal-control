@@ -108,3 +108,45 @@ it.each([['1','   '],['0','mL'],['1.2345','mL']])('rejects incomplete or over-pr
   expect(await screen.findByRole('alert')).toHaveTextContent('health.invalid_dose');
   expect(saveTreatment).not.toHaveBeenCalled();
 });
+
+describe('retrospective dose opt-in', () => {
+  function past() {
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_date'), { target: { value: '2026-11-11' } });
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_time'), { target: { value: '06:00' } });
+  }
+  it('is unchecked by default and sends false when not selected', async () => {
+    setup(); fill(); past();
+    expect(screen.getByRole('checkbox', { name: 'health.mark_past_doses_taken' })).not.toBeChecked();
+    fireEvent.submit(document.querySelector('form'));
+    await waitFor(() => expect(saveTreatment).toHaveBeenCalled());
+    expect(saveTreatment.mock.calls[0][1].mark_past_doses_taken).toBe(false);
+  });
+  it('sends explicit consent and resets it when the schedule changes', async () => {
+    setup(); fill(); past();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'health.mark_past_doses_taken' }));
+    fireEvent.change(screen.getByLabelText('health.treatment_name'), { target: { value: 'Renamed' } });
+    expect(screen.getByRole('checkbox', { name: 'health.mark_past_doses_taken' })).toBeChecked();
+    fireEvent.submit(document.querySelector('form'));
+    await waitFor(() => expect(saveTreatment).toHaveBeenCalled());
+    expect(saveTreatment.mock.calls[0][1].mark_past_doses_taken).toBe(true);
+  });
+  it('clears consent on schedule changes and hides it for future dates and edits', () => {
+    setup(); past();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'health.mark_past_doses_taken' }));
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_time'), { target: { value: '07:00' } });
+    expect(screen.getByRole('checkbox', { name: 'health.mark_past_doses_taken' })).not.toBeChecked();
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_date'), { target: { value: '2026-11-13' } });
+    expect(screen.queryByRole('checkbox', { name: 'health.mark_past_doses_taken' })).not.toBeInTheDocument();
+  });
+  it('never offers bulk recording when editing an existing treatment', () => {
+    setup({ id: 'existing', name: 'Existing', dose: '1', timezone: 'UTC', schedule: { anchor_at: '2026-11-01T06:00:00Z' } });
+    expect(screen.queryByRole('checkbox', { name: 'health.mark_past_doses_taken' })).not.toBeInTheDocument();
+  });
+  it('explains the import limit while allowing normal registration', () => {
+    setup();
+    fireEvent.change(screen.getByLabelText('health.treatment_anchor_date'), { target: { value: '2000-01-01' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'health.treatment_duration_continuous' }));
+    expect(screen.getByText('health.past_doses_limit')).toBeVisible();
+    expect(screen.queryByRole('checkbox', { name: 'health.mark_past_doses_taken' })).not.toBeInTheDocument();
+  });
+});

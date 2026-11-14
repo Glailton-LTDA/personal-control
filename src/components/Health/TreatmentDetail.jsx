@@ -113,7 +113,7 @@ export default function TreatmentDetail({
       status: slot.status === "skipped" ? "skipped" : "taken",
       takenLocal: `${formatLocalDate(actual, timezone)}T${formatLocalTime(actual, timezone)}`,
       amount: slot.amount || slot.planned_amount || medication.dose,
-      reason: slot.reason || "",
+      reason: slot.reason === "retroactive_at_creation" ? t("health.retroactive_dose_reason") : slot.reason || "",
       expectedVersion: slot.record_version || 0,
       requestId: crypto.randomUUID(),
     });
@@ -193,6 +193,9 @@ export default function TreatmentDetail({
           </p>
         )}
         {slot.amount && <p>{slot.amount}</p>}
+        {slot.reason === "retroactive_at_creation" && (
+          <p className="health-muted">{t("health.retroactive_dose_reason")}</p>
+        )}
       </div>
       <div className="health-actions">
         {slot.status === "missed" && (

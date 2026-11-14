@@ -310,3 +310,51 @@ O teste `medication_query_plans.sql` mede RPCs e consulta indexada com 50 tratam
 3. Conferir criação, edição, tomada, desfazer, calendário, push e isolamento no ambiente de teste.
 4. Em eventual integração autorizada em `main`, acompanhar a action de migrations/funções até o sucesso. Check de PR não equivale a migration aplicada em produção.
 5. Rollback de UI mantém schema e adaptador novo; não remover tabelas, eventos ou converter intervalos em horários diários.
+
+## Registro de doses anteriores ao cadastro (2.4.0)
+
+No cadastro de um novo tratamento, quando a agenda possui doses anteriores ao
+instante atual, o formulário oferece uma opção desmarcada por padrão para
+registrá-las como tomadas. A prévia informa a quantidade; o texto explica que o
+horário previsto será usado como horário da tomada, pois o horário real não foi
+informado. Alterar datas, frequência, duração ou fuso remove o consentimento
+anterior. A opção não aparece na edição: um ajuste de cadastro não pode reescrever
+o histórico existente em massa.
+
+O contrato compartilhado web/Android evolui sem novas tabelas: a RPC
+`health_treatment_save(jsonb, uuid)` aceita o boolean opcional
+`mark_past_doses_taken` (ausente equivale a `false`) e retorna
+`past_doses_recorded`. O backend rejeita valores de outro tipo e rejeita a opção
+ativada em edições. Clientes antigos continuam funcionando sem enviar o campo.
+
+O banco recalcula a agenda usando o fuso e o motor canônicos. Usa `now()` da
+transação como corte exclusivo e também respeita o fim exclusivo do tratamento.
+Cada dose recebe `taken_at = scheduled_at`, `reason = retroactive_at_creation` e
+a quantidade prevista. Esse código é traduzido pela interface para identificar
+um registro retroativo; os horários não representam uma medição de ingestão.
+Os gatilhos existentes preservam proprietário, autor, instante efetivo de registro,
+ID da requisição, eventos de auditoria e controle de versão. Cada registro pode
+ser corrigido ou desfeito normalmente. Doses futuras permanecem sem registro;
+lembretes continuam sendo gerados apenas para doses futuras elegíveis.
+
+Cadastro e doses são uma única transação; o mecanismo de idempotência existente
+impede duplicação após uma repetição com o mesmo ID. A geração usa janelas de
+30 dias (no máximo 720 horários por janela em UTC, com o limite canônico de 1.000
+por janela para fusos com transições). O registro automático é limitado a 10.000
+doses e 3.650 dias entre início e corte efetivo. Acima desses limites a interface
+explica que ainda é possível cadastrar sem marcar doses antigas; requisições que
+forçam a opção são rejeitadas com rollback completo. Não há `SELECT *`, novo
+endpoint privilegiado nem alteração nas políticas de acesso.
+
+A migração canônica é
+`supabase/migrations/20261114020244_mark_past_treatment_doses_taken.sql`.
+O Android pode adotar o novo campo na mesma RPC e deve traduzir o código de
+motivo; não precisa de tabelas ou migrações paralelas. A migração também inclui
+`reason` nas projeções de doses do resumo/calendário para que a identificação
+retroativa seja preservada em todos os pontos de correção da web.
+
+Validação: os testes SQL descartáveis exercitam opt-in/default, tratamento
+contínuo e finito, fuso/DST, exclusão de doses futuras, auditoria, idempotência,
+desfazer, tentativas entre usuários, ausência de autenticação, limites e rollback.
+Os unitários cobrem prévia, formulário, consentimento e identificação no detalhe;
+o navegador cobre o cadastro com consentimento em 320, 768 e 1.440 pixels.
