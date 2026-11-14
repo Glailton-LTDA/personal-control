@@ -303,7 +303,9 @@
     "invalid_name": "Enter a name of up to 255 characters.",
     "invalid_dose": "Enter a valid dose and quantity.",
     "invalid_mode": "Choose a valid frequency.",
-    "invalid_offset": "Enter a valid reminder lead time."
+    "invalid_offset": "Enter a valid reminder lead time.",
+    "dose_description": "{{quantity}} {{unit}}",
+    "legacy_dose_hint": "Previous dose: {{dose}}. It will be preserved; enter Quantity and Unit only to change it."
   },
   "nav": {
     "health": "Medical guide",

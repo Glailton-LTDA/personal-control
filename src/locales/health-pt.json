@@ -303,7 +303,9 @@
     "invalid_name": "Informe um nome de até 255 caracteres.",
     "invalid_dose": "Informe uma dose e quantidade válidas.",
     "invalid_mode": "Escolha uma frequência válida.",
-    "invalid_offset": "Informe uma antecedência válida para o lembrete."
+    "invalid_offset": "Informe uma antecedência válida para o lembrete.",
+    "dose_description": "{{quantity}} {{unit}}",
+    "legacy_dose_hint": "Dose anterior: {{dose}}. Ela será mantida; preencha Quantidade e Unidade apenas se quiser alterá-la."
   },
   "nav": {
     "health": "Guia médico",

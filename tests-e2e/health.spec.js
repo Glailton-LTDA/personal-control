@@ -240,8 +240,9 @@ test('creates a medication treatment and saves via RPC', async ({ page }) => {
     .fill('Tratamento de teste');
   await page
     .getByRole('dialog')
-    .getByLabel('Dose por tomada', { exact: true })
-    .fill('1 comprimido');
+    .getByLabel('Quantidade', { exact: true })
+    .fill('1');
+  await page.getByRole('dialog').getByLabel('Unidade',{exact:true}).fill('comprimido');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   const save = requests.find(
@@ -487,7 +488,14 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     await page.getByRole('button',{name:'Novo tratamento',exact:true}).click();
     const form=page.getByRole('dialog');
     await form.getByLabel('Nome do tratamento',{exact:true}).fill('Medicamento de teste');
-    await form.getByLabel('Dose por tomada',{exact:true}).fill('1 comprimido');
+    await expect(form.getByLabel('Dose por tomada',{exact:true})).toHaveCount(0);
+    await form.getByLabel('Quantidade',{exact:true}).fill('1');
+    await form.getByLabel('Unidade',{exact:true}).fill('comprimido');
+    for (const control of await form.locator('input[type=radio],input[type=checkbox]').all()) {
+      await expect(control).toHaveCSS('width','20px');
+      await expect(control).toHaveCSS('height','20px');
+      await expect(control).toHaveCSS('padding','0px');
+    }
     await form.getByLabel('Data do horário inicial',{exact:true}).fill('2026-11-12');
     await form.getByLabel('Horário inicial',{exact:true}).fill('06:00');
     await expect(form.getByText('21 doses previstas',{exact:true})).toBeVisible();
@@ -511,8 +519,8 @@ for (const width of [320, 390, 768, 1024, 1440]) {
 }
 
 for (const [language, moduleName, action, nameLabel, doseLabel, saveLabel, totalLabel] of [
-  ['en','Medications','New treatment','Treatment name','Dose per intake','Save','21 planned doses'],
-  ['es','Medicamentos','Nuevo tratamiento','Nombre del tratamiento','Dosis por toma','Guardar','21 dosis previstas'],
+  ['en','Medications','New treatment','Treatment name','Quantity','Save','21 planned doses'],
+  ['es','Medicamentos','Nuevo tratamiento','Nombre del tratamiento','Cantidad','Guardar','21 dosis previstas'],
 ]) {
   test(`treatment form and private detail are translated in ${language} dark theme`, async ({page}) => {
     await page.setViewportSize({width:390,height:950});
@@ -523,6 +531,7 @@ for (const [language, moduleName, action, nameLabel, doseLabel, saveLabel, total
     const form=page.getByRole('dialog');
     await form.getByLabel(nameLabel,{exact:true}).fill('Synthetic treatment');
     await form.getByLabel(doseLabel,{exact:true}).fill('1');
+    await form.getByLabel(language==='en'?'Unit':'Unidad',{exact:true}).fill('mL');
     await expect(form.getByText(totalLabel,{exact:true})).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await expect(page.locator('body')).not.toContainText('health.');

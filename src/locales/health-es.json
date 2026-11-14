@@ -303,7 +303,9 @@
     "invalid_name": "Introduzca un nombre de hasta 255 caracteres.",
     "invalid_dose": "Introduzca una dosis y cantidad válidas.",
     "invalid_mode": "Seleccione una frecuencia válida.",
-    "invalid_offset": "Introduzca una antelación válida para el recordatorio."
+    "invalid_offset": "Introduzca una antelación válida para el recordatorio.",
+    "dose_description": "{{quantity}} {{unit}}",
+    "legacy_dose_hint": "Dosis anterior: {{dose}}. Se conservará; complete Cantidad y Unidad solo si desea cambiarla."
   },
   "nav": {
     "health": "Guía médica",

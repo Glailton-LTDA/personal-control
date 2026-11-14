@@ -4,13 +4,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TreatmentForm from './TreatmentForm';
 import { saveTreatment } from '../../lib/treatments';
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key, options) => key === 'health.predicted_doses' ? `${key}:${options.count}` : key === 'health.last_dose' ? `${key}:${options.date}` : key, i18n: { language: 'en' } }) }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key, options) => key === 'health.predicted_doses' ? `${key}:${options.count}` : key === 'health.last_dose' ? `${key}:${options.date}` : key === 'health.dose_description' ? `${options.quantity} ${options.unit}` : key, i18n: { language: 'en' } }) }));
 vi.mock('../../lib/treatments', () => ({ saveTreatment: vi.fn() }));
 vi.mock('./HealthUI', async original => ({ ...await original(), HealthLinkSelect: ({ field, value, onChange }) => <label>{field}<select aria-label={field} value={value || ''} onChange={e => onChange(e.target.value)}><option value="" /><option value="link-1">Linked</option></select></label> }));
 const wrapper = ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
 const start = Date.UTC(2026, 10, 12, 9);
 const setup = (record) => { const saved = vi.fn(), close = vi.fn(); render(<TreatmentForm userId="owner" record={record} onSaved={saved} onClose={close} />, { wrapper }); return { saved, close }; };
-const fill = () => { fireEvent.change(screen.getByLabelText('health.treatment_name'), { target: { value: 'Synthetic' } }); fireEvent.change(screen.getByLabelText('health.treatment_dose'), { target: { value: '1 tablet' } }); };
+const fill = () => { fireEvent.change(screen.getByLabelText('health.treatment_name'), { target: { value: 'Synthetic' } }); fireEvent.change(screen.getByLabelText('health.treatment_dose_quantity'), { target: { value: '1' } }); fireEvent.change(screen.getByLabelText('health.treatment_dose_unit_code'), { target: { value: 'tablet' } }); };
 beforeEach(() => { vi.clearAllMocks(); vi.spyOn(Date, 'now').mockReturnValue(start); saveTreatment.mockResolvedValue({ data: { id: 'med-1' }, error: null }); });
 describe('treatment form with real mutation hook', () => {
   it('awaits server success, calculates 21 doses and does not expose a technical timezone input', async () => {
@@ -19,9 +19,10 @@ describe('treatment form with real mutation hook', () => {
     expect(screen.getByText('health.predicted_doses:21')).toBeVisible();
     expect(screen.getByText(/health.last_dose:.*Nov 18, 2026/)).toBeVisible();
     expect(screen.queryByRole('textbox', { name: /timezone/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('health.treatment_dose', { exact: true })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
     await waitFor(() => expect(saved).toHaveBeenCalledWith('med-1'));
-    expect(saveTreatment).toHaveBeenCalledWith('owner', expect.objectContaining({ interval_minutes: 480, duration_days: 7 }), expect.any(String));
+    expect(saveTreatment).toHaveBeenCalledWith('owner', expect.objectContaining({ interval_minutes: 480, duration_days: 7, dose: '1 tablet', dose_quantity: '1', dose_unit_code: 'tablet' }), expect.any(String));
   });
   it('keeps values and command ID after an error, then retries the same intent', async () => {
     saveTreatment.mockResolvedValueOnce({ data: null, error: 'version_conflict' });
@@ -81,4 +82,29 @@ describe('treatment form with real mutation hook', () => {
     fireEvent.click(screen.getByRole('button', { name: 'health.cancel' })); expect(close).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'health.cancel' })); expect(close).toHaveBeenCalled();
   });
+});
+
+
+it('preserves a legacy free-text dose without parsing or inventing quantity/unit', async () => {
+  setup({ id:'legacy',name:'Existing',dose:'Apply a thin layer',row_version:3 });
+  expect(screen.queryByLabelText('health.treatment_dose',{exact:true})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('health.treatment_notes'),{target:{value:'Notes'}});
+  fireEvent.click(screen.getByRole('button',{name:'health.save'}));
+  await waitFor(()=>expect(saveTreatment).toHaveBeenCalled());
+  expect(saveTreatment.mock.calls[0][1]).toMatchObject({dose:'Apply a thin layer',dose_quantity:'',dose_unit_code:''});
+});
+it('replaces the legacy dose only when quantity/unit are explicitly edited', async () => {
+  setup({id:'legacy',name:'Existing',dose:'old dose',row_version:3,dose_quantity:1,dose_unit_code:'tablet'});
+  fireEvent.change(screen.getByLabelText('health.treatment_dose_quantity'),{target:{value:'0.5'}});
+  fireEvent.click(screen.getByRole('button',{name:'health.save'}));
+  await waitFor(()=>expect(saveTreatment).toHaveBeenCalled());
+  expect(saveTreatment.mock.calls[0][1]).toMatchObject({dose:'0.5 tablet',dose_quantity:'0.5',dose_unit_code:'tablet'});
+});
+it.each([['1','   '],['0','mL'],['1.2345','mL']])('rejects incomplete or over-precise doses (%s %s)', async (quantity,unit) => {
+  setup();fill();
+  fireEvent.change(screen.getByLabelText('health.treatment_dose_quantity'),{target:{value:quantity}});
+  fireEvent.change(screen.getByLabelText('health.treatment_dose_unit_code'),{target:{value:unit}});
+  fireEvent.submit(document.querySelector('form'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('health.invalid_dose');
+  expect(saveTreatment).not.toHaveBeenCalled();
 });

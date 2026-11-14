@@ -58,3 +58,10 @@ Nenhuma credencial privilegiada é usada no cliente. As funções mantêm owners
 Android não foi alterado: o contrato permanece único no Supabase e exige teste do consumidor nativo quando esse módulo existir. Testes de navegador simulam as respostas HTTP; integridade SQL e concorrência são verificadas separadamente no PostgreSQL real. Push real e aplicação de migrations em Dev/produção dependem do rollout autorizado; não se afirma entrega exatamente uma vez pelo provedor.
 
 Migrations devem ser aplicadas antes da UI nova. Quem já testou o SQL inicial aplica a complementar sem reset; banco novo aplica a sequência canônica. Detalhes de rollout/rollback e desempenho estão em `docs/tratamentos-medicamentos.md`.
+
+
+## Ajuste de formulário — 2.3.1
+
+O campo editável de dose textual foi removido; Quantidade + Unidade geram o texto enviado pelo contrato existente. Cadastros legados não são interpretados ou sobrescritos ao editar outros dados. Quantidades novas/alteradas respeitam a precisão de três casas do schema existente. Nenhuma migration adicional foi necessária para este ajuste.
+
+Radios e checkboxes usam tamanho visual de 20px, sem o padding de campos de texto; o rótulo mantém a área de toque. Testes de navegador conferem as dimensões computadas nas cinco larguras e a ausência do campo redundante em pt/en/es.

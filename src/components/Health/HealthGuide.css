@@ -179,11 +179,16 @@
   padding-left: 0;
 }
 .health-guide input[type="checkbox"],
-.health-modal input[type="checkbox"] {
+.health-modal input[type="checkbox"],
+.health-guide input[type="radio"],
+.health-modal input[type="radio"] {
   width: 20px;
+  min-width: 20px;
   min-height: 20px;
   height: 20px;
-  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 20px;
   accent-color: var(--primary);
 }
 .health-modal textarea {

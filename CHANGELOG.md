@@ -4,6 +4,12 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-13
+
+### Corrigido
+- **Cadastro de medicamentos**: a dose é montada por Quantidade + Unidade, sem campo redundante. Edições preservam a dose dos cadastros antigos até que esses valores sejam alterados.
+- **Controles do Guia Médico**: radios e checkboxes voltam ao tamanho visual de 20px, mantendo os rótulos com área confortável para toque.
+
 ## [2.3.0] - 2026-11-13
 
 ### Adicionado

@@ -67,10 +67,12 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
   const { t, i18n } = useTranslation();
   const [form, setForm] = useState(() => initialForm(record));
   const [dirty, setDirty] = useState(false);
+  const [doseDirty, setDoseDirty] = useState(false);
   const [error, setError] = useState("");
   const request = useRef(null);
   const save = useSaveTreatment(userId);
   const set = (key, value) => {
+    if (["dose_quantity", "dose_unit_code"].includes(key)) setDoseDirty(true);
     request.current = null;
     setDirty(true);
     setForm((old) => ({ ...old, [key]: value }));
@@ -110,7 +112,19 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
   const submit = async (event) => {
     event.preventDefault();
     if (save.isPending) return;
-    const errors = validateTreatment(form);
+    const quantity = Number(form.dose_quantity);
+    const unit = form.dose_unit_code.trim();
+    const changingDose = !record || doseDirty;
+    if (changingDose && (!unit || !Number.isFinite(quantity) || quantity <= 0 || Math.round(quantity * 1000) / 1000 !== quantity)) {
+      setError("invalid_dose");
+      return;
+    }
+    const dose = changingDose ? t("health.dose_description", {
+      quantity: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 }).format(quantity),
+      unit,
+    }) : form.dose;
+    const values = { ...form, dose, dose_unit_code: unit };
+    const errors = validateTreatment(values);
     if (errors.length) {
       setError(errors[0]);
       return;
@@ -119,7 +133,7 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
     setError("");
     try {
       const result = await save.mutateAsync({
-        ...form,
+        ...values,
         requestId: request.current,
       });
       onSaved(result.id);
@@ -148,9 +162,6 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
           <div className="health-full">
             {field("name", { required: true, maxLength: 255 })}
           </div>
-          <div className="health-full">
-            {field("dose", { required: true, maxLength: 255 })}
-          </div>
           <label className="health-field">
             <span>{t("health.presentation")}</span>
             <select
@@ -168,11 +179,13 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
           </label>
           {field("dose_quantity", {
             type: "number",
+            required: !record || doseDirty,
             min: "0.001",
             max: "1000000",
             step: "any",
           })}
-          {field("dose_unit_code", { maxLength: 50 })}
+          {field("dose_unit_code", { maxLength: 50, required: !record || doseDirty })}
+          {record && (!record.dose_quantity || !record.dose_unit_code?.trim()) && <p className="health-muted health-full">{t("health.legacy_dose_hint", { dose: record.dose })}</p>}
           <fieldset className="health-times health-full">
             <legend>{t("health.treatment_mode")}</legend>
             <div className="health-actions">
