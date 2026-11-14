@@ -154,6 +154,8 @@ jobs:
             supabase/migrations/20261109021510_health_recent_lists_indexes.sql \
             supabase/migrations/20261113120000_medication_treatments.sql \
             supabase/migrations/20261114002349_medication_treatment_review_fixes.sql \
+            supabase/migrations/20261114020244_mark_past_treatment_doses_taken.sql \
+            supabase/tests/medication_past_doses.sql \
             supabase/tests/medication_treatments.sql \
             supabase/tests/medication_regressions.sql \
             supabase/tests/medication_query_plans.sql \

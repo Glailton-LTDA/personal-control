@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-14
+
+### Adicionado
+- **Medicamentos**: opção explícita no cadastro para registrar doses passadas como tomadas nos horários previstos, com auditoria e possibilidade de correção individual. O cadastro e as doses são gravados na mesma transação; doses futuras não são marcadas.
+
 ## [2.3.1] - 2026-11-13
 
 ### Corrigido

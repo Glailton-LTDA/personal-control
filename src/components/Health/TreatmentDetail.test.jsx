@@ -108,3 +108,13 @@ it('defaults a historical dose to its planned snapshot rather than the current p
   setup(); fireEvent.click(screen.getAllByRole('button', { name: 'health.treatment_record_dose' })[0]);
   expect(within(screen.getByRole('dialog')).getByLabelText('health.amount')).toHaveValue('1 tablet');
 });
+
+it('identifies retrospective doses and translates the reason when correcting one', () => {
+  const value = data();
+  value.today = [{ ...slots[1], reason: 'retroactive_at_creation' }];
+  hooks.useTreatmentDetail.mockReturnValue(query(value));
+  setup();
+  expect(screen.getByText('health.retroactive_dose_reason')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'health.edit' }));
+  expect(screen.getByLabelText('health.dose_reason')).toHaveValue('health.retroactive_dose_reason');
+});
