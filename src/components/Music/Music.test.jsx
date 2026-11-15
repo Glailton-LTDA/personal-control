@@ -185,28 +185,6 @@ describe('Music Component', () => {
     expect(screen.getByText('music.song_table_genre')).toBeDefined();
   });
 
-  it('transitions to list of artists when alphabet letter is clicked', async () => {
-    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
-
-    await waitFor(() => {
-      expect(screen.getByText('Detalhes')).toBeDefined();
-    });
-
-    // Click letter "R"
-    const letterRBtn = screen.getByText('R');
-    fireEvent.click(letterRBtn);
-
-    // Should display breadcrumbs update and artist grid
-    await waitFor(() => {
-      expect(screen.getByText('music.letter')).toBeDefined();
-      expect(screen.getByText('Roberto Carlos')).toBeDefined();
-      expect(screen.getByText('5 músicas')).toBeDefined();
-    });
-
-    // Songs table should NOT be visible while viewing artist list
-    expect(screen.queryByText('Detalhes')).toBeNull();
-  });
-
   it('navigates to artist songs when artist is clicked from letter view', async () => {
     render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
 
@@ -398,40 +376,4 @@ describe('Music Component', () => {
     await db.music_songs.delete('song-meta-1');
   });
 
-  it('abre o editor de uma música que ainda não tem cifra', async () => {
-    const toast = (await import('react-hot-toast')).default;
-    mockSongsQuery.single.mockResolvedValue({
-      data: {
-        id: 's1',
-        user_id: mockUser.id,
-        title: 'Detalhes',
-        artist: 'Roberto Carlos',
-        type: 'cifra',
-        content: null,
-      },
-      error: null,
-    });
-
-    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
-
-    fireEvent.click(screen.getAllByTitle('music.edit_song_action')[0]);
-
-    expect(await screen.findByTestId('song-editor')).toBeDefined();
-    expect(toast.error).not.toHaveBeenCalled();
-  });
-
-  it('não abre o editor quando a busca da cifra falha', async () => {
-    const toast = (await import('react-hot-toast')).default;
-    mockSongsQuery.single.mockResolvedValue({
-      data: null,
-      error: { message: 'network error' },
-    });
-
-    render(<Music user={mockUser} mode="repertoire" />, { wrapper: Wrapper });
-
-    fireEvent.click(screen.getAllByTitle('music.edit_song_action')[0]);
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('music.song_not_found'));
-    expect(screen.queryByTestId('song-editor')).toBeNull();
-  });
 });

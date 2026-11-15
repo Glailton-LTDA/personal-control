@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-11-14
+
+### Corrigido
+- **Objetivos**: a aba "Depósitos" do detalhe do objetivo agora aparece também no desktop, com a lista completa de aportes e retiradas (não apenas os do mês corrente).
+
+### Testes
+- Removidos testes duplicados ou tautológicos já cobertos pelos testes de fluxo: `Setlists`, `SheetViewer`, `TripsStats`, `Reproduction` e casos repetidos de `Music`, `CustomLists`, `AttachmentManager`, `MyCars`, `TripForm` e `MinhasFinancas`. A cobertura global e do código alterado segue acima do mínimo exigido.
+
 ## [2.4.1] - 2026-11-14
 
 ### Corrigido
