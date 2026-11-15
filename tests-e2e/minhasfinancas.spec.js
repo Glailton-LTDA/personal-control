@@ -747,6 +747,60 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     }
   });
 
+  test('aba de depósitos do objetivo aparece no desktop e lista todos os aportes', async ({ page }) => {
+    // Regressão: no desktop a regra que esconde abas do detalhe da conta
+    // escondia também as abas Detalhes/Depósitos do objetivo.
+    page.mfStore.mf_goals = [
+      {
+        id: 'goal-e2e',
+        user_id: 'user-e2e',
+        name: 'Reserva E2E',
+        target_amount: 1000,
+        initial_amount: 0,
+        target_date: '2099-12-31',
+        status: 'ACTIVE',
+        color: '#6366f1',
+        icon: '🎯',
+      },
+    ];
+    page.mfStore.mf_goal_contributions = [
+      {
+        id: 'contrib-new',
+        user_id: 'user-e2e',
+        goal_id: 'goal-e2e',
+        kind: 'DEPOSIT',
+        amount: 6.23,
+        contribution_date: '2026-11-13',
+        notes: '',
+      },
+      {
+        id: 'contrib-old',
+        user_id: 'user-e2e',
+        goal_id: 'goal-e2e',
+        kind: 'DEPOSIT',
+        amount: 50,
+        contribution_date: '2025-01-03',
+        notes: '',
+      },
+    ];
+
+    await login(page);
+    await page.goto('/minhasfinancas/goals');
+    await page.getByTestId('mf-goal-card').click();
+
+    const detail = page.getByTestId('mf-goal-detail');
+    const depositsTab = detail.getByTestId('mf-goal-detail-tab-deposits');
+    await expect(depositsTab).toBeVisible();
+    await expect(depositsTab).toHaveText(/\(2\)/);
+
+    await depositsTab.click();
+    const panel = detail.getByTestId('mf-goal-detail-panel-deposits');
+    await expect(panel).toBeVisible();
+    // A lista traz todos os aportes do objetivo, não só os do mês corrente.
+    await expect(panel.getByTestId('mf-goal-detail-deposit-contrib-new')).toBeVisible();
+    await expect(panel.getByTestId('mf-goal-detail-deposit-contrib-old')).toBeVisible();
+  });
+
   test('detalhe de conta e cartão abre por URL e sobrevive ao refresh', async ({ page }) => {
     // São 6 carregamentos completos do app (URLs diretas + refresh); no dev
     // cada um custa ~3-4 s, então 30 s de timeout não bastam.

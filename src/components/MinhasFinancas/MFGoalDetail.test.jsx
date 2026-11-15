@@ -86,6 +86,16 @@ describe('MFGoalDetail', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('mantém as abas de detalhes e depósitos disponíveis em qualquer largura', () => {
+    renderDetail();
+
+    const tablist = screen.getByRole('tablist', { name: 'Reserva' });
+    expect(tablist).toHaveClass('mf-det-tabs');
+    // A classe que oculta as abas no desktop pertence só ao detalhe da conta.
+    expect(tablist).not.toHaveClass('mf-det-tabs-account');
+    expect(screen.getByTestId('mf-goal-detail-tab-deposits')).toBeVisible();
+  });
+
   it('mostra progresso manual, prazo, mensal ideal e movimentos', () => {
     renderDetail({
       contributions: [
