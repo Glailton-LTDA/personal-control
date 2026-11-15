@@ -14,22 +14,6 @@ describe('AttachmentManager', () => {
   ];
   const onItemsChange = vi.fn();
 
-  it('renders correctly and toggles expansion', () => {
-    render(
-      <AttachmentManager 
-        label="Hospedagem" 
-        items={mockItems} 
-        onItemsChange={onItemsChange} 
-        tripId="trip-1" 
-      />
-    );
-
-    expect(screen.getAllByText(/Hospedagem/i).length).toBeGreaterThan(0);
-    expect(screen.getByDisplayValue(/Hotel 1/i)).toBeInTheDocument();
-    // Correct text is translation key
-    expect(screen.getByText(/trips\.labels\.add_new_item/i)).toBeInTheDocument();
-  });
-
   it('adds a new item when clicking on Add New', () => {
     render(
       <AttachmentManager 

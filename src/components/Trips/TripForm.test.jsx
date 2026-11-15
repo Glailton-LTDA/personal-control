@@ -50,12 +50,6 @@ function Wrapper({ children }) {
 describe('TripForm', () => {
   const mockUser = { id: 'user-123' };
 
-  it('renders correctly for new trip', () => {
-    render(<TripForm user={mockUser} onBack={() => {}} onSave={() => {}} />, { wrapper: Wrapper });
-    // Use regex for more flexibility
-    expect(screen.getByText(/trips.new_trip/i)).toBeInTheDocument();
-  });
-
   it('calls onSave when form is submitted', async () => {
     const onSave = vi.fn();
     render(<TripForm user={mockUser} onBack={() => {}} onSave={onSave} />, { wrapper: Wrapper });

@@ -1169,7 +1169,7 @@ export default function MFAccountDetail({
       </div>
 
       {/* Abas mobile: Transações primeiro; no desktop ficam ocultas */}
-      <div className="mf-det-tabs" role="tablist" aria-label={account.name}>
+      <div className="mf-det-tabs mf-det-tabs-account" role="tablist" aria-label={account.name}>
         <button
           type="button"
           role="tab"

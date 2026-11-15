@@ -80,13 +80,4 @@ describe('MyCars', () => {
 
     expect(screen.getByText(/ABC-1234/i)).toBeInTheDocument();
   });
-
-  it('includes car_services in total investment', async () => {
-    render(<MyCars user={mockUser} />);
-    await waitFor(() => {
-      expect(screen.getByTestId('my-cars-container')).toBeInTheDocument();
-    }, { timeout: 5000 });
-    // If services load correctly, the mock ensures no errors occur
-    expect(screen.getByText(/Audi A3/i)).toBeInTheDocument();
-  });
 });

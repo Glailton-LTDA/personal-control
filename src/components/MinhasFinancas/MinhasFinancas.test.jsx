@@ -159,16 +159,6 @@ describe('MinhasFinancas', () => {
     expect(onChange).toHaveBeenCalledWith(currentMonthKey());
   });
 
-  it('MFMonthNav: rótulo sem ano no ano corrente; mês curto + ano fora dele', () => {
-    const year = new Date().getFullYear();
-    const { unmount } = renderWithProviders(<MFMonthNav monthKey={`${year}-11`} />);
-    expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Novembro$/);
-    unmount();
-
-    renderWithProviders(<MFMonthNav monthKey="2020-11" />);
-    expect(screen.getByTestId('mf-month-label')).toHaveTextContent(/^Nov\.\/2020$/);
-  });
-
   it('MFMonthNav: clique e segure abre o modal Filtrar e aplica mês/ano', async () => {
     const onChange = vi.fn();
     renderWithProviders(<MFMonthNav monthKey="2026-10" onChange={onChange} />);

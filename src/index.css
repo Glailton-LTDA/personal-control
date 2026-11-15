@@ -344,7 +344,9 @@ body {
   gap: 1.25rem;
 }
 @media (min-width: 1100px) {
-  .mf-det-tabs {
+  /* Só o detalhe da conta troca abas por 2 colunas no desktop. O detalhe do
+     objetivo mantém as abas Detalhes/Depósitos em todas as larguras. */
+  .mf-det-tabs-account {
     display: none;
   }
   .mf-det-grid {
