@@ -4,7 +4,35 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TreatmentForm from './TreatmentForm';
 import { saveTreatment } from '../../lib/treatments';
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key, options) => key === 'health.predicted_doses' ? `${key}:${options.count}` : key === 'health.last_dose' ? `${key}:${options.date}` : key === 'health.dose_description' ? `${options.quantity} ${options.unit}` : key, i18n: { language: 'en' } }) }));
+vi.mock('react-i18next', () => {
+  const units = {
+    tablet: ['tablet', 'tablets'],
+    capsule: ['capsule', 'capsules'],
+    drop: ['drop', 'drops'],
+    ml: ['mL', 'mL'],
+    mg: ['mg', 'mg'],
+    g: ['g', 'g'],
+    iu: ['IU', 'IU'],
+    application: ['application', 'applications'],
+    other: ['unit', 'units'],
+  };
+  return {
+    useTranslation: () => ({
+      t: (key, options = {}) => {
+        if (key === 'health.predicted_doses') return `${key}:${options.count}`;
+        if (key === 'health.last_dose') return `${key}:${options.date}`;
+        const unit = key.match(/^health\.dose_unit_(.+)$/);
+        if (unit) {
+          const labels = units[unit[1]] || [unit[1], unit[1]];
+          if (options.count === undefined) return labels[0];
+          return Number(options.count) === 1 ? labels[0] : labels[1];
+        }
+        return key;
+      },
+      i18n: { language: 'en' },
+    }),
+  };
+});
 vi.mock('../../lib/treatments', () => ({ saveTreatment: vi.fn() }));
 vi.mock('./HealthUI', async original => ({ ...await original(), HealthLinkSelect: ({ field, value, onChange }) => <label>{field}<select aria-label={field} value={value || ''} onChange={e => onChange(e.target.value)}><option value="" /><option value="link-1">Linked</option></select></label> }));
 const wrapper = ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
@@ -98,15 +126,50 @@ it('replaces the legacy dose only when quantity/unit are explicitly edited', asy
   fireEvent.change(screen.getByLabelText('health.treatment_dose_quantity'),{target:{value:'0.5'}});
   fireEvent.click(screen.getByRole('button',{name:'health.save'}));
   await waitFor(()=>expect(saveTreatment).toHaveBeenCalled());
-  expect(saveTreatment.mock.calls[0][1]).toMatchObject({dose:'0.5 tablet',dose_quantity:'0.5',dose_unit_code:'tablet'});
+  expect(saveTreatment.mock.calls[0][1]).toMatchObject({dose:'0.5 tablets',dose_quantity:'0.5',dose_unit_code:'tablet'});
 });
-it.each([['1','   '],['0','mL'],['1.2345','mL']])('rejects incomplete or over-precise doses (%s %s)', async (quantity,unit) => {
+it.each([['1',''],['0','ml'],['1.2345','ml']])('rejects incomplete or over-precise doses (%s %s)', async (quantity,unit) => {
   setup();fill();
   fireEvent.change(screen.getByLabelText('health.treatment_dose_quantity'),{target:{value:quantity}});
   fireEvent.change(screen.getByLabelText('health.treatment_dose_unit_code'),{target:{value:unit}});
   fireEvent.submit(document.querySelector('form'));
   expect(await screen.findByRole('alert')).toHaveTextContent('health.invalid_dose');
   expect(saveTreatment).not.toHaveBeenCalled();
+});
+
+describe('controlled dose unit', () => {
+  it('derives the default unit from the presentation until the user chooses one', () => {
+    setup();
+    const unit = screen.getByLabelText('health.treatment_dose_unit_code');
+    expect(unit).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('health.presentation'), { target: { value: 'tablet' } });
+    expect(unit).toHaveValue('tablet');
+    fireEvent.change(screen.getByLabelText('health.presentation'), { target: { value: 'drops' } });
+    expect(unit).toHaveValue('drop');
+    fireEvent.change(screen.getByLabelText('health.presentation'), { target: { value: 'syrup' } });
+    expect(unit).toHaveValue('ml');
+    fireEvent.change(screen.getByLabelText('health.presentation'), { target: { value: 'ointment' } });
+    expect(unit).toHaveValue('application');
+  });
+  it('keeps a unit the user picked instead of overwriting it', () => {
+    setup();
+    fireEvent.change(screen.getByLabelText('health.treatment_dose_unit_code'), { target: { value: 'mg' } });
+    fireEvent.change(screen.getByLabelText('health.presentation'), { target: { value: 'tablet' } });
+    expect(screen.getByLabelText('health.treatment_dose_unit_code')).toHaveValue('mg');
+  });
+  it('normalizes accepted legacy units when editing', async () => {
+    setup({ id: 'legacy', name: 'Existing', dose: '1 comprimido', row_version: 1, dose_quantity: 1, dose_unit_code: 'Comprimido' });
+    expect(screen.getByLabelText('health.treatment_dose_unit_code')).toHaveValue('tablet');
+    fireEvent.click(screen.getByRole('button', { name: 'health.save' }));
+    await waitFor(() => expect(saveTreatment).toHaveBeenCalled());
+    expect(saveTreatment.mock.calls[0][1]).toMatchObject({ dose: '1 comprimido', dose_unit_code: 'tablet' });
+  });
+  it('preserves an unrecognized legacy unit as a custom option', () => {
+    setup({ id: 'legacy', name: 'Existing', dose: '1 sachê', row_version: 1, dose_quantity: 1, dose_unit_code: 'sachê' });
+    const unit = screen.getByLabelText('health.treatment_dose_unit_code');
+    expect(unit).toHaveValue('sachê');
+    expect(unit).toHaveDisplayValue('sachê');
+  });
 });
 
 describe('retrospective dose opt-in', () => {
