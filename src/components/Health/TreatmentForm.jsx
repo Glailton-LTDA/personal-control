@@ -15,6 +15,13 @@ import {
   pastDoseCount,
   buildSlots,
 } from "../../lib/treatmentEngine";
+import {
+  DOSE_UNITS,
+  formatDose,
+  isDoseUnit,
+  normalizeDoseUnit,
+  presentationDefaultUnit,
+} from "../../lib/doseUnits";
 import { useSaveTreatment } from "../../hooks/useTreatments";
 import { HealthLinkSelect, HealthModal } from "./HealthUI";
 
@@ -30,7 +37,8 @@ function initialForm(record) {
     dose: record?.dose || "",
     presentation_code: record?.presentation_code || "",
     dose_quantity: record?.dose_quantity ?? "",
-    dose_unit_code: record?.dose_unit_code || "",
+    dose_unit_code:
+      normalizeDoseUnit(record?.dose_unit_code) || record?.dose_unit_code || "",
     professional_name: record?.professional_name || "",
     indication: record?.indication || "",
     pharmacy: record?.pharmacy || "",
@@ -81,6 +89,17 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
     setForm((old) => ({ ...old, [key]: value }));
   };
   const schedule = useMemo(() => scheduleFromTreatment(form), [form]);
+  const changePresentation = (value) => {
+    const previousDefault = presentationDefaultUnit(form.presentation_code);
+    const nextDefault = presentationDefaultUnit(value);
+    set("presentation_code", value);
+    if (
+      nextDefault &&
+      (!form.dose_unit_code || form.dose_unit_code === previousDefault)
+    ) {
+      set("dose_unit_code", nextDefault);
+    }
+  };
   const pastCount = useMemo(() => record ? 0 : pastDoseCount(schedule), [schedule, record]);
   const total = useMemo(() => countSlots(schedule), [schedule]);
   const slots = useMemo(() => {
@@ -123,10 +142,9 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
       setError("invalid_dose");
       return;
     }
-    const dose = changingDose ? t("health.dose_description", {
-      quantity: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 }).format(quantity),
-      unit,
-    }) : form.dose;
+    const dose = changingDose
+      ? formatDose(quantity, unit, t, i18n.language)
+      : form.dose;
     const values = { ...form, dose, dose_unit_code: unit };
     const errors = validateTreatment(values);
     if (errors.length) {
@@ -171,7 +189,7 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
             <span>{t("health.presentation")}</span>
             <select
               value={form.presentation_code}
-              onChange={(e) => set("presentation_code", e.target.value)}
+              onChange={(e) => changePresentation(e.target.value)}
             >
               {["", "tablet", "drops", "syrup", "ointment", "other"].map(
                 (value) => (
@@ -189,7 +207,26 @@ export default function TreatmentForm({ userId, record, onClose, onSaved }) {
             max: "1000000",
             step: "any",
           })}
-          {field("dose_unit_code", { maxLength: 50, required: !record || doseDirty })}
+          <label className="health-field">
+            <span>{t("health.treatment_dose_unit_code")}</span>
+            <select
+              value={form.dose_unit_code}
+              onChange={(e) => set("dose_unit_code", e.target.value)}
+              required={!record || doseDirty}
+            >
+              <option value="">{t("health.dose_unit_choose")}</option>
+              {DOSE_UNITS.map((unit) => (
+                <option key={unit} value={unit}>
+                  {t(`health.dose_unit_${unit}`)}
+                </option>
+              ))}
+              {form.dose_unit_code && !isDoseUnit(form.dose_unit_code) && (
+                <option value={form.dose_unit_code}>
+                  {form.dose_unit_code}
+                </option>
+              )}
+            </select>
+          </label>
           {record && (!record.dose_quantity || !record.dose_unit_code?.trim()) && <p className="health-muted health-full">{t("health.legacy_dose_hint", { dose: record.dose })}</p>}
           <fieldset className="health-times health-full">
             <legend>{t("health.treatment_mode")}</legend>

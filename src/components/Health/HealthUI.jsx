@@ -160,7 +160,7 @@ export function HealthDate({ value, dateOnly = false }) {
 
 // Search and page the link options instead of downloading every medical record.
 export function HealthLinkSelect({ userId, kind, field, value, onChange }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [input, setInput] = useState('');
   const [page, setPage] = useState(0);
   const search = useHealthSearch(input);
@@ -171,6 +171,21 @@ export function HealthLinkSelect({ userId, kind, field, value, onChange }) {
     value && selected.data && !rows.some((row) => row.id === value)
       ? [selected.data, ...rows]
       : rows;
+  const optionLabel = (row) => {
+    if (kind !== 'appointments' || !row.starts_at) return row.name;
+    const date = new Date(
+      row.starts_at.length === 10 ? `${row.starts_at}T12:00:00` : row.starts_at,
+    );
+    if (!Number.isFinite(date.getTime())) return row.name;
+    return t('health.link_option_with_date', {
+      name: row.name,
+      date: new Intl.DateTimeFormat(i18n.language, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(date),
+    });
+  };
   return (
     <fieldset className="health-link-select">
       <legend>{t(`health.${field}`)}</legend>
@@ -192,7 +207,7 @@ export function HealthLinkSelect({ userId, kind, field, value, onChange }) {
         <option value="">{t('health.none')}</option>
         {options.map((row) => (
           <option key={row.id} value={row.id}>
-            {row.name}
+            {optionLabel(row)}
           </option>
         ))}
       </select>
