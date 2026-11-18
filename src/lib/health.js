@@ -18,7 +18,7 @@ export const HEALTH_FIELDS = {
   doses:
     'id,medication_id,scheduled_at,taken_at,status,amount,medication:health_medications(name,dose)',
   reminders:
-    'id,medication_id,appointment_id,exam_id,scheduled_at,remind_at,dismissed_at,medication:health_medications(name,dose),appointment:health_appointments(name),exam:health_exams(name)',
+    'id,medication_id,appointment_id,exam_id,scheduled_at,remind_at,delivered_at,dismissed_at,medication:health_medications(name,dose),appointment:health_appointments(name),exam:health_exams(name)',
 };
 const DETAILS = {
   conditions: ',notes',
@@ -46,11 +46,11 @@ function checked({ data, error }) {
 export async function listHealth(
   userId,
   kind,
-  { page = 0, search = '', status, parent, before, after, name, category, soonestFirst = false } = {},
+  { page = 0, search = '', status, parent, before, after, name, category, soonestFirst = false, withCount = false } = {},
 ) {
   let query = supabase
     .from(table(kind))
-    .select(HEALTH_FIELDS[kind])
+    .select(HEALTH_FIELDS[kind], withCount ? { count: 'exact' } : undefined)
     .eq('user_id', owner(userId));
   // Indexed prefix bounds use leakproof comparisons, so PostgreSQL can apply
   // them beneath the RLS barrier. Substring ILIKE cannot use its trigram index there.
@@ -97,13 +97,13 @@ export async function listHealth(
     ? { ascending, nullsFirst: false }
     : { ascending };
   const start = Math.max(0, page) * HEALTH_PAGE_SIZE;
-  const rows = checked(
-    await query
+  const response = await query
       .order(sort, order)
       .order('id', { ascending: idAscending })
-      .range(start, start + HEALTH_PAGE_SIZE),
-  );
+      .range(start, start + HEALTH_PAGE_SIZE);
+  const rows = checked(response);
   return {
+    ...(withCount ? { total: response.count } : {}),
     rows: rows.slice(0, HEALTH_PAGE_SIZE),
     hasNext: rows.length > HEALTH_PAGE_SIZE,
   };

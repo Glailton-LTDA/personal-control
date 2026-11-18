@@ -340,6 +340,20 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
           body: JSON.stringify(computeMonthSummaryRPC(store, body.p_month)),
         });
       }
+      if (request.method() === 'POST' && fn === 'mf_card_cycle_totals' && new URL(request.url()).searchParams.get('limit') === '2000') {
+        const aggregates = (store.mf_accounts || []).filter(account => account.account_type === 'CARTAO').map(card => {
+          const rows = (store.mf_transactions || []).filter(row => row.account_id === card.id && row.type === 'DESPESA' && row.status !== 'CANCELADO');
+          const closes = {}, months = {};
+          rows.forEach(row => {
+            const map = row.invoice_close ? closes : months;
+            const key = row.invoice_close || row.payment_date.slice(0,7);
+            map[key] ||= {total:0,refunds:0};
+            map[key].total += Number(row.amount);
+          });
+          return {card_id:card.id,firstDate:rows[0]?.payment_date,pool:0,closes,months,payments:{}};
+        });
+        return route.fulfill({status:200,contentType:'application/json',headers:CORS,body:JSON.stringify(aggregates)});
+      }
       if (request.method() === 'POST' && fn === 'mf_statement') {
         page.mfStatementRpcHits = (page.mfStatementRpcHits || 0) + 1;
         let body = {};
@@ -560,6 +574,8 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
         body: '{}',
       });
     });
+
+    await page.route('**/rest/v1/health_*', async route => route.fulfill({json:[],headers:CORS}));
 
     await page.route('**/rest/v1/mf_*', async (route, request) => {
       const method = request.method();
@@ -1635,12 +1651,46 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
 
     await login(page);
     await openMinhasFinancas(page);
-    await page.getByTestId('mf-reminders-bell').click();
+    await expect(page.getByTestId('mf-reminders-bell')).toHaveCount(0);
+    await expect(page.getByTestId('global-notifications-bell')).toHaveCount(1);
+    await page.getByTestId('global-notifications-bell').click();
 
-    const alert = page.getByTestId('mf-reminders-invoice-acc-card-alert');
+    const alert = page.getByTestId(`notification-minhasfinancas:invoice:acc-card-alert:${todayISO}`);
     await expect(alert).toBeVisible();
     await expect(alert).toContainText('100');
-    await alert.click();
+    await alert.getByRole('button',{name:'Abrir registro',exact:true}).click();
     await expect(page.getByTestId('mf-cartoes')).toBeVisible();
   });
+  for (const width of [320, 768, 1440]) for (const theme of ['light', 'dark']) {
+    test(`account subgroup values are prominent at ${width}px in ${theme}`, async ({page}) => {
+      await page.setViewportSize({width,height:1000});
+      await page.clock.setSystemTime(new Date('2026-11-18T12:00:00Z'));
+      await page.addInitScript(value => localStorage.setItem('personal-control-theme',value),theme);
+      page.mfStore.mf_account_groups = [
+        {id:'highlight-parent',name:'Banco de teste',icon:'🏦',parent_id:null,show_in_summary:true,sum_totals:true,sort_order:0},
+        {id:'highlight-child',name:'Investimentos e reserva de emergência',icon:'🏦',parent_id:'highlight-parent',show_in_summary:true,sum_totals:true,sort_order:1},
+      ];
+      page.mfStore.mf_accounts = [
+        {...SEED_ACCOUNT,id:'highlight-brl',name:'Reserva sintética',initial_balance:12345.67,group_id:'highlight-child',currency:'BRL'},
+        {...SEED_ACCOUNT,id:'highlight-usd',name:'Conta internacional sintética',initial_balance:-1250.5,group_id:'highlight-child',currency:'USD'},
+      ];
+      page.mfStore.mf_transactions = [{id:'highlight-expense',account_id:'highlight-brl',type:'DESPESA',amount:50000,payment_date:'2026-11-18',status:'PENDENTE',description:'Despesa sintética'}];
+      await login(page);
+      await page.goto('/minhasfinancas/accounts/grupo/highlight-parent');
+      const group = page.getByTestId('mf-subgroup-highlight-child');
+      await expect(group).toBeVisible();
+      const brl = page.getByTestId('mf-subgroup-total-highlight-child-line-BRL');
+      const usd = page.getByTestId('mf-subgroup-total-highlight-child-line-USD');
+      await expect(brl).toContainText('12.345,67');
+      await expect(usd).toContainText('1.250,50');
+      const size = await brl.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+      expect(size).toBeGreaterThanOrEqual(16);
+      await expect(brl).toHaveCSS('color',theme==='light'?'rgb(4, 120, 87)':'rgb(16, 185, 129)');
+      await expect(usd).toHaveCSS('color',theme==='light'?'rgb(185, 28, 28)':'rgb(239, 68, 68)');
+      await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      await page.bringToFront();
+      await group.screenshot({animations:'disabled',path:`test-results/account-highlights-${width}-${theme}.png`});
+    });
+  }
+
 });

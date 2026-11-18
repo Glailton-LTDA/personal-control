@@ -1,0 +1,22 @@
+{
+  "notifications": {
+    "title": "Notificações",
+    "close": "Fechar",
+    "all": "Todas",
+    "filter": "Filtrar por módulo",
+    "hint": "Avisos dos seus módulos em um só lugar. As preferências de push ficam nos Ajustes do aplicativo.",
+    "count_one": "{{count}} notificação",
+    "count_other": "{{count}} notificações",
+    "count_more": "Pelo menos {{count}} notificações disponíveis",
+    "loading": "Carregando notificações…",
+    "empty": "Nenhuma notificação nesta lista.",
+    "refresh": "Atualizar",
+    "retry": "Tentar novamente",
+    "source_error": "Não foi possível carregar os avisos deste módulo.",
+    "action_error": "Não foi possível dispensar a notificação. Tente novamente.",
+    "open": "Abrir registro",
+    "dismiss": "Dispensar",
+    "load_more": "Carregar mais",
+    "more_in_module": "Pode haver outros avisos. Abra o módulo para consultar todos."
+  }
+}

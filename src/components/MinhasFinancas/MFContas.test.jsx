@@ -591,3 +591,14 @@ describe('MFContas — master-detail', () => {
     }
   });
 });
+
+it('keeps subgroup money private when values are hidden', async () => {
+ const restore = await withAccounts([{id:'private-child',name:'Synthetic account',account_type:'CORRENTE',initial_balance:12345.67,group_id:'grp-2',currency:'BRL'}]);
+ try {
+  renderScreen({showValues:false});
+  await waitForDetail();
+  const group = screen.getByTestId('mf-subgroup-grp-2');
+  expect(group).toHaveTextContent('•••');
+  expect(group).not.toHaveTextContent('12.345');
+ } finally {restore();}
+});

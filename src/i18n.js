@@ -1,3 +1,6 @@
+import notificationsPt from './locales/notifications-pt.json';
+import notificationsEn from './locales/notifications-en.json';
+import notificationsEs from './locales/notifications-es.json';
 import pushPt from './locales/push-pt.json';
 import pushEn from './locales/push-en.json';
 import pushEs from './locales/push-es.json';
@@ -6713,6 +6716,10 @@ i18n
   });
 
 for (const [language, resource] of Object.entries({ pt: healthPt, en: healthEn, es: healthEs })) {
+  i18n.addResourceBundle(language, 'translation', resource, true, true);
+}
+
+for (const [language, resource] of Object.entries({ pt: notificationsPt, en: notificationsEn, es: notificationsEs })) {
   i18n.addResourceBundle(language, 'translation', resource, true, true);
 }
 

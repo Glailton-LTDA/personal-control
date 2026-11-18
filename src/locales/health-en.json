@@ -329,7 +329,10 @@
     "mark_past_doses_taken_other": "Mark {{count}} past doses as taken",
     "past_doses_hint": "When saved, all doses before registration will be recorded as taken at their scheduled times. Use only if you took these doses. You can correct each entry in the history.",
     "past_doses_limit": "Automatic recording supports up to 10,000 doses within 3,650 treatment days. You can still save without marking past doses.",
-    "retroactive_dose_reason": "Recorded retrospectively at registration; scheduled time used as the time taken."
+    "retroactive_dose_reason": "Recorded retrospectively at registration; scheduled time used as the time taken.",
+    "notification_sent": "Push sent",
+    "notification_due": "Overdue reminder",
+    "notification_scheduled": "Scheduled"
   },
   "nav": {
     "health": "Medical guide",

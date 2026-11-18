@@ -1,0 +1,22 @@
+{
+  "notifications": {
+    "title": "Notifications",
+    "close": "Close",
+    "all": "All",
+    "filter": "Filter by module",
+    "hint": "Alerts from your modules in one place. Push preferences are in app Settings.",
+    "count_one": "{{count}} notification",
+    "count_other": "{{count}} notifications",
+    "count_more": "At least {{count}} notifications available",
+    "loading": "Loading notifications…",
+    "empty": "No notifications in this list.",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "source_error": "Could not load alerts from this module.",
+    "action_error": "Could not dismiss the notification. Try again.",
+    "open": "Open record",
+    "dismiss": "Dismiss",
+    "load_more": "Load more",
+    "more_in_module": "There may be more alerts. Open the module to see them all."
+  }
+}

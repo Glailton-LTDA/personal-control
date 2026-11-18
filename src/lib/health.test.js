@@ -235,3 +235,10 @@ describe('medical guide data boundary', () => {
     }
   });
 });
+
+it('opts in to a count for the global badge without selecting all columns',async()=>{
+ fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{id:'one'}]),{status:200,headers:{'content-type':'application/json','content-range':'0-0/7'}}));
+ const result=await listHealth(OWNER,'reminders',{withCount:true});
+ expect(result.total).toBe(7);
+ expect(fetchMock.mock.calls[0][1].headers.get('prefer')).toContain('count=exact');
+});

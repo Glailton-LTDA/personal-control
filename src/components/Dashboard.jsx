@@ -61,6 +61,7 @@ import Music from './Music/Music';
 import MinhasFinancas from './MinhasFinancas/MinhasFinancas';
 import Launchpad from './Launchpad';
 import HealthGuide from './Health/HealthGuide';
+import NotificationCenter from './Notifications/NotificationCenter';
 import Footer from './Footer';
 import { useRouter, parsePath } from '../hooks/useRouter';
 
@@ -416,6 +417,7 @@ export default function Dashboard({ user }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.75rem' : '1.5rem', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <NotificationCenter key={user?.id} user={user} navigate={navigate} showValues={showValues} />
             <button className="icon-btn" onClick={() => setShowValues(!showValues)} title={showValues ? t('dashboard.hide_values') : t('dashboard.show_values')}>
               {showValues ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
