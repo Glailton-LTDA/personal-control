@@ -10,6 +10,7 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 - **Notificações**: sino único na toolbar com avisos de Minhas Finanças e do Guia Médico, filtros por módulo, paginação e acesso ao registro. Fontes extensíveis permitem incluir outros módulos sem mudar a central; preferências de push permanecem globais. O sino antigo de Minhas Finanças foi removido.
 
 ### Corrigido
+- **CI**: job de navegador fixado em Ubuntu 24.04, compatível com o Playwright instalado, após `ubuntu-latest` passar a usar Ubuntu 26.04.
 - **Contas**: rótulos dos subgrupos deixam de reduzir a fonte dos valores. Saldos e previsões ganham destaque e cores por moeda/sinal em celular, tablet e desktop, sem alterar cálculos ou a opção de ocultar valores.
 
 ## [2.4.2] - 2026-11-14
