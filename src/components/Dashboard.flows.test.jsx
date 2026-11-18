@@ -247,3 +247,5 @@ for (const menuOrder of [["health", "removed"], ["finances"]])
     fireEvent.click(screen.getByTitle("dashboard.toggle_theme"));
     expect(localStorage.getItem("personal-control-theme")).toBe("dark");
   });
+
+vi.mock('./Notifications/NotificationCenter', () => ({ default: () => null }));

@@ -67,7 +67,6 @@ import MFAccountDetail from './MFAccountDetail';
 import MFGroupDrill from './MFGroupDrill';
 import MFGroupModal from './MFGroupModal';
 import MFAccountModal from './MFAccountModal';
-import MFRemindersBell from './MFRemindersBell';
 import MFPendingCard from './MFPendingCard';
 import MFTxDetailModal from './MFTxDetailModal';
 import MFChartCard from './MFChartCard';
@@ -2863,7 +2862,6 @@ export default function MFResumo({
                 {t('minhasfinancas.title')}
               </h2>
             )}
-            <MFRemindersBell user={user} onChangeMonth={onChangeMonth} />
             {/* Menu de três pontos (padrão do app de referência): moedas +
                 personalizar painel. No estreito a régua de abas some e o
                 menu abre como bottom-sheet. */}

@@ -722,8 +722,8 @@ export default function HealthGuide({
   const userId = user?.id;
   useEffect(
     () => () => {
-      client.cancelQueries({ queryKey: ['health', userId] });
-      client.removeQueries({ queryKey: ['health', userId] });
+      client.cancelQueries({ queryKey: ['health', userId], type: 'inactive' });
+      client.removeQueries({ queryKey: ['health', userId], type: 'inactive' });
       client.cancelQueries({ queryKey: ['treatments', userId] });
       client.removeQueries({ queryKey: ['treatments', userId] });
     },

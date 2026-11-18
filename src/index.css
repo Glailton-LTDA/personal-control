@@ -3939,7 +3939,7 @@ select.glass-input {
   border-bottom: 1px solid var(--glass-border);
 }
 .mf-accounts-subgroup-title { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-.mf-accounts-subgroup-name { font-size: 0.8rem; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+.mf-accounts-subgroup-name { font-size: 1rem; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
 .mf-accounts-subgroup-meta { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.15rem; }
 .mf-accounts-subgroup-badge {
   display: inline-flex;
@@ -3955,14 +3955,14 @@ select.glass-input {
   padding: 0.08rem 0.36rem;
   white-space: nowrap;
 }
-.mf-accounts-subgroup-count { font-size: 0.58rem; color: var(--text-muted); }
+.mf-accounts-subgroup-count { font-size: 0.75rem; color: var(--text-muted); }
 .mf-accounts-subgroup-totals {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.45rem;
 }
 .mf-accounts-subgroup-totals > div { text-align: right; min-width: 0; }
-.mf-accounts-subgroup-totals span {
+.mf-accounts-subgroup-totals > div > span {
   display: block;
   font-size: 0.53rem;
   font-weight: 800;
@@ -3970,7 +3970,7 @@ select.glass-input {
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.mf-accounts-subgroup-totals b { font-size: 0.72rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mf-accounts-subgroup-totals b { font-size: clamp(1.05rem, 2vw, 1.3rem); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mf-accounts-subgroup-totals b.positive { color: var(--success, #10b981); }
 .mf-accounts-subgroup-totals b.muted { color: var(--text-muted); }
 .mf-accounts-subgroup-actions { display: flex; align-items: center; gap: 0.1rem; }
@@ -4511,3 +4511,17 @@ select.glass-input {
   .mf-extrato-desc { font-size: 0.82rem; }
   .mf-extrato-amount { font-size: 0.85rem; }
 }
+
+/* Account-group labels must not override nested currency values. */
+.mf-accounts-subgroup-totals { gap: 0.75rem; padding: 0.75rem; border-radius: 12px; background: color-mix(in srgb, var(--primary) 6%, var(--input-bg)); border: 1px solid var(--glass-border); }
+.mf-accounts-subgroup-totals > div > span { font-size: 0.7rem; margin-bottom: 0.35rem; }
+.mf-accounts-subgroup-totals b { display: block; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+.mf-accounts-subgroup .mf-subgroup-initial-value { color: color-mix(in srgb, var(--primary) 80%, var(--text-main)); }
+.mf-accounts-subgroup .mf-accounts-table tfoot .mf-accounts-num { font-size: 1.1rem; font-weight: 800; }
+@media (max-width: 480px) {
+  .mf-accounts-subgroup-totals { grid-template-columns: minmax(0, 1fr); }
+  .mf-accounts-subgroup-totals > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 0.5rem; align-items: center; }
+  .mf-accounts-subgroup-totals > div > span { text-align: left; margin-bottom: 0; }
+}
+
+[data-theme='light'] .mf-accounts-subgroup { --success: #047857; --danger: #b91c1c; }

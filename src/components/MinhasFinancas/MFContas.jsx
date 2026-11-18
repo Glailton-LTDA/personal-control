@@ -1195,9 +1195,10 @@ export default function MFContas({
             <div className="mf-accounts-subgroup-totals">
               <div>
                 <span>{t('minhasfinancas.accounts_table_initial')}</span>
-                <b className="muted">
+                <b className="mf-subgroup-initial-value">
                   <MFTotalsStack
                     totals={initial}
+                    redNegative
                     showValues={showValues}
                     align="right"
                     fontSize="inherit"
@@ -1215,7 +1216,7 @@ export default function MFContas({
                     align="right"
                     fontSize="inherit"
                     lineHeight={1.2}
-                    redNegative
+                    signColors
                   />
                 </b>
               </div>
@@ -1228,7 +1229,7 @@ export default function MFContas({
                     align="right"
                     fontSize="inherit"
                     lineHeight={1.2}
-                    mutedNegative
+                    signColors
                   />
                 </b>
               </div>
@@ -1343,9 +1344,10 @@ export default function MFContas({
                       ({t('minhasfinancas.accounts_count', { count: childRows.length })})
                     </span>
                   </td>
-                  <td className="mf-accounts-num muted">
+                  <td className="mf-accounts-num mf-subgroup-initial-value">
                     <MFTotalsStack
                       totals={initial}
+                      redNegative
                       showValues={showValues}
                       testId={`mf-subgroup-initial-${child.id}`}
                       align="right"
@@ -1361,7 +1363,7 @@ export default function MFContas({
                       align="right"
                       fontSize="inherit"
                       lineHeight={1.25}
-                      redNegative
+                      signColors
                     />
                   </td>
                   <td className="mf-accounts-num muted">
@@ -1372,7 +1374,7 @@ export default function MFContas({
                       align="right"
                       fontSize="inherit"
                       lineHeight={1.25}
-                      mutedNegative
+                      signColors
                     />
                   </td>
                   <td />

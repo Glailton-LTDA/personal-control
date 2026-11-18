@@ -1,0 +1,20 @@
+.notification-center-trigger { position: relative; min-width: 40px; min-height: 40px; }
+.notification-center-count { position: absolute; top: -5px; right: -7px; padding: 1px 5px; border-radius: 999px; min-width: 18px; background: var(--primary); color: white; font-size: .68rem; font-weight: 800; line-height: 1.5; }
+.notification-center-panel { background: var(--input-bg); }
+.notification-center-hint { font-size: .9rem; color: var(--text-muted); line-height: 1.5; }
+.notification-center-filters,.notification-center-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: .75rem 0; }
+.notification-center-filters [aria-pressed=true] { background: color-mix(in srgb,var(--primary) 12%,transparent); border-color: var(--primary); color: var(--primary); }
+.notification-center-source { display: grid; gap: 1rem; margin-top: 1.25rem; min-width: 0; }
+.notification-center-source header { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.notification-center-source h3 { margin: 0; font-size: 1rem; }
+.notification-center-source ul { display: grid; list-style: none; gap: 1rem; padding: 0; margin: 0; }
+.notification-center-source li { display: flex; flex-direction: column; gap: .65rem; min-width: 0; padding: 1rem; border: 1px solid var(--glass-border); border-radius: 12px; background: var(--bg-card); overflow-wrap: anywhere; }
+.notification-center-source time { color: var(--text-muted); font-size: .9rem; }
+.notification-center-source button { min-height: 44px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.notification-center-status { color: var(--primary); font-size: .85rem; font-weight: 700; }
+.notification-center-amount { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.notification-center-error { color: var(--danger); }
+@media (max-width:480px) {
+ .notification-center-actions { display: grid; grid-template-columns: minmax(0,1fr); }
+ .notification-center-source header { align-items: flex-start; flex-wrap: wrap; }
+}

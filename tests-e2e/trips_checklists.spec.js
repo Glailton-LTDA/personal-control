@@ -58,6 +58,18 @@ test.describe('Viagens - Checklists (TODOs)', () => {
       }
     });
 
+    // The toolbar now prepares medical reminders on every module. Keep this
+    // RPC inside the fixture as well, including WebKit's CORS preflight.
+    await page.route('**/rest/v1/rpc/health_refresh_reminders', async route => {
+      const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type, api-version',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+      return route.fulfill({ status: 200, headers, contentType: 'application/json', body: 'null' });
+    });
+
     // Mock Notification Settings
     await page.route('**/rest/v1/notification_settings*', async (route) => {
       await route.fulfill({ 

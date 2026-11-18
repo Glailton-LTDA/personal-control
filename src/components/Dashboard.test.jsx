@@ -168,3 +168,5 @@ describe('Dashboard Navigation', () => {
   });
 });
 
+
+vi.mock('./Notifications/NotificationCenter', () => ({ default: () => null }));
