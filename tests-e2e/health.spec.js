@@ -4,7 +4,7 @@ import { Buffer } from 'node:buffer';
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const EXAM = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4';
 
-async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo de exemplo para teste', theme = 'light' } = {}) {
+async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo de exemplo para teste', theme = 'light', reminders = [] } = {}) {
   const requests = [];
   const user = {
     id: OWNER,
@@ -75,6 +75,22 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
       .request()
       .headers()
       .accept?.includes('vnd.pgrst.object');
+    if (table === 'health_reminders') {
+      if (route.request().method() === 'PATCH') {
+        const id = url.searchParams.get('id').slice(3);
+        reminders = reminders.map(row => row.id === id ? {...row, ...route.request().postDataJSON()} : row);
+        return route.fulfill({json:{id}});
+      }
+      let rows = reminders.filter(row => !row.dismissed_at);
+      for (const bound of url.searchParams.getAll('remind_at')) {
+        if (bound.startsWith('lt.')) rows = rows.filter(row => row.remind_at < bound.slice(3));
+        if (bound.startsWith('gte.')) rows = rows.filter(row => row.remind_at >= bound.slice(4));
+      }
+      rows.sort((a,b) => a.remind_at.localeCompare(b.remind_at));
+      if(url.searchParams.get('order')?.includes('desc')) rows.reverse();
+      const offset = Number(url.searchParams.get('offset') || 0);
+      return route.fulfill({json:rows.slice(offset, offset + Number(url.searchParams.get('limit') || 21))});
+    }
     if (route.request().method() === 'POST' && table === 'health_exams') {
       const body = route.request().postDataJSON();
       const created = { ...body, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' };
@@ -226,7 +242,7 @@ test('creates an exam and loads its own detail', async ({ page }) => {
     page.getByRole('heading', { name: 'Ultrassom de teste' }),
   ).toBeVisible();
   expect(
-    requests.find((request) => request.method === 'POST').body.user_id,
+    requests.find((request) => request.method === 'POST' && request.url.pathname.endsWith('/health_exams')).body.user_id,
   ).toBe(OWNER);
 });
 
@@ -446,7 +462,7 @@ for (const width of [320, 768, 1440]) {
     await dialog.getByRole('button', { name: 'Visualizar', exact: true }).click();
     await expect(dialog.getByRole('heading', { name: 'Resultado sintético' })).toBeVisible();
     await expect(dialog.getByText('Texto adicionado no teste', { exact: true })).toBeVisible();
-    expect(writes.filter((request) => ['POST','PATCH'].includes(request.method))).toHaveLength(0);
+    expect(writes.filter((request) => ['POST','PATCH'].includes(request.method) && request.url.pathname.endsWith('/health_exams'))).toHaveLength(0);
     await noHorizontalOverflow(page);
     if (width === 320 || width === 1440) await page.screenshot({ path: `/tmp/medical-report-preview-${width}.png`, fullPage: true });
     await dialog.getByRole('button', { name: 'Editar Markdown', exact: true }).click();
@@ -568,3 +584,45 @@ for (const width of [320, 768, 1440]) {
     expect(request.body.p_payload.mark_past_doses_taken).toBe(true);
   });
 }
+
+for (const width of [320, 768, 1440]) for (const theme of ['light', 'dark']) {
+  test(`medical notification center fits ${width}px in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({width, height:1000});
+    await page.clock.setSystemTime(new Date('2026-11-18T12:00:00Z'));
+    await mockHealth(page, {theme, reminders:[
+      {id:'past-medication',medication_id:'med-synthetic',medication:{name:'Medicamento sintético de nome longo para testar a quebra de linha'},scheduled_at:'2026-11-18T08:00:00Z',remind_at:'2026-11-18T07:30:00Z',delivered_at:'2026-11-18T07:30:01Z'},
+      {id:'future-exam',exam_id:EXAM,exam:{name:'Hemograma completo'},scheduled_at:'2026-11-20T08:00:00Z',remind_at:'2026-11-19T08:00:00Z'},
+    ]});
+    const trigger = page.getByTestId('global-notifications-bell');
+    await expect(trigger.getByLabel('2 notificações',{exact:true})).toBeVisible();
+    await trigger.click();
+    const dialog = page.getByRole('dialog',{name:'Notificações'});
+    await expect(dialog.getByText('Push enviado',{exact:true})).toBeVisible();
+    await expect(dialog.getByText('Medicamento sintético de nome longo para testar a quebra de linha')).toBeVisible();
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await expect.poll(()=>dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+    await dialog.screenshot({path:`test-results/health-notifications-${width}-${theme}.png`});
+    await dialog.getByRole('button',{name:'Guia médico',exact:true}).click();
+    await expect(dialog.getByText('Hemograma completo',{exact:true})).toBeVisible();
+    await dialog.getByTestId('notification-health:future-exam').getByRole('button',{name:'Abrir registro',exact:true}).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/health/exams/${EXAM}`));
+    await expect(page.getByRole('heading',{name:'Hemograma completo',exact:true,level:2})).toBeVisible();
+    await trigger.click();
+    await dialog.getByTestId('notification-health:past-medication').getByRole('button',{name:'Dispensar',exact:true}).click();
+    await expect(dialog.getByTestId('notification-health:past-medication')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+  });
+}
+for (const [language,title,pending,upcoming] of [
+ ['en','Notifications','All','Medical guide'],
+ ['es','Notificaciones','Todas','Guía médica'],
+]) test(`medical notification center is translated in ${language}`,async({page})=>{
+ await mockHealth(page,{language});
+ await page.getByRole('button',{name:title,exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:title});
+ await expect(dialog.getByRole('button',{name:pending,exact:true})).toBeVisible();
+ await expect(dialog.getByRole('button',{name:upcoming,exact:true})).toBeVisible();
+ await expect(dialog).not.toContainText('health.');
+});

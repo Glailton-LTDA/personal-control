@@ -1,73 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
+import AppModal from '../AppModal';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
   useHealthDetail,
   useHealthList,
   useHealthSearch,
 } from '../../hooks/useHealth';
 
-export function HealthModal({ title, children, onClose }) {
+export function HealthModal(props) {
   const { t } = useTranslation();
-  const ref = useRef(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const previous = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    ref.current?.querySelector('button, input, select, textarea')?.focus();
-    const listener = (event) => {
-      if (event.key === 'Escape') closeRef.current();
-      if (event.key !== 'Tab') return;
-      const items = [
-        ...ref.current.querySelectorAll(
-          'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], iframe',
-        ),
-      ].filter((el) => el.getClientRects().length);
-      const first = items[0];
-      const last = items.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.addEventListener('keydown', listener);
-    return () => {
-      document.removeEventListener('keydown', listener);
-      document.body.style.overflow = previousOverflow;
-      previous?.focus();
-    };
-  }, []);
-  return createPortal(
-    <div className="health-overlay">
-      <section
-        ref={ref}
-        className="health-modal glass-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="health-modal-title"
-      >
-        <header className="health-row">
-          <h2 id="health-modal-title">{title}</h2>
-          <button
-            type="button"
-            className="health-icon"
-            onClick={onClose}
-            aria-label={t('health.close')}
-          >
-            <X size={20} />
-          </button>
-        </header>
-        {children}
-      </section>
-    </div>,
-    document.body,
-  );
+  return <AppModal {...props} closeLabel={t('health.close')} className="health-modal" overlayClassName="health-overlay" />;
 }
 
 export function HealthLoading() {
