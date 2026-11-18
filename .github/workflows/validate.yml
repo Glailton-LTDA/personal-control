@@ -65,8 +65,12 @@ jobs:
 
   browser:
     name: Application and global push browser tests
-    # Playwright 1.59.1 supports Ubuntu 24.04; latest now resolves to 26.04.
+    # Keep the image in sync with the locked Playwright version. Browsers and
+    # system libraries are bundled, avoiding slow APT mirrors on hosted runners.
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      options: --ipc=host
     timeout-minutes: 15
     env:
       VITE_SUPABASE_URL: http://127.0.0.1:54421
@@ -80,7 +84,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Verify Playwright matches the browser image
+        run: node -e "require('node:assert/strict').equal(require('@playwright/test/package.json').version, '1.59.1', 'Update the browser image when updating Playwright')"
       - run: npx playwright test --workers=2
       - run: npm run test:e2e:push
       - uses: actions/upload-artifact@v4
