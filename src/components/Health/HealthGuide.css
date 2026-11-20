@@ -848,3 +848,18 @@ iframe.health-preview {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Reserve readable space for treatment identity before fitting the actions.
+   Flex bases make this respond to the available content width, including tablets. */
+.health-treatment-header {
+  align-items: flex-start;
+}
+.health-treatment-header > .health-grow {
+  flex: 1 1 24rem;
+}
+.health-treatment-header > .health-actions {
+  flex: 1 1 36rem;
+}
+.health-treatment-header > .health-actions > button {
+  flex: 1 1 auto;
+}

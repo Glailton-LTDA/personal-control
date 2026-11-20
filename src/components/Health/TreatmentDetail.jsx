@@ -249,7 +249,7 @@ export default function TreatmentDetail({
         <ArrowLeft size={18} />
         {t("health.back")}
       </button>
-      <header className="health-row">
+      <header className="health-row health-treatment-header">
         <div className="health-grow">
           <h2>{medication.name}</h2>
           <HealthStatus status={medication.status} />

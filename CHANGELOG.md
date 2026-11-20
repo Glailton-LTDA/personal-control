@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-20
+
+### Corrigido
+- **Guia médico**: cabeçalho do tratamento reserva espaço para nome e posologia e reorganiza as ações conforme a largura disponível, evitando texto espremido no tablet.
+
 ## [2.5.0] - 2026-11-18
 
 ### Adicionado
