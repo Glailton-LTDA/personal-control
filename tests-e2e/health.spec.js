@@ -518,6 +518,26 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     await expect(form.getByRole('textbox',{name:/Fuso/})).toHaveCount(0);
     await form.getByRole('button',{name:'Salvar',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Medicamento de teste',exact:true})).toBeVisible();
+    const header = page.locator('.health-treatment-header');
+    const identity = await header.locator('.health-grow').boundingBox();
+    const heading = header.getByRole('heading', { name: 'Medicamento de teste', exact: true });
+    const title = await heading.boundingBox();
+    const fontSize = await heading.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+    const actions = await header.locator('.health-actions').boundingBox();
+    expect(identity.width).toBeGreaterThanOrEqual(Math.min(280, width - 64));
+    expect(title.height).toBeLessThanOrEqual(fontSize * 3);
+    if (width === 768 || width === 1024) {
+      expect(actions.y).toBeGreaterThanOrEqual(identity.y + identity.height);
+    }
+    for (const button of await header.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({path:`test-results/treatment-header-${width}.png`,fullPage:true,animations:'disabled'});
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    await page.screenshot({path:`test-results/treatment-header-${width}-dark.png`,fullPage:true,animations:'disabled'});
     await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
     await page.getByRole('button',{name:'Registrar dose tomada',exact:true}).first().click();
     await page.getByRole('dialog').getByLabel('Horário da tomada',{exact:true}).fill('2026-11-12T17:20');
