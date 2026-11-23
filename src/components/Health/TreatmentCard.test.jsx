@@ -220,6 +220,16 @@ describe("dose cards", () => {
     await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(2));
     expect(mocks.take.mock.calls[1][0].requestId).not.toBe(initialId);
   });
+  it("allocates a new command after success if the same snapshot is shown again", async () => {
+    renderCard({ ...row, today: { slots: [slot("missed", "14:00")] } });
+    const button = screen.getByRole("button", { name: "14:00 health.dose_overdue" });
+    fireEvent.click(button);
+    await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(1));
+    const first = mocks.take.mock.calls[0][0].requestId;
+    fireEvent.click(button);
+    await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(2));
+    expect(mocks.take.mock.calls[1][0].requestId).not.toBe(first);
+  });
   it("supports ending a treatment after confirmation with optimistic concurrency", async () => {
     renderCard();
     fireEvent.click(

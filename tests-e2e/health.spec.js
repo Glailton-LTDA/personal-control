@@ -435,8 +435,9 @@ test('all mobile sections and creation forms fit without horizontal scrolling', 
   }
   await nav.getByRole('link', { name: 'Hoje', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Doses e lembretes de hoje' }),
+    page.getByRole('heading', { name: 'Doses de hoje', exact: true, level: 2 }),
   ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lembretes de hoje', exact: true })).toBeVisible();
   await noHorizontalOverflow(page);
   await page
     .getByRole('button', { name: 'Registrar uso eventual', exact: true })

@@ -128,6 +128,9 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
           },
         });
       }
+      // Acknowledged actions are complete. A later click is a new intent,
+      // even if another device has already taken and undone this same slot.
+      doseCommand.current = null;
     } catch (err) {
       setError(err.message);
     } finally {
