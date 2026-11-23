@@ -3,7 +3,7 @@
     "title": "Notificaciones de la aplicación",
     "description": "Recibe los recordatorios de todos los módulos en un solo lugar.",
     "device_hint": "Esta activación se aplica a todos los módulos en este dispositivo. Los demás dispositivos conservan sus propias activaciones.",
-    "privacy_hint": "Los avisos de la guía médica no muestran medicamentos, condiciones ni resultados en la pantalla bloqueada.",
+    "privacy_hint": "Los recordatorios de salud son discretos por defecto. Puedes elegir mostrar detalles de medicamentos a continuación.",
     "enable": "Activar en este dispositivo",
     "disable": "Desactivar en este dispositivo",
     "saving": "Guardando…",
@@ -21,6 +21,10 @@
     "disabled_feedback": "Notificaciones de todos los módulos desactivadas en este dispositivo.",
     "retry": "Intentar de nuevo",
     "open_settings": "Ajustar notificaciones",
-    "manage_hint": "Activa las notificaciones en los ajustes de la aplicación para todos los módulos."
+    "manage_hint": "Activa las notificaciones en los ajustes de la aplicación para todos los módulos.",
+    "medication_details": "Mostrar detalles de medicamentos en las notificaciones",
+    "medication_details_hint": "Se aplica a tu cuenta en todos los dispositivos. Al activar, el nombre, la hora y la cantidad pueden aparecer en la pantalla bloqueada. Los avisos ya entregados no cambian.",
+    "medication_details_visible": "Detalles de medicamentos visibles en las próximas notificaciones.",
+    "medication_details_hidden": "Detalles ocultos. Abre la aplicación autenticada para consultar tu dosis."
   }
 }

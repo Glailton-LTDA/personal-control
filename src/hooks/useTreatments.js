@@ -55,6 +55,7 @@ export function useTreatmentList(userId, params = {}, enabled = true) {
     queryFn: () => checked(listTreatments(userId, params)),
     enabled: Boolean(userId) && enabled,
     staleTime: 30000,
+    refetchInterval: 60000,
     gcTime: 0,
     retry: 1,
   });
@@ -70,6 +71,7 @@ export function useTreatmentDashboard(
     queryFn: () => checked(treatmentDashboard(userId, timezone)),
     enabled: Boolean(userId) && enabled,
     staleTime: 30000,
+    refetchInterval: 60000,
     gcTime: 0,
     retry: 1,
   });

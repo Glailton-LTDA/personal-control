@@ -1,22 +1,23 @@
 import React, { useState } from "react";
-import { Pill, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useTreatmentList,
   useTreatmentDashboard,
 } from "../../hooks/useTreatments";
 import { useHealthSearch } from "../../hooks/useHealth";
-import { deviceTimeZone, scheduleLabel } from "../../lib/treatmentEngine";
+import { deviceTimeZone } from "../../lib/treatmentEngine";
 import {
   HealthDate,
   HealthEmpty,
   HealthError,
   HealthLoading,
   HealthPagination,
-  HealthStatus,
 } from "./HealthUI";
 
-export default function TreatmentList({ userId, navigate, group = "active" }) {
+import TreatmentCard from "./TreatmentCard";
+
+export default function TreatmentList({ userId, navigate, onForm, group = "active" }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [statusGroup, setStatusGroup] = useState(group);
@@ -107,62 +108,8 @@ export default function TreatmentList({ userId, navigate, group = "active" }) {
       ) : (
         <div className="health-list">
           {rows.map((record) => (
-            <article
-              className="glass-card health-card health-treatment-row"
-              key={record.id}
-            >
-              <div className="health-grow">
-                <div className="health-row">
-                  <Pill size={24} />
-                  <button
-                    className="health-treatment-link"
-                    onClick={() => navigate(`health/medications/${record.id}`)}
-                  >
-                    {record.name}
-                  </button>
-                  <HealthStatus status={record.status} />
-                </div>
-                <p className="health-muted">
-                  {record.dose} · {scheduleLabel(record.schedule, t)}
-                </p>
-                {record.total_predicted != null ? (
-                  <>
-                    <p>
-                      {t("health.taken_of_planned", {
-                        taken: record.taken_total,
-                        planned: record.total_predicted,
-                      })}
-                    </p>
-                    <progress
-                      aria-label={t("health.treatment_summary")}
-                      value={record.taken_total}
-                      max={Math.max(record.total_predicted, 1)}
-                    />
-                  </>
-                ) : (
-                  <p>{t("health.treatment_duration_continuous")}</p>
-                )}
-                <p>
-                  {t("health.today_doses")}:{" "}
-                  {t("health.taken_of_planned", {
-                    taken: record.today?.taken || 0,
-                    planned: record.today?.planned || 0,
-                  })}
-                </p>
-              </div>
-              <div>
-                <span className="health-muted">{t("health.next_dose")}</span>
-                <p>
-                  <HealthDate value={record.next_at} />
-                </p>
-                <button
-                  className="btn-secondary"
-                  onClick={() => navigate(`health/medications/${record.id}`)}
-                >
-                  {t("health.view_treatment")}
-                </button>
-              </div>
-            </article>
+            <TreatmentCard key={record.id} record={record} userId={userId}
+              navigate={navigate} onForm={onForm} />
           ))}
         </div>
       )}

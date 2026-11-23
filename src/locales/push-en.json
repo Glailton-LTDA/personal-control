@@ -3,7 +3,7 @@
     "title": "App notifications",
     "description": "Receive reminders from all modules in one place.",
     "device_hint": "This setting applies to every module on this device. Other devices keep their own settings.",
-    "privacy_hint": "Medical guide alerts do not show medications, conditions or results on the lock screen.",
+    "privacy_hint": "Health reminders are discreet by default. You can choose to show medication details below.",
     "enable": "Enable on this device",
     "disable": "Disable on this device",
     "saving": "Saving…",
@@ -21,6 +21,10 @@
     "disabled_feedback": "Notifications from all modules disabled on this device.",
     "retry": "Try again",
     "open_settings": "Notification settings",
-    "manage_hint": "Enable notifications in the app settings for all modules."
+    "manage_hint": "Enable notifications in the app settings for all modules.",
+    "medication_details": "Show medication details in notifications",
+    "medication_details_hint": "Applies to your account on all devices. When enabled, the name, time and amount may appear on the lock screen. Previously delivered notifications are unchanged.",
+    "medication_details_visible": "Medication details visible in upcoming notifications.",
+    "medication_details_hidden": "Details hidden. Open the authenticated app to check your dose."
   }
 }

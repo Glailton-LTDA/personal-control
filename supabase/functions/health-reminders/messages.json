@@ -1,14 +1,20 @@
 {
   "pt": {
     "title": "Guia médico",
-    "body": "Você tem um lembrete de saúde. Abra seu guia para conferir."
+    "body": "Você tem um lembrete de saúde. Abra seu guia para conferir.",
+    "medication_title": "Hora de tomar {{name}}",
+    "medication_body": "{{time}} · {{dose}}. Abra para registrar a dose."
   },
   "en": {
     "title": "Medical guide",
-    "body": "You have a health reminder. Open your guide to check it."
+    "body": "You have a health reminder. Open your guide to check it.",
+    "medication_title": "Time to take {{name}}",
+    "medication_body": "{{time}} · {{dose}}. Open to record your dose."
   },
   "es": {
     "title": "Guía médica",
-    "body": "Tienes un recordatorio de salud. Abre tu guía para consultarlo."
+    "body": "Tienes un recordatorio de salud. Abre tu guía para consultarlo.",
+    "medication_title": "Hora de tomar {{name}}",
+    "medication_body": "{{time}} · {{dose}}. Abre para registrar la dosis."
   }
 }
