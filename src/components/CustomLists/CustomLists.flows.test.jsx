@@ -391,6 +391,9 @@ for (const [tool, expected] of markdownTools)
     });
 it("previews complex Markdown in a field without changing the saved source", async () => {
   await open();
+  // The sort control appears before the asynchronous item query resolves.
+  // Wait for the existing Markdown item before comparing it with the preview.
+  await screen.findByText("Heading");
   fireEvent.click(screen.getByText("lists.new_item"));
   fireEvent.change(
     screen.getByPlaceholderText("lists.markdown_placeholder_item"),

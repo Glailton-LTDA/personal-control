@@ -110,6 +110,7 @@ jobs:
           deno test --allow-env --no-config --node-modules-dir=none --no-lock
           supabase/functions/_shared/push.test.ts
           supabase/functions/health-reminders/index.test.ts
+          supabase/functions/health-reminders/content.test.ts
           supabase/functions/mf-reminders/index.test.ts
 
   database:
@@ -161,6 +162,8 @@ jobs:
             supabase/migrations/20261113120000_medication_treatments.sql \
             supabase/migrations/20261114002349_medication_treatment_review_fixes.sql \
             supabase/migrations/20261114020244_mark_past_treatment_doses_taken.sql \
+            supabase/migrations/20261123021950_medication_dose_cards_and_push_privacy.sql \
+            supabase/tests/medication_dose_cards.sql \
             supabase/tests/medication_past_doses.sql \
             supabase/tests/medication_treatments.sql \
             supabase/tests/medication_regressions.sql \

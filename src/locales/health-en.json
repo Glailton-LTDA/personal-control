@@ -332,7 +332,13 @@
     "retroactive_dose_reason": "Recorded retrospectively at registration; scheduled time used as the time taken.",
     "notification_sent": "Push sent",
     "notification_due": "Overdue reminder",
-    "notification_scheduled": "Scheduled"
+    "notification_scheduled": "Scheduled",
+    "edit_named_treatment": "Edit treatment for {{name}}",
+    "last_taken": "Last dose taken",
+    "dose_at_status": "{{time}} — {{status}}",
+    "dose_card_hint": "Tap a time to record or undo a dose.",
+    "confirm_dose_now": "Confirm that you took this dose now?",
+    "dose_overdue": "Overdue"
   },
   "nav": {
     "health": "Medical guide",

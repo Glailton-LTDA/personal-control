@@ -14,6 +14,8 @@ async function openSettings(
     email: 'push-test@example.com',
     user_metadata: { name: 'Test' },
   };
+  let medicationDetails = false;
+  const privacyWrites = [];
   let row = enabled
     ? {
         id: 'device',
@@ -112,9 +114,14 @@ async function openSettings(
       }
       return route.fulfill({ json: row });
     }
-    if (table === 'notification_settings')
+    if (table === 'notification_settings') {
+      if (request.method() === 'POST' && 'show_medication_details' in request.postDataJSON()) {
+        privacyWrites.push(request.postDataJSON());
+        medicationDetails = request.postDataJSON().show_medication_details;
+      }
       return route.fulfill({
         json: {
+          show_medication_details: medicationDetails,
           menu_order: ['launchpad', 'health', 'minhasfinancas', 'settings'],
           visible_modules: [
             'launchpad',
@@ -124,6 +131,7 @@ async function openSettings(
           ],
         },
       });
+    }
     return route.fulfill({ json: [] });
   });
   await page.goto('/settings/general');
@@ -131,7 +139,7 @@ async function openSettings(
   await page.locator('input[type=password]').fill('test-password');
   await page.getByTestId('login-btn').click();
   await expect(page.getByTestId('global-push-settings')).toBeVisible();
-  return { requests, getRow: () => row };
+  return { requests, getRow: () => row, privacyWrites };
 }
 const routeTo = (page, tab) =>
   page.evaluate(
@@ -240,5 +248,26 @@ for (const [language, title, enable] of [
     await expect(
       page.getByRole('button', { name: enable, exact: true }),
     ).toBeEnabled();
+  });
+}
+
+for (const width of [320, 768, 1440]) {
+  test(`medication notification details require account opt-in at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const { privacyWrites } = await openSettings(page);
+    const checkbox = page.getByRole('checkbox', { name: 'Mostrar detalhes dos medicamentos nas notificações', exact: true });
+    await expect(checkbox).toBeEnabled();
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
+    expect(privacyWrites.at(-1)).toEqual({ user_id: OWNER, show_medication_details: true });
+    await page.reload();
+    await expect(checkbox).toBeChecked();
+    await checkbox.click();
+    await expect(checkbox).not.toBeChecked();
+    expect(privacyWrites.at(-1)).toEqual({ user_id: OWNER, show_medication_details: false });
+    await expect(checkbox).toHaveCSS('width', '20px');
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByTestId('global-push-settings').screenshot({ path: `test-results/dose-privacy-${width}.png`, animations: 'disabled' });
   });
 }
