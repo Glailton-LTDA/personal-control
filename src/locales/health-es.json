@@ -332,7 +332,13 @@
     "retroactive_dose_reason": "Registrada retrospectivamente al crear el tratamiento; se usó la hora prevista como hora de toma.",
     "notification_sent": "Push enviado",
     "notification_due": "Recordatorio vencido",
-    "notification_scheduled": "Programado"
+    "notification_scheduled": "Programado",
+    "edit_named_treatment": "Editar tratamiento de {{name}}",
+    "last_taken": "Última dosis tomada",
+    "dose_at_status": "{{time}} — {{status}}",
+    "dose_card_hint": "Toca la hora para registrar o deshacer una dosis.",
+    "confirm_dose_now": "¿Confirmas que tomaste esta dosis ahora?",
+    "dose_overdue": "Atrasada"
   },
   "nav": {
     "health": "Guía médica",

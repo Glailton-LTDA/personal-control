@@ -111,7 +111,7 @@ async function mockHealth(page, { language = 'pt', fail = false, report = 'Laudo
       status: time === '14:00' && dose ? dose.status : time === '22:00' ? 'scheduled' : 'missed',
       taken_at: time === '14:00' ? dose?.taken_at : null, amount: treatment?.dose,
       record_version: recordVersion }));
-    if (table === 'health_treatment_list') return route.fulfill({ json: { rows: medication ? [{ ...medication, schedule, today: { planned:3,taken:dose?.status==='taken'?1:0 }, total_predicted:21, taken_total:dose?.status==='taken'?1:0, next_at:'2026-11-12T22:00:00Z' }] : [], has_more:false } });
+    if (table === 'health_treatment_list') return route.fulfill({ json: { rows: medication ? [{ ...medication, schedule, today: { planned:3,taken:dose?.status==='taken'?1:0, slots }, total_predicted:21, taken_total:dose?.status==='taken'?1:0, next_at:'2026-11-12T22:00:00Z' }] : [], has_more:false } });
     if (table === 'health_treatment_dashboard') return route.fulfill({ json: { active_count:medication?1:0,continuous_count:0,today:{planned:medication?3:0,taken:0,overdue:2},next:medication?{name:medication.name,scheduled_at:'2026-11-12T22:00:00Z'}:null } });
     if (table === 'health_treatment_detail') return route.fulfill({ json: { medication,schedule,
       stats:{total_predicted:21,taken_total:dose?.status==='taken'?1:0,skipped_total:dose?.status==='skipped'?1:0,overdue:dose?1:2,due_recent:2,taken_due:dose?.status==='taken'?1:0},today:slots,next:[{scheduled_at:'2026-11-12T22:00:00Z'}] } });
@@ -551,6 +551,21 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     await page.getByRole('button',{name:'Histórico',exact:true}).click();
     await expect(page.getByRole('button',{name:'Próxima',exact:true})).toBeDisabled();
     await page.screenshot({path:`test-results/treatment-fixed-${width}.png`,fullPage:true});
+    await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+    const card = page.locator('.health-dose-card');
+    await expect(card.getByRole('button', { name: '22:00 — Agendada', exact: true })).toBeDisabled();
+    await card.getByRole('button', { name: '14:00 — Atrasada', exact: true }).click();
+    await expect(page.getByRole('dialog')).toContainText('Confirmar que você tomou esta dose agora?');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirmar', exact: true }).click();
+    await expect(card.getByRole('button', { name: '14:00 — Tomada', exact: true })).toBeVisible();
+    await card.getByRole('button', { name: '14:00 — Tomada', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirmar', exact: true }).click();
+    await expect(card.getByRole('button', { name: '14:00 — Atrasada', exact: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await card.screenshot({ path: `test-results/dose-card-${width}-dark.png`, animations: 'disabled' });
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+    await card.screenshot({ path: `test-results/dose-card-${width}-light.png`, animations: 'disabled' });
+
   });
 }
 

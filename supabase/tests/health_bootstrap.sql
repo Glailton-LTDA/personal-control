@@ -16,3 +16,13 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
 alter table storage.objects enable row level security;
 grant select,insert,update,delete on storage.objects to anon,authenticated,service_role;
 create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;
+-- Match the existing baseline notification settings ownership contract.
+create table public.notification_settings (
+ id uuid primary key default gen_random_uuid(),
+ user_id uuid unique references auth.users(id)
+);
+alter table public.notification_settings enable row level security;
+create policy "Users can manage their own settings" on public.notification_settings
+ for all to authenticated using(auth.uid()=user_id);
+grant select,insert,update,delete on public.notification_settings to authenticated;
+grant all on public.notification_settings to service_role;

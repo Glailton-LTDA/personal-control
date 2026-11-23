@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-23
+
+### Adicionado
+- **Medicamentos**: cartões com horários das doses de hoje, estados tomada/atrasada/agendada, confirmação para registrar ou desfazer uma dose, próxima e última dose, edição e encerramento do tratamento.
+- **Notificações**: opção global nos Ajustes para mostrar nome, horário e quantidade dos medicamentos no push, desativada por padrão e válida para a conta em todos os aparelhos. Falhas ou ausência da preferência mantêm os avisos discretos.
+
+### Técnico
+- Migração compartilhada adiciona a preferência a `notification_settings` e os horários do dia à lista paginada existente, sem consultas adicionais por cartão. Novo índice parcial para a última dose tomada por usuário/medicamento. Traduções pt/en/es e testes de privacidade, autorização e doses.
+
 ## [2.5.1] - 2026-11-20
 
 ### Corrigido

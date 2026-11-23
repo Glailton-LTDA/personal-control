@@ -863,3 +863,22 @@ iframe.health-preview {
 .health-treatment-header > .health-actions > button {
   flex: 1 1 auto;
 }
+
+.health-dose-card { min-width: 0; }
+.health-dose-card-heading { display: flex; align-items: flex-start; gap: 0.75rem; }
+.health-dose-card-heading > svg { flex-shrink: 0; color: var(--primary); margin-top: 0.6rem; }
+.health-dose-card-heading .health-status { display: table; }
+.health-dose-card progress { width: 100%; accent-color: var(--primary); }
+.health-dose-info { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: var(--input-bg); padding: 0.75rem; border-radius: 0.75rem; }
+.health-dose-buttons { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.health-guide .health-dose-button { flex: 0 1 10rem; min-height: 64px; display: flex; flex-direction: column; padding: 0.65rem 1rem; border: 1px solid var(--glass-border); border-radius: 12px; background: var(--input-bg); color: var(--text-main); }
+.health-dose-button > span { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; }
+.health-guide .health-dose-taken { border-color: var(--success); color: var(--success); background: color-mix(in srgb, var(--success) 12%, var(--bg-card)); }
+.health-guide .health-dose-missed { border-color: var(--pending); color: var(--text-main); background: color-mix(in srgb, var(--pending) 12%, var(--bg-card)); }
+.health-guide .health-dose-scheduled { border-color: var(--primary); }
+.health-guide .health-dose-button:disabled { opacity: 0.8; }
+.health-dose-card-footer { justify-content: space-between; }
+@media (max-width: 600px) {
+  .health-guide .health-dose-button { flex: 1 1 7rem; }
+  .health-dose-card-footer > button { flex: 1 1 auto; }
+}

@@ -76,3 +76,7 @@
     width: 100%;
   }
 }
+.app-push-privacy { border-top: 1px solid var(--glass-border); margin-top: 1.5rem; padding-top: 1.5rem; min-width: 0; }
+.app-push-privacy-label { display: flex; align-items: center; gap: 0.75rem; min-height: 44px; cursor: pointer; }
+.app-push-privacy-label input[type='checkbox'] { width: 20px; height: 20px; min-height: 20px; min-width: 20px; flex: 0 0 20px; padding: 0; margin: 0; accent-color: var(--primary); }
+.app-push-privacy-label span { min-width: 0; overflow-wrap: anywhere; }

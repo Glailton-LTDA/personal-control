@@ -806,6 +806,7 @@ export default function HealthGuide({
             key={current}
             userId={userId}
             navigate={navigate}
+            onForm={setForm}
           />
         </>
       ) : detailId ? (

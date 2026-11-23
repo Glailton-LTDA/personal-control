@@ -10,6 +10,7 @@ import {
   readGlobalPush,
 } from '../lib/push';
 import './PushSettings.css';
+import PushMedicationPrivacy from './PushMedicationPrivacy';
 
 export default function PushSettings({ userId }) {
   const { t, i18n } = useTranslation();
@@ -96,6 +97,7 @@ export default function PushSettings({ userId }) {
       </div>
       <p>{t('push.device_hint')}</p>
       <p>{t('push.privacy_hint')}</p>
+      <PushMedicationPrivacy key={userId} userId={userId} />
       {status.state === 'blocked' && <p>{t('push.blocked')}</p>}
       {status.state === 'unconfigured' && <p>{t('push.unconfigured')}</p>}
       {status.state === 'error' && (
