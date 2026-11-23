@@ -67,11 +67,37 @@ Deno.serve(async (request: Request) => {
             ) {
               const owned = await db
                 .from("health_medications")
-                .select("name,dose,timezone")
+                .select("name")
                 .eq("user_id", row.user_id)
                 .eq("id", reminder.medication_id)
                 .maybeSingle();
-              if (!owned.error) medication = owned.data;
+              if (!owned.error && owned.data) {
+                // Resolve the revision in effect for this occurrence, not the
+                // medication's current dose after a later schedule edit.
+                const revision = await db
+                  .from("health_medication_schedules")
+                  .select("dose_text_snapshot,timezone,effective_until")
+                  .eq("user_id", row.user_id)
+                  .eq("medication_id", reminder.medication_id)
+                  .lte("effective_from", reminder.scheduled_at)
+                  .order("effective_from", { ascending: false })
+                  .order("revision", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (
+                  !revision.error &&
+                  revision.data &&
+                  (!revision.data.effective_until ||
+                    new Date(revision.data.effective_until).getTime() >
+                      new Date(reminder.scheduled_at).getTime())
+                ) {
+                  medication = {
+                    name: owned.data.name,
+                    dose: revision.data.dose_text_snapshot,
+                    timezone: revision.data.timezone,
+                  };
+                }
+              }
             }
           }
           const devices = await ownerPushSubscriptions(db, row.user_id);

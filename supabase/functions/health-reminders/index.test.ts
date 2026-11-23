@@ -93,6 +93,9 @@ for (const mode of [
   "foreign",
   "appointment",
   "revoked",
+  "schedule-error",
+  "schedule-missing",
+  "schedule-expired",
 ]) {
   Deno.test(
     `medication privacy is owner-scoped and fails closed: ${mode}`,
@@ -154,7 +157,14 @@ for (const mode of [
                 ? null
                 : {
                     show_medication_details:
-                      ["on", "foreign", "revoked"].includes(mode) &&
+                      [
+                        "on",
+                        "foreign",
+                        "revoked",
+                        "schedule-error",
+                        "schedule-missing",
+                        "schedule-expired",
+                      ].includes(mode) &&
                       (mode !== "revoked" || preferenceReads === 1),
                   },
             ),
@@ -163,15 +173,45 @@ for (const mode of [
         if (table === "health_medications") {
           medicationReads++;
           equal(url.searchParams.get("id"), "eq.m1");
-          equal(url.searchParams.get("select"), "name,dose,timezone");
+          equal(url.searchParams.get("select"), "name");
           return Promise.resolve(
             Response.json(
               mode === "foreign"
                 ? null
                 : {
                     name: "Synthetic medication",
-                    dose: "1 tablet",
+                    dose: "9 tablets",
+                    timezone: "America/Fortaleza",
+                  },
+            ),
+          );
+        }
+        if (table === "health_medication_schedules") {
+          equal(
+            url.searchParams.get("select"),
+            "dose_text_snapshot,timezone,effective_until",
+          );
+          equal(url.searchParams.get("medication_id"), "eq.m1");
+          equal(url.searchParams.get("limit"), "1");
+          equal(
+            url.searchParams.get("effective_from"),
+            "lte.2026-11-23T18:00:00Z",
+          );
+          if (mode === "schedule-error")
+            return Promise.resolve(
+              Response.json({ message: "failed" }, { status: 400 }),
+            );
+          return Promise.resolve(
+            Response.json(
+              mode === "schedule-missing"
+                ? null
+                : {
+                    dose_text_snapshot: "1 tablet",
                     timezone: "UTC",
+                    effective_until:
+                      mode === "schedule-expired"
+                        ? "2026-11-22T18:00:00Z"
+                        : null,
                   },
             ),
           );
@@ -207,7 +247,16 @@ for (const mode of [
         equal(payloads.length, 1);
         equal(
           medicationReads,
-          ["on", "foreign", "revoked"].includes(mode) ? 1 : 0,
+          [
+            "on",
+            "foreign",
+            "revoked",
+            "schedule-error",
+            "schedule-missing",
+            "schedule-expired",
+          ].includes(mode)
+            ? 1
+            : 0,
         );
         if (mode === "on") {
           equal(payloads[0].title, "Hora de tomar Synthetic medication");
