@@ -128,10 +128,12 @@ function useTreatmentMutation(userId, write) {
   const mutation = useMutation({
     mutationFn: (command) => checked(write(command)),
     onMutate: () => client.cancelQueries({ queryKey: treatmentKeys.all(userId) }),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["health", userId] });
-      client.invalidateQueries({ queryKey: treatmentKeys.all(userId) });
-    },
+    // Keep actions pending until active views have the acknowledged state.
+    // This prevents a second click from using the pre-write version.
+    onSuccess: () => Promise.all([
+      client.invalidateQueries({ queryKey: ["health", userId] }),
+      client.invalidateQueries({ queryKey: treatmentKeys.all(userId) }),
+    ]),
     retry: (count, error) =>
       count < 1 &&
       !error?.message?.match(
