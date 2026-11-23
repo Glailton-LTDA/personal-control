@@ -4,6 +4,11 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-11-23
+
+### Melhorado
+- **Guia médico**: aba Hoje reutiliza os cartões com horários dos medicamentos, independentemente de lembretes ativos. Registrar e desfazer uma dose pelos cartões passam a exigir somente um clique, com bloqueio de cliques duplicados e comandos idempotentes. Lembretes e acesso aos detalhes continuam disponíveis.
+
 ## [2.6.0] - 2026-11-23
 
 ### Adicionado

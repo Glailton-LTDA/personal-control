@@ -555,20 +555,31 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     const card = page.locator('.health-dose-card');
     await expect(card.getByRole('button', { name: '22:00 — Agendada', exact: true })).toBeDisabled();
     await card.getByRole('button', { name: '14:00 — Atrasada', exact: true }).click();
-    await expect(page.getByRole('dialog')).toContainText('Confirmar que você tomou esta dose agora?');
-    await page.getByRole('dialog').getByRole('button', { name: 'Confirmar', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(card.getByRole('button', { name: '14:00 — Tomada', exact: true })).toBeVisible();
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
     await card.screenshot({ path: `test-results/dose-card-taken-${width}-light.png`, animations: 'disabled' });
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
 
     await card.getByRole('button', { name: '14:00 — Tomada', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Confirmar', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(card.getByRole('button', { name: '14:00 — Atrasada', exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await card.screenshot({ path: `test-results/dose-card-${width}-dark.png`, animations: 'disabled' });
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
     await card.screenshot({ path: `test-results/dose-card-${width}-light.png`, animations: 'disabled' });
+    await page.getByRole('link', { name: 'Hoje', exact: true }).click();
+    const today = page.getByRole('region', { name: 'Doses de hoje', exact: true });
+    const todayCard = today.locator('.health-dose-card');
+    await todayCard.getByRole('button', { name: '14:00 — Atrasada', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(todayCard.getByRole('button', { name: '14:00 — Tomada', exact: true })).toBeVisible();
+    await todayCard.getByRole('button', { name: '14:00 — Tomada', exact: true }).click();
+    await expect(todayCard.getByRole('button', { name: '14:00 — Atrasada', exact: true })).toBeVisible();
+    await expect(todayCard.getByRole('button', { name: '22:00 — Agendada', exact: true })).toBeDisabled();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await today.screenshot({ path: `test-results/today-dose-cards-${width}.png`, animations: 'disabled' });
+
 
   });
 }

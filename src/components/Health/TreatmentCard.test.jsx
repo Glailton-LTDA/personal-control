@@ -107,13 +107,13 @@ describe("dose cards", () => {
       }),
     );
   });
-  it("requires explicit confirmation and sends owner mutation with version and scheduled instant", async () => {
+  it("records with one click and sends owner mutation with version and scheduled instant", async () => {
     renderCard();
     fireEvent.click(
       screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
     );
-    expect(mocks.take).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "health.confirm" }));
+    expect(mocks.take).toHaveBeenCalledTimes(1);
+
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
@@ -131,18 +131,24 @@ describe("dose cards", () => {
       }),
     );
   });
-  it("does not mutate when cancelled or closed with Escape", () => {
+  it("does not open a dialog and blocks duplicate clicks while saving", async () => {
+    let resolve;
+    mocks.take.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
     renderCard();
-    fireEvent.click(
-      screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "health.cancel" }));
-    expect(mocks.take).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
-    );
-    fireEvent.keyDown(document, { key: "Escape" });
+    const button = screen.getByRole("button", {
+      name: "14:00 health.dose_overdue",
+    });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mocks.take).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    resolve({});
+    await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(1));
   });
   it.each(["taken", "skipped"])(
     "undoes a %s record with its actual version",
@@ -151,7 +157,7 @@ describe("dose cards", () => {
       fireEvent.click(
         screen.getByRole("button", { name: new RegExp("06:00") }),
       );
-      fireEvent.click(screen.getByRole("button", { name: "health.confirm" }));
+
       await waitFor(() =>
         expect(mocks.undo).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -169,13 +175,50 @@ describe("dose cards", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "health.confirm" }));
+
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "health.version_conflict",
     );
-    fireEvent.click(screen.getByRole("button", { name: "health.confirm" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
+    );
+
     await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(2));
     expect(mocks.take.mock.calls[1][0]).toEqual(mocks.take.mock.calls[0][0]);
+  });
+  it("allows another take after undo without reusing the completed take command", async () => {
+    const rendered = renderCard({
+      ...row,
+      today: { slots: [slot("missed", "14:00")] },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
+    );
+    await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(1));
+    const initialId = mocks.take.mock.calls[0][0].requestId;
+    rendered.rerender(
+      <TreatmentCard
+        record={{ ...row, today: { slots: [slot("taken", "14:00", 1)] } }}
+        userId="owner"
+        navigate={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "14:00 health.status_taken" }),
+    );
+    await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1));
+    rendered.rerender(
+      <TreatmentCard
+        record={{ ...row, today: { slots: [slot("missed", "14:00")] } }}
+        userId="owner"
+        navigate={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "14:00 health.dose_overdue" }),
+    );
+    await waitFor(() => expect(mocks.take).toHaveBeenCalledTimes(2));
+    expect(mocks.take.mock.calls[1][0].requestId).not.toBe(initialId);
   });
   it("supports ending a treatment after confirmation with optimistic concurrency", async () => {
     renderCard();
@@ -184,6 +227,7 @@ describe("dose cards", () => {
     );
     expect(screen.getByText("health.finish_impact")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "health.confirm" }));
+
     await waitFor(() =>
       expect(mocks.state).toHaveBeenCalledWith(
         expect.objectContaining({
