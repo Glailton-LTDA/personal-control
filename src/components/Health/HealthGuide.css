@@ -873,7 +873,7 @@ iframe.health-preview {
 .health-dose-buttons { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .health-guide .health-dose-button { flex: 0 1 10rem; min-height: 64px; display: flex; flex-direction: column; padding: 0.65rem 1rem; border: 1px solid var(--glass-border); border-radius: 12px; background: var(--input-bg); color: var(--text-main); }
 .health-dose-button > span { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; }
-.health-guide .health-dose-taken { border-color: var(--success); color: var(--success); background: color-mix(in srgb, var(--success) 12%, var(--bg-card)); }
+.health-guide .health-dose-taken { border-color: var(--success); color: var(--text-main); background: color-mix(in srgb, var(--success) 12%, var(--bg-card)); }
 .health-guide .health-dose-missed { border-color: var(--pending); color: var(--text-main); background: color-mix(in srgb, var(--pending) 12%, var(--bg-card)); }
 .health-guide .health-dose-scheduled { border-color: var(--primary); }
 .health-guide .health-dose-button:disabled { opacity: 0.8; }
