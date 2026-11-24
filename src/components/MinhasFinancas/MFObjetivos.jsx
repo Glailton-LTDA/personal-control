@@ -1,3 +1,4 @@
+import { goalAccountIds as linkedGoalAccountIds, goalBalanceKnown, goalLinkedBalance } from '../../lib/goalAccounts';
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -48,11 +49,11 @@ export default function MFObjetivos({ user, showValues = true }) {
   const { t } = useTranslation();
   const { data: goals = [] } = useMFGoals(user);
   const { data: contributions = [] } = useMFGoalContributions(user);
-  const { data: accounts = [] } = useMFAccounts(user);
+  const { data: accounts = [] } = useMFAccounts(user, { allProfiles: true });
   // Saldos só das contas atreladas a objetivos — o resto não entra no
   // progresso (e não vale baixar a tabela inteira de lançamentos).
   const goalAccountIds = useMemo(
-    () => goals.map((goal) => goal?.account_id).filter(Boolean),
+    () => [...new Set(goals.flatMap(linkedGoalAccountIds))],
     [goals]
   );
   const { data: balances = {} } = useMFAccountBalances(user, goalAccountIds);
@@ -74,7 +75,6 @@ export default function MFObjetivos({ user, showValues = true }) {
     [accounts]
   );
 
-  const money = (value) => (showValues ? formatMoney(value) : '•••');
 
   const formatDate = (iso) => {
     if (!iso) return null;
@@ -154,7 +154,7 @@ export default function MFObjetivos({ user, showValues = true }) {
         inList
           ? contributions
           : [...contributions, { goal_id: contribFor.id, kind: saved.kind, amount: saved.amount }],
-        balances[contribFor.account_id]
+        goalLinkedBalance(contribFor, balances)
       );
       if (
         contribFor.status === 'ACTIVE' &&
@@ -247,17 +247,17 @@ export default function MFObjetivos({ user, showValues = true }) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 330px), 1fr))',
           gap: '1rem',
         }}
       >
         {goals.map((goal) => {
-          const balanceKnown = !goal.account_id || balances[goal.account_id] !== undefined;
+          const balanceKnown = goalBalanceKnown(goal, balances);
           // O saldo da conta atrelada chega depois dos objetivos (o
           // recorte é menor) — enquanto isso, "…" em vez de um R$ 0,00
           // mentiroso.
           const current = balanceKnown
-            ? goalCurrentAmount(goal, contributions, balances[goal.account_id])
+            ? goalCurrentAmount(goal, contributions, goalLinkedBalance(goal, balances))
             : null;
           const target = Number(goal.target_amount) || 0;
           const pct = current === null || target <= 0 ? 0 : (current / target) * 100;
@@ -268,7 +268,11 @@ export default function MFObjetivos({ user, showValues = true }) {
             : reached
             ? '#10b981'
             : goal.color || 'var(--primary)';
-          const linkedAccount = goal.account_id ? accountsById[goal.account_id] : null;
+          const linkedIds = linkedGoalAccountIds(goal);
+          const linkedAccount = linkedIds.length > 0;
+          const linkedNames = linkedIds.map(id => accountsById[id]?.name || t('minhasfinancas.gl_account_unavailable')).join(', ');
+          const currency = linkedIds.map(id => accountsById[id]?.currency).find(Boolean) || 'BRL';
+          const money = value => showValues ? formatMoney(value, currency) : '•••';
           const goalContributions = contributions.filter((item) => item.goal_id === goal.id);
 
           return (
@@ -398,7 +402,7 @@ export default function MFObjetivos({ user, showValues = true }) {
 
               {linkedAccount && (
                 <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                  🔄 {t('minhasfinancas.gl_linked_hint', { name: linkedAccount.name })}
+                  🔄 {t('minhasfinancas.gl_linked_accounts_hint', { names: linkedNames })}
                 </div>
               )}
 
@@ -480,8 +484,8 @@ export default function MFObjetivos({ user, showValues = true }) {
         <MFGoalDetail
           goal={detailGoal}
           contributions={contributions}
-          balance={balances[detailGoal.account_id]}
-          balanceKnown={!detailGoal.account_id || balances[detailGoal.account_id] !== undefined}
+          balance={goalLinkedBalance(detailGoal, balances)}
+          balanceKnown={goalBalanceKnown(detailGoal, balances)}
           accountsById={accountsById}
           user={user}
           showValues={showValues}

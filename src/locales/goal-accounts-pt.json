@@ -1,0 +1,10 @@
+{
+  "gl_accounts": "Contas vinculadas",
+  "gl_accounts_auto_hint": "O progresso usa a soma integral dos saldos das contas selecionadas. Aportes manuais ficam indisponíveis. Selecione contas da mesma moeda.",
+  "gl_accounts_currency": "Selecione contas da mesma moeda para este objetivo.",
+  "gl_account_unavailable": "Conta indisponível",
+  "gl_linked_accounts_hint": "Progresso automático pelas contas: {{names}}",
+  "gl_deposit_linked_accounts_hint": "O progresso vem dos saldos integrais de {{names}}. Aportes manuais não estão disponíveis.",
+  "gl_accounts_loading": "Carregando contas…",
+  "gl_accounts_load_error": "Não foi possível carregar as contas. Reabra o formulário para tentar novamente."
+}

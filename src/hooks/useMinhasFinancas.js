@@ -1,3 +1,4 @@
+import { goalAccountIds } from '../lib/goalAccounts';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -739,16 +740,17 @@ const scopeDelta = (tx, scope) => {
  * Queries
  * ──────────────────────────────────────────────────────────── */
 
-export function useMFAccounts(user) {
-  const profileId = useMFProfileScope();
+export function useMFAccounts(user, { allProfiles = false } = {}) {
+  const activeProfile = useMFProfileScope();
+  const profileId = allProfiles ? null : activeProfile;
   return useQuery({
     queryKey: ['mf-accounts', user?.id, profileId ?? 'all'],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data, error } = await mfSelect(
+      const { data, error } = await mfSelectAll(
         'mf_accounts',
         () => {
-          let query = supabase.from('mf_accounts').select('*').order('sort_order');
+          let query = supabase.from('mf_accounts').select('id,user_id,profile_id,name,account_type,initial_balance,color,icon,image_url,closing_day,due_day,credit_limit,sort_order,is_active,created_at,updated_at,currency,archived_at,card_brand,group_id,ignore_in_totals,linked_account_id,closing_dynamic,due_business_days').eq('user_id', user.id).order('sort_order').order('id');
           if (profileId) query = query.eq('profile_id', profileId);
           return query;
         },
@@ -4804,14 +4806,14 @@ export function useMFAccountBalances(user, accountIds = null) {
       // senão, as do perfil ativo.
       let scope = accountIds;
       if (scope === null) {
-        const { data: profileAccounts, error: profileError } = await mfSelect(
+        const { data: profileAccounts, error: profileError } = await mfSelectAll(
           'mf_accounts',
           () => {
-            let query = supabase.from('mf_accounts').select('*');
+            let query = supabase.from('mf_accounts').select('id,user_id,profile_id,initial_balance').eq('user_id', user.id).order('id');
             if (profileId) query = query.eq('profile_id', profileId);
             return query;
           },
-          { filter: byProfile(profileId) }
+          { filter: byProfile(profileId), cache: false }
         );
         if (profileError) throw profileError;
         scope = (profileAccounts ?? []).map((acc) => acc.id);
@@ -4819,11 +4821,12 @@ export function useMFAccountBalances(user, accountIds = null) {
       const scopeIds = [...new Set((scope ?? []).filter(Boolean))];
       if (scopeIds.length === 0) return {};
 
+      const today = toISODate(new Date());
       const [accounts, ownTxs, transferTxs] = await Promise.all([
-        mfSelect(
+        mfSelectAll(
           'mf_accounts',
-          () => supabase.from('mf_accounts').select('*').in('id', scopeIds),
-          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.id)) }
+          () => supabase.from('mf_accounts').select('id,user_id,profile_id,initial_balance').eq('user_id', user.id).in('id', scopeIds).order('id'),
+          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.id)), cache: false }
         ),
         mfSelectAll(
           'mf_transactions',
@@ -4831,10 +4834,11 @@ export function useMFAccountBalances(user, accountIds = null) {
             supabase
               .from('mf_transactions')
               .select('id,type,amount,payment_date,status,account_id,transfer_account_id')
-              .in('account_id', scopeIds)
+              .eq('user_id', user.id).in('account_id', scopeIds)
+              .eq('status', 'PAGO').lte('payment_date', today)
               .order('payment_date')
               .order('id'),
-          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.account_id)) }
+          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.account_id)), cache: false }
         ),
         mfSelectAll(
           'mf_transactions',
@@ -4842,10 +4846,11 @@ export function useMFAccountBalances(user, accountIds = null) {
             supabase
               .from('mf_transactions')
               .select('id,type,amount,payment_date,status,account_id,transfer_account_id')
-              .in('transfer_account_id', scopeIds)
+              .eq('user_id', user.id).in('transfer_account_id', scopeIds)
+              .eq('status', 'PAGO').lte('payment_date', today)
               .order('payment_date')
               .order('id'),
-          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.transfer_account_id)) }
+          { filter: (rows) => rows.filter((row) => scopeIds.includes(row.transfer_account_id)), cache: false }
         ),
       ]);
       if (accounts.error) throw accounts.error;
@@ -4856,14 +4861,13 @@ export function useMFAccountBalances(user, accountIds = null) {
       [...(ownTxs.data ?? []), ...(transferTxs.data ?? [])].forEach((tx) => txById.set(tx.id, tx));
       const txs = { data: [...txById.values()] };
 
-      const today = toISODate(new Date());
       const balances = {};
       (accounts.data ?? []).forEach((acc) => {
-        balances[acc.id] = Number(acc.initial_balance) || 0;
+        balances[acc.id] = BigInt(Math.round((Number(acc.initial_balance) || 0) * 100));
       });
       (txs.data ?? []).forEach((tx) => {
         if (tx.status !== 'PAGO' || tx.payment_date > today) return;
-        const amount = Number(tx.amount) || 0;
+        const amount = BigInt(Math.round((Number(tx.amount) || 0) * 100));
         if (tx.type === 'TRANSFERENCIA') {
           if (tx.account_id in balances) balances[tx.account_id] -= amount;
           if (tx.transfer_account_id in balances) balances[tx.transfer_account_id] += amount;
@@ -4873,7 +4877,11 @@ export function useMFAccountBalances(user, accountIds = null) {
           if (tx.account_id in balances) balances[tx.account_id] -= amount;
         }
       });
-      return balances;
+      return Object.fromEntries(Object.entries(balances).map(([id, cents]) => {
+        const amount = Number(cents);
+        if (!Number.isSafeInteger(amount)) throw new Error('mf_balance_out_of_range');
+        return [id, amount / 100];
+      }));
     },
   });
 }
@@ -5057,10 +5065,10 @@ export function useMFGoals(user) {
     queryKey: ['mf-goals', user?.id, profileId ?? 'all'],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data, error } = await mfSelect(
+      const { data, error } = await mfSelectAll(
         'mf_goals',
         () =>
-          supabase.from('mf_goals').select('*').order('created_at', { ascending: false }),
+          supabase.from('mf_goals').select('id,user_id,name,target_amount,initial_amount,target_date,account_id,account_ids,color,icon,status,created_at,updated_at').eq('user_id', user.id).order('created_at', { ascending: false }).order('id', { ascending: false }),
         { sort: byDateDesc('created_at') }
       );
       if (error) throw error;
@@ -5068,8 +5076,8 @@ export function useMFGoals(user) {
       if (!profileId) return rows;
       // Perfil: objetivos da conta do perfil ou avulsos (sem conta).
       const ids = await profileAccountIds(profileId);
-      if (ids.length === 0) return rows.filter((row) => !row.account_id);
-      return rows.filter((row) => !row.account_id || ids.includes(row.account_id));
+      if (ids.length === 0) return rows.filter((row) => goalAccountIds(row).length === 0);
+      return rows.filter((row) => goalAccountIds(row).length === 0 || goalAccountIds(row).some(id => ids.includes(id)));
     },
   });
 }
@@ -5078,7 +5086,7 @@ export function useCreateMFGoal() {
   const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: async (payload) => {
-      const { data, error } = await supabase.from('mf_goals').insert(payload).select().single();
+      const { data, error } = await supabase.from('mf_goals').insert(payload).select('id,user_id,name,target_amount,initial_amount,target_date,account_id,account_ids,color,icon,status,created_at,updated_at').single();
       if (error) throw error;
       return data ?? payload;
     },
@@ -5094,7 +5102,7 @@ export function useUpdateMFGoal() {
         .from('mf_goals')
         .update(patch)
         .eq('id', id)
-        .select()
+        .select('id,user_id,name,target_amount,initial_amount,target_date,account_id,account_ids,color,icon,status,created_at,updated_at')
         .single();
       if (error) throw error;
       return data;
@@ -5204,7 +5212,7 @@ export function useDeleteMFGoalContribution() {
 
 /** Valor atual de um objetivo: conta vinculada (automático) ou aportes. */
 export const goalCurrentAmount = (goal, contributions, accountBalance) => {
-  if (goal.account_id) return Number(accountBalance) || 0;
+  if (goalAccountIds(goal).length) return Number(accountBalance) || 0;
   const seed = Number(goal.initial_amount) || 0;
   const delta = contributions
     .filter((item) => item.goal_id === goal.id)

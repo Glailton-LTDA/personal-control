@@ -171,7 +171,7 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
 
     // e não tem botões de aporte
     expect(screen.queryByTestId('mf-goal-deposit-g2')).not.toBeInTheDocument();
-    expect(screen.getByText(/minhasfinancas.gl_linked_hint/)).toBeInTheDocument();
+    expect(screen.getByText(/minhasfinancas.gl_linked_accounts_hint/)).toBeInTheDocument();
 
     // g3: atingida → badge
     expect(screen.getByTestId('mf-goal-badge-completed')).toBeInTheDocument();
@@ -311,7 +311,7 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
 
     fireEvent.click(screen.getByTestId('mf-goal-detail-tab-deposits'));
     expect(screen.getByTestId('mf-goal-detail-linked-hint')).toHaveTextContent(
-      /minhasfinancas.gl_deposit_linked_hint/
+      /minhasfinancas.gl_deposit_linked_accounts_hint/
     );
     expect(screen.queryByTestId('mf-goal-detail-add')).not.toBeInTheDocument();
   });
@@ -363,7 +363,7 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
     expect(screen.getByTestId('mf-goal-modal')).toBeInTheDocument();
     expect(screen.getByTestId('mf-goal-name')).toHaveValue('Reserva de emergência');
     expect(screen.queryByTestId('mf-goal-detail')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('Fechar'));
+    fireEvent.click(screen.getByLabelText('minhasfinancas.close'));
 
     fireEvent.click(screen.getByTestId('mf-goal-del-g1'));
     const { supabase } = await import('../../lib/supabase');
@@ -407,4 +407,28 @@ describe('MFObjetivos — Objetivos (Fase 5)', () => {
     expect(screen.queryByTestId('mf-goal-detail')).not.toBeInTheDocument();
     expect(screen.getByTestId('mf-goal-modal')).toBeInTheDocument();
   });
+});
+
+it('sums full balances of two accounts and ignores manual seed/contributions for linked goals', async () => {
+  const { supabase } = await import('../../lib/supabase');
+  const accountQuery = supabase.from('mf_accounts');
+  const goalQuery = supabase.from('mf_goals');
+  const oldAccounts = accountQuery.then.getMockImplementation();
+  const oldGoals = goalQuery.then.getMockImplementation();
+  accountQuery.then.mockImplementation((resolve, reject) => Promise.resolve({ data: [
+    { id:'acc-1', user_id:'test-user', name:'Account A', currency:'BRL', initial_balance:5000 },
+    { id:'acc-2', user_id:'test-user', name:'Account B', currency:'BRL', initial_balance:3000 },
+  ], error:null }).then(resolve,reject));
+  goalQuery.then.mockImplementation((resolve, reject) => Promise.resolve({ data: [
+    { id:'g1', user_id:'test-user', name:'Two accounts', target_amount:10000, initial_amount:999,
+      account_id:'acc-1', account_ids:['acc-1','acc-2'], status:'ACTIVE' },
+  ], error:null }).then(resolve,reject));
+  try {
+    renderScreen();
+    await waitFor(() => expect(screen.getByTestId('mf-goal-current')).toHaveTextContent('8.000,00'));
+    expect(screen.getByTestId('mf-goal-pct')).toHaveTextContent('80');
+    expect(screen.queryByTestId('mf-goal-deposit-g1')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mf-goal-card'));
+    expect(screen.getByTestId('mf-goal-detail-current')).toHaveTextContent('8.000,00');
+  } finally { accountQuery.then.mockImplementation(oldAccounts); goalQuery.then.mockImplementation(oldGoals); }
 });
