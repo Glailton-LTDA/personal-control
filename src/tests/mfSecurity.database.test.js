@@ -42,6 +42,7 @@ beforeAll(async () => {
   await pg.exec(migration('mf_goal_contributions_transaction.sql'));
   await pg.exec(migration('mf_atomic_finance_writes.sql'));
   await pg.exec(migration('mf_review_consistency.sql'));
+  await pg.exec(migration('multiple_goal_accounts.sql'));
 }, 60000);
 afterAll(async () => { await pg?.close(); });
 beforeEach(async () => {
@@ -211,6 +212,82 @@ describe('hardening SQL com PostgreSQL isolado, sem conexão à produção', () 
   it('rotinas não são executáveis por anon e triggers não são RPCs de usuários', async () => {
     const privileges=await pg.query("select has_function_privilege('anon','public.mf_save_tx_linked(jsonb,uuid,uuid,uuid,jsonb,text,numeric)','EXECUTE') as anonymous,has_function_privilege('authenticated','public.mf_cleanup_tx_links()','EXECUTE') as trigger_exposed");
     expect(privileges.rows[0]).toEqual({anonymous:false,trigger_exposed:false});
+  });
+
+});
+
+describe('multiple goal accounts shared contract', () => {
+  const second='20000000-0000-4000-8000-000000000003';
+  async function setupGoal(linked=true) {
+    await pg.query("insert into mf_accounts(id,user_id,name,initial_balance) values($1,$2,'Second',3000)",[second,A]);
+    await asUser();
+    const r=await pg.query("insert into mf_goals(user_id,name,target_amount,account_ids) values($1,'Multiple',10000,$2::uuid[]) returning id",[A,linked?[accA,second]:[]]);
+    return r.rows[0].id;
+  }
+  it('preserves legacy inserts/metadata and deduplicates canonical arrays',async()=>{
+    const id=await setupGoal();
+    await pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[accA,second,accA]]);
+    await pg.query("update mf_goals set name='Renamed',account_id=$2 where id=$1",[id,accA]);
+    const r=await pg.query('select account_ids,account_id from mf_goals where id=$1',[id]);
+    expect(r.rows[0]).toEqual({account_ids:[accA,second],account_id:accA});
+    const legacy=await pg.query("insert into mf_goals(user_id,name,target_amount,account_id) values($1,'Legacy',100,$2) returning account_ids",[A,accA]);
+    expect(legacy.rows[0].account_ids).toEqual([accA]);
+  });
+  it('rejects references to foreign accounts',async()=>{
+    const id=await setupGoal(false);
+    await expect(pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[accA,accB]])).rejects.toThrow(/mf_reference_not_authorized/);
+  });
+  it('blocks deposits in linked goals even through direct SQL',async()=>{
+    const id=await setupGoal();
+    await expect(pg.query("insert into mf_goal_contributions(user_id,goal_id,kind,amount,contribution_date) values($1,$2,'DEPOSIT',100,current_date)",[A,id])).rejects.toThrow(/mf_goal_linked_no_contributions/);
+  });
+  it('allows manual goals and retains history when accounts are attached',async()=>{
+    const id=await setupGoal(false);
+    await pg.query("insert into mf_goal_contributions(user_id,goal_id,kind,amount,contribution_date) values($1,$2,'DEPOSIT',100,current_date)",[A,id]);
+    await pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[accA,second]]);
+    expect((await pg.query('select count(*)::int as n from mf_goal_contributions where goal_id=$1',[id])).rows[0].n).toBe(1);
+  });
+  it('removes deleted accounts from the array without removing the goal',async()=>{
+    const id=await setupGoal();
+    await pg.query('delete from mf_accounts where id=$1',[accA]);
+    expect((await pg.query('select account_ids,account_id from mf_goals where id=$1',[id])).rows[0]).toEqual({account_ids:[second],account_id:second});
+    await pg.query('delete from mf_accounts where id=$1',[second]);
+    expect((await pg.query('select account_ids,account_id from mf_goals where id=$1',[id])).rows[0]).toEqual({account_ids:[],account_id:null});
+  });
+  it('refuses incompatible currencies and legacy unlinking of multi-account goals',async()=>{
+    const id=await setupGoal();
+    await expect(pg.query('update mf_goals set account_id=null where id=$1',[id])).rejects.toThrow(/mf_goal_multi_legacy_edit/);
+  });
+  it('rejects incompatible currency selection',async()=>{
+    const id=await setupGoal(false);
+    await pg.query("update mf_accounts set currency='USD' where id=$1",[second]);
+    await expect(pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[accA,second]])).rejects.toThrow(/mf_goal_accounts_currency/);
+  });
+  it('blocks changes to the currency of an attached account',async()=>{
+    await setupGoal();
+    await expect(pg.query("update mf_accounts set currency='USD' where id=$1",[second])).rejects.toThrow(/mf_goal_account_in_use/);
+  });
+  it('restores links and earlier manual history atomically without bypass flags',async()=>{
+    const id=await setupGoal(false);
+    await pg.query("insert into mf_goal_contributions(user_id,goal_id,kind,amount,contribution_date) values($1,$2,'DEPOSIT',100,current_date)",[A,id]);
+    await pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[accA,second]]);
+    const point=(await pg.query("select (mf_create_restore_point('Multi snapshot')).id as id")).rows[0].id;
+    await pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[]]);
+    await pg.query('delete from mf_goal_contributions where goal_id=$1',[id]);
+    await pg.query('select mf_restore_snapshot($1)',[point]);
+    expect((await pg.query('select account_ids from mf_goals where id=$1',[id])).rows[0].account_ids).toEqual([accA,second]);
+    expect((await pg.query('select count(*)::int as n from mf_goal_contributions where goal_id=$1',[id])).rows[0].n).toBe(1);
+  });
+  it('restores legacy snapshots without account_ids',async()=>{
+    const id=await setupGoal(false);
+    await pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[accA]]);
+    const point=(await pg.query("select (mf_create_restore_point('Legacy links')).id as id")).rows[0].id;
+    await admin();
+    await pg.query(`update mf_restore_points set payload=jsonb_set(payload,'{tables,mf_goals}',(select jsonb_agg(r-'account_ids') from jsonb_array_elements(payload->'tables'->'mf_goals') r)) where id=$1`,[point]);
+    await asUser();
+    await pg.query('update mf_goals set account_ids=$2::uuid[] where id=$1',[id,[]]);
+    await pg.query('select mf_restore_snapshot($1)',[point]);
+    expect((await pg.query('select account_ids from mf_goals where id=$1',[id])).rows[0].account_ids).toEqual([accA]);
   });
 
 });

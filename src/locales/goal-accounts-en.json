@@ -1,0 +1,10 @@
+{
+  "gl_accounts": "Linked accounts",
+  "gl_accounts_auto_hint": "Progress uses the full sum of the selected account balances. Manual contributions are unavailable. Select accounts in the same currency.",
+  "gl_accounts_currency": "Select accounts in the same currency for this goal.",
+  "gl_account_unavailable": "Account unavailable",
+  "gl_linked_accounts_hint": "Automatic progress from accounts: {{names}}",
+  "gl_deposit_linked_accounts_hint": "Progress comes from the full balances of {{names}}. Manual contributions are unavailable.",
+  "gl_accounts_loading": "Loading accounts…",
+  "gl_accounts_load_error": "Could not load accounts. Reopen the form to try again."
+}

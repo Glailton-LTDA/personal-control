@@ -37,7 +37,7 @@ vi.mock('../../lib/supabase', () => {
   const DATA = {
     mf_accounts: [
       {
-        id: 'acc-nu',
+        id: 'acc-nu', user_id: 'test-user',
         name: 'Conta principal',
         account_type: 'CORRENTE',
         currency: 'BRL',
@@ -48,7 +48,7 @@ vi.mock('../../lib/supabase', () => {
         group_id: 'grp-nubank',
       },
       {
-        id: 'acc-reserva',
+        id: 'acc-reserva', user_id: 'test-user',
         name: 'Reserva',
         account_type: 'POUPANCA',
         currency: 'BRL',
@@ -58,7 +58,7 @@ vi.mock('../../lib/supabase', () => {
         group_id: 'grp-caixinhas',
       },
       {
-        id: 'acc-livre',
+        id: 'acc-livre', user_id: 'test-user',
         name: 'Sem grupo',
         account_type: 'CORRENTE',
         currency: 'BRL',
@@ -68,7 +68,7 @@ vi.mock('../../lib/supabase', () => {
         group_id: null,
       },
       {
-        id: 'acc-card',
+        id: 'acc-card', user_id: 'test-user',
         name: 'Cartão Visa',
         account_type: 'CARTAO',
         currency: 'BRL',
@@ -81,7 +81,7 @@ vi.mock('../../lib/supabase', () => {
         group_id: null,
       },
       {
-        id: 'acc-antiga',
+        id: 'acc-antiga', user_id: 'test-user',
         name: 'Conta antiga',
         account_type: 'CORRENTE',
         currency: 'BRL',

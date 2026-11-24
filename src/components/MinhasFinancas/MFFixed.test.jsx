@@ -35,8 +35,8 @@ vi.mock('../../lib/supabase', () => {
 
   const DATA = {
     mf_accounts: [
-      { id: 'acc-1', name: 'Nubank', currency: 'BRL', initial_balance: 100, color: '#6366f1', sort_order: 0 },
-      { id: 'acc-2', name: 'Inter', currency: 'BRL', initial_balance: 200, color: '#f59e0b', sort_order: 1 },
+      { id: 'acc-1', user_id: 'test-user', name: 'Nubank', currency: 'BRL', initial_balance: 100, color: '#6366f1', sort_order: 0 },
+      { id: 'acc-2', user_id: 'test-user', name: 'Inter', currency: 'BRL', initial_balance: 200, color: '#f59e0b', sort_order: 1 },
     ],
     mf_categories: [],
     mf_tags: [{ id: 'tag-trip', name: 'Viagem', color: '#06b6d4' }],

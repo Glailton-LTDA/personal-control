@@ -1,0 +1,10 @@
+{
+  "gl_accounts": "Cuentas vinculadas",
+  "gl_accounts_auto_hint": "El progreso usa la suma íntegra de los saldos de las cuentas seleccionadas. Los aportes manuales no están disponibles. Selecciona cuentas de la misma moneda.",
+  "gl_accounts_currency": "Selecciona cuentas de la misma moneda para este objetivo.",
+  "gl_account_unavailable": "Cuenta no disponible",
+  "gl_linked_accounts_hint": "Progreso automático de las cuentas: {{names}}",
+  "gl_deposit_linked_accounts_hint": "El progreso proviene de los saldos íntegros de {{names}}. Los aportes manuales no están disponibles.",
+  "gl_accounts_loading": "Cargando cuentas…",
+  "gl_accounts_load_error": "No se pudieron cargar las cuentas. Vuelve a abrir el formulario para reintentar."
+}

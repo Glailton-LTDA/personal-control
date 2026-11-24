@@ -1693,4 +1693,39 @@ test.describe('Minhas Finanças — E2E (Fase 9)', () => {
     });
   }
 
+  for (const width of [320, 768, 1440]) for (const theme of ['light', 'dark']) {
+    test(`multiple goal accounts sum full balances at ${width}px in ${theme}`, async ({page}) => {
+      await page.setViewportSize({width,height:1000});
+      await page.addInitScript(value => localStorage.setItem('personal-control-theme',value),theme);
+      page.mfStore.mf_accounts = [
+        {...SEED_ACCOUNT,id:'goal-account-a',name:'Conta A',initial_balance:5000,currency:'BRL'},
+        {...SEED_ACCOUNT,id:'goal-account-b',name:'Conta B',initial_balance:3000,currency:'BRL'},
+      ];
+      page.mfStore.mf_transactions = [];
+      await login(page);
+      await expect(page.getByTestId('launchpad-item-minhasfinancas')).toBeVisible();
+      await page.goto('/minhasfinancas/goals');
+      await page.getByTestId('mf-new-goal').click();
+      await page.getByTestId('mf-goal-name').fill('Reserva em duas contas');
+      await page.getByTestId('mf-goal-target-input').fill('1000000');
+      await page.getByRole('checkbox',{name:'Conta A (BRL)',exact:true}).check();
+      await page.getByRole('checkbox',{name:'Conta B (BRL)',exact:true}).check();
+      await expect(page.getByTestId('mf-goal-initial')).toBeDisabled();
+      await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      await page.getByTestId('mf-goal-save').click();
+      await expect(page.getByTestId('mf-goal-current')).toContainText('8.000,00');
+      await expect(page.getByTestId('mf-goal-pct')).toContainText('80');
+      await expect(page.locator('[data-testid^="mf-goal-deposit-"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid^="mf-goal-withdraw-"]')).toHaveCount(0);
+      await page.getByTestId('mf-goal-card').click();
+      await expect(page.getByTestId('mf-goal-detail-current')).toContainText('8.000,00');
+      await page.getByTestId('mf-goal-detail-tab-deposits').click();
+      await expect(page.getByTestId('mf-goal-detail-linked-hint')).toContainText('Conta A, Conta B');
+      await expect(page.getByTestId('mf-goal-detail-add')).toHaveCount(0);
+      await page.getByTestId('mf-goal-detail-tab-details').click();
+      await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      await page.screenshot({path:`test-results/multiple-goal-accounts-${width}-${theme}.png`,fullPage:true});
+    });
+  }
+
 });

@@ -165,6 +165,7 @@ for (const [name, table] of queries)
     state.server.tables[table] = [
       {
         id: "second",
+        user_id: "owner",
         name: "Zulu",
         sort_order: 2,
         created_at: "2026-01-01",
@@ -172,6 +173,7 @@ for (const [name, table] of queries)
       },
       {
         id: "first",
+        user_id: "owner",
         name: "Alpha",
         sort_order: 1,
         created_at: "2026-02-01",
@@ -206,6 +208,7 @@ it("clears other main responsibles before setting the requested main responsible
 const accountRows = [
   {
     id: "a",
+    user_id: "owner",
     profile_id: "personal",
     name: "Bank",
     type: "CONTA",
@@ -214,6 +217,7 @@ const accountRows = [
   },
   {
     id: "b",
+    user_id: "owner",
     profile_id: "business",
     name: "Company",
     type: "CONTA",
@@ -223,7 +227,7 @@ const accountRows = [
 ];
 const transactionRows = [
   {
-    id: "income",
+    id: "income", user_id: "owner",
     account_id: "a",
     payment_date: "2026-01-01",
     type: "RECEITA",
@@ -231,7 +235,7 @@ const transactionRows = [
     amount: 50,
   },
   {
-    id: "expense",
+    id: "expense", user_id: "owner",
     account_id: "a",
     payment_date: "2026-01-02",
     type: "DESPESA",
@@ -239,7 +243,7 @@ const transactionRows = [
     amount: 20,
   },
   {
-    id: "transfer",
+    id: "transfer", user_id: "owner",
     account_id: "a",
     transfer_account_id: "b",
     payment_date: "2026-01-03",
@@ -248,7 +252,7 @@ const transactionRows = [
     amount: 10,
   },
   {
-    id: "pending",
+    id: "pending", user_id: "owner",
     account_id: "b",
     payment_date: "2026-01-04",
     type: "DESPESA",
@@ -256,7 +260,7 @@ const transactionRows = [
     amount: 500,
   },
   {
-    id: "future",
+    id: "future", user_id: "owner",
     account_id: "a",
     payment_date: "2099-01-01",
     type: "DESPESA",
@@ -271,9 +275,9 @@ for (const profile of [null, "personal", "empty"])
       state.server.tables.mf_accounts = accountRows;
       const table = name === "useMFGoals" ? "mf_goals" : "mf_budgets";
       state.server.tables[table] = [
-        { id: "global", account_id: null },
-        { id: "mine", account_id: "a" },
-        { id: "other", account_id: "b" },
+        { id: "global", user_id: "owner", account_id: null },
+        { id: "mine", user_id: "owner", account_id: "a" },
+        { id: "other", user_id: "owner", account_id: "b" },
       ];
       expect(
         (await hooks[name]({ id: "owner" }).queryFn()).map((x) => x.id).sort(),
@@ -450,8 +454,8 @@ for (const [filters, ids] of [
       state.server.tables.mf_accounts = accountRows;
       state.server.tables.mf_transactions = ledger;
       state.server.tables.mf_transaction_tags = [
-        { transaction_id: "expense", tag_id: "food" },
-        { transaction_id: "expense", tag_id: "travel" },
+        { transaction_id: "expense", user_id: "owner", tag_id: "food" },
+        { transaction_id: "expense", user_id: "owner", tag_id: "travel" },
         { transaction_id: "outside", tag_id: "other" },
       ];
       const query = hooks.useMFLancamentos({ id: "owner" }, "2026-01", filters);
@@ -491,8 +495,8 @@ for (const profile of [null, "personal", "empty"])
       { id: "before", account_id: "a", payment_date: "2025-10-01" },
     ];
     state.server.tables.mf_transaction_tags = [
-      { transaction_id: "income", tag_id: "one" },
-      { transaction_id: "income", tag_id: "two" },
+      { transaction_id: "income", user_id: "owner", tag_id: "one" },
+      { transaction_id: "income", user_id: "owner", tag_id: "two" },
       { transaction_id: "before", tag_id: "old" },
     ];
     const result = await hooks.useMFBudgetWindow({ id: "owner" }, 2).queryFn();
@@ -539,4 +543,21 @@ it("keeps account-scoped transaction history restricted to source or destination
     .useMFAccountTransactions({ id: "owner" }, "b", null)
     .queryFn();
   expect(result.map((x) => x.id)).toEqual(["pending", "transfer"]);
+});
+it("includes a multi-account goal when any linked account belongs to the profile and sums all links", async () => {
+  state.profile = "business";
+  state.server.tables.mf_accounts = accountRows;
+  state.server.tables.mf_goals = [{ id: "multi", user_id: "owner", account_id: "a", account_ids: ["a", "b"] }];
+  state.server.tables.mf_transactions = transactionRows;
+  expect((await hooks.useMFGoals({ id: "owner" }).queryFn()).map(row => row.id)).toEqual(["multi"]);
+  expect(await hooks.useMFAccountBalances({ id: "owner" }, ["a", "b"]).queryFn()).toEqual({a:120,b:210});
+  expect((await hooks.useMFAccounts({ id: "owner" }, {allProfiles:true}).queryFn()).map(row => row.id)).toEqual(["a","b"]);
+});
+it("keeps balance arithmetic exact for cents and rejects unsafe totals", async () => {
+  state.server.tables.mf_accounts = [{id:"a",user_id:"owner",initial_balance:0.1}];
+  state.server.tables.mf_transactions = [{id:"cent-income",user_id:"owner",account_id:"a",type:"RECEITA",amount:0.2,status:"PAGO",payment_date:"2026-01-01"}];
+  expect(await hooks.useMFAccountBalances({id:"owner"},["a"]).queryFn()).toEqual({a:0.3});
+  state.server.tables.mf_accounts[0].initial_balance = 90071992547409;
+  state.server.tables.mf_transactions[0].amount = 100;
+  await expect(hooks.useMFAccountBalances({id:"owner"},["a"]).queryFn()).rejects.toThrow("mf_balance_out_of_range");
 });

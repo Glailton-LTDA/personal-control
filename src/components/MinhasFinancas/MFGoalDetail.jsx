@@ -1,3 +1,4 @@
+import { goalAccountIds as linkedGoalAccountIds } from '../../lib/goalAccounts';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -104,11 +105,13 @@ export default function MFGoalDetail({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const linkedAccount = goal?.account_id ? accountsById[goal.account_id] : null;
+  const linkedIds = linkedGoalAccountIds(goal);
+  const linkedAccount = linkedIds.map(id => accountsById[id]).find(Boolean);
+  const linkedNames = linkedIds.map(id => accountsById[id]?.name || t('minhasfinancas.gl_account_unavailable')).join(', ');
   const currency = linkedAccount?.currency || 'BRL';
   const money = (value) => (showValues ? formatMoney(value, currency) : '•••');
   const target = Number(goal?.target_amount) || 0;
-  const isLinked = Boolean(goal?.account_id);
+  const isLinked = linkedIds.length > 0;
   const current =
     balanceKnown && goal
       ? goalCurrentAmount(goal, contributions, balance)
@@ -517,7 +520,7 @@ export default function MFGoalDetail({
               )}
             </div>
 
-            {linkedAccount && (
+            {isLinked && (
               <p
                 style={{
                   margin: '0 0 0.6rem',
@@ -526,7 +529,7 @@ export default function MFGoalDetail({
                   lineHeight: 1.5,
                 }}
               >
-                🔄 {t('minhasfinancas.gl_linked_hint', { name: linkedAccount.name })}
+                🔄 {t('minhasfinancas.gl_linked_accounts_hint', { names: linkedNames })}
               </p>
             )}
 
@@ -571,7 +574,7 @@ export default function MFGoalDetail({
                   lineHeight: 1.55,
                 }}
               >
-                {t('minhasfinancas.gl_deposit_linked_hint', { name: linkedAccount?.name || '' })}
+                {t('minhasfinancas.gl_deposit_linked_accounts_hint', { names: linkedNames })}
               </p>
             ) : (
               <div
