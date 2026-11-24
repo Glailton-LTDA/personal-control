@@ -1,3 +1,6 @@
+import goalAccountsPt from './locales/goal-accounts-pt.json';
+import goalAccountsEn from './locales/goal-accounts-en.json';
+import goalAccountsEs from './locales/goal-accounts-es.json';
 import notificationsPt from './locales/notifications-pt.json';
 import notificationsEn from './locales/notifications-en.json';
 import notificationsEs from './locales/notifications-es.json';
@@ -103,6 +106,7 @@ i18n
             }
           },
           minhasfinancas: {
+            ...goalAccountsPt,
             title: 'Minhas Finanças',
             overview_desc: 'Visão geral do seu controle financeiro.',
             dash_customize: 'Personalizar painel',
@@ -2363,6 +2367,7 @@ i18n
             }
           },
           minhasfinancas: {
+            ...goalAccountsEn,
             title: 'My Finances',
             overview_desc: 'Overview of your financial control.',
             dash_customize: 'Customize dashboard',
@@ -4617,6 +4622,7 @@ i18n
             }
           },
           minhasfinancas: {
+            ...goalAccountsEs,
             title: 'Mis Finanzas',
             overview_desc: 'Resumen de su control financiero.',
             dash_customize: 'Personalizar panel',

@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-24
+
+### Adicionado
+- **Objetivos financeiros**: vínculo de várias contas da mesma moeda, somando seus saldos integrais na lista, nos detalhes e no Resumo. Objetivos sem contas continuam com aportes manuais.
+
+### Técnico
+- Migração preserva vínculos existentes, valida proprietário e moeda e bloqueia novos aportes manuais em objetivos vinculados. Restauração mantém vínculos e histórico; leituras paginadas com projeções explícitas e cálculos em centavos.
+
 ## [2.6.1] - 2026-11-23
 
 ### Melhorado

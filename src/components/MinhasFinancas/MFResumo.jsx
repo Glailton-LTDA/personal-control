@@ -1,3 +1,4 @@
+import { goalAccountIds as linkedGoalAccountIds, goalBalanceKnown, goalLinkedBalance } from '../../lib/goalAccounts';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
@@ -212,7 +213,7 @@ export default function MFResumo({
   // Saldos só das contas atreladas a objetivos (o resto não é usado aqui)
   // — evita baixar a tabela inteira de lançamentos a cada abertura.
   const goalAccountIds = useMemo(
-    () => allGoals.map((goal) => goal?.account_id).filter(Boolean),
+    () => [...new Set(allGoals.flatMap(linkedGoalAccountIds))],
     [allGoals]
   );
   const { data: goalBalances = {} } = useMFAccountBalances(user, goalAccountIds);
@@ -2510,14 +2511,15 @@ export default function MFResumo({
               {/* Lista com barra de progresso por objetivo (Fase E) */}
               {activeGoals.map((goal, index) => {
                 const balanceKnown =
-                  !goal.account_id || goalBalances[goal.account_id] !== undefined;
+                  goalBalanceKnown(goal, goalBalances);
                 // O saldo da conta atrelada chega depois dos objetivos (o
                 // recorte é menor) — enquanto isso, "…" em vez de um
                 // R$ 0,00 mentiroso.
                 const current = balanceKnown
-                  ? goalCurrentAmount(goal, allContributions, goalBalances[goal.account_id])
+                  ? goalCurrentAmount(goal, allContributions, goalLinkedBalance(goal, goalBalances))
                   : null;
                 const target = Number(goal.target_amount) || 0;
+                const goalCurrency = goal.currency || linkedGoalAccountIds(goal).map(id => accountsById[id]?.currency).find(Boolean) || 'BRL';
                 const pct =
                   current === null ? 0 : Math.min(100, Math.round((current / (target || 1)) * 100));
                 return (
@@ -2545,10 +2547,10 @@ export default function MFResumo({
                         {showValues
                           ? current === null
                             ? '…'
-                            : formatMoney(current, goal.currency)
+                            : formatMoney(current, goalCurrency)
                           : '•••'}{' '}
                         /{' '}
-                        {showValues ? formatMoney(target, goal.currency) : '•••'}
+                        {showValues ? formatMoney(target, goalCurrency) : '•••'}
                       </span>
                     </span>
                     <div style={{ height: 6, borderRadius: 999, background: 'var(--input-bg)', overflow: 'hidden' }}>

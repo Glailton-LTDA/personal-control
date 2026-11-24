@@ -15,6 +15,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key, params) => {
       if (params && params.pct != null) return `${key}:${params.pct}`;
+      if (params && params.names != null) return `${key}:${params.names}`;
       if (params && params.name != null) return `${key}:${params.name}`;
       return key;
     },
@@ -250,7 +251,7 @@ describe('MFGoalDetail', () => {
 
     fireEvent.click(screen.getByTestId('mf-goal-detail-tab-deposits'));
     expect(screen.getByTestId('mf-goal-detail-linked-hint')).toHaveTextContent(
-      'minhasfinancas.gl_deposit_linked_hint'
+      'minhasfinancas.gl_deposit_linked_accounts_hint'
     );
     expect(screen.queryByTestId('mf-goal-detail-add')).not.toBeInTheDocument();
   });
@@ -275,7 +276,7 @@ describe('MFGoalDetail', () => {
     expect(screen.getByTestId('mf-goal-detail-target')).toHaveTextContent('•••');
     expect(screen.getByTestId('mf-goal-detail-remaining')).toHaveTextContent('•••');
     expect(screen.getByTestId('mf-goal-detail-pct')).toHaveTextContent('50%');
-    expect(screen.getByText(/gl_linked_hint/)).toHaveTextContent('Nubank');
+    expect(screen.getByText(/gl_linked_accounts_hint/)).toHaveTextContent('Nubank');
 
     fireEvent.click(screen.getByTestId('mf-goal-detail-tab-deposits'));
     expect(screen.getByTestId('mf-goal-detail-linked-hint')).toHaveTextContent('Nubank');
