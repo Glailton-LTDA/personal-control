@@ -1,12 +1,14 @@
-# Cartões de doses e privacidade das notificações — 2.6.0
+# Cartões de doses e privacidade das notificações — 2.6.1
 
 ## Comportamento
 
 A lista de medicamentos mantém busca, filtros e paginação. Cada cartão apresenta nome, posologia, progresso de tratamentos finitos, término, última dose tomada, próxima dose e horários de hoje. O dia e os horários usam o fuso do tratamento. A lista e os indicadores são atualizados a cada minuto enquanto a tela está ativa e após as mutações.
 
-Os horários distinguem tomada, atrasada, agendada e omitida com texto e ícones, além de cor. Uma dose futura não pode ser registrada antecipadamente. Tocar numa dose disponível abre confirmação, exibindo medicamento, horário previsto e quantidade. Confirmar registra a tomada agora; para informar um horário diferente ou omitir a dose, os detalhes continuam oferecendo o formulário completo. Tocar numa dose tomada/omitida permite desfazer após confirmação. Não há escrita ao apenas abrir ou fechar o diálogo.
+Os mesmos cartões aparecem em Medicamentos e na seção de doses da aba Hoje, independentemente da existência de lembretes. Na aba Hoje, a consulta é paginada em tratamentos ativos, sem repetir os indicadores ou oferecer o filtro de tratamentos concluídos. Consultas/exames e controles de lembretes permanecem separados.
 
-Os comandos reutilizam `health_dose_record`, `health_dose_undo` e `health_treatment_state`: proprietário autenticado, versão esperada e ID idempotente. O ID e o horário real da tomada são preservados ao repetir uma confirmação que falhou; uma nova tentativa deliberada após fechar e reabrir cria outro comando. Conflitos não são sobrescritos silenciosamente. Encerrar preserva o histórico.
+Os horários distinguem tomada, atrasada, agendada e omitida com texto e ícones, além de cor. Uma dose futura não pode ser registrada antecipadamente. Um clique numa dose disponível registra a tomada agora; um clique numa dose tomada/omitida desfaz o registro. Não há diálogo de confirmação para essas ações. O estado reflete a resposta do servidor, com ações bloqueadas durante o envio e a atualização das consultas ativas; erros traduzidos aparecem no próprio cartão. O formulário completo nos detalhes continua disponível para editar horário/quantidade ou omitir uma dose. Encerrar o tratamento mantém sua confirmação específica.
+
+Os comandos reutilizam `health_dose_record`, `health_dose_undo` e `health_treatment_state`: proprietário autenticado, versão esperada e ID idempotente. O ID e o horário real da tomada são preservados ao repetir o clique após uma falha para o mesmo horário/estado/versão. Uma trava síncrona impede envios simultâneos do mesmo cartão. Um comando que falhou pode ser repetido com a mesma chave enquanto horário/estado/versão permanecerem iguais. Após sucesso confirmado pelo servidor, o comando é encerrado e um próximo clique recebe uma nova chave, inclusive se outro aparelho já tiver tomado e desfeito a mesma dose. Conflitos não são sobrescritos silenciosamente. Encerrar preserva o histórico.
 
 A edição carrega os detalhes completos **somente ao clicar** no ícone. Isso preserva notas, vínculos e demais campos sem trazê-los em todos os cartões ou salvar valores vazios por acidente. Os caches de consultas incluem usuário e são invalidados pelas mutações existentes.
 
@@ -23,6 +25,8 @@ Em **Ajustes → Notificações do aplicativo**, “Mostrar detalhes dos medicam
 O worker consulta a preferência pelo proprietário da linha reivindicada. Somente se `show_medication_details === true` carrega o nome filtrando **usuário e medicamento**, além da quantidade prevista e do fuso na revisão da agenda válida para o horário do lembrete. A revisão usa o índice existente por usuário/medicamento/início efetivo, com projeções explícitas e `LIMIT 1`, para evitar usar a quantidade atual num lembrete de uma dose anterior à edição. Erros de leitura e registros ausentes retornam ao texto genérico. A preferência é conferida novamente antes de cada lote de até quatro aparelhos; revogar a opção durante o processamento troca os próximos lotes para conteúdo genérico. Mensagens pt/en/es usam o idioma da inscrição e o fuso do medicamento; nomes/quantidades têm limite de tamanho no payload. Não há logs de dados médicos.
 
 ## Migration e consultas
+
+A atualização 2.6.1 altera somente o cliente: não adiciona migration nem muda o worker. A estrutura abaixo foi introduzida na versão 2.6.0 e continua sendo reutilizada.
 
 Aplicar a migration `20261123021950_medication_dose_cards_and_push_privacy.sql` antes de publicar o frontend e a função `health-reminders`. O workflow existente aplica migrations e publica as funções no fluxo de entrega. Nenhuma ação em produção foi executada durante o desenvolvimento.
 

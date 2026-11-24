@@ -338,7 +338,8 @@
     "dose_at_status": "{{time}} — {{status}}",
     "dose_card_hint": "Tap a time to record or undo a dose.",
     "confirm_dose_now": "Confirm that you took this dose now?",
-    "dose_overdue": "Overdue"
+    "dose_overdue": "Overdue",
+    "today_reminders": "Today's reminders"
   },
   "nav": {
     "health": "Medical guide",

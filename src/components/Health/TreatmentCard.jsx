@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Check, Clock, Edit, Pill } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -31,6 +31,8 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
   const state = useTreatmentState(userId);
   const [action, setAction] = useState(null);
   const [error, setError] = useState("");
+  const doseFlight = useRef(false);
+  const doseCommand = useRef(null);
   const editQuery = useTreatmentDetail(
     userId,
     record.id,
@@ -79,19 +81,34 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
       takenAt: new Date().toISOString(),
     });
   };
-  const submit = async () => {
-    if (busy) return;
+  const toggleDose = async (slot) => {
+    if (
+      busy ||
+      doseFlight.current ||
+      record.status === "finished" ||
+      slot.status === "canceled" ||
+      new Date(slot.scheduled_at).getTime() > Date.now()
+    )
+      return;
+    doseFlight.current = true;
     setError("");
+    const undoing = ["taken", "skipped"].includes(slot.status);
+    const key = JSON.stringify([
+      slot.scheduled_at,
+      slot.status,
+      slot.record_version,
+      slot.planned_amount,
+    ]);
+    if (doseCommand.current?.key !== key) {
+      doseCommand.current = {
+        key,
+        requestId: crypto.randomUUID(),
+        takenAt: new Date().toISOString(),
+      };
+    }
+    const { requestId, takenAt } = doseCommand.current;
     try {
-      const { kind, slot, requestId } = action;
-      if (kind === "finish") {
-        await state.mutateAsync({
-          medicationId: record.id,
-          action: "finish",
-          requestId,
-          options: { expectedVersion: record.row_version },
-        });
-      } else if (kind === "undo") {
+      if (undoing) {
         await undo.mutateAsync({
           medicationId: record.id,
           scheduledAt: slot.scheduled_at,
@@ -106,11 +123,30 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
           requestId,
           options: {
             expectedVersion: slot.record_version || 0,
-            takenAt: action.takenAt,
+            takenAt,
             amount: slot.planned_amount || record.dose,
           },
         });
       }
+      // Acknowledged actions are complete. A later click is a new intent,
+      // even if another device has already taken and undone this same slot.
+      doseCommand.current = null;
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      doseFlight.current = false;
+    }
+  };
+  const submit = async () => {
+    if (busy) return;
+    setError("");
+    try {
+      await state.mutateAsync({
+        medicationId: record.id,
+        action: "finish",
+        requestId: action.requestId,
+        options: { expectedVersion: record.row_version },
+      });
       setAction(null);
     } catch (err) {
       setError(err.message);
@@ -195,14 +231,8 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
                   time: time(slot.scheduled_at),
                   status: label,
                 })}
-                onClick={() =>
-                  open(
-                    ["taken", "skipped"].includes(slot.status)
-                      ? "undo"
-                      : "take",
-                    slot,
-                  )
-                }
+                aria-pressed={slot.status === "taken"}
+                onClick={() => toggleDose(slot)}
               >
                 <span>
                   {slot.status === "taken" ? (
@@ -221,6 +251,11 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
         <p className="health-muted">{t("health.treatment_no_slots")}</p>
       )}
       <p className="health-muted">{t("health.dose_card_hint")}</p>
+      {error && !action && (
+        <p role="alert" className="health-error">
+          {t(`health.${error}`, { defaultValue: t("health.error") })}
+        </p>
+      )}
       <footer className="health-actions health-dose-card-footer">
         <button className="btn-secondary" onClick={() => view()}>
           {t("health.view_treatment")}
@@ -247,35 +282,15 @@ export default function TreatmentCard({ record, userId, navigate, onForm }) {
           )}
         </HealthModal>
       )}
-      {action && action.kind !== "edit" && (
+      {action?.kind === "finish" && (
         <HealthModal
-          title={t(
-            action.kind === "finish"
-              ? "health.treatment_finish"
-              : action.kind === "undo"
-                ? "health.treatment_undo_dose"
-                : "health.treatment_record_dose",
-          )}
+          title={t("health.treatment_finish")}
           onClose={() => !busy && setAction(null)}
         >
           <p>
             <strong>{record.name}</strong>
           </p>
-          {action.slot && (
-            <p>
-              {time(action.slot.scheduled_at)} ·{" "}
-              {action.slot.planned_amount || record.dose}
-            </p>
-          )}
-          <p>
-            {t(
-              action.kind === "finish"
-                ? "health.finish_impact"
-                : action.kind === "undo"
-                  ? "health.confirm_undo_dose"
-                  : "health.confirm_dose_now",
-            )}
-          </p>
+          <p>{t("health.finish_impact")}</p>
           {error && (
             <p role="alert" className="health-error">
               {t(`health.${error}`, { defaultValue: t("health.error") })}
