@@ -338,7 +338,8 @@
     "dose_at_status": "{{time}} — {{status}}",
     "dose_card_hint": "Toque no horário para registrar ou desfazer uma dose.",
     "confirm_dose_now": "Confirmar que você tomou esta dose agora?",
-    "dose_overdue": "Atrasada"
+    "dose_overdue": "Atrasada",
+    "today_reminders": "Lembretes de hoje"
   },
   "nav": {
     "health": "Guia médico",

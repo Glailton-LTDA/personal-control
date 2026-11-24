@@ -311,9 +311,13 @@ function Today({ userId, navigate, onForm, refresh }) {
           {t('health.new_dose')}
         </button>
       </div>
+      <section className="health-section" aria-label={t('health.today_doses')}>
+        <h2>{t('health.today_doses')}</h2>
+        <TreatmentList userId={userId} navigate={navigate} onForm={onForm} overview={false} />
+      </section>
       <div className="health-dashboard-grid">
         <section className="glass-card health-card health-section">
-          <h2>{t('health.doses_today')}</h2>
+          <h2>{t('health.today_reminders')}</h2>
           <p className="health-muted">{t('health.snooze_hint')}</p>
           {sync.isLoading || query.isLoading ? (
             <HealthLoading />
@@ -361,30 +365,9 @@ function Today({ userId, navigate, onForm, refresh }) {
                       <HealthDate value={reminder.remind_at} />
                     </p>
                     <div className="health-actions">
-                      {kind === 'medications' ? (
-                        <button
-                          className="btn-primary"
-                          onClick={() =>
-                            onForm({
-                              kind: 'doses',
-                              initial: {
-                                medication_id: id,
-                                scheduled_at: reminder.scheduled_at,
-                                amount: reminder.medication?.dose || '',
-                              },
-                            })
-                          }
-                        >
-                          {t('health.record_dose')}
-                        </button>
-                      ) : (
-                        <button
-                          className="btn-secondary"
-                          onClick={() => navigate(`health/${kind}/${id}`)}
-                        >
-                          {t('health.view')}
-                        </button>
-                      )}
+                      <button className="btn-secondary" onClick={() => navigate(`health/${kind}/${id}`)}>
+                        {t('health.view')}
+                      </button>
                       <button
                         className="btn-secondary"
                         disabled={busy}
@@ -435,12 +418,6 @@ function Today({ userId, navigate, onForm, refresh }) {
           </button>
         </section>
       </div>
-      <DoseList
-        userId={userId}
-        onEdit={onForm}
-        after={start.toISOString()}
-        before={end.toISOString()}
-      />
       <div className="health-dashboard-grid">
         <RecordList
           userId={userId}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   treatmentKeys,
@@ -271,4 +271,19 @@ it('reuses one request ID after a lost response and does not treat a domain erro
   expect(treatmentsModule.saveTreatment.mock.calls[0][2]).toBe(treatmentsModule.saveTreatment.mock.calls[1][2]);
   treatmentsModule.saveTreatment.mockResolvedValue({error:'version_conflict'});
   await act(async()=>{await expect(result.current.mutateAsync({name:'Synthetic'})).rejects.toThrow('version_conflict');});
+});
+
+it('keeps the dose action pending until active views finish refreshing', async () => {
+  treatmentsModule.recordDose.mockResolvedValue({ data: { status: 'taken' }, error: null });
+  const client = new QueryClient();
+  let release;
+  const refresh = new Promise(resolve => { release = resolve; });
+  const invalidate = vi.spyOn(client, 'invalidateQueries').mockReturnValue(refresh);
+  const { result } = renderHook(() => useRecordDose(OWNER), { wrapper: wrapperFactory(client) });
+  let command;
+  act(() => { command = result.current.mutateAsync({ medicationId: 'm1', scheduledAt: '2027-03-15T10:00:00Z', status: 'taken' }); });
+  await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(2));
+  expect(result.current.isPending).toBe(true);
+  await act(async () => { release(); await command; });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
 });

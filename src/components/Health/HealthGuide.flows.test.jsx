@@ -376,10 +376,9 @@ for (const failure of [false, true])
         scheduled_at: "2026-01-01T10:00:00Z",
       },
     ];
-    open();
-    fireEvent.click(screen.getByText("health.record_dose"));
-    expect(screen.getByRole("dialog")).toHaveTextContent("medication_id");
-    fireEvent.click(screen.getByText("Close form"));
+    const { navigate } = open();
+    fireEvent.click(screen.getByText("health.view"));
+    expect(navigate).toHaveBeenCalledWith("health/medications/med");
     if (failure) state.snooze.mockRejectedValueOnce(new Error("synthetic"));
     fireEvent.click(screen.getByText("health.snooze"));
     await waitFor(() =>
