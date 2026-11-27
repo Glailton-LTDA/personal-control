@@ -282,7 +282,7 @@ it('keeps the dose action pending until active views finish refreshing', async (
   const { result } = renderHook(() => useRecordDose(OWNER), { wrapper: wrapperFactory(client) });
   let command;
   act(() => { command = result.current.mutateAsync({ medicationId: 'm1', scheduledAt: '2027-03-15T10:00:00Z', status: 'taken' }); });
-  await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(3));
   expect(result.current.isPending).toBe(true);
   await act(async () => { release(); await command; });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));

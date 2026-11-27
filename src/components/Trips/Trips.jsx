@@ -11,7 +11,7 @@ import TripsStats from './TripsStats';
 import { Plus, TrendingUp, DollarSign } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 
-export default function Trips({ user, refreshKey, mode, showValues }) {
+export default function Trips({ user, refreshKey, mode, showValues, initialTripId = null }) {
   const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
@@ -147,7 +147,7 @@ export default function Trips({ user, refreshKey, mode, showValues }) {
     return (
       <TripsItinerary 
         user={user} 
-        initialTripId={selectedTrip?.id} 
+        initialTripId={initialTripId || selectedTrip?.id}
         onBack={() => {
           window.dispatchEvent(new CustomEvent('set-active-tab', { detail: { tab: 'trips/list' } }));
           setCurrentView('main');

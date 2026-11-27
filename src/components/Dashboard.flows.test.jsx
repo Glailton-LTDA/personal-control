@@ -1,6 +1,7 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 import {
-  render,
+  render as testingRender,
   screen,
   fireEvent,
   cleanup,
@@ -110,6 +111,8 @@ vi.mock("./Launchpad", () => ({
     </div>
   ),
 }));
+vi.mock('./MyDay/MyDay', () => ({ default: () => <output data-testid="module">My day</output> }));
+function render(ui) { return testingRender(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>); }
 const user = { id: "owner", email: "owner@example.test" };
 beforeEach(() => {
   localStorage.clear();
@@ -122,6 +125,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 for (const [path, text] of [
+  ["myday", "My day"],
   ["finances/dashboard", "Finance summary"],
   ["finances/transactions", "Finance list"],
   ["finances/settings", "Finance settings"],
@@ -139,10 +143,10 @@ for (const [path, text] of [
   ["minhasfinancas/accounts", "My finances accounts"],
   ["health/exams/exam", "Health exams:exam"],
 ])
-  it(`routes ${path} to its existing module`, () => {
+  it(`routes ${path} to its existing module`, async () => {
     state.path = path;
     render(<Dashboard user={user} />);
-    expect(screen.getByTestId("module")).toHaveTextContent(text);
+    expect(await screen.findByTestId("module")).toHaveTextContent(text);
   });
 for (const width of [390, 800, 1280])
   it(`uses navigation and preferences at viewport ${width}`, () => {
