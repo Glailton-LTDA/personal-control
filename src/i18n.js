@@ -1,6 +1,9 @@
 import goalAccountsPt from './locales/goal-accounts-pt.json';
 import goalAccountsEn from './locales/goal-accounts-en.json';
 import goalAccountsEs from './locales/goal-accounts-es.json';
+import myDayPt from './locales/my-day-pt.json';
+import myDayEn from './locales/my-day-en.json';
+import myDayEs from './locales/my-day-es.json';
 import notificationsPt from './locales/notifications-pt.json';
 import notificationsEn from './locales/notifications-en.json';
 import notificationsEs from './locales/notifications-es.json';
@@ -6730,6 +6733,10 @@ for (const [language, resource] of Object.entries({ pt: notificationsPt, en: not
 }
 
 for (const [language, resource] of Object.entries({ pt: pushPt, en: pushEn, es: pushEs })) {
+  i18n.addResourceBundle(language, 'translation', resource, true, true);
+}
+
+for (const [language, resource] of Object.entries({ pt: myDayPt, en: myDayEn, es: myDayEs })) {
   i18n.addResourceBundle(language, 'translation', resource, true, true);
 }
 

@@ -126,6 +126,7 @@ export function useTreatmentHistory(
 function useTreatmentMutation(userId, write) {
   const client = useQueryClient();
   const mutation = useMutation({
+    meta: { refreshesMyDay: true },
     mutationFn: (command) => checked(write(command)),
     onMutate: () => client.cancelQueries({ queryKey: treatmentKeys.all(userId) }),
     // Keep actions pending until active views have the acknowledged state.
@@ -133,6 +134,7 @@ function useTreatmentMutation(userId, write) {
     onSuccess: () => Promise.all([
       client.invalidateQueries({ queryKey: ["health", userId] }),
       client.invalidateQueries({ queryKey: treatmentKeys.all(userId) }),
+      client.invalidateQueries({ queryKey: ["my-day", userId] }),
     ]),
     retry: (count, error) =>
       count < 1 &&

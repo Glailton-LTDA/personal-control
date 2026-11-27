@@ -4,6 +4,14 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-27
+
+### Adicionado
+- **Meu dia (PC-001)**: prévia de doses, consultas, exames, vencimentos, roteiros e próximas viagens, com registro de dose em um clique, atalhos e layouts para celular, tablet e desktop.
+
+### Técnico
+- Uma RPC somente de leitura, autenticada e filtrada por proprietário, com projeções explícitas e limites por categoria. Cache de cinco minutos, sem polling de dados ou chamadas por cartão; índices para vencimentos e viagens. Traduções pt/en/es e testes de isolamento e consumo de chamadas.
+
 ## [2.7.0] - 2026-11-24
 
 ### Adicionado

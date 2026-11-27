@@ -35,8 +35,8 @@ vi.mock('./TripsList', () => ({
 }));
 
 vi.mock('./TripsItinerary', () => ({
-  default: ({ onBack }) => (
-    <div data-testid="trips-itinerary">
+  default: ({ onBack, initialTripId }) => (
+    <div data-testid="trips-itinerary" data-trip-id={initialTripId}>
       <button onClick={onBack}>Back to List</button>
     </div>
   )
@@ -125,4 +125,9 @@ describe('Trips Component', () => {
     
     expect(await screen.findByTestId('trips-list')).toBeInTheDocument();
   });
+});
+
+it('preserves the trip selected by a Meu dia deep link', async () => {
+  render(<Trips user={{id:'owner'}} mode="itinerary" initialTripId="trip-from-day" />, {wrapper:Wrapper});
+  expect(await screen.findByTestId('trips-itinerary')).toHaveAttribute('data-trip-id','trip-from-day');
 });

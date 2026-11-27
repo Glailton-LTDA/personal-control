@@ -60,6 +60,8 @@ import MarkdownNotes from './CustomLists/MarkdownNotes';
 import Music from './Music/Music';
 import MinhasFinancas from './MinhasFinancas/MinhasFinancas';
 import Launchpad from './Launchpad';
+import MyDay from './MyDay/MyDay';
+import { useMyDayInvalidation } from '../hooks/useMyDay';
 import HealthGuide from './Health/HealthGuide';
 import NotificationCenter from './Notifications/NotificationCenter';
 import Footer from './Footer';
@@ -67,6 +69,7 @@ import { useRouter, parsePath } from '../hooks/useRouter';
 
 const defaultMenuItems = [
   { id: 'launchpad', icon: LayoutGrid, key: 'launchpad' },
+  { id: 'myday', icon: Calendar, key: 'myday' },
   { id: 'finances', icon: Coins, key: 'finances' },
   { id: 'minhasfinancas', icon: Wallet, key: 'minhasfinancas' },
   { id: 'cars', icon: Car, key: 'cars' },
@@ -144,6 +147,7 @@ const getModuleInitialTab = (id) => {
 
 export default function Dashboard({ user }) {
   const { t } = useTranslation();
+  useMyDayInvalidation(user?.id);
   const { currentPath: activeTab, navigate: routerNavigate } = useRouter('launchpad');
   const activeRoute = parsePath(activeTab);
   const { screen: mfScreen, params: mfParams } = activeRoute.module === 'minhasfinancas'
@@ -154,6 +158,7 @@ export default function Dashboard({ user }) {
   const mfChartId = mfParams.chart ?? null;
   const mfChartGrouping = mfParams.grouping ?? null;
   const mfChartCategory = mfParams.category ?? null;
+  const [menuReady, setMenuReady] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -181,7 +186,7 @@ export default function Dashboard({ user }) {
     if (!saved) return defaultMenuItems.map(i => i.id);
     const visible = JSON.parse(saved);
     const priorOrder = JSON.parse(localStorage.getItem('personal-control-menu-order') || '[]');
-    return priorOrder.includes('health') ? visible : [...new Set([...visible, 'health'])];
+    return [...new Set([...visible, ...(!priorOrder.includes('health') ? ['health'] : []), ...(!priorOrder.includes('myday') ? ['myday'] : [])])];
   });
   const [menuOrder, setMenuOrder] = useState(() => {
     const saved = localStorage.getItem('personal-control-menu-order');
@@ -265,33 +270,40 @@ export default function Dashboard({ user }) {
   }, [theme]);
 
   const fetchMenuOrder = useCallback(async () => {
-    const { data } = await supabase
-      .from('notification_settings')
-      .select('menu_order, visible_modules')
-      .maybeSingle();
+    try {
+      const { data } = await supabase
+        .from('notification_settings')
+        .select('menu_order, visible_modules')
+        .maybeSingle();
 
-    if (data?.menu_order) {
-      // Ensure new items in defaultMenuItems are added even to data from Supabase
-      const currentIds = defaultMenuItems.map(i => i.id);
-      const mergedOrder = [...data.menu_order];
+      if (data?.menu_order) {
+        // Ensure new items in defaultMenuItems are added even to data from Supabase
+        const currentIds = defaultMenuItems.map(i => i.id);
+        const mergedOrder = [...data.menu_order];
 
-      currentIds.forEach(id => {
-        if (!mergedOrder.includes(id)) {
-          mergedOrder.push(id);
-        }
-      });
+        currentIds.forEach(id => {
+          if (!mergedOrder.includes(id)) {
+            mergedOrder.push(id);
+          }
+        });
 
-      // Filter out invalid IDs
-      const finalOrder = mergedOrder.filter(id => currentIds.includes(id));
-      setMenuOrder(finalOrder);
-    }
+        // Filter out invalid IDs
+        const finalOrder = mergedOrder.filter(id => currentIds.includes(id));
+        setMenuOrder(finalOrder);
+      }
 
-    if (data?.visible_modules) {
-      const currentVisible = new Set(data.visible_modules);
-      currentVisible.add('launchpad');
-      currentVisible.add('settings');
-      if (!data.menu_order?.includes('health')) currentVisible.add('health');
-      setVisibleModules(Array.from(currentVisible));
+      if (data?.visible_modules) {
+        const currentVisible = new Set(data.visible_modules);
+        currentVisible.add('launchpad');
+        currentVisible.add('settings');
+        if (!data.menu_order?.includes('health')) currentVisible.add('health');
+        if (!data.menu_order?.includes('myday')) currentVisible.add('myday');
+        setVisibleModules(Array.from(currentVisible));
+      }
+    } catch {
+      // Preserve cached preferences when the settings request fails.
+    } finally {
+      setMenuReady(true);
     }
   }, []);
 
@@ -582,7 +594,8 @@ export default function Dashboard({ user }) {
             flexShrink: 0
           }}>
             <span data-testid="sub-header-title-text">
-              {activeTab.startsWith('finances') ? t('nav.finances') :
+              {activeTab.startsWith('myday') ? t('nav.myday') :
+                activeTab.startsWith('finances') ? t('nav.finances') :
                 activeTab.startsWith('minhasfinancas') ? t('nav.minhasfinancas') :
                 activeTab.startsWith('cars') ? t('nav.cars') :
                 activeTab.startsWith('investments') ? t('nav.investments') :
@@ -672,6 +685,7 @@ export default function Dashboard({ user }) {
                   />
                 )}
                 {activeRoute.module === 'finances' && activeRoute.screen === 'settings' && <FinanceSettings user={user} refreshKey={refreshKey} showValues={showValues} />}
+                {activeRoute.module === 'myday' && (menuReady ? <MyDay user={user} navigate={navigate} showValues={showValues} visibleModules={visibleModules} /> : <p role="status">{t('myDay.loading')}</p>)}
                 {activeTab === 'launchpad' && (
                   <Launchpad
                     user={user}
@@ -713,6 +727,7 @@ export default function Dashboard({ user }) {
                     user={user}
                     refreshKey={refreshKey}
                     mode={parsePath(activeTab).screen ?? 'list'}
+                    initialTripId={activeRoute.params.id}
                     showValues={showValues}
                   />
                 )}
@@ -753,7 +768,8 @@ export default function Dashboard({ user }) {
                 )}
 
                 {/* Fallback for development */}
-                {activeRoute.module !== 'finances' &&
+                {activeRoute.module !== 'myday' &&
+                  activeRoute.module !== 'finances' &&
                   activeRoute.module !== 'settings' &&
                   activeTab !== 'launchpad' &&
                   activeRoute.module !== 'cars' &&

@@ -1,5 +1,6 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render as testingRender, act } from '@testing-library/react';
 import Dashboard from './Dashboard';
 import { Coins } from 'lucide-react';
 import React from 'react';
@@ -53,6 +54,7 @@ vi.mock('lucide-react', () => {
   const mockIcon = (name) => ({ ...props }) => <div data-testid={`icon-${name}`} {...props} />;
   return {
     Coins: mockIcon('coins'),
+    CalendarDays: mockIcon('calendar-days'),
     HeartPulse: mockIcon('heart-pulse'),
     TrendingUp: mockIcon('trending-up'),
     Plane: mockIcon('plane'),
@@ -104,6 +106,9 @@ vi.mock('lucide-react', () => {
     MessageCircle: mockIcon('message-circle')
   };
 });
+
+function render(ui) { return testingRender(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>); }
+vi.mock('./MyDay/MyDay', () => ({ default: () => null }));
 
 // Mock sub-components
 vi.mock('./Health/HealthGuide', () => ({ default: () => <div data-testid="health-guide" /> }));

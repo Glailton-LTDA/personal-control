@@ -151,6 +151,10 @@ jobs:
         run: |
           createdb mf_goal_accounts_test
           python scripts/test-mf-goal-accounts.py --database mf_goal_accounts_test
+      - name: My day owner isolation, migration and bounded query plans
+        run: |
+          createdb my_day_test
+          python scripts/test-my-day-database.py --database my_day_test
       - name: Apply fixtures, migrations and security assertions
         shell: bash
         run: |
