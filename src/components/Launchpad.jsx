@@ -12,11 +12,13 @@ import {
   Coins,
   Music,
   Wallet,
-  HeartPulse
+  HeartPulse,
+  CalendarDays
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const moduleData = {
+  myday: { color: '#6366f1', icon: CalendarDays },
   finances: { color: '#6366f1', icon: Coins },
   minhasfinancas: { color: '#06b6d4', icon: Wallet },
   cars: { color: '#3b82f6', icon: Car },
