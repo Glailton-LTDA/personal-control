@@ -4,6 +4,15 @@ Este arquivo registra todas as alterações notáveis feitas no projeto **Person
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-28
+
+### Corrigido
+- **Responsividade (PC-002)**: nomes longos de viagens, abas de veículos e investimentos, datas do roteiro e campos de serviços passam a se adaptar à largura disponível.
+- Formulários de veículos e registros de investimentos com campos legíveis, rolagem vertical e ações acessíveis em telas baixas. Formulário de viagens com contraste no tema claro e ações acima da navegação móvel.
+
+### Técnico
+- Regressões de navegador para celular, tablet e desktop nos temas claro e escuro, incluindo Chromium e WebKit no CI. Sem alterações em consultas, autenticação ou banco de dados.
+
 ## [2.8.0] - 2026-11-27
 
 ### Adicionado

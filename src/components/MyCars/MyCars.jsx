@@ -457,7 +457,7 @@ export default function MyCars({ user, refreshKey, mode = 'list' }) {
       {selectedCar ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
-          <div className="glass-card" style={{ padding: '0.5rem', marginBottom: '2.5rem', display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          <div className="glass-card car-section-tabs" style={{ padding: '0.5rem', marginBottom: '2.5rem', display: 'flex', gap: '0.5rem' }}>
             {[
               { id: 'summary', label: t('cars.tabs.summary'), icon: LayoutDashboard },
               { id: 'revision', label: t('cars.tabs.revisions'), icon: Wrench },

@@ -140,7 +140,7 @@ export default function ServiceTemplatesManager({ user }) {
 
       <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem' }}>
         <h4 style={{ fontSize: '0.9rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-main)' }}>{t('cars.new_custom_milestone', 'Novo Milestone Personalizado')}</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+        <div className="form-grid" style={{ marginBottom: '1rem' }}>
           <div className="input-group" style={{ marginBottom: 0 }}>
             <label>{t('cars.service_description', 'Descrição do Serviço')}</label>
             <input
@@ -163,7 +163,7 @@ export default function ServiceTemplatesManager({ user }) {
           </div>
         </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+        <div className="service-template-actions" style={{ gap: '1rem', alignItems: 'end' }}>
           <div className="input-group" style={{ marginBottom: 0 }}>
             <label>{t('cars.interval_km', 'Recorrência (KM)')}</label>
             <input

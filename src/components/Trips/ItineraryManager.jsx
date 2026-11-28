@@ -459,10 +459,8 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <div className="custom-scrollbar" style={{ 
-        display: 'flex', 
+      <div className="custom-scrollbar itinerary-days" style={{
         gap: '0.85rem', 
-        overflowX: 'auto', 
         padding: '0.5rem 0.2rem 1.25rem',
         width: '100%',
         boxSizing: 'border-box'
@@ -482,7 +480,7 @@ export default function ItineraryManager({ trip, items, onItemsChange, onAddToTi
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              minWidth: '85px',
+              minWidth: 0,
               transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               fontWeight: activeDay === day ? '900' : '700',
               boxShadow: activeDay === day ? '0 10px 20px -5px rgba(99, 102, 241, 0.3)' : 'none',
