@@ -137,7 +137,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
         background: 'var(--card-action-bg)', 
         borderRadius: '16px', 
         border: '1px solid var(--glass-border)',
-        overflowX: isMobile ? 'auto' : 'visible',
+        flexWrap: 'wrap',
         WebkitOverflowScrolling: 'touch',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none'
@@ -147,8 +147,9 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
-              flex: isMobile ? '0 0 auto' : 1,
-              minWidth: isMobile ? '120px' : 'auto',
+              flex: '1 1 140px',
+              minWidth: 0,
+              minHeight: '44px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -164,7 +165,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               transform: activeTab === tab ? 'translateY(-2px)' : 'none',
               fontWeight: activeTab === tab ? '700' : '600',
               fontSize: '0.9rem',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'normal'
             }}
           >
             {tabIcons[tab]}
@@ -210,7 +211,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               </button>
             </div>
 
-            <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+            <div className="responsive-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '1.5rem' }}>
               {trips.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>{t('trips.no_trips')}</div>}
               {trips.map(trip => (
                 <div key={trip.id} className="glass-card item-card" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1px solid var(--glass-border)', transition: 'transform 0.2s', borderRadius: '20px' }}>
@@ -346,7 +347,7 @@ export default function TripsSettings({ user, refreshKey, onEditTrip, onAddTrip,
               </button>
             </div>
 
-            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
               {categories.length === 0 && <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>{t('trips.no_categories')}</div>}
               {categories.map(cat => (
                 <div key={cat.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>

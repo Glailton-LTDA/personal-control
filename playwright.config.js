@@ -39,7 +39,7 @@ export default defineConfig({
     },
     {
       name: 'iphone-webkit',
-      testMatch: '**/trips_checklists.spec.js',
+      testMatch: ['**/trips_checklists.spec.js', '**/responsive.spec.js'],
       use: { ...devices['iPhone 13'], browserName: 'webkit', launchOptions: {} },
     },
   ],

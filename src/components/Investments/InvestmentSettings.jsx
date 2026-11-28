@@ -195,7 +195,7 @@ export default function InvestmentSettings({ user }) {
   }, [accounts]);
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '5rem' }}>
+    <div className="investment-settings" style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '5rem' }}>
       <div style={{ marginBottom: '2.5rem' }}>
         <h3 style={{ fontSize: '1.75rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.75rem', letterSpacing: '-0.02em' }}>
           <Palette size={28} color="var(--primary)" /> {t('investments.settings_title')}
@@ -203,7 +203,7 @@ export default function InvestmentSettings({ user }) {
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.5rem', fontWeight: 500 }}>{t('investments.settings_desc')}</p>
       </div>
 
-      <div className="tabs-container" style={{ marginBottom: '2rem' }}>
+      <div className="tabs-container investment-settings-tabs" style={{ marginBottom: '2rem' }}>
         <button className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`} onClick={() => setActiveTab('accounts')}>
           <CreditCard size={18} /> {t('investments.accounts_tab')}
         </button>
@@ -222,14 +222,15 @@ export default function InvestmentSettings({ user }) {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="glass-card" 
+              className="modal-content glass-card investment-settings-modal"
+              role="dialog" aria-modal="true" aria-labelledby="investment-settings-form-title"
               style={{ padding: '2rem', width: '100%', maxWidth: '600px', border: '2px solid var(--primary)', position: 'relative' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>
+                <h3 id="investment-settings-form-title" style={{ fontSize: '1.5rem', fontWeight: 700 }}>
                   {t(editingId ? 'investments.edit_' + (activeTab === 'accounts' ? 'account' : activeTab === 'institutions' ? 'institution' : 'type') : 'investments.new_' + (activeTab === 'accounts' ? 'account' : activeTab === 'institutions' ? 'institution' : 'type'))}
                 </h3>
-                <button onClick={resetForms} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
+                <button type="button" aria-label={t('common.close')} onClick={resetForms} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
               </div>
 
               {activeTab === 'accounts' && (
@@ -257,7 +258,7 @@ export default function InvestmentSettings({ user }) {
                       <label>{t('investments.chart_color')}</label>
                       <input type="color" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} style={{ height: '45px', padding: '4px' }} />
                     </div>
-                    <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                    <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                       <label>{t('investments.account_currency')}</label>
                       <CurrencySelector 
                         selectedCurrencies={formData.currency ? [formData.currency] : ['BRL']} 
@@ -311,7 +312,7 @@ export default function InvestmentSettings({ user }) {
         key={activeTab}
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '1.25rem' }}
       >
         {loading ? (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem' }}>{t('investments.loading')}</div>
@@ -321,7 +322,7 @@ export default function InvestmentSettings({ user }) {
               accounts.length === 0 ? <p style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>{t('investments.no_accounts')}</p> :
               groupedAccounts.map(group => (
                 <div key={group.name} style={{ gridColumn: '1/-1', marginBottom: '2rem' }}>
-                  <div style={{ 
+                  <div className="investment-institution-heading" style={{
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: '1rem', 
@@ -341,7 +342,7 @@ export default function InvestmentSettings({ user }) {
                     </span>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '1.25rem' }}>
                     {group.items.map(acc => (
                       <div key={acc.id} className="glass-card" style={{ 
                         padding: '1.5rem', 
@@ -349,8 +350,8 @@ export default function InvestmentSettings({ user }) {
                         background: `linear-gradient(135deg, var(--bg-card), color-mix(in srgb, ${acc.color} 5%, transparent))`,
                         borderTop: `4px solid ${acc.color}`
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ flex: 1 }}>
+                        <div className="investment-account-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                             <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
                               {acc.type?.name || t('investments.without_type')}
                             </p>

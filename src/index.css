@@ -364,9 +364,11 @@ body {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
+
+.form-grid > * { min-width: 0; }
 
 @media (max-width: 600px) {
   .form-grid {
@@ -4525,3 +4527,199 @@ select.glass-input {
 }
 
 [data-theme='light'] .mf-accounts-subgroup { --success: #047857; --danger: #b91c1c; }
+
+/* PC-002: selected trip names and actions must fit the content column. */
+.trip-selector-wrapper,
+.trip-selector-text {
+  min-width: 0;
+}
+.trip-selector-info {
+  min-width: 0;
+  flex: 1;
+}
+.trip-selector-icon,
+.trip-selector-chevron {
+  flex-shrink: 0;
+}
+.trip-selector-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Keep every local tab available without horizontal scrolling. */
+.car-section-tabs {
+  flex-wrap: wrap;
+}
+.car-section-tabs .tab-btn {
+  flex: 1 1 110px;
+  min-width: 0;
+  white-space: normal;
+  min-height: 44px;
+}
+.service-template-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.service-template-actions > * {
+  min-width: 0;
+}
+.itinerary-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 85px), 1fr));
+}
+.itinerary-days button {
+  min-width: 0;
+  min-height: 44px;
+}
+
+/* A monetary record can be taller than a phone or the visible keyboard area. */
+.investment-record-modal {
+  min-width: 0;
+}
+.investment-record-header {
+  padding: 2rem 2.5rem;
+  gap: 1rem;
+}
+.investment-record-header > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.investment-record-header .action-btn {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+.investment-record-form {
+  padding: 2.5rem;
+}
+.investment-record-yield {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.investment-record-yield > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.investment-record-footer {
+  flex-wrap: wrap;
+}
+.investment-record-footer button {
+  min-height: 44px;
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  .service-template-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .investment-record-header,
+  .investment-record-form {
+    padding: 1rem;
+  }
+  .investment-record-footer button {
+    flex-basis: 100% !important;
+  }
+  .car-form-modal {
+    padding: 1rem !important;
+  }
+  .car-form-modal .action-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.car-service-costs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.investment-record-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+@media (max-width: 600px) {
+  .car-service-costs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.service-template-actions button {
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .investment-record-modal {
+    scroll-padding-block: 7rem 10rem;
+  }
+  .investment-record-modal :is(input, select),
+  .car-form-modal input:not([type="checkbox"]):not([type="radio"]) {
+    font-size: 1rem;
+  }
+}
+
+.car-form-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-card);
+}
+.trip-form {
+  padding-bottom: 8rem;
+}
+.trip-form-actions {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 3rem);
+  max-width: 800px;
+}
+.trip-form-actions button {
+  min-width: 0;
+  min-height: 44px;
+  white-space: normal;
+}
+@media (max-width: 1023px) {
+  .trip-form {
+    padding-bottom: calc(16rem + env(safe-area-inset-bottom));
+  }
+  .trip-form-actions {
+    bottom: calc(65px + 1rem + env(safe-area-inset-bottom));
+    width: calc(100% - 2rem);
+  }
+}
+@media (max-width: 600px) {
+  .trip-form-actions {
+    flex-wrap: wrap;
+  }
+  .trip-form-actions button {
+    flex-basis: 100% !important;
+  }
+}
+
+.investment-settings {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.investment-settings-tabs {
+  flex-wrap: wrap;
+}
+.investment-settings-tabs .tab-btn {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 44px;
+  white-space: normal;
+}
+.investment-institution-heading {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.investment-account-heading {
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.investment-settings-modal {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .investment-settings-modal {
+    padding: 1rem !important;
+  }
+}

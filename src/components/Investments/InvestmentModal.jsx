@@ -151,19 +151,18 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="glass-card" 
+          className="modal-content glass-card investment-record-modal"
+          role="dialog" aria-modal="true" aria-label={t(initialData ? 'investments.edit_record' : 'investments.new_record')}
           style={{ 
             width: '100%', 
             maxWidth: '550px', 
             padding: '0', 
-            overflow: 'hidden',
             border: '1px solid var(--glass-border)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}
         >
-          <div style={{ 
-            padding: '2rem 2.5rem', 
-            background: 'linear-gradient(to bottom, rgba(255,255,255,0.05), transparent)',
+          <div className="investment-record-header" style={{
+            background: 'var(--bg-card)',
             borderBottom: '1px solid var(--glass-border)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -177,12 +176,12 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 {t('investments.modal_desc')}
               </p>
             </div>
-            <button className="action-btn" onClick={onClose}>
+            <button type="button" aria-label={t('common.close')} className="action-btn" onClick={onClose}>
               <X size={24} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ padding: '2.5rem' }}>
+          <form onSubmit={handleSubmit} className="investment-record-form">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
               
               <div className="input-group" style={{ position: 'relative' }}>
@@ -295,7 +294,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
 
               <div className="input-group">
                 <label>{t('investments.reference_month')}</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem' }}>
+                <div className="form-grid">
                   <select 
                     value={new Date(formData.record_date + 'T00:00:00').getMonth()}
                     onChange={e => {
@@ -330,7 +329,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 </div>
               </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="form-grid" style={{ gap: '1.5rem' }}>
                 <div className="input-group">
                     <label>{t('investments.initial_balance')} ({activeCurrency})</label>
                     <input 
@@ -359,7 +358,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 </div>
               </div>
 
-              <Motion.div 
+              <Motion.div className="investment-record-yield"
                 animate={{ 
                   backgroundColor: formData.yield >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                   borderColor: formData.yield >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
@@ -382,7 +381,7 @@ export default function InvestmentModal({ isOpen, onClose, onRefresh, user, init
                 </span>
               </Motion.div>
 
-              <div style={{ display: 'flex', gap: '1.25rem', marginTop: '1rem' }}>
+              <div className="modal-footer investment-record-footer" style={{ display: 'flex', gap: '1.25rem', marginTop: '1rem' }}>
                 <button type="button" className="btn-cancel" onClick={onClose} style={{ flex: 1, padding: '1rem' }}>{t('investments.cancel')}</button>
                 <button type="submit" className="btn-primary" style={{ flex: 2, padding: '1rem', justifyContent: 'center' }}>
                   <Save size={20} /> {t(initialData ? 'investments.save_changes' : 'investments.create_record')}

@@ -129,8 +129,8 @@ export default function TripForm({ user, trip, onBack, onSave }) {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -15 }}
-      className="fade-in"
-      style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '8rem' }}
+      className="fade-in trip-form"
+      style={{ maxWidth: '900px', margin: '0 auto' }}
     >
       {/* Header with Back Button */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem' }}>
@@ -141,7 +141,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             display: 'flex', 
             alignItems: 'center', 
             gap: '0.75rem', 
-            color: 'white', 
+            color: 'var(--text-main)',
             fontWeight: '800',
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid var(--glass-border)',
@@ -155,7 +155,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
           <span>{t('trips.voltar').toUpperCase()}</span>
         </button>
         <div style={{ textAlign: 'right' }}>
-           <h2 style={{ margin: 0, fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: '900', color: 'white', letterSpacing: '-0.02em', lineHeight: 1 }}>
+           <h2 style={{ margin: 0, fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.02em', lineHeight: 1 }}>
              {trip ? t('trips.edit_trip').toUpperCase() : t('trips.new_trip').toUpperCase()}
            </h2>
            <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '700', letterSpacing: '0.05em' }}>
@@ -172,7 +172,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
               <Plane size={24} className="text-primary" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>{t('trips.essential_info').toUpperCase()}</h3>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{t('trips.essential_info').toUpperCase()}</h3>
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -184,7 +184,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
                 padding: '1.25rem', 
                 background: 'rgba(255,255,255,0.03)', 
                 border: '1px solid var(--glass-border)', 
-                color: 'white', 
+                color: 'var(--text-main)',
                 borderRadius: '16px', 
                 fontSize: '1.25rem', 
                 fontWeight: '900',
@@ -232,7 +232,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
               </label>
               <input 
                 type="date" className="glass-input" 
-                style={{ width: '100%', padding: '1.15rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '16px', fontWeight: '800' }} 
+                style={{ width: '100%', padding: '1.15rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '16px', fontWeight: '800' }}
                 value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} 
               />
             </div>
@@ -242,7 +242,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
               </label>
               <input 
                 type="date" className="glass-input" 
-                style={{ width: '100%', padding: '1.15rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'white', borderRadius: '16px', fontWeight: '800' }} 
+                style={{ width: '100%', padding: '1.15rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', borderRadius: '16px', fontWeight: '800' }}
                 value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} 
               />
             </div>
@@ -255,7 +255,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
               <Building size={24} className="text-primary" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>{t('trips.logistics_attachments').toUpperCase()}</h3>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{t('trips.logistics_attachments').toUpperCase()}</h3>
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -298,7 +298,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', padding: '10px', borderRadius: '12px', display: 'flex' }}>
               <Users size={24} className="text-primary" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'white' }}>{t('trips.finance_participants').toUpperCase()}</h3>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{t('trips.finance_participants').toUpperCase()}</h3>
           </div>
 
           <BadgeInput 
@@ -327,7 +327,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.25rem' }}>
               {formData.currencies.map(curr => (
                 <div key={curr} className="glass-card" style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '18px', border: '1px solid var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '0.75rem', transition: '0.3s' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'white', fontWeight: '900' }}>{curr}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '900' }}>{curr}</span>
                   <input 
                     type="text" 
                     className="glass-input" 
@@ -367,10 +367,8 @@ export default function TripForm({ user, trip, onBack, onSave }) {
         </section>
 
         {/* Fixed Action Bar */}
-        <div style={{ 
-          position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
-          width: 'calc(100% - 3rem)', maxWidth: '800px',
-          background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(20px)',
+        <div className="trip-form-actions" style={{
+          background: 'var(--bg-card)', backdropFilter: 'blur(20px)',
           padding: '1rem', borderRadius: '24px', 
           border: '1px solid var(--glass-border)',
           display: 'flex', gap: '1rem',
@@ -388,7 +386,7 @@ export default function TripForm({ user, trip, onBack, onSave }) {
                borderRadius: '18px', 
                fontWeight: '900', 
                fontSize: '0.9rem',
-               color: 'white',
+               color: 'var(--text-main)',
                border: '1px solid var(--glass-border)'
              }}
            >

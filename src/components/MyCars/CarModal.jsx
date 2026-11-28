@@ -199,7 +199,8 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
       <Motion.div 
         initial={{ scale: 0.9, opacity: 0, y: 20 }} 
         animate={{ scale: 1, opacity: 1, y: 0 }} 
-        className="modal-content glass-card" 
+        className="modal-content glass-card car-form-modal"
+        role="dialog" aria-modal="true" aria-labelledby="car-form-title"
         onClick={e => e.stopPropagation()} 
         style={{ 
           width: '100%', 
@@ -209,7 +210,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+        <div className="car-form-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div className="cat-icon-wrap" style={{ 
               "--cat-color": isCarForm ? "var(--primary)" : isServiceForm ? "var(--success)" : "var(--pending)",
@@ -218,7 +219,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               {isCarForm ? <Car size={24} /> : isFreeServiceForm ? <Wrench size={24} /> : isServiceForm ? <Wrench size={24} /> : <FileText size={24} />}
             </div>
             <div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+              <h3 id="car-form-title" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
                 {isCarForm ? (type === 'add_car' ? t('cars.new_vehicle') : t('cars.edit_vehicle')) :
                  isFreeServiceForm ? t('cars.free_service') :
                  isServiceForm ? t('cars.add_service') :
@@ -232,7 +233,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               </p>
             </div>
           </div>
-          <button className="action-btn" onClick={onClose} style={{ marginTop: '-0.5rem', marginRight: '-0.5rem' }}>
+          <button type="button" aria-label={t('common.close')} className="action-btn" onClick={onClose} style={{ marginTop: '-0.5rem', marginRight: '-0.5rem' }}>
             <XCircle size={20} />
           </button>
         </div>
@@ -243,7 +244,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
               <label>{t('cars.vehicle_id')}</label>
               <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder={t('cars.vehicle_placeholder')} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div className="form-grid" style={{ gap: '1.25rem' }}>
               <div className="input-group">
                 <label>{t('cars.plate')}</label>
                 <input type="text" value={formData.plate} onChange={e => setFormData({...formData, plate: e.target.value})} maxLength={8} style={{ textTransform: 'uppercase' }} />
@@ -292,7 +293,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 autoFocus
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div className="form-grid" style={{ gap: '1.25rem' }}>
               <div className="input-group">
                 <label>{t('cars.checkpoint_km')}</label>
                 <input
@@ -339,7 +340,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
             </div>
             <div className="input-group">
               <label>{t('cars.maintenance_status')}</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+              <div className="form-grid car-service-costs" style={{ gap: '0.5rem' }}>
                 {[
                   { id: 'DONE', label: t('cars.revisions.status_done'), icon: <CheckCircle size={16} />, color: 'var(--success)' },
                   { id: 'PENDING', label: t('cars.revisions.status_pending'), icon: <Clock size={16} />, color: 'var(--pending)' },
@@ -388,7 +389,7 @@ export default function CarModal({ isOpen, onClose, type, car, maintenance, user
                 autoFocus
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div className="form-grid" style={{ gap: '1.25rem' }}>
               <div className="input-group">
                 <label>{t('cars.current_km', 'KM Atual')}</label>
                 <input

@@ -2223,6 +2223,7 @@ i18n
             reset_password_btn: 'Redefinir senha'
           },
           common: {
+            close: 'Fechar',
             save: 'Salvar',
             save_changes: 'Salvar Alterações',
             cancel: 'Cancelar',
@@ -4478,6 +4479,7 @@ i18n
             reset_password_btn: 'Reset password'
           },
           common: {
+            close: 'Close',
             save: 'Save',
             save_changes: 'Save Changes',
             cancel: 'Cancel',
@@ -6660,6 +6662,7 @@ i18n
             reset_password_btn: 'Restablecer contraseña'
           },
           common: {
+            close: 'Cerrar',
             save: 'Guardar',
             save_changes: 'Guardar Cambios',
             cancel: 'Cancelar',
